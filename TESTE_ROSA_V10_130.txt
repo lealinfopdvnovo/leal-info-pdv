@@ -1,0 +1,5 @@
+LEAL INFO PDV V10.130 - TESTE ROSA
+
+Copia de teste derivada do MARCO ZERO V10.130 auditado.
+Alteracao isolada: novo tema "PDV Rosa" no botao ESTILO da tela de vendas.
+O MARCO ZERO original permanece intocado.

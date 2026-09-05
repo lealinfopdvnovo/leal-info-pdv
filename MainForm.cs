@@ -52,7 +52,7 @@ public sealed class MainForm : Form
 
     private void OpenFirstAccessTutorial(bool automatic = false)
     {
-        // V10.109: guia lateral de primeiro acesso. É modeless: o PDV continua clicável.
+        // V10.130: guia lateral de primeiro acesso. É modeless: o PDV continua clicável.
         // Fechar antes do fim não conclui o tutorial. O botão de Produtos só libera ao fim do vídeo.
         if (automatic && GetSetting("first_access_tutorial_completed", "0") == "1") return;
         if (firstAccessTutorial != null && !firstAccessTutorial.IsDisposed)
@@ -1539,7 +1539,7 @@ public sealed class MainForm : Form
             try
             {
                 using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV/10.116 (leal-ai-cadastro-inteligente)");
+                http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV/10.130 (cadastro-inteligente)");
 
                 SetLookupStatus($"Consultando {code} em Open Food Facts...");
                 var product = await TryFindProductAsync(http, "https://world.openfoodfacts.org", code);
@@ -3646,7 +3646,7 @@ public sealed class MainForm : Form
     {
         var f = new Form
         {
-            Text = "LEAL INFO CONECTADO - TELA DE VENDAS • V10.17",
+            Text = "LEAL INFO CONECTADO - TELA DE VENDAS • V10.130",
             WindowState = FormWindowState.Maximized,
             MinimumSize = new Size(1180, 720),
             BackColor = Color.FromArgb(7, 24, 43),
@@ -3657,7 +3657,7 @@ public sealed class MainForm : Form
         var cartItems = new List<CartItem>();
         var cartSource = new BindingSource { DataSource = cartItems };
 
-        // Visual V10.17: cantos arredondados e acabamento moderno,
+        // Visual V10.130: cantos arredondados e acabamento moderno,
         // sem alterar a lógica de venda.
         void Round(Control c, int radius)
         {
@@ -4401,6 +4401,19 @@ public sealed class MainForm : Form
                     secondary = Color.FromArgb(25, 72, 125);
                     break;
 
+                case "PDV Rosa":
+                    bg = Color.FromArgb(74, 15, 52);
+                    headerBg = Color.FromArgb(125, 20, 86);
+                    accent = Color.FromArgb(255, 72, 165);
+                    accentHover = Color.FromArgb(255, 122, 195);
+                    leftBg = Color.FromArgb(104, 25, 76);
+                    rightBg = Color.FromArgb(255, 239, 248);
+                    fieldBg = Color.White;
+                    textDark = Color.FromArgb(92, 22, 68);
+                    soft = Color.FromArgb(255, 214, 235);
+                    secondary = Color.FromArgb(178, 54, 122);
+                    break;
+
                 default:
                     theme = "Futurista Azul";
                     bg = Color.FromArgb(7, 24, 43);
@@ -4440,11 +4453,11 @@ public sealed class MainForm : Form
             itemTotal.BackColor = fieldBg;
             itemTotal.ForeColor = textDark;
 
-            statusFrame.BackColor = theme == "Blue Red Racing" ? accent : Color.FromArgb(0, 150, 205);
+            statusFrame.BackColor = (theme == "Blue Red Racing" || theme == "PDV Rosa") ? accent : Color.FromArgb(0, 150, 205);
             statusInner.BackColor = headerBg;
             statusBox.BackColor = Color.Transparent;
-            cupomTitle.BackColor = theme == "Blue Red Racing" ? accent : headerBg;
-            subtotalPanel.BackColor = theme == "Blue Red Racing" ? accent : headerBg;
+            cupomTitle.BackColor = (theme == "Blue Red Racing" || theme == "PDV Rosa") ? accent : headerBg;
+            subtotalPanel.BackColor = (theme == "Blue Red Racing" || theme == "PDV Rosa") ? accent : headerBg;
             clientLabel.BackColor = soft;
             clientLabel.ForeColor = textDark;
             paymentText.ForeColor = theme == "Dark Premium" ? Color.White : textDark;
@@ -4479,7 +4492,7 @@ public sealed class MainForm : Form
                 Text = "Estilo da Tela de Vendas",
                 StartPosition = FormStartPosition.CenterParent,
                 Width = 690,
-                Height = 500,
+                Height = 610,
                 FormBorderStyle = FormBorderStyle.FixedDialog,
                 MaximizeBox = false,
                 MinimizeBox = false,
@@ -4503,14 +4516,15 @@ public sealed class MainForm : Form
             {
                 Dock = DockStyle.Fill,
                 ColumnCount = 2,
-                RowCount = 2,
+                RowCount = 3,
                 Padding = new Padding(18),
                 BackColor = Color.FromArgb(224, 239, 248)
             };
             options.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             options.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            options.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-            options.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+            options.RowStyles.Add(new RowStyle(SizeType.Percent, 33.34f));
+            options.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33f));
+            options.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33f));
             tf.Controls.Add(options);
             options.BringToFront();
 
@@ -4543,6 +4557,7 @@ public sealed class MainForm : Form
             options.Controls.Add(ThemeCard("Dark Premium", "Grafite + azul elétrico", Color.FromArgb(25, 28, 38), Color.FromArgb(0, 180, 240)), 1, 0);
             options.Controls.Add(ThemeCard("Clean Pro", "Claro + elegante", Color.FromArgb(75, 115, 140), Color.White), 0, 1);
             options.Controls.Add(ThemeCard("Blue Red Racing", "Azul + vermelho em destaque", Color.FromArgb(185, 22, 38), Color.FromArgb(25, 100, 180)), 1, 1);
+            options.Controls.Add(ThemeCard("PDV Rosa", "Rosa neon + vinho moderno", Color.FromArgb(125, 20, 86), Color.FromArgb(255, 72, 165)), 0, 2);
 
             tf.ShowDialog(f);
         }

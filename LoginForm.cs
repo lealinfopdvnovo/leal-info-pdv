@@ -17,7 +17,7 @@ public sealed class LoginForm : Form
         Font=new Font("Segoe UI",10);
         Opacity=0;
 
-        // V10.47: ambiente de login redesenhado. A tela inteira agora faz parte
+        // V10.130: ambiente de login redesenhado. A tela inteira agora faz parte
         // da identidade do sistema; o formulário antigo não fica mais "solto".
         var stage=new Panel{Dock=DockStyle.Fill,BackColor=Color.FromArgb(2,10,22)};
         Controls.Add(stage);
@@ -52,7 +52,7 @@ public sealed class LoginForm : Form
 
         var p=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,Padding=new Padding(62,22,62,18),BackColor=Color.FromArgb(236,245,250)};
         card.Controls.Add(p,0,1);
-        card.Controls.Add(new Label{Text="LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V10.116",Dock=DockStyle.Fill,
+        card.Controls.Add(new Label{Text="LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V10.130",Dock=DockStyle.Fill,
             ForeColor=Color.FromArgb(82,111,133),Font=new Font("Segoe UI",8.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter},0,2);
 
         TextBox Box(bool password=false)=>new(){Dock=DockStyle.Fill,Font=new Font("Segoe UI",12,FontStyle.Bold),
@@ -71,7 +71,7 @@ public sealed class LoginForm : Form
         {
             int sw=ClientSize.Width, sh=ClientSize.Height;
 
-            // V10.61: uma única composição fullscreen. Nada de tela dividida.
+            // V10.130: uma única composição fullscreen. Nada de tela dividida.
             identity.Bounds=new Rectangle(0,0,sw,sh); identity.SendToBack();
 
             int w=(int)(finalW*scale), h=(int)(finalH*scale);
@@ -81,7 +81,7 @@ public sealed class LoginForm : Form
             card.Bounds=new Rectangle(x,y,w,h);
 
             // Marca central, acima do login.
-            // V10.63: identidade com caixas altas o bastante para não cortar fonte.
+            // V10.130: identidade com caixas altas o bastante para não cortar fonte.
             // Mantém o conjunto centralizado e deixa espaço real antes do cartão.
             int brandW=Math.Min(900,Math.Max(520,sw-120));
             int brandX=(sw-brandW)/2;
@@ -145,7 +145,7 @@ public sealed class LoginForm : Form
         p.RowStyles.Add(new RowStyle(SizeType.Absolute,46)); p.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         var user=Box(false); var pass=Box(true);
 
-        // V10.105: acabamento visual dos campos de login.
+        // V10.130: acabamento visual dos campos de login.
         // A autenticação permanece intacta; somente a apresentação foi modernizada.
         Panel ModernField(TextBox box, bool password=false)
         {
