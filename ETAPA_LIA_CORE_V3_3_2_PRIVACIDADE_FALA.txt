@@ -1,0 +1,1 @@
+V3.3.2 - Corrige bloqueio de privacidade do reconhecimento de fala no Windows, abre a configuracao correta automaticamente e evita fallback conhecido para voz masculina pt-BR.

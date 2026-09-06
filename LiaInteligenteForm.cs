@@ -1,4 +1,5 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -28,6 +29,7 @@ public sealed class LiaInteligenteForm : Form
     private bool ouvindo;
     private SpeechRecognizer? reconhecedor;
     private bool microfonePronto;
+    private bool permissaoFalaPendente;
 
     private static readonly Color AzulEscuro = Color.FromArgb(4, 35, 62);
     private static readonly Color AzulPainel = Color.FromArgb(7, 55, 95);
@@ -149,9 +151,23 @@ public sealed class LiaInteligenteForm : Form
     private async void AlternarEscuta()
     {
         if (ouvindo) { PararEscuta(); AtivarEscrita(); return; }
+
+        // Tenta preparar novamente. Assim, depois que o usuário libera a fala no Windows,
+        // não é necessário reinstalar nem reiniciar o PDV.
+        if (!microfonePronto || reconhecedor is null)
+            await PrepararMicrofoneAsync();
+
         if (!microfonePronto || reconhecedor is null)
         {
-            Responder("O microfone não ficou disponível no Windows. Verifique a permissão de microfone para aplicativos da área de trabalho e tente novamente.");
+            if (permissaoFalaPendente)
+            {
+                AbrirPrivacidadeDeFalaWindows();
+                Responder("O Windows ainda não liberou o reconhecimento de fala. Abri a tela correta para você: ative Reconhecimento de fala online e depois volte e toque em FALAR novamente.");
+            }
+            else
+            {
+                Responder("O microfone não ficou disponível no Windows. Verifique o acesso ao microfone para aplicativos da área de trabalho e tente novamente.");
+            }
             return;
         }
 
@@ -178,11 +194,22 @@ public sealed class LiaInteligenteForm : Form
         }
         catch (UnauthorizedAccessException)
         {
-            Responder("O Windows bloqueou o microfone. Ative o acesso ao microfone para aplicativos da área de trabalho e tente novamente.");
+            permissaoFalaPendente = true;
+            AbrirPrivacidadeDeFalaWindows();
+            Responder("O Windows bloqueou o reconhecimento de fala. Abri a configuração correta: ative Reconhecimento de fala online e depois toque em FALAR novamente.");
         }
         catch (Exception ex)
         {
-            Responder("Não consegui ouvir agora. Detalhe técnico: " + ex.Message);
+            if (EhErroPrivacidadeFala(ex))
+            {
+                permissaoFalaPendente = true;
+                AbrirPrivacidadeDeFalaWindows();
+                Responder("O Windows ainda não autorizou o reconhecimento de fala. Abri a configuração correta para você; ative Reconhecimento de fala online e tente novamente.");
+            }
+            else
+            {
+                Responder("Não consegui ouvir agora. Vou manter o modo escrever disponível enquanto verificamos o microfone.");
+            }
         }
         finally
         {
@@ -212,12 +239,35 @@ public sealed class LiaInteligenteForm : Form
             reconhecedor.Constraints.Add(new SpeechRecognitionTopicConstraint(SpeechRecognitionScenario.Dictation, "LIA"));
             var compilacao = await reconhecedor.CompileConstraintsAsync();
             microfonePronto = compilacao.Status == SpeechRecognitionResultStatus.Success;
+            permissaoFalaPendente = false;
         }
-        catch
+        catch (Exception ex)
         {
             microfonePronto = false;
             reconhecedor = null;
+            permissaoFalaPendente = EhErroPrivacidadeFala(ex) || ex is UnauthorizedAccessException;
         }
+    }
+
+    private static bool EhErroPrivacidadeFala(Exception ex)
+    {
+        var msg = (ex.Message ?? string.Empty).ToLowerInvariant();
+        return msg.Contains("speech privacy") ||
+               msg.Contains("privacy policy") ||
+               msg.Contains("speech recognition") && msg.Contains("accepted");
+    }
+
+    private static void AbrirPrivacidadeDeFalaWindows()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "ms-settings:privacy-speech",
+                UseShellExecute = true
+            });
+        }
+        catch { }
     }
 
     private Button Botao(string texto, Action acao)
@@ -369,10 +419,12 @@ public sealed class LiaInteligenteForm : Form
                 window.liaEscolherVoz = () => {
                   const vs = speechSynthesis.getVoices();
                   const br = vs.filter(v => (v.lang || '').toLowerCase().startsWith('pt-br'));
-                  return (br.find(v => /francisca/i.test(v.name)) ||
-                          br.find(v => /maria/i.test(v.name)) ||
-                          br.find(v => /female|feminina/i.test(v.name)) ||
-                          br.find(v => /natural|online/i.test(v.name)) || null)?.name || '';
+                  const femininas = br.filter(v => !/antonio|antônio|daniel|fabio|fábio|ricardo|male|masculin/i.test(v.name));
+                  return (femininas.find(v => /francisca/i.test(v.name)) ||
+                          femininas.find(v => /maria/i.test(v.name)) ||
+                          femininas.find(v => /female|feminina/i.test(v.name)) ||
+                          femininas.find(v => /natural|online/i.test(v.name)) ||
+                          femininas[0] || null)?.name || '';
                 };
             </script></body></html>");
             await Task.Delay(700);
@@ -400,11 +452,14 @@ public sealed class LiaInteligenteForm : Form
                 const falar = () => {{
                     const vs = speechSynthesis.getVoices();
                     const br = vs.filter(v => (v.lang || '').toLowerCase().startsWith('pt-br'));
-                    const feminina = br.find(v => /francisca/i.test(v.name)) ||
-                                     br.find(v => /maria/i.test(v.name)) ||
-                                     br.find(v => /female|feminina/i.test(v.name)) ||
-                                     br.find(v => /natural|online/i.test(v.name));
-                    if (feminina) u.voice = feminina;
+                    const femininas = br.filter(v => !/antonio|antônio|daniel|fabio|fábio|ricardo|male|masculin/i.test(v.name));
+                    const feminina = femininas.find(v => /francisca/i.test(v.name)) ||
+                                     femininas.find(v => /maria/i.test(v.name)) ||
+                                     femininas.find(v => /female|feminina/i.test(v.name)) ||
+                                     femininas.find(v => /natural|online/i.test(v.name)) ||
+                                     femininas[0];
+                    if (!feminina) return;
+                    u.voice = feminina;
                     speechSynthesis.speak(u);
                 }};
                 if (speechSynthesis.getVoices().length) falar();
