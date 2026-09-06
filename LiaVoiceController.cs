@@ -122,6 +122,13 @@ public sealed class LiaVoiceController : IDisposable
             return;
         }
 
+        if (msg.StartsWith("VOICEERR|", StringComparison.Ordinal))
+        {
+            orbe.SetEstado("SEM VOZ");
+            MessageBox.Show("Não encontrei uma voz feminina em português do Brasil instalada neste Windows. A LIA não vai mais usar voz masculina como substituta.", "LIA — Voz feminina", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
         if (msg.StartsWith("ERR|", StringComparison.Ordinal))
         {
             var erro = msg[4..];
@@ -218,14 +225,29 @@ window.liaStart=function(){
     rec.start();
   }catch(e){ ativo=false; post('ERR|'+(e.message||String(e))); }
 };
+function liaVozFeminina(){
+  const vs=speechSynthesis.getVoices();
+  const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));
+  const nomes=[/francisca/i,/maria/i,/thalita/i,/female/i,/feminina/i];
+  for(const rx of nomes){ const v=br.find(x=>rx.test(x.name||'')); if(v)return v; }
+  return null;
+}
 window.liaSpeak=function(texto){
   try{
     speechSynthesis.cancel();
-    const u=new SpeechSynthesisUtterance(texto); u.lang='pt-BR'; u.rate=1.03; u.pitch=1.08;
-    const vs=speechSynthesis.getVoices();
-    const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));
-    const fem=br.find(v=>/francisca|maria|female|feminina|natural/i.test(v.name)&&!/antonio|antônio|daniel|fabio|fábio|ricardo|male|masculin/i.test(v.name)) || br.find(v=>!/antonio|antônio|daniel|fabio|fábio|ricardo|male|masculin/i.test(v.name));
-    if(fem)u.voice=fem; speechSynthesis.speak(u);
+    const falar=()=>{
+      const fem=liaVozFeminina();
+      if(!fem){ post('VOICEERR|SEM_VOZ_FEMININA_PTBR'); return; }
+      const u=new SpeechSynthesisUtterance(texto);
+      u.lang='pt-BR'; u.voice=fem; u.rate=1.02; u.pitch=1.0;
+      speechSynthesis.speak(u);
+    };
+    if(speechSynthesis.getVoices().length){ falar(); }
+    else{
+      const pronto=()=>{ speechSynthesis.removeEventListener('voiceschanged',pronto); falar(); };
+      speechSynthesis.addEventListener('voiceschanged',pronto,{once:true});
+      setTimeout(falar,800);
+    }
   }catch(e){}
 };
 </script></body></html>

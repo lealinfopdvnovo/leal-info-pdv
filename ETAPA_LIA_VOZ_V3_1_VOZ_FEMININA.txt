@@ -1,0 +1,6 @@
+LIA VOZ V3.1 — VOZ FEMININA
+- Mantém o microfone WebView2 que passou a escutar.
+- Remove fallback para voz masculina.
+- Prioriza vozes pt-BR femininas: Francisca, Maria e Thalita.
+- Aguarda o carregamento da lista de vozes do navegador.
+- Se não houver voz feminina pt-BR instalada, avisa em vez de falar com voz masculina.
