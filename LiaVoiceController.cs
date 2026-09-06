@@ -52,7 +52,7 @@ public sealed class LiaVoiceController : IDisposable
         {
             if (encerrado) return;
             orbe.SetEstado("ERRO");
-            MessageBox.Show("A LIA não conseguiu acessar o microfone.\n\n" + MensagemCurta(ex), "LIA — Microfone", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            await Task.Delay(700);
             Encerrar();
         }
     }
@@ -117,33 +117,36 @@ public sealed class LiaVoiceController : IDisposable
             finally
             {
                 processando = false;
-                if (!encerrado) await IniciarEscutaAsync();
+                if (!encerrado)
+                {
+                    orbe.SetEstado("PRONTA");
+                    await Task.Delay(250);
+                    Encerrar();
+                }
             }
+            return;
+        }
+
+        if (msg.StartsWith("SPEAKDONE|", StringComparison.Ordinal))
+        {
+            // Uma pergunta = uma resposta. Nunca reabre o microfone automaticamente.
             return;
         }
 
         if (msg.StartsWith("VOICEERR|", StringComparison.Ordinal))
         {
             orbe.SetEstado("SEM VOZ");
-            MessageBox.Show("Não encontrei uma voz feminina em português do Brasil instalada neste Windows. A LIA não vai mais usar voz masculina como substituta.", "LIA — Voz feminina", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            await Task.Delay(900);
+            Encerrar();
             return;
         }
 
         if (msg.StartsWith("ERR|", StringComparison.Ordinal))
         {
             var erro = msg[4..];
-            if (erro.Contains("no-speech", StringComparison.OrdinalIgnoreCase) || erro.Contains("aborted", StringComparison.OrdinalIgnoreCase))
-            {
-                if (!encerrado) await IniciarEscutaAsync();
-                return;
-            }
-
-            orbe.SetEstado("ERRO");
-            MessageBox.Show(
-                erro.Contains("not-allowed", StringComparison.OrdinalIgnoreCase)
-                    ? "O Windows/Edge bloqueou o microfone para a LIA. Libere o acesso ao microfone para aplicativos de área de trabalho nas configurações do Windows."
-                    : "A escuta da LIA falhou: " + erro,
-                "LIA — Microfone", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            orbe.SetEstado(erro.Contains("no-speech", StringComparison.OrdinalIgnoreCase) ? "PRONTA" : "ERRO");
+            await Task.Delay(700);
+            Encerrar();
         }
     }
 
@@ -153,7 +156,10 @@ public sealed class LiaVoiceController : IDisposable
         orbe.SetEstado("FALANDO");
         string jsTexto = JsonSerializer.Serialize(texto.Replace("•", ""));
         await web.CoreWebView2.ExecuteScriptAsync($"window.liaSpeak && window.liaSpeak({jsTexto});");
-        await Task.Delay(Math.Clamp(texto.Length * 58, 900, 9000));
+
+        // A fala avisa SPEAKDONE pelo WebView2. Este atraso é apenas um limite de segurança;
+        // não reinicia o microfone e não cria looping.
+        await Task.Delay(Math.Clamp(texto.Length * 85, 1400, 12000));
     }
 
     private string Processar(string texto)
@@ -228,27 +234,33 @@ window.liaStart=function(){
 function liaVozFeminina(){
   const vs=speechSynthesis.getVoices();
   const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));
-  const nomes=[/francisca/i,/maria/i,/thalita/i,/female/i,/feminina/i];
+  // Lista fechada: nunca escolhe "a primeira pt-BR", pois ela pode ser masculina.
+  const nomes=[/microsoft francisca/i,/francisca/i,/maria/i,/thalita/i,/luciana/i,/female/i,/feminina/i];
   for(const rx of nomes){ const v=br.find(x=>rx.test(x.name||'')); if(v)return v; }
   return null;
 }
 window.liaSpeak=function(texto){
   try{
     speechSynthesis.cancel();
+    let disparou=false;
     const falar=()=>{
+      if(disparou) return;
+      disparou=true;
       const fem=liaVozFeminina();
       if(!fem){ post('VOICEERR|SEM_VOZ_FEMININA_PTBR'); return; }
       const u=new SpeechSynthesisUtterance(texto);
-      u.lang='pt-BR'; u.voice=fem; u.rate=1.02; u.pitch=1.0;
+      u.lang='pt-BR'; u.voice=fem; u.rate=1.0; u.pitch=1.05;
+      u.onend=()=>post('SPEAKDONE|OK');
+      u.onerror=()=>post('SPEAKDONE|ERRO');
       speechSynthesis.speak(u);
     };
     if(speechSynthesis.getVoices().length){ falar(); }
     else{
       const pronto=()=>{ speechSynthesis.removeEventListener('voiceschanged',pronto); falar(); };
       speechSynthesis.addEventListener('voiceschanged',pronto,{once:true});
-      setTimeout(falar,800);
+      setTimeout(falar,900);
     }
-  }catch(e){}
+  }catch(e){ post('SPEAKDONE|ERRO'); }
 };
 </script></body></html>
 """;

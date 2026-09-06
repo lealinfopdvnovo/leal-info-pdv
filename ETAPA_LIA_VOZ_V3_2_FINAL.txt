@@ -1,0 +1,7 @@
+LIA VOZ V3.2 — acabamento do fluxo de voz
+- Microfone/WebView2 da V3 mantido.
+- Remove pop-ups técnicos da operação.
+- Remove reinício automático da escuta: uma pergunta = uma resposta.
+- Corrige disparo duplicado do TTS (voiceschanged + timeout).
+- Seleção fechada de voz feminina pt-BR; nunca usa voz masculina como fallback.
+- Após responder, encerra a sessão e devolve a Orbe ao estado normal.
