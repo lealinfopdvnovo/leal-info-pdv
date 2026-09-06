@@ -14,7 +14,6 @@ UsePreviousAppDir=yes
 OutputDir=SETUP_PRONTO
 OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_130_LIA_FINAL
 SetupIconFile=Assets\lealinfo.ico
-WizardSmallImageFile=Assets\setup_logo.bmp
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
