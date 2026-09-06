@@ -43,7 +43,7 @@ public sealed class LiaForm : Form
     private void PosicionarAoLadoDoBotaoAi()
     {
         // Mantém todo o holograma como já aprovado e muda SOMENTE a posição.
-        // A LIA nasce no lado direito da tela principal, logo abaixo da faixa do botão LIA AI.
+        // A LIA nasce no canto inferior direito, ligada visualmente ao botão AI.
         var owner = Owner as Form;
         var area = owner is not null
             ? Screen.FromControl(owner).WorkingArea
@@ -54,15 +54,16 @@ public sealed class LiaForm : Form
 
         if (owner is not null)
         {
+            // Surge no canto inferior direito, visualmente ligada ao botão AI.
             const int margemDireita = 18;
-            const int abaixoDaBarra = 145;
+            const int margemInferior = 92;
             x = owner.Right - Width - margemDireita;
-            y = owner.Top + abaixoDaBarra;
+            y = owner.Bottom - Height - margemInferior;
         }
         else
         {
             x = area.Right - Width - 18;
-            y = area.Top + 145;
+            y = area.Bottom - Height - 92;
         }
 
         x = Math.Max(area.Left, Math.Min(x, area.Right - Width));

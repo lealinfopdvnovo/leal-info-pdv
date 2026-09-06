@@ -13,6 +13,7 @@ namespace LealInfoPDV;
 public sealed class MainForm : Form
 {
     private PictureBox? mainScreenPicture;
+    private Button? liaAiFloatingButton;
 
     private readonly Color Blue = Color.FromArgb(10, 104, 157);
     private readonly Color DarkBlue = Color.FromArgb(4, 70, 112);
@@ -27,6 +28,7 @@ public sealed class MainForm : Form
         BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
         BuildUi();
+        BuildLiaAiFloatingButton();
         RefreshDashboard();
 
         Shown += (_, _) =>
@@ -533,7 +535,6 @@ public sealed class MainForm : Form
         AddTool(bar, "RELATÓRIOS", "reports.png", OpenReports);
         AddTool(bar, "BACKUP", "backup.png", Backup);
         AddTool(bar, "CONFIGURAÇÕES", "settings.png", OpenSettings);
-        AddTool(bar, "LIA\nAI", "lealinfo_app_icon.png", () => new LiaForm().Show(this));
         AddTool(bar, "SAIR", "exit.png", ConfirmExit);
 
         // Distribui todos os atalhos pela largura disponível.
@@ -635,6 +636,44 @@ public sealed class MainForm : Form
         status.Items.Add(new ToolStripStatusLabel($"Serial: {Database.DeviceSerial()}"));
         status.Items.Add(new ToolStripStatusLabel($"V{UpdateManager.CurrentVersion}"));
         Controls.Add(status);
+    }
+
+    private void BuildLiaAiFloatingButton()
+    {
+        // Botão AI oficial: canto inferior direito, acima da barra de status.
+        // Aciona somente a LiaForm já aprovada (vídeo, fala e transparência não são alterados aqui).
+        liaAiFloatingButton = new Button
+        {
+            Text = "AI",
+            Width = 58,
+            Height = 58,
+            Anchor = AnchorStyles.Right | AnchorStyles.Bottom,
+            BackColor = Color.FromArgb(0, 163, 224),
+            ForeColor = Color.White,
+            FlatStyle = FlatStyle.Flat,
+            Font = new Font("Segoe UI", 14, FontStyle.Bold),
+            Cursor = Cursors.Hand,
+            TabStop = false
+        };
+        liaAiFloatingButton.FlatAppearance.BorderSize = 0;
+        liaAiFloatingButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 210, 255);
+        liaAiFloatingButton.Click += (_, _) => new LiaForm().Show(this);
+
+        Controls.Add(liaAiFloatingButton);
+
+        void PosicionarBotaoAi()
+        {
+            if (liaAiFloatingButton == null) return;
+            liaAiFloatingButton.Left = Math.Max(8, ClientSize.Width - liaAiFloatingButton.Width - 22);
+            liaAiFloatingButton.Top = Math.Max(140, ClientSize.Height - liaAiFloatingButton.Height - status.Height - 18);
+            liaAiFloatingButton.BringToFront();
+        }
+
+        Resize += (_, _) => PosicionarBotaoAi();
+        Shown += (_, _) => PosicionarBotaoAi();
+        PosicionarBotaoAi();
+
+        new ToolTip().SetToolTip(liaAiFloatingButton, "LEAL AI — abrir LIA");
     }
 
     private void ShowCadastroHelp()
