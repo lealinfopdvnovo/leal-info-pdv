@@ -1,0 +1,8 @@
+LIA VOZ V3.3 — RECUPERADA
+- restaura a captura WebView2 da V3 que ouviu corretamente
+- não fecha a orbe depois de ouvir/falar/erro
+- não reinicia o microfone automaticamente depois da resposta
+- interrompe reconhecimento antes da fala para impedir a LIA de ouvir a própria voz
+- remove pop-ups técnicos
+- depois da resposta volta para PRONTA; toque na orbe grande para ouvir novamente
+- prioriza voz feminina pt-BR/português quando disponível, mantendo fallback de voz para não ficar muda

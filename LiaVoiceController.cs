@@ -35,7 +35,7 @@ public sealed class LiaVoiceController : IDisposable
         };
         orbe.Controls.Add(web);
         web.SendToBack();
-        orbe.OrbClicked += (_, _) => Encerrar();
+        orbe.OrbClicked += async (_, _) => { if (!encerrado && !processando) await IniciarEscutaAsync(); };
     }
 
     public async Task IniciarAsync()
@@ -48,12 +48,10 @@ public sealed class LiaVoiceController : IDisposable
             if (encerrado) return;
             await IniciarEscutaAsync();
         }
-        catch (Exception ex)
+        catch
         {
             if (encerrado) return;
             orbe.SetEstado("ERRO");
-            await Task.Delay(700);
-            Encerrar();
         }
     }
 
@@ -117,36 +115,17 @@ public sealed class LiaVoiceController : IDisposable
             finally
             {
                 processando = false;
-                if (!encerrado)
-                {
-                    orbe.SetEstado("PRONTA");
-                    await Task.Delay(250);
-                    Encerrar();
-                }
+                if (!encerrado) orbe.SetEstado("PRONTA");
             }
-            return;
-        }
-
-        if (msg.StartsWith("SPEAKDONE|", StringComparison.Ordinal))
-        {
-            // Uma pergunta = uma resposta. Nunca reabre o microfone automaticamente.
-            return;
-        }
-
-        if (msg.StartsWith("VOICEERR|", StringComparison.Ordinal))
-        {
-            orbe.SetEstado("SEM VOZ");
-            await Task.Delay(900);
-            Encerrar();
             return;
         }
 
         if (msg.StartsWith("ERR|", StringComparison.Ordinal))
         {
             var erro = msg[4..];
-            orbe.SetEstado(erro.Contains("no-speech", StringComparison.OrdinalIgnoreCase) ? "PRONTA" : "ERRO");
-            await Task.Delay(700);
-            Encerrar();
+            // Sem pop-up técnico e sem fechar a LIA.
+            // Se não houver fala, apenas volta para PRONTA; toque na orbe para ouvir novamente.
+            orbe.SetEstado("PRONTA");
         }
     }
 
@@ -154,12 +133,10 @@ public sealed class LiaVoiceController : IDisposable
     {
         if (encerrado || !webPronto || web.CoreWebView2 is null || string.IsNullOrWhiteSpace(texto)) return;
         orbe.SetEstado("FALANDO");
+        try { await web.CoreWebView2.ExecuteScriptAsync("window.liaStop && window.liaStop();"); } catch { }
         string jsTexto = JsonSerializer.Serialize(texto.Replace("•", ""));
         await web.CoreWebView2.ExecuteScriptAsync($"window.liaSpeak && window.liaSpeak({jsTexto});");
-
-        // A fala avisa SPEAKDONE pelo WebView2. Este atraso é apenas um limite de segurança;
-        // não reinicia o microfone e não cria looping.
-        await Task.Delay(Math.Clamp(texto.Length * 85, 1400, 12000));
+        await Task.Delay(Math.Clamp(texto.Length * 58, 900, 9000));
     }
 
     private string Processar(string texto)
@@ -218,49 +195,46 @@ public sealed class LiaVoiceController : IDisposable
 <script>
 let rec=null, ativo=false;
 function post(x){ try{ chrome.webview.postMessage(x); }catch(e){} }
+window.liaStop=function(){
+  try{ if(rec){ rec.onend=null; rec.onerror=null; rec.abort(); } }catch(e){}
+  ativo=false;
+};
 window.liaStart=function(){
   if(ativo) return;
+  try{ speechSynthesis.cancel(); }catch(e){}
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){ post('ERR|speech-recognition-indisponivel'); return; }
   try{
     rec=new SR(); rec.lang='pt-BR'; rec.continuous=false; rec.interimResults=false; rec.maxAlternatives=1;
     rec.onstart=()=>{ativo=true;};
-    rec.onresult=(e)=>{ const t=(e.results?.[0]?.[0]?.transcript||'').trim(); if(t) post('TXT|'+t); };
+    rec.onresult=(e)=>{ ativo=false; const t=(e.results?.[0]?.[0]?.transcript||'').trim(); if(t) post('TXT|'+t); };
     rec.onerror=(e)=>{ativo=false; post('ERR|'+(e.error||'erro-desconhecido'));};
     rec.onend=()=>{ativo=false;};
     rec.start();
   }catch(e){ ativo=false; post('ERR|'+(e.message||String(e))); }
 };
-function liaVozFeminina(){
+function vozPreferida(){
   const vs=speechSynthesis.getVoices();
   const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));
-  // Lista fechada: nunca escolhe "a primeira pt-BR", pois ela pode ser masculina.
-  const nomes=[/microsoft francisca/i,/francisca/i,/maria/i,/thalita/i,/luciana/i,/female/i,/feminina/i];
+  const pt=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt'));
+  const nomes=[/francisca/i,/maria/i,/thalita/i,/luciana/i,/fernanda/i,/female/i,/feminina/i];
   for(const rx of nomes){ const v=br.find(x=>rx.test(x.name||'')); if(v)return v; }
-  return null;
+  for(const rx of nomes){ const v=pt.find(x=>rx.test(x.name||'')); if(v)return v; }
+  return br[0] || pt[0] || vs[0] || null;
 }
 window.liaSpeak=function(texto){
   try{
+    window.liaStop();
     speechSynthesis.cancel();
-    let disparou=false;
     const falar=()=>{
-      if(disparou) return;
-      disparou=true;
-      const fem=liaVozFeminina();
-      if(!fem){ post('VOICEERR|SEM_VOZ_FEMININA_PTBR'); return; }
       const u=new SpeechSynthesisUtterance(texto);
-      u.lang='pt-BR'; u.voice=fem; u.rate=1.0; u.pitch=1.05;
-      u.onend=()=>post('SPEAKDONE|OK');
-      u.onerror=()=>post('SPEAKDONE|ERRO');
+      const v=vozPreferida();
+      u.lang='pt-BR'; if(v)u.voice=v; u.rate=1.0; u.pitch=1.16;
       speechSynthesis.speak(u);
     };
-    if(speechSynthesis.getVoices().length){ falar(); }
-    else{
-      const pronto=()=>{ speechSynthesis.removeEventListener('voiceschanged',pronto); falar(); };
-      speechSynthesis.addEventListener('voiceschanged',pronto,{once:true});
-      setTimeout(falar,900);
-    }
-  }catch(e){ post('SPEAKDONE|ERRO'); }
+    if(speechSynthesis.getVoices().length) falar();
+    else { speechSynthesis.addEventListener('voiceschanged',falar,{once:true}); setTimeout(falar,700); }
+  }catch(e){}
 };
 </script></body></html>
 """;
