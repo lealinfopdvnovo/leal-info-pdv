@@ -74,7 +74,20 @@ public sealed class LiaForm : Form
 
         try
         {
-            await web.EnsureCoreWebView2Async();
+            // O PDV é instalado em Program Files. Se o WebView2 usar a pasta
+            // padrão de dados ao lado do executável, o Windows pode bloquear
+            // a gravação e retornar 0x80070005 (E_ACCESSDENIED).
+            // Forçamos os dados do WebView2 para LocalAppData, que é gravável.
+            var webViewUserDataFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LEAL INFO PDV", "WebView2", "LIA");
+            Directory.CreateDirectory(webViewUserDataFolder);
+
+            var environment = await CoreWebView2Environment.CreateAsync(
+                browserExecutableFolder: null,
+                userDataFolder: webViewUserDataFolder);
+
+            await web.EnsureCoreWebView2Async(environment);
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;
             web.CoreWebView2.Settings.IsStatusBarEnabled = false;
