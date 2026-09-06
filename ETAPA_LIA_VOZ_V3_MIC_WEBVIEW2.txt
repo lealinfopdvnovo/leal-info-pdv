@@ -1,0 +1,6 @@
+LIA VOZ V3 — CORREÇÃO DO MICROFONE
+
+Mudança isolada: captura de fala passa a usar o microfone pelo WebView2 em origem HTTPS local (lia.local), com permissão explícita de microfone e ponte direta para o LIA Core.
+
+Não altera MainForm, Orbe, holograma, banco ou LiaCore.
+Teste: tocar na Orbe, aguardar OUVINDO e dizer "Oi LIA".

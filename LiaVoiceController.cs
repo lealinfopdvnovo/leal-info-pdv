@@ -1,25 +1,22 @@
 using Microsoft.Data.Sqlite;
+using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
-using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
-using Windows.Globalization;
-using Windows.Media.SpeechRecognition;
 
 namespace LealInfoPDV;
 
-/// <summary>LIA VOZ: microfone -> LIA Core -> resposta falada. Sem painel de texto.</summary>
+/// <summary>LIA VOZ V3: microfone do WebView2 -> LIA Core -> resposta falada. Sem painel de texto.</summary>
 public sealed class LiaVoiceController : IDisposable
 {
     private readonly MainForm main;
     private readonly LiaOrbForm orbe;
-    private readonly WebView2 vozWeb = new();
-    private SpeechRecognizer? reconhecedor;
+    private readonly WebView2 web = new();
     private bool encerrado;
-    private bool vozPronta;
     private bool processando;
-    private readonly SynchronizationContext ui;
+    private bool webPronto;
+    private readonly string webFolder;
 
     public event EventHandler? Encerrado;
 
@@ -27,16 +24,17 @@ public sealed class LiaVoiceController : IDisposable
     {
         main = mainForm;
         orbe = orbForm;
-        ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
-        vozWeb.Size = new Size(1, 1);
-        vozWeb.Location = new Point(-20, -20);
-        vozWeb.Visible = true;
-        vozWeb.CreationProperties = new CoreWebView2CreationProperties
+        webFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV", "LIA_VOZ_WEB");
+
+        web.Size = new Size(2, 2);
+        web.Location = new Point(-50, -50);
+        web.Visible = true;
+        web.CreationProperties = new CoreWebView2CreationProperties
         {
-            UserDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV", "WebView2", "LIA_VOZ")
+            UserDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV", "WebView2", "LIA_VOZ_V3")
         };
-        orbe.Controls.Add(vozWeb);
-        vozWeb.SendToBack();
+        orbe.Controls.Add(web);
+        web.SendToBack();
         orbe.OrbClicked += (_, _) => Encerrar();
     }
 
@@ -45,84 +43,116 @@ public sealed class LiaVoiceController : IDisposable
         if (encerrado) return;
         try
         {
-            await PrepararVozAsync();
-            await PrepararMicrofoneAsync();
-            await FalarAsync($"Olá, {Auth.OperatorName}. Estou ouvindo.");
-            await IniciarEscutaContinuaAsync();
+            orbe.SetEstado("PREPARANDO");
+            await PrepararWebAsync();
+            if (encerrado) return;
+            await IniciarEscutaAsync();
         }
         catch (Exception ex)
         {
+            if (encerrado) return;
             orbe.SetEstado("ERRO");
-            if (EhErroPrivacidadeFala(ex)) AbrirPrivacidadeDeFalaWindows();
-            MessageBox.Show("A LIA não conseguiu iniciar o microfone. Verifique Reconhecimento de fala online e o acesso ao microfone no Windows.", "LIA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show("A LIA não conseguiu acessar o microfone.\n\n" + MensagemCurta(ex), "LIA — Microfone", MessageBoxButtons.OK, MessageBoxIcon.Information);
             Encerrar();
         }
     }
 
-    private async Task IniciarEscutaContinuaAsync()
+    private async Task PrepararWebAsync()
     {
-        if (reconhecedor is null || encerrado) return;
+        Directory.CreateDirectory(webFolder);
+        string html = Path.Combine(webFolder, "voice.html");
+        await File.WriteAllTextAsync(html, HtmlVoz(), Encoding.UTF8);
 
-        reconhecedor.ContinuousRecognitionSession.ResultGenerated += AoReconhecer;
-        reconhecedor.ContinuousRecognitionSession.Completed += AoEncerrarReconhecimento;
-        await reconhecedor.ContinuousRecognitionSession.StartAsync();
-        orbe.SetEstado("OUVINDO");
-    }
+        await web.EnsureCoreWebView2Async();
+        if (web.CoreWebView2 is null) throw new InvalidOperationException("WebView2 indisponível.");
 
-    private async void AoReconhecer(SpeechContinuousRecognitionSession sender, SpeechContinuousRecognitionResultGeneratedEventArgs args)
-    {
-        if (encerrado || processando) return;
-        var r = args.Result;
-        if (r.Status != SpeechRecognitionResultStatus.Success || string.IsNullOrWhiteSpace(r.Text)) return;
-
-        processando = true;
-        try
+        web.CoreWebView2.SetVirtualHostNameToFolderMapping("lia.local", webFolder, CoreWebView2HostResourceAccessKind.Allow);
+        web.CoreWebView2.PermissionRequested += (_, e) =>
         {
-            var texto = r.Text.Trim();
-            await NoUiAsync(async () =>
+            if (e.PermissionKind == CoreWebView2PermissionKind.Microphone)
             {
-                if (encerrado) return;
-                orbe.SetEstado("PENSANDO");
-                var resposta = Processar(texto);
-                if (!string.IsNullOrWhiteSpace(resposta)) await FalarAsync(resposta);
-                if (!encerrado) orbe.SetEstado("OUVINDO");
-            });
+                e.State = CoreWebView2PermissionState.Allow;
+                e.Handled = true;
+            }
+        };
+        web.CoreWebView2.WebMessageReceived += AoReceberMensagem;
+
+        var tcs = new TaskCompletionSource<bool>();
+        void Navegou(object? s, CoreWebView2NavigationCompletedEventArgs e)
+        {
+            web.CoreWebView2.NavigationCompleted -= Navegou;
+            if (e.IsSuccess) tcs.TrySetResult(true);
+            else tcs.TrySetException(new InvalidOperationException("Falha ao preparar a escuta."));
         }
-        catch { }
-        finally { processando = false; }
+        web.CoreWebView2.NavigationCompleted += Navegou;
+        web.Source = new Uri("https://lia.local/voice.html");
+        await tcs.Task;
+        webPronto = true;
     }
 
-    private async void AoEncerrarReconhecimento(SpeechContinuousRecognitionSession sender, SpeechContinuousRecognitionCompletedEventArgs args)
+    private async Task IniciarEscutaAsync()
+    {
+        if (!webPronto || web.CoreWebView2 is null || encerrado) return;
+        orbe.SetEstado("OUVINDO");
+        await web.CoreWebView2.ExecuteScriptAsync("window.liaStart && window.liaStart();");
+    }
+
+    private async void AoReceberMensagem(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         if (encerrado) return;
-        if (args.Status == SpeechRecognitionResultStatus.Success) return;
-        await NoUiAsync(() =>
+        string msg;
+        try { msg = e.TryGetWebMessageAsString(); } catch { return; }
+
+        if (msg.StartsWith("TXT|", StringComparison.Ordinal))
         {
-            if (!encerrado)
+            var texto = msg[4..].Trim();
+            if (texto.Length == 0 || processando) return;
+            processando = true;
+            try
             {
-                orbe.SetEstado("ERRO");
-                MessageBox.Show("A escuta da LIA foi interrompida pelo Windows. Toque na Orbe novamente para reiniciar.", "LIA", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                Encerrar();
+                orbe.SetEstado("PENSANDO");
+                var resposta = Processar(texto);
+                await FalarAsync(resposta);
             }
-            return Task.CompletedTask;
-        });
+            finally
+            {
+                processando = false;
+                if (!encerrado) await IniciarEscutaAsync();
+            }
+            return;
+        }
+
+        if (msg.StartsWith("ERR|", StringComparison.Ordinal))
+        {
+            var erro = msg[4..];
+            if (erro.Contains("no-speech", StringComparison.OrdinalIgnoreCase) || erro.Contains("aborted", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!encerrado) await IniciarEscutaAsync();
+                return;
+            }
+
+            orbe.SetEstado("ERRO");
+            MessageBox.Show(
+                erro.Contains("not-allowed", StringComparison.OrdinalIgnoreCase)
+                    ? "O Windows/Edge bloqueou o microfone para a LIA. Libere o acesso ao microfone para aplicativos de área de trabalho nas configurações do Windows."
+                    : "A escuta da LIA falhou: " + erro,
+                "LIA — Microfone", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
     }
 
-    private Task NoUiAsync(Func<Task> acao)
+    private async Task FalarAsync(string texto)
     {
-        var tcs = new TaskCompletionSource<bool>();
-        ui.Post(async _ =>
-        {
-            try { await acao(); tcs.TrySetResult(true); }
-            catch (Exception ex) { tcs.TrySetException(ex); }
-        }, null);
-        return tcs.Task;
+        if (encerrado || !webPronto || web.CoreWebView2 is null || string.IsNullOrWhiteSpace(texto)) return;
+        orbe.SetEstado("FALANDO");
+        string jsTexto = JsonSerializer.Serialize(texto.Replace("•", ""));
+        await web.CoreWebView2.ExecuteScriptAsync($"window.liaSpeak && window.liaSpeak({jsTexto});");
+        await Task.Delay(Math.Clamp(texto.Length * 58, 900, 9000));
     }
 
     private string Processar(string texto)
     {
         var n = Normalizar(texto);
-        if (Tem(n, "oi lia", "ola lia", "bom dia lia", "boa tarde lia", "boa noite lia"))
+        if (Tem(n, "oi lia", "ola lia", "bom dia lia", "boa tarde lia", "boa noite lia", "lia bom dia", "lia boa tarde", "lia boa noite"))
         {
             if (n.Contains("bom dia")) return $"Bom dia, {Auth.OperatorName}. Como posso ajudar?";
             if (n.Contains("boa tarde")) return $"Boa tarde, {Auth.OperatorName}. Como posso ajudar?";
@@ -150,66 +180,15 @@ public sealed class LiaVoiceController : IDisposable
                 "ABRIR_CLIENTES" => Acao("Abrindo Clientes.", main.LiaAbrirClientes),
                 "ABRIR_FINANCEIRO" => Auth.IsManager ? Acao("Abrindo Financeiro.", main.LiaAbrirFinanceiro) : "Seu perfil não tem acesso ao Financeiro. Chame o gerente.",
                 "ABRIR_RELATORIOS" => Auth.IsManager ? Acao("Abrindo Relatórios.", main.LiaAbrirRelatorios) : "Relatórios gerenciais exigem autorização. Chame o gerente.",
-                _ => "Não entendi. Pode falar de outro jeito?"
+                _ => "Eu ouvi você, mas ainda não entendi esse pedido. Pode falar de outro jeito?"
             };
         }
-        catch { return "Não consegui consultar o PDV agora."; }
+        catch { return "Eu ouvi você, mas não consegui consultar o PDV agora."; }
     }
 
     private string Acao(string resposta, Action acao) { main.BeginInvoke(acao); return resposta; }
 
-    private async Task PrepararMicrofoneAsync()
-    {
-        reconhecedor?.Dispose();
-        reconhecedor = new SpeechRecognizer(new Language("pt-BR"));
-        reconhecedor.Timeouts.InitialSilenceTimeout = TimeSpan.FromSeconds(20);
-        reconhecedor.Timeouts.EndSilenceTimeout = TimeSpan.FromSeconds(1.2);
-        reconhecedor.Timeouts.BabbleTimeout = TimeSpan.FromSeconds(20);
-        reconhecedor.Constraints.Add(new SpeechRecognitionTopicConstraint(SpeechRecognitionScenario.Dictation, "LIA"));
-        var compilacao = await reconhecedor.CompileConstraintsAsync();
-        if (compilacao.Status != SpeechRecognitionResultStatus.Success)
-            throw new InvalidOperationException("Reconhecimento de fala indisponível.");
-    }
-
-    private async Task PrepararVozAsync()
-    {
-        await vozWeb.EnsureCoreWebView2Async();
-        vozWeb.CoreWebView2.NavigateToString("<html><body></body></html>");
-        await Task.Delay(250);
-        vozPronta = true;
-    }
-
-    private async Task FalarAsync(string texto)
-    {
-        if (encerrado || !vozPronta || vozWeb.CoreWebView2 is null) return;
-        orbe.SetEstado("FALANDO");
-        string jsTexto = JsonSerializer.Serialize(texto.Replace("•", ""));
-        string script = $@"(() => {{
-            speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance({jsTexto});
-            u.lang='pt-BR'; u.rate=1.03; u.pitch=1.08;
-            const vs=speechSynthesis.getVoices();
-            const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));
-            const feminina=br.find(v=>/francisca|maria|female|feminina|natural/i.test(v.name) && !/antonio|antônio|daniel|fabio|fábio|ricardo|male|masculin/i.test(v.name)) ||
-                           br.find(v=>!/antonio|antônio|daniel|fabio|fábio|ricardo|male|masculin/i.test(v.name));
-            if(feminina) u.voice=feminina;
-            speechSynthesis.speak(u);
-        }})()";
-        await vozWeb.CoreWebView2.ExecuteScriptAsync(script);
-        await Task.Delay(Math.Clamp(texto.Length * 58, 900, 9000));
-        if (!encerrado) orbe.SetEstado("OUVINDO");
-    }
-
-    private string ResumoEmpresa()
-    {
-        using var cn=Database.Open();
-        int produtos=ScalarInt(cn,"SELECT COUNT(*) FROM products WHERE active=1");
-        int baixos=ScalarInt(cn,"SELECT COUNT(*) FROM products WHERE active=1 AND stock <= min_stock");
-        int clientes=ScalarInt(cn,"SELECT COUNT(*) FROM customers");
-        int vendas=ScalarInt(cn,"SELECT COUNT(*) FROM sales WHERE date(sold_at)=date('now','localtime')");
-        double total=ScalarDouble(cn,"SELECT COALESCE(SUM(total),0) FROM sales WHERE date(sold_at)=date('now','localtime')");
-        return $"Hoje foram {vendas} vendas, totalizando {Moeda(total)}. Você tem {produtos} produtos ativos, {baixos} com estoque baixo e {clientes} clientes cadastrados.";
-    }
+    private string ResumoEmpresa(){using var cn=Database.Open();int produtos=ScalarInt(cn,"SELECT COUNT(*) FROM products WHERE active=1");int baixos=ScalarInt(cn,"SELECT COUNT(*) FROM products WHERE active=1 AND stock <= min_stock");int clientes=ScalarInt(cn,"SELECT COUNT(*) FROM customers");int vendas=ScalarInt(cn,"SELECT COUNT(*) FROM sales WHERE date(sold_at)=date('now','localtime')");double total=ScalarDouble(cn,"SELECT COALESCE(SUM(total),0) FROM sales WHERE date(sold_at)=date('now','localtime')");return $"Hoje foram {vendas} vendas, totalizando {Moeda(total)}. Você tem {produtos} produtos ativos, {baixos} com estoque baixo e {clientes} clientes cadastrados.";}
     private string VendasHoje(){using var cn=Database.Open();int q=ScalarInt(cn,"SELECT COUNT(*) FROM sales WHERE date(sold_at)=date('now','localtime')");double t=ScalarDouble(cn,"SELECT COALESCE(SUM(total),0) FROM sales WHERE date(sold_at)=date('now','localtime')");return $"Hoje o PDV registra {q} vendas, totalizando {Moeda(t)}.";}
     private string EstoqueBaixo(){using var cn=Database.Open();int q=ScalarInt(cn,"SELECT COUNT(*) FROM products WHERE active=1 AND stock <= min_stock");return q==0?"Não encontrei produtos abaixo do estoque mínimo agora.":$"Existem {q} produtos no estoque mínimo ou abaixo dele.";}
     private string QuantidadeClientes(){using var cn=Database.Open();return $"Existem {ScalarInt(cn,"SELECT COUNT(*) FROM customers")} clientes cadastrados no PDV.";}
@@ -219,26 +198,47 @@ public sealed class LiaVoiceController : IDisposable
     private static string Moeda(double v)=>v.ToString("C2",new CultureInfo("pt-BR"));
     private static bool Tem(string n,params string[] xs)=>xs.Any(x=>n.Contains(Normalizar(x),StringComparison.Ordinal));
     private static string Normalizar(string t){var f=t.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);var sb=new StringBuilder();foreach(var c in f)if(CharUnicodeInfo.GetUnicodeCategory(c)!=UnicodeCategory.NonSpacingMark)sb.Append(c);return sb.ToString().Normalize(NormalizationForm.FormC);}
-    private static bool EhErroPrivacidadeFala(Exception ex){var m=(ex.Message??"").ToLowerInvariant();return ex is UnauthorizedAccessException||m.Contains("speech privacy")||m.Contains("privacy policy")||(m.Contains("speech recognition")&&m.Contains("accepted"));}
-    private static void AbrirPrivacidadeDeFalaWindows(){try{Process.Start(new ProcessStartInfo{FileName="ms-settings:privacy-speech",UseShellExecute=true});}catch{}}
+    private static string MensagemCurta(Exception ex)=>string.IsNullOrWhiteSpace(ex.Message)?"Falha ao iniciar a escuta.":ex.Message;
+
+    private static string HtmlVoz() => """
+<!doctype html><html><head><meta charset="utf-8"></head><body>
+<script>
+let rec=null, ativo=false;
+function post(x){ try{ chrome.webview.postMessage(x); }catch(e){} }
+window.liaStart=function(){
+  if(ativo) return;
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ post('ERR|speech-recognition-indisponivel'); return; }
+  try{
+    rec=new SR(); rec.lang='pt-BR'; rec.continuous=false; rec.interimResults=false; rec.maxAlternatives=1;
+    rec.onstart=()=>{ativo=true;};
+    rec.onresult=(e)=>{ const t=(e.results?.[0]?.[0]?.transcript||'').trim(); if(t) post('TXT|'+t); };
+    rec.onerror=(e)=>{ativo=false; post('ERR|'+(e.error||'erro-desconhecido'));};
+    rec.onend=()=>{ativo=false;};
+    rec.start();
+  }catch(e){ ativo=false; post('ERR|'+(e.message||String(e))); }
+};
+window.liaSpeak=function(texto){
+  try{
+    speechSynthesis.cancel();
+    const u=new SpeechSynthesisUtterance(texto); u.lang='pt-BR'; u.rate=1.03; u.pitch=1.08;
+    const vs=speechSynthesis.getVoices();
+    const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));
+    const fem=br.find(v=>/francisca|maria|female|feminina|natural/i.test(v.name)&&!/antonio|antônio|daniel|fabio|fábio|ricardo|male|masculin/i.test(v.name)) || br.find(v=>!/antonio|antônio|daniel|fabio|fábio|ricardo|male|masculin/i.test(v.name));
+    if(fem)u.voice=fem; speechSynthesis.speak(u);
+  }catch(e){}
+};
+</script></body></html>
+""";
 
     public void Encerrar()
     {
         if (encerrado) return;
         encerrado=true;
-        try
-        {
-            if (reconhecedor is not null)
-            {
-                reconhecedor.ContinuousRecognitionSession.ResultGenerated -= AoReconhecer;
-                reconhecedor.ContinuousRecognitionSession.Completed -= AoEncerrarReconhecimento;
-                _ = reconhecedor.ContinuousRecognitionSession.StopAsync();
-            }
-        }
-        catch { }
-        try { reconhecedor?.Dispose(); } catch { }
+        try { if (web.CoreWebView2 is not null) web.CoreWebView2.WebMessageReceived -= AoReceberMensagem; } catch { }
         try { if (!orbe.IsDisposed) orbe.Close(); } catch { }
         Encerrado?.Invoke(this, EventArgs.Empty);
     }
-    public void Dispose(){Encerrar();vozWeb.Dispose();}
+
+    public void Dispose(){ Encerrar(); try{web.Dispose();}catch{} }
 }
