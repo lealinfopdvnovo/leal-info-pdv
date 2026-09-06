@@ -15,7 +15,7 @@ public sealed class LiaForm : Form
     {
         // Janela invisível como "caixa": só a personagem deve aparecer.
         Text = string.Empty;
-        StartPosition = FormStartPosition.CenterScreen;
+        StartPosition = FormStartPosition.Manual;
         ClientSize = new Size(530, 794);
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
@@ -33,7 +33,41 @@ public sealed class LiaForm : Form
         web.DefaultBackgroundColor = Color.Transparent;
         Controls.Add(web);
 
-        Shown += async (_, _) => await StartLiaAsync();
+        Shown += async (_, _) =>
+        {
+            PosicionarAoLadoDoBotaoAi();
+            await StartLiaAsync();
+        };
+    }
+
+    private void PosicionarAoLadoDoBotaoAi()
+    {
+        // Mantém todo o holograma como já aprovado e muda SOMENTE a posição.
+        // A LIA nasce no lado direito da tela principal, logo abaixo da faixa do botão LIA AI.
+        var owner = Owner as Form;
+        var area = owner is not null
+            ? Screen.FromControl(owner).WorkingArea
+            : Screen.FromControl(this).WorkingArea;
+
+        int x;
+        int y;
+
+        if (owner is not null)
+        {
+            const int margemDireita = 18;
+            const int abaixoDaBarra = 145;
+            x = owner.Right - Width - margemDireita;
+            y = owner.Top + abaixoDaBarra;
+        }
+        else
+        {
+            x = area.Right - Width - 18;
+            y = area.Top + 145;
+        }
+
+        x = Math.Max(area.Left, Math.Min(x, area.Right - Width));
+        y = Math.Max(area.Top, Math.Min(y, area.Bottom - Height));
+        Location = new Point(x, y);
     }
 
     private async Task StartLiaAsync()
