@@ -16,6 +16,7 @@ public sealed class LiaVoiceController : IDisposable
     private bool encerrado;
     private bool processando;
     private bool webPronto;
+    private TaskCompletionSource<bool>? falaTerminou;
     private readonly string webFolder;
 
     public event EventHandler? Encerrado;
@@ -108,8 +109,10 @@ public sealed class LiaVoiceController : IDisposable
             processando = true;
             try
             {
+                RegistrarLog("OUVIU", texto);
                 orbe.SetEstado("PENSANDO");
                 var resposta = Processar(texto);
+                RegistrarLog("RESPOSTA", resposta);
                 await FalarAsync(resposta);
             }
             finally
@@ -117,6 +120,12 @@ public sealed class LiaVoiceController : IDisposable
                 processando = false;
                 if (!encerrado) orbe.SetEstado("PRONTA");
             }
+            return;
+        }
+
+        if (msg == "SPKEND")
+        {
+            falaTerminou?.TrySetResult(true);
             return;
         }
 
@@ -135,20 +144,30 @@ public sealed class LiaVoiceController : IDisposable
         orbe.SetEstado("FALANDO");
         try { await web.CoreWebView2.ExecuteScriptAsync("window.liaStop && window.liaStop();"); } catch { }
         string jsTexto = JsonSerializer.Serialize(texto.Replace("•", ""));
+        falaTerminou = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         await web.CoreWebView2.ExecuteScriptAsync($"window.liaSpeak && window.liaSpeak({jsTexto});");
-        await Task.Delay(Math.Clamp(texto.Length * 58, 900, 9000));
+        var limite = Task.Delay(Math.Clamp(texto.Length * 95, 2500, 15000));
+        await Task.WhenAny(falaTerminou.Task, limite);
+        falaTerminou = null;
     }
 
     private string Processar(string texto)
     {
         var n = Normalizar(texto);
-        if (Tem(n, "oi lia", "ola lia", "bom dia lia", "boa tarde lia", "boa noite lia", "lia bom dia", "lia boa tarde", "lia boa noite"))
+        if (Tem(n, "oi lia", "ola lia", "oi", "ola", "bom dia", "boa tarde", "boa noite", "bom dia lia", "boa tarde lia", "boa noite lia", "lia bom dia", "lia boa tarde", "lia boa noite"))
         {
             if (n.Contains("bom dia")) return $"Bom dia, {Auth.OperatorName}. Como posso ajudar?";
             if (n.Contains("boa tarde")) return $"Boa tarde, {Auth.OperatorName}. Como posso ajudar?";
             if (n.Contains("boa noite")) return $"Boa noite, {Auth.OperatorName}. Como posso ajudar?";
             return $"Oi, {Auth.OperatorName}. Como posso ajudar?";
         }
+
+        if (Tem(n, "ta me ouvindo", "esta me ouvindo", "voce me ouve", "consegue me ouvir"))
+            return $"Sim, {Auth.OperatorName}. Estou ouvindo você.";
+        if (Tem(n, "quem e voce", "quem voce e", "seu nome"))
+            return "Eu sou a LIA, assistente do LEAL INFO PDV.";
+        if (Tem(n, "obrigado", "obrigada", "valeu"))
+            return "Por nada. Estou pronta para ajudar.";
 
         var d = LiaCore.Classificar(n);
         if (d.RespostaImediata is not null) return d.RespostaImediata;
@@ -170,10 +189,21 @@ public sealed class LiaVoiceController : IDisposable
                 "ABRIR_CLIENTES" => Acao("Abrindo Clientes.", main.LiaAbrirClientes),
                 "ABRIR_FINANCEIRO" => Auth.IsManager ? Acao("Abrindo Financeiro.", main.LiaAbrirFinanceiro) : "Seu perfil não tem acesso ao Financeiro. Chame o gerente.",
                 "ABRIR_RELATORIOS" => Auth.IsManager ? Acao("Abrindo Relatórios.", main.LiaAbrirRelatorios) : "Relatórios gerenciais exigem autorização. Chame o gerente.",
-                _ => "Eu ouvi você, mas ainda não entendi esse pedido. Pode falar de outro jeito?"
+                _ => "Ainda não aprendi esse pedido. Pode falar de outro jeito?"
             };
         }
-        catch { return "Eu ouvi você, mas não consegui consultar o PDV agora."; }
+        catch (Exception ex) { RegistrarLog("ERRO_CORE", ex.Message); return "Não consegui consultar o PDV agora. Tente novamente."; }
+    }
+
+    private static void RegistrarLog(string tipo, string texto)
+    {
+        try
+        {
+            var pasta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV");
+            Directory.CreateDirectory(pasta);
+            File.AppendAllText(Path.Combine(pasta, "lia_voice.log"), $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} | {tipo} | {texto}{Environment.NewLine}", Encoding.UTF8);
+        }
+        catch { }
     }
 
     private string Acao(string resposta, Action acao) { main.BeginInvoke(acao); return resposta; }
@@ -230,10 +260,12 @@ window.liaSpeak=function(texto){
       const u=new SpeechSynthesisUtterance(texto);
       const v=vozPreferida();
       u.lang='pt-BR'; if(v)u.voice=v; u.rate=1.0; u.pitch=1.16;
+      u.onend=()=>post('SPKEND');
+      u.onerror=()=>post('SPKEND');
       speechSynthesis.speak(u);
     };
     if(speechSynthesis.getVoices().length) falar();
-    else { speechSynthesis.addEventListener('voiceschanged',falar,{once:true}); setTimeout(falar,700); }
+    else { let foi=false; const uma=()=>{if(foi)return;foi=true;falar();}; speechSynthesis.addEventListener('voiceschanged',uma,{once:true}); setTimeout(uma,700); }
   }catch(e){}
 };
 </script></body></html>

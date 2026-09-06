@@ -12,7 +12,7 @@ DefaultDirName={autopf}\LEAL INFO PDV
 DefaultGroupName={#MyAppName}
 UsePreviousAppDir=yes
 OutputDir=SETUP_PRONTO
-OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_130_LIA_FINAL
+OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_130_LIA_VOZ_V4
 SetupIconFile=Assets\lealinfo.ico
 Compression=lzma2
 SolidCompression=yes
@@ -24,6 +24,13 @@ UninstallDisplayName={#MyAppName} V{#MyAppVersion}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 CloseApplications=yes
 RestartApplications=no
+
+; Remove somente binarios antigos. Banco e dados locais NAO sao apagados.
+[InstallDelete]
+Type: files; Name: "{app}\*.exe"
+Type: files; Name: "{app}\*.dll"
+Type: files; Name: "{app}\*.deps.json"
+Type: files; Name: "{app}\*.runtimeconfig.json"
 
 [Files]
 Source: "publish_setup\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

@@ -1,0 +1,11 @@
+LIA VOZ V4 — PONTE CORE + SETUP POR CIMA
+- Mantém WebView2/microfone da V3 que conseguiu ouvir.
+- Frase reconhecida vai para LiaCore e resposta é falada.
+- Cumprimentos e teste "ta me ouvindo" tratados naturalmente.
+- Sem tela de escrever.
+- Sem resposta fixa "Eu ouvi voce" para pedidos desconhecidos.
+- Fala aguarda evento real de termino antes de voltar a PRONTA.
+- Evita disparo duplicado de TTS quando as vozes carregam atrasadas.
+- Log silencioso: %LOCALAPPDATA%\LEAL INFO PDV\lia_voice.log
+- Setup usa o mesmo AppId V10.130, reaproveita a pasta instalada, fecha o PDV e substitui binarios antigos.
+- Banco/dados locais nao sao apagados pelo instalador.
