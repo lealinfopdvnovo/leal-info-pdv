@@ -1,0 +1,27 @@
+LEAL INFO PDV — BACKUP MESTRE DEFINITIVO V10.130
+Data de consolidação: 06/09/2026
+
+ESTADO APROVADO
+- PDV V10.130 funcional.
+- LIA integrada ao botão AI no canto inferior direito.
+- LIA transparente/holográfica e com áudio/fala.
+- LiaForm preservado no estado final aprovado.
+- Vídeo oficial: Assets/leal_ai_feminino_holograma.webm.
+- Publicação do WEBM garantida no LealInfoPDV.csproj.
+- WebView2 usa pasta de dados em LocalAppData para evitar E_ACCESSDENIED.
+- Instalador Inno Setup usa o mesmo AppId da V10.130 e UsePreviousAppDir=yes para atualização por cima.
+- Ícone do instalador: Assets/lealinfo.ico.
+- Workflow final procura exatamente SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_130_LIA_FINAL.exe.
+
+IMPORTANTE
+- Assets/setup_logo.bmp NÃO faz parte deste backup: esse BMP causou erro no Inno Setup e foi removido.
+- Não reintroduzir System.Speech, voz sintética do Windows, LIA antiga, holograma antigo ou arquivos leal_ai antigos.
+- Para qualquer alteração futura: duplicar esta pasta e trabalhar na cópia. Não editar este backup mestre.
+
+GERAÇÃO DO SETUP
+GitHub Actions -> Gerar Setup LEAL INFO PDV V10.130 FINAL -> Run workflow.
+Saída esperada: Setup_LEAL_INFO_PDV_V10_130_LIA_FINAL.exe
+
+OBSERVAÇÃO
+Este backup contém o projeto-fonte completo e os arquivos necessários para regenerar o Setup.
+O executável Setup gerado pelo GitHub Actions não foi incluído nesta pasta porque não foi enviado para esta conversa.

@@ -1,0 +1,29 @@
+LEAL INFO PDV V10.130 — LIA CÉREBRO / PROTÓTIPO DE TESTE
+
+OBJETIVO
+Testar a ideia da LIA como assistente operacional do PDV sem mexer no BACKUP MESTRE DEFINITIVO.
+
+O QUE JÁ FAZ NESTE TESTE
+- Entende frases diferentes por intenção local/keywords.
+- Consulta dados REAIS do SQLite: vendas hoje, total do mês, estoque baixo, clientes e caixa.
+- Responde "como está minha empresa?" com resumo real do PDV.
+- Ensina como cadastrar produto e pode abrir a tela Novo Produto.
+- Pode abrir Produtos, Clientes, Vendas, Financeiro e Relatórios.
+- Respeita a permissão de gerente para Financeiro.
+- Não altera/exclui/grava dados automaticamente pela LIA.
+- Mantém LiaForm.cs original intacto como referência aprovada.
+
+EXEMPLOS PARA DIGITAR
+LIA, como está minha empresa?
+Quanto vendi hoje?
+O que está acabando?
+Quantos clientes tenho?
+Como está meu caixa?
+Me ensina cadastrar produto
+Abre a tela de vendas
+Abrir produtos
+
+IMPORTANTE
+Esta é uma PROVA DE CONCEITO local. A compreensão é por intenções programadas.
+A futura camada de IA de linguagem poderá entender frases muito mais livres e contexto complexo.
+A fala dinâmica não foi ligada neste protótipo para não reintroduzir a voz sintética rejeitada nem tocar na LIA aprovada.

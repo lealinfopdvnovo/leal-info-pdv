@@ -472,7 +472,7 @@ public sealed class MainForm : Form
             }
             else if (title == "LIA")
             {
-                AddMenu("Abrir LIA • LEAL AI", () => new LiaForm().Show(this));
+                AddMenu("Abrir LIA • LEAL AI", () => new LiaInteligenteForm(this).Show(this));
             }
             else if (title == "Utilitários")
             {
@@ -657,7 +657,7 @@ public sealed class MainForm : Form
         };
         liaAiFloatingButton.FlatAppearance.BorderSize = 0;
         liaAiFloatingButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 210, 255);
-        liaAiFloatingButton.Click += (_, _) => new LiaForm().Show(this);
+        liaAiFloatingButton.Click += (_, _) => new LiaInteligenteForm(this).Show(this);
 
         Controls.Add(liaAiFloatingButton);
 
@@ -1378,6 +1378,19 @@ public sealed class MainForm : Form
                 $"Produtos cadastrados\n{rd.GetInt32(0)} produto(s)\n\n" +
                 $"Vendas realizadas\n{rd.GetInt32(2)} venda(s)";
         }
+    }
+
+    // PONTES DA LIA INTELIGENTE — versão de teste.
+    // Mantêm a lógica original do PDV centralizada no MainForm.
+    internal void LiaAbrirProdutos() => OpenProducts();
+    internal void LiaCadastrarNovoProduto() => EditProduct(null);
+    internal void LiaAbrirClientes() => OpenCustomers();
+    internal void LiaAbrirVendas() => OpenSales();
+    internal void LiaAbrirRelatorios() => OpenReports();
+    internal void LiaAbrirFinanceiro()
+    {
+        if (Auth.IsManager) OpenFinance();
+        else MessageBox.Show("Seu nível de acesso não permite abrir o Financeiro.", "LIA • LEAL AI");
     }
 
     private void OpenProducts() => ShowCrud(
