@@ -1,0 +1,18 @@
+LEAL INFO PDV V10.130 — COPIA FIEL FINAL COM LIA
+
+Base consolidada para gerar o Setup final em outro computador.
+
+Mantido:
+- LIA holografica falante aprovada
+- Botao AI no canto inferior direito
+- Transparencia e audio aprovados
+- Versao V10.130
+
+Instalador:
+- Mesmo AppId da V10.130 para reconhecer a instalacao existente
+- Mesmo diretorio padrao: Program Files\LEAL INFO PDV
+- Arquivos publicados usam ignoreversion, portanto substituem os arquivos existentes
+- UsePreviousAppDir=yes para reaproveitar o diretorio da instalacao anterior
+- Logo LEAL INFO aplicado ao Setup e ao assistente do instalador
+
+Antes de instalar em outro PC, feche o LEAL INFO PDV.

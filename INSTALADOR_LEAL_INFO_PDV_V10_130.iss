@@ -10,8 +10,11 @@ AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\LEAL INFO PDV
 DefaultGroupName={#MyAppName}
+UsePreviousAppDir=yes
 OutputDir=SETUP_PRONTO
-OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_130
+OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_130_LIA_FINAL
+SetupIconFile=Assets\lealinfo.ico
+WizardSmallImageFile=Assets\setup_logo.bmp
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -19,6 +22,9 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 UninstallDisplayName={#MyAppName} V{#MyAppVersion}
+UninstallDisplayIcon={app}\{#MyAppExeName}
+CloseApplications=yes
+RestartApplications=no
 
 [Files]
 Source: "publish_setup\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
