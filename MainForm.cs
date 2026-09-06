@@ -13,7 +13,7 @@ namespace LealInfoPDV;
 public sealed class MainForm : Form
 {
     private PictureBox? mainScreenPicture;
-    private Button? liaAiFloatingButton;
+    private LiaOrbLauncher? liaAiFloatingButton;
 
     private readonly Color Blue = Color.FromArgb(10, 104, 157);
     private readonly Color DarkBlue = Color.FromArgb(4, 70, 112);
@@ -640,46 +640,33 @@ public sealed class MainForm : Form
 
     private void BuildLiaAiFloatingButton()
     {
-        // Botão AI oficial: canto inferior direito, acima da barra de status.
-        // Aciona somente a LiaForm já aprovada (vídeo, fala e transparência não são alterados aqui).
-        liaAiFloatingButton = new Button
+        // V3: a própria ORBE LIA é o acesso oficial. O antigo botão AI foi aposentado.
+        liaAiFloatingButton = new LiaOrbLauncher
         {
-            Text = "AI",
-            Width = 58,
-            Height = 58,
-            Anchor = AnchorStyles.Right | AnchorStyles.Bottom,
-            BackColor = Color.FromArgb(0, 163, 224),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 14, FontStyle.Bold),
-            Cursor = Cursors.Hand,
-            TabStop = false
+            Anchor = AnchorStyles.Right | AnchorStyles.Bottom
         };
-        liaAiFloatingButton.FlatAppearance.BorderSize = 0;
-        liaAiFloatingButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 210, 255);
         liaAiFloatingButton.Click += (_, _) => AbrirLiaCompleta();
-
         Controls.Add(liaAiFloatingButton);
 
         void PosicionarBotaoAi()
         {
             if (liaAiFloatingButton == null) return;
-            liaAiFloatingButton.Left = Math.Max(8, ClientSize.Width - liaAiFloatingButton.Width - 22);
-            liaAiFloatingButton.Top = Math.Max(140, ClientSize.Height - liaAiFloatingButton.Height - status.Height - 18);
+            liaAiFloatingButton.Left = Math.Max(8, ClientSize.Width - liaAiFloatingButton.Width - 18);
+            liaAiFloatingButton.Top = Math.Max(140, ClientSize.Height - liaAiFloatingButton.Height - status.Height - 14);
             liaAiFloatingButton.BringToFront();
         }
 
         Resize += (_, _) => PosicionarBotaoAi();
         Shown += (_, _) => PosicionarBotaoAi();
         PosicionarBotaoAi();
-
-        new ToolTip().SetToolTip(liaAiFloatingButton, "LEAL AI — abrir LIA");
+        new ToolTip().SetToolTip(liaAiFloatingButton, "LIA — conversar");
     }
 
     private void AbrirLiaCompleta()
     {
-        // ETAPA V2: nada abre por cima da apresentação.
-        // O painel e a orbe só nascem quando a LIA holográfica terminar e fechar.
+        // V3: existe uma única presença de acesso por vez.
+        // A orbe compacta some durante a apresentação/conversa e volta ao encerrar.
+        if (liaAiFloatingButton is not null) liaAiFloatingButton.Visible = false;
         var apresentacao = new LiaForm();
         apresentacao.FormClosed += (_, _) =>
         {
@@ -691,6 +678,8 @@ public sealed class MainForm : Form
             painel.FormClosed += (_, _) =>
             {
                 if (!orbe.IsDisposed) orbe.Close();
+                if (liaAiFloatingButton is not null && !liaAiFloatingButton.IsDisposed)
+                    liaAiFloatingButton.Visible = true;
             };
 
             orbe.Show(this);

@@ -11,6 +11,8 @@ public sealed class LiaOrbForm : Form
     private readonly MainForm main;
     private readonly OrbView orb = new();
 
+    public void SetEstado(string estado) => orb.SetEstado(estado);
+
     public LiaOrbForm(MainForm mainForm)
     {
         main = mainForm;
@@ -49,6 +51,7 @@ public sealed class LiaOrbForm : Form
     {
         private readonly System.Windows.Forms.Timer timer = new() { Interval = 35 };
         private double fase;
+        private string estado = "PRONTA";
 
         public OrbView()
         {
@@ -57,6 +60,12 @@ public sealed class LiaOrbForm : Form
             timer.Tick += (_, _) => { fase += 0.10; Invalidate(); };
             timer.Start();
             Disposed += (_, _) => timer.Dispose();
+        }
+
+        public void SetEstado(string novo)
+        {
+            estado = string.IsNullOrWhiteSpace(novo) ? "PRONTA" : novo.ToUpperInvariant();
+            Invalidate();
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -93,7 +102,7 @@ public sealed class LiaOrbForm : Form
             using var ciano = new SolidBrush(Color.FromArgb(155, 245, 255));
             var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
             e.Graphics.DrawString("LIA", f1, branco, new RectangleF(0, cy - 24, Width, 42), sf);
-            e.Graphics.DrawString("LEAL AI", f2, ciano, new RectangleF(0, cy + 16, Width, 24), sf);
+            e.Graphics.DrawString(estado == "FALANDO" ? "FALANDO" : "LEAL AI", f2, ciano, new RectangleF(0, cy + 16, Width, 24), sf);
         }
     }
 }

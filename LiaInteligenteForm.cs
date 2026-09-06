@@ -1,6 +1,8 @@
 ﻿using Microsoft.Data.Sqlite;
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
+using Microsoft.Web.WebView2.WinForms;
 
 namespace LealInfoPDV;
 
@@ -17,6 +19,8 @@ public sealed class LiaInteligenteForm : Form
     private readonly TextBox pergunta = new();
     private readonly FlowLayoutPanel acoes = new();
     private readonly Label status = new();
+    private readonly WebView2 vozWeb = new();
+    private bool vozPronta;
 
     private static readonly Color AzulEscuro = Color.FromArgb(4, 35, 62);
     private static readonly Color AzulPainel = Color.FromArgb(7, 55, 95);
@@ -36,10 +40,11 @@ public sealed class LiaInteligenteForm : Form
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
         MaximizeBox = false;
         BuildUi();
-        Shown += (_, _) =>
+        Shown += async (_, _) =>
         {
             Posicionar();
-            Responder($"Olá, {Auth.OperatorName}. {LiaCore.ResumoPermissoes()} Pode digitar do seu jeito. Nesta etapa, o microfone ainda não está ativo.");
+            await PrepararVozAsync();
+            Responder($"Olá, {Auth.OperatorName}. {LiaCore.ResumoPermissoes()} Pode falar comigo pelo texto. A voz da LIA está ativa nesta etapa.");
             pergunta.Focus();
         };
     }
@@ -64,6 +69,16 @@ public sealed class LiaInteligenteForm : Form
 
     private void BuildUi()
     {
+        // Motor de voz via WebView2. Não usa System.Speech e mantém o PDV leve.
+        vozWeb.Size = new Size(1, 1);
+        vozWeb.Location = new Point(-10, -10);
+        vozWeb.CreationProperties = new CoreWebView2CreationProperties
+        {
+            UserDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV", "WebView2", "LIA_VOZ")
+        };
+        Controls.Add(vozWeb);
+        vozWeb.SendToBack();
+
         var top = new Panel { Dock = DockStyle.Top, Height = 68, BackColor = AzulPainel };
         top.Controls.Add(new Label { Text = "LIA • CONVERSA", Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI", 17, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter });
         Controls.Add(top);
@@ -75,7 +90,7 @@ public sealed class LiaInteligenteForm : Form
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
         Controls.Add(body);
 
-        status.Text = $"● {Auth.Current?.Role ?? "OPERADOR"} • LIA CORE • OFFLINE";
+        status.Text = $"● {Auth.Current?.Role ?? "OPERADOR"} • LIA CORE • VOZ";
         status.Dock = DockStyle.Fill; status.ForeColor = Color.FromArgb(124,238,255); status.Font = new Font("Segoe UI",10,FontStyle.Bold); status.TextAlign = ContentAlignment.MiddleLeft;
         body.Controls.Add(status,0,0);
 
@@ -231,6 +246,49 @@ public sealed class LiaInteligenteForm : Form
         return sb.ToString().Normalize(NormalizationForm.FormC);
     }
 
+    private async Task PrepararVozAsync()
+    {
+        try
+        {
+            await vozWeb.EnsureCoreWebView2Async();
+            vozWeb.CoreWebView2.NavigateToString("<html><body></body></html>");
+            await Task.Delay(250);
+            vozPronta = true;
+        }
+        catch
+        {
+            vozPronta = false; // Texto continua funcionando mesmo se a voz não estiver disponível.
+        }
+    }
+
+    private async void FalarResposta(string texto)
+    {
+        if (!vozPronta || vozWeb.CoreWebView2 is null) return;
+        try
+        {
+            orbe?.SetEstado("FALANDO");
+            string jsTexto = JsonSerializer.Serialize(texto.Replace("•", ""));
+            string script = $@"(() => {{
+                speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance({jsTexto});
+                u.lang = 'pt-BR';
+                u.rate = 1.06;
+                u.pitch = 1.02;
+                const vs = speechSynthesis.getVoices();
+                const br = vs.filter(v => (v.lang || '').toLowerCase().startsWith('pt-br'));
+                const natural = br.find(v => /natural|online|maria|francisca/i.test(v.name));
+                if (natural || br[0]) u.voice = natural || br[0];
+                speechSynthesis.speak(u);
+            }})()";
+            await vozWeb.CoreWebView2.ExecuteScriptAsync(script);
+            // Estado visual volta sozinho; a fala continua no mecanismo do navegador.
+            var t = new System.Windows.Forms.Timer { Interval = Math.Clamp(texto.Length * 55, 1200, 12000) };
+            t.Tick += (_, _) => { t.Stop(); t.Dispose(); orbe?.SetEstado("PRONTA"); };
+            t.Start();
+        }
+        catch { orbe?.SetEstado("PRONTA"); }
+    }
+
     private void FalarUsuario(string texto)
     {
         conversa.SelectionColor = Color.FromArgb(178, 226, 255);
@@ -251,6 +309,7 @@ public sealed class LiaInteligenteForm : Form
         conversa.SelectionFont = conversa.Font;
         conversa.AppendText(texto + "\n");
         conversa.ScrollToCaret();
+        FalarResposta(texto);
     }
 
 
