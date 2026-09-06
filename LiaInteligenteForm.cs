@@ -20,7 +20,10 @@ public sealed class LiaInteligenteForm : Form
     private readonly FlowLayoutPanel acoes = new();
     private readonly Label status = new();
     private readonly WebView2 vozWeb = new();
+    private readonly Button botaoEscrever = new();
+    private readonly Button botaoFalar = new();
     private bool vozPronta;
+    private bool ouvindo;
 
     private static readonly Color AzulEscuro = Color.FromArgb(4, 35, 62);
     private static readonly Color AzulPainel = Color.FromArgb(7, 55, 95);
@@ -31,9 +34,9 @@ public sealed class LiaInteligenteForm : Form
         orbe = liaOrb;
         Text = "LIA • CONVERSA";
         StartPosition = FormStartPosition.Manual;
-        Width = 500;
-        Height = 560;
-        MinimumSize = new Size(470, 520);
+        Width = 430;
+        Height = 460;
+        MinimumSize = new Size(400, 430);
         BackColor = AzulEscuro;
         ForeColor = Color.White;
         Font = new Font("Segoe UI", 10);
@@ -44,7 +47,7 @@ public sealed class LiaInteligenteForm : Form
         {
             Posicionar();
             await PrepararVozAsync();
-            Responder($"Olá, {Auth.OperatorName}. {LiaCore.ResumoPermissoes()} Pode falar comigo pelo texto. A voz da LIA está ativa nesta etapa.");
+            Responder($"Olá, {Auth.OperatorName}. {LiaCore.ResumoPermissoes()} Escolha escrever ou falar. Você pode trocar quando quiser.");
             pergunta.Focus();
         };
     }
@@ -83,27 +86,92 @@ public sealed class LiaInteligenteForm : Form
         top.Controls.Add(new Label { Text = "LIA • CONVERSA", Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI", 17, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter });
         Controls.Add(top);
 
-        var body = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1, Padding = new Padding(14), BackColor = AzulEscuro };
+        var body = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1, Padding = new Padding(10), BackColor = AzulEscuro };
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         body.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
-        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));
+        body.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
         Controls.Add(body);
 
         status.Text = $"● {Auth.Current?.Role ?? "OPERADOR"} • LIA CORE • VOZ";
         status.Dock = DockStyle.Fill; status.ForeColor = Color.FromArgb(124,238,255); status.Font = new Font("Segoe UI",10,FontStyle.Bold); status.TextAlign = ContentAlignment.MiddleLeft;
         body.Controls.Add(status,0,0);
 
-        conversa.Dock=DockStyle.Fill; conversa.ReadOnly=true; conversa.BackColor=Color.FromArgb(9,27,43); conversa.ForeColor=Color.White; conversa.BorderStyle=BorderStyle.FixedSingle; conversa.Font=new Font("Segoe UI",11); conversa.DetectUrls=false;
-        body.Controls.Add(conversa,0,1);
+        var modos = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Padding = new Padding(0, 2, 0, 4) };
+        modos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        modos.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        ConfigurarBotaoModo(botaoEscrever, "⌨ ESCREVER", () => AtivarEscrita());
+        ConfigurarBotaoModo(botaoFalar, "🎙 FALAR", () => AlternarEscuta());
+        modos.Controls.Add(botaoEscrever, 0, 0);
+        modos.Controls.Add(botaoFalar, 1, 0);
+        body.Controls.Add(modos, 0, 1);
 
-        var input=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,Padding=new Padding(0,8,0,6)};
-        input.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100)); input.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,105));
-        pergunta.Dock=DockStyle.Fill; pergunta.Font=new Font("Segoe UI",11); pergunta.PlaceholderText="Digite do seu jeito...";
+        conversa.Dock=DockStyle.Fill; conversa.ReadOnly=true; conversa.BackColor=Color.FromArgb(9,27,43); conversa.ForeColor=Color.White; conversa.BorderStyle=BorderStyle.FixedSingle; conversa.Font=new Font("Segoe UI",10); conversa.DetectUrls=false;
+        body.Controls.Add(conversa,0,2);
+
+        var input=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=3,Padding=new Padding(0,6,0,4)};
+        input.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100)); input.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,52)); input.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,82));
+        pergunta.Dock=DockStyle.Fill; pergunta.Font=new Font("Segoe UI",10); pergunta.PlaceholderText="Digite...";
         pergunta.KeyDown += (_,e)=>{if(e.KeyCode==Keys.Enter){e.SuppressKeyPress=true;ProcessarPergunta();}};
-        input.Controls.Add(pergunta,0,0); input.Controls.Add(Botao("ENVIAR",ProcessarPergunta),1,0); body.Controls.Add(input,0,2);
+        var mic = Botao("🎙", AlternarEscuta); mic.Width=46;
+        var enviar = Botao("ENVIAR",ProcessarPergunta); enviar.Width=78;
+        input.Controls.Add(pergunta,0,0); input.Controls.Add(mic,1,0); input.Controls.Add(enviar,2,0); body.Controls.Add(input,0,3);
 
-        acoes.Dock=DockStyle.Fill; acoes.AutoScroll=true; acoes.WrapContents=true; acoes.Padding=new Padding(0,6,0,0); body.Controls.Add(acoes,0,3); CriarAtalhos();
+        acoes.Dock=DockStyle.Fill; acoes.AutoScroll=true; acoes.WrapContents=false; acoes.FlowDirection=FlowDirection.LeftToRight; acoes.Padding=new Padding(0,4,0,0); body.Controls.Add(acoes,0,4); CriarAtalhos();
+        AtivarEscrita();
+    }
+
+    private void ConfigurarBotaoModo(Button b, string texto, Action acao)
+    {
+        b.Text = texto; b.Dock = DockStyle.Fill; b.Margin = new Padding(3); b.FlatStyle = FlatStyle.Flat;
+        b.FlatAppearance.BorderSize = 0; b.ForeColor = Color.White; b.Cursor = Cursors.Hand;
+        b.Font = new Font("Segoe UI", 9, FontStyle.Bold); b.Click += (_, _) => acao();
+    }
+
+    private void AtivarEscrita()
+    {
+        if (ouvindo) PararEscuta();
+        botaoEscrever.BackColor = Color.FromArgb(0, 138, 190);
+        botaoFalar.BackColor = AzulPainel;
+        status.Text = $"● {Auth.Current?.Role ?? "OPERADOR"} • ESCREVENDO";
+        pergunta.Enabled = true;
+        pergunta.Focus();
+        orbe?.SetEstado("PRONTA");
+    }
+
+    private async void AlternarEscuta()
+    {
+        if (ouvindo) { PararEscuta(); AtivarEscrita(); return; }
+        if (!vozPronta || vozWeb.CoreWebView2 is null)
+        {
+            Responder("O microfone ainda não está disponível. Você pode continuar escrevendo.");
+            return;
+        }
+        try
+        {
+            ouvindo = true;
+            pergunta.Enabled = false;
+            botaoEscrever.BackColor = AzulPainel;
+            botaoFalar.BackColor = Color.FromArgb(0, 138, 190);
+            status.Text = $"● {Auth.Current?.Role ?? "OPERADOR"} • OUVINDO...";
+            orbe?.SetEstado("OUVINDO");
+            await vozWeb.CoreWebView2.ExecuteScriptAsync("window.liaStartListening && window.liaStartListening();");
+        }
+        catch { PararEscuta(); }
+    }
+
+    private async void PararEscuta()
+    {
+        ouvindo = false;
+        pergunta.Enabled = true;
+        try
+        {
+            if (vozWeb.CoreWebView2 is not null)
+                await vozWeb.CoreWebView2.ExecuteScriptAsync("window.liaStopListening && window.liaStopListening();");
+        }
+        catch { }
+        orbe?.SetEstado("PRONTA");
     }
 
     private Button Botao(string texto, Action acao)
@@ -251,8 +319,44 @@ public sealed class LiaInteligenteForm : Form
         try
         {
             await vozWeb.EnsureCoreWebView2Async();
-            vozWeb.CoreWebView2.NavigateToString("<html><body></body></html>");
-            await Task.Delay(250);
+            vozWeb.CoreWebView2.PermissionRequested += (_, e) =>
+            {
+                if (e.PermissionKind == Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.Microphone)
+                    e.State = Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Allow;
+            };
+            vozWeb.CoreWebView2.WebMessageReceived += (_, e) =>
+            {
+                try
+                {
+                    var msg = JsonSerializer.Deserialize<LiaVozMensagem>(e.WebMessageAsJson);
+                    if (msg?.tipo == "fala" && !string.IsNullOrWhiteSpace(msg.texto))
+                    {
+                        BeginInvoke(new Action(() =>
+                        {
+                            ouvindo = false;
+                            pergunta.Enabled = true;
+                            ExecutarTexto(msg.texto.Trim());
+                            AtivarEscrita();
+                        }));
+                    }
+                    else if (msg?.tipo == "fim")
+                        BeginInvoke(new Action(() => { if (ouvindo) { ouvindo = false; AtivarEscrita(); } }));
+                }
+                catch { }
+            };
+            vozWeb.CoreWebView2.NavigateToString(@"<html><body><script>
+                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+                let r = null;
+                if (SR) {
+                  r = new SR(); r.lang='pt-BR'; r.interimResults=false; r.continuous=false;
+                  r.onresult = e => chrome.webview.postMessage({tipo:'fala',texto:e.results[0][0].transcript});
+                  r.onend = () => chrome.webview.postMessage({tipo:'fim'});
+                  r.onerror = () => chrome.webview.postMessage({tipo:'fim'});
+                }
+                window.liaStartListening = () => { if(r){ try{r.start();}catch(e){} } };
+                window.liaStopListening = () => { if(r){ try{r.stop();}catch(e){} } };
+            </script></body></html>");
+            await Task.Delay(350);
             vozPronta = true;
         }
         catch
@@ -276,8 +380,9 @@ public sealed class LiaInteligenteForm : Form
                 u.pitch = 1.02;
                 const vs = speechSynthesis.getVoices();
                 const br = vs.filter(v => (v.lang || '').toLowerCase().startsWith('pt-br'));
-                const natural = br.find(v => /natural|online|maria|francisca/i.test(v.name));
-                if (natural || br[0]) u.voice = natural || br[0];
+                const feminina = br.find(v => /francisca|maria|female|feminina/i.test(v.name));
+                const natural = br.find(v => /natural|online/i.test(v.name));
+                if (feminina || natural || br[0]) u.voice = feminina || natural || br[0];
                 speechSynthesis.speak(u);
             }})()";
             await vozWeb.CoreWebView2.ExecuteScriptAsync(script);
@@ -313,4 +418,10 @@ public sealed class LiaInteligenteForm : Form
     }
 
 
+
+    private sealed class LiaVozMensagem
+    {
+        public string? tipo { get; set; }
+        public string? texto { get; set; }
+    }
 }

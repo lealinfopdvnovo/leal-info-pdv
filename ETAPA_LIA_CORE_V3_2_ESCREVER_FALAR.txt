@@ -1,0 +1,7 @@
+LEAL INFO PDV V10.130 — LIA CORE V3.2
+- Painel de conversa reduzido.
+- Alternância livre entre ESCREVER e FALAR.
+- Botão de microfone dentro da área de entrada.
+- Reconhecimento de fala pt-BR via WebView2.
+- Preferência por voz feminina pt-BR na resposta.
+- LIA Core, holograma, banco e segurança preservados.
