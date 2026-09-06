@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Printing;
@@ -676,17 +676,27 @@ public sealed class MainForm : Form
         new ToolTip().SetToolTip(liaAiFloatingButton, "LEAL AI — abrir LIA");
     }
 
-    private async void AbrirLiaCompleta()
+    private void AbrirLiaCompleta()
     {
-        // Preserva a LIA holográfica aprovada como boas-vindas.
-        new LiaForm().Show(this);
+        // ETAPA V2: nada abre por cima da apresentação.
+        // O painel e a orbe só nascem quando a LIA holográfica terminar e fechar.
+        var apresentacao = new LiaForm();
+        apresentacao.FormClosed += (_, _) =>
+        {
+            if (IsDisposed || !Visible) return;
 
-        // O vídeo oficial dura cerca de 5,12 s. O painel entra somente depois da apresentação.
-        await Task.Delay(5400);
-        if (IsDisposed || !Visible) return;
+            var orbe = new LiaOrbForm(this);
+            var painel = new LiaInteligenteForm(this, orbe);
 
-        var painel = new LiaInteligenteForm(this);
-        painel.Show(this);
+            painel.FormClosed += (_, _) =>
+            {
+                if (!orbe.IsDisposed) orbe.Close();
+            };
+
+            orbe.Show(this);
+            painel.Show(this);
+        };
+        apresentacao.Show(this);
     }
 
     private void ShowCadastroHelp()

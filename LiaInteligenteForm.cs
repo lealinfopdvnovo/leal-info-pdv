@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using System.Globalization;
 using System.Text;
 
@@ -12,6 +12,7 @@ namespace LealInfoPDV;
 public sealed class LiaInteligenteForm : Form
 {
     private readonly MainForm main;
+    private readonly LiaOrbForm? orbe;
     private readonly RichTextBox conversa = new();
     private readonly TextBox pergunta = new();
     private readonly FlowLayoutPanel acoes = new();
@@ -20,14 +21,15 @@ public sealed class LiaInteligenteForm : Form
     private static readonly Color AzulEscuro = Color.FromArgb(4, 35, 62);
     private static readonly Color AzulPainel = Color.FromArgb(7, 55, 95);
 
-    public LiaInteligenteForm(MainForm mainForm)
+    public LiaInteligenteForm(MainForm mainForm, LiaOrbForm? liaOrb = null)
     {
         main = mainForm;
-        Text = "LIA • LEAL AI — CONVERSA (TESTE CORE V1)";
+        orbe = liaOrb;
+        Text = "LIA • CONVERSA";
         StartPosition = FormStartPosition.Manual;
-        Width = 560;
-        Height = 650;
-        MinimumSize = new Size(500, 560);
+        Width = 500;
+        Height = 560;
+        MinimumSize = new Size(470, 520);
         BackColor = AzulEscuro;
         ForeColor = Color.White;
         Font = new Font("Segoe UI", 10);
@@ -45,8 +47,19 @@ public sealed class LiaInteligenteForm : Form
     private void Posicionar()
     {
         var area = Screen.FromControl(main).WorkingArea;
-        Left = Math.Max(area.Left, main.Right - Width - 90);
-        Top = Math.Max(area.Top, main.Bottom - Height - 105);
+
+        if (orbe is not null && !orbe.IsDisposed)
+        {
+            // Painel SEMPRE ao lado da orbe, nunca em cima da LIA.
+            int x = orbe.Left - Width - 14;
+            int y = orbe.Bottom - Height;
+            Left = Math.Max(area.Left + 8, x);
+            Top = Math.Max(area.Top + 8, Math.Min(y, area.Bottom - Height - 8));
+            return;
+        }
+
+        Left = Math.Max(area.Left + 8, main.Right - Width - 190);
+        Top = Math.Max(area.Top + 8, main.Bottom - Height - 105);
     }
 
     private void BuildUi()
@@ -62,7 +75,7 @@ public sealed class LiaInteligenteForm : Form
         body.RowStyles.Add(new RowStyle(SizeType.Absolute, 98));
         Controls.Add(body);
 
-        status.Text = $"● {Auth.Current?.Role ?? "OPERADOR"} • LIA CORE V1 • OFFLINE";
+        status.Text = $"● {Auth.Current?.Role ?? "OPERADOR"} • LIA CORE • OFFLINE";
         status.Dock = DockStyle.Fill; status.ForeColor = Color.FromArgb(124,238,255); status.Font = new Font("Segoe UI",10,FontStyle.Bold); status.TextAlign = ContentAlignment.MiddleLeft;
         body.Controls.Add(status,0,0);
 
@@ -112,6 +125,7 @@ public sealed class LiaInteligenteForm : Form
                 case "ESTOQUE_BAIXO": Responder(EstoqueBaixo()); break;
                 case "CLIENTES": Responder(QuantidadeClientes()); break;
                 case "SALDO_CAIXA": if(!Auth.IsManager){Responder("Essa informação é restrita. Chame o gerente.");break;} Responder(SaldoCaixa()); break;
+                case "CONTAS_PAGAR": if(!Auth.IsManager){Responder("Essa informação é do Financeiro. Chame o gerente.");break;} Responder("O PDV atual ainda não possui uma agenda separada de contas a pagar. Posso abrir o Financeiro para consultar as saídas registradas."); break;
                 case "ABRIR_PRODUTOS": Responder("Abrindo Produtos."); main.BeginInvoke(new Action(main.LiaAbrirProdutos)); break;
                 case "ABRIR_VENDAS": Responder("Abrindo a Tela de Vendas."); main.BeginInvoke(new Action(main.LiaAbrirVendas)); break;
                 case "ABRIR_CLIENTES": Responder("Abrindo Clientes."); main.BeginInvoke(new Action(main.LiaAbrirClientes)); break;

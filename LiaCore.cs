@@ -1,4 +1,4 @@
-namespace LealInfoPDV;
+﻿namespace LealInfoPDV;
 
 public enum LiaModo { Instrutora, Operacional, Gerencial }
 public enum LiaRisco { Normal, Atencao, Critico }
@@ -43,6 +43,9 @@ public static class LiaCore
 
         if (Tem("cliente", "clientes") && Tem("quantos", "cadastrado", "cadastro", "tenho"))
             return new("CLIENTES", LiaRisco.Normal);
+
+        if (Tem("o que tenho pra pagar", "o que tenho para pagar", "contas a pagar", "tenho pra pagar", "tenho para pagar", "pagamentos pendentes", "vencimentos"))
+            return new("CONTAS_PAGAR", LiaRisco.Normal);
 
         if (Tem("caixa", "saldo") && !Tem("abrir"))
             return new("SALDO_CAIXA", LiaRisco.Normal);

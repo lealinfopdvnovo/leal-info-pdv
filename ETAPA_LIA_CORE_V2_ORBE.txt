@@ -1,0 +1,16 @@
+LEAL INFO PDV V10.130 — LIA CORE V2
+
+ALTERAÇÕES DESTA ETAPA:
+- A apresentação holográfica termina por completo antes de abrir a conversa.
+- Removido atraso fixo de 5,4 s; agora o fechamento real da LiaForm dispara a próxima etapa.
+- Nova orbe pulsante LIA / LEAL AI, leve e offline.
+- Painel de conversa menor e posicionado ao lado da orbe, nunca sobre a LIA.
+- Reconhece frases como “o que tenho pra pagar” como assunto financeiro, respeitando permissão.
+- Backup Mestre não foi alterado.
+
+ARQUIVOS DA ETAPA PARA GITHUB:
+LiaOrbForm.cs
+LiaCore.cs
+LiaInteligenteForm.cs
+MainForm.cs
+ETAPA_LIA_CORE_V2_ORBE.txt
