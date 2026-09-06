@@ -5,7 +5,7 @@ using System.Drawing;
 namespace LealInfoPDV;
 
 /// <summary>
-/// Módulo isolado da LIA. Não reutiliza nenhum código/asset legado da antiga integração.
+/// LIA holográfica: sem moldura, sem barra de título e com fundo transparente.
 /// </summary>
 public sealed class LiaForm : Form
 {
@@ -13,21 +13,23 @@ public sealed class LiaForm : Form
 
     public LiaForm()
     {
-        Text = "LIA • LEAL AI";
+        // Janela invisível como "caixa": só a personagem deve aparecer.
+        Text = string.Empty;
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(530, 794);
-        MinimumSize = new Size(360, 540);
-        FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        FormBorderStyle = FormBorderStyle.None;
+        ShowInTaskbar = false;
+        TopMost = true;
+        MaximizeBox = false;
+        MinimizeBox = false;
+
+        // Cor-chave do host WinForms. O WebView2 usa fundo transparente,
+        // então o que sobra visualmente é apenas o vídeo com alpha.
         var transparentKey = Color.FromArgb(1, 1, 1);
         BackColor = transparentKey;
         TransparencyKey = transparentKey;
-        ShowInTaskbar = false;
-        TopMost = true;
 
         web.Dock = DockStyle.Fill;
-        // NÃO usar web.BackColor = Color.Transparent: o controle WinForms não suporta
-        // BackColor transparente e lança exceção antes mesmo de o WebView2 iniciar.
-        // A transparência do vídeo fica sob responsabilidade do WebView2/HTML.
         web.DefaultBackgroundColor = Color.Transparent;
         Controls.Add(web);
 
@@ -39,9 +41,7 @@ public sealed class LiaForm : Form
         var liaFolder = Path.Combine(AppContext.BaseDirectory, "Assets");
         var videoPath = Path.Combine(liaFolder, "LIA_OFICIAL_TRANSPARENTE.webm");
 
-        // ETAPA 3: dupla garantia. O arquivo deve ir no publish/Setup e também
-        // fica embutido no executável como reserva. Se o instalador não copiar
-        // o WEBM por qualquer motivo, extraímos a cópia embutida em LocalAppData.
+        // Reserva embutida: se o instalador não copiar o WEBM, extrai para LocalAppData.
         if (!File.Exists(videoPath))
         {
             var localLiaFolder = Path.Combine(
@@ -57,8 +57,7 @@ public sealed class LiaForm : Form
                 if (input is null)
                 {
                     MessageBox.Show(
-                        "A LIA não foi incluída na publicação nem no executável.\n\n" +
-                        "Caminho esperado: " + videoPath,
+                        "A LIA não foi incluída na publicação.",
                         "LIA • LEAL AI");
                     Close();
                     return;
@@ -74,37 +73,66 @@ public sealed class LiaForm : Form
 
         try
         {
-            // O PDV é instalado em Program Files. Se o WebView2 usar a pasta
-            // padrão de dados ao lado do executável, o Windows pode bloquear
-            // a gravação e retornar 0x80070005 (E_ACCESSDENIED).
-            // Forçamos os dados do WebView2 para LocalAppData, que é gravável.
             var webViewUserDataFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "LEAL INFO PDV", "WebView2", "LIA");
             Directory.CreateDirectory(webViewUserDataFolder);
 
+            // Libera autoplay COM ÁUDIO. Sem isso o WebView2 pode tocar o vídeo mudo.
+            var options = new CoreWebView2EnvironmentOptions(
+                additionalBrowserArguments: "--autoplay-policy=no-user-gesture-required");
+
             var environment = await CoreWebView2Environment.CreateAsync(
                 browserExecutableFolder: null,
-                userDataFolder: webViewUserDataFolder);
+                userDataFolder: webViewUserDataFolder,
+                options: options);
 
             await web.EnsureCoreWebView2Async(environment);
+
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;
             web.CoreWebView2.Settings.IsStatusBarEnabled = false;
+            web.CoreWebView2.Settings.IsZoomControlEnabled = false;
+
             web.CoreWebView2.SetVirtualHostNameToFolderMapping(
                 "lia.local",
                 liaFolder,
                 CoreWebView2HostResourceAccessKind.Allow);
+
+            // Clique na própria LIA fecha o holograma.
+            web.CoreWebView2.WebMessageReceived += (_, e) =>
+            {
+                if (e.TryGetWebMessageAsString() == "close")
+                    BeginInvoke(Close);
+            };
 
             const string html = """
 <!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="dark light">
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent;}
-body{display:flex;align-items:center;justify-content:center;}
-video{width:100%;height:100%;object-fit:contain;background:transparent;}
+html,body{
+  margin:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:rgba(0,0,0,0) !important;
+}
+body{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+video{
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  background:rgba(0,0,0,0) !important;
+  filter:drop-shadow(0 0 7px rgba(0,210,255,.55)) drop-shadow(0 0 18px rgba(0,125,255,.30));
+  cursor:pointer;
+}
 </style>
 </head>
 <body>
@@ -112,18 +140,39 @@ video{width:100%;height:100%;object-fit:contain;background:transparent;}
   <source src="https://lia.local/LIA_OFICIAL_TRANSPARENTE.webm" type="video/webm">
 </video>
 <script>
-const v=document.getElementById('lia');
-v.addEventListener('ended',()=>{ v.currentTime=0; v.pause(); });
-v.play().catch(()=>{});
+const v = document.getElementById('lia');
+v.muted = false;
+v.volume = 1.0;
+
+function tocar(){
+  v.muted = false;
+  v.volume = 1.0;
+  const p = v.play();
+  if (p && p.catch) p.catch(() => setTimeout(tocar, 180));
+}
+
+document.addEventListener('DOMContentLoaded', tocar);
+v.addEventListener('loadeddata', tocar);
+v.addEventListener('canplay', tocar);
+
+// Toca uma vez e congela no último quadro; não entra em loop.
+v.addEventListener('ended', () => {
+  try { v.currentTime = Math.max(0, v.duration - 0.04); } catch(e) {}
+  v.pause();
+});
+
+v.addEventListener('click', () => window.chrome.webview.postMessage('close'));
 </script>
 </body>
 </html>
 """;
+
             web.NavigateToString(html);
         }
         catch (Exception ex)
         {
             MessageBox.Show("Não foi possível iniciar a LIA.\n\n" + ex.Message, "LIA • LEAL AI");
+            Close();
         }
     }
 }
