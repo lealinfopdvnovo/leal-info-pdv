@@ -39,7 +39,7 @@ public sealed class LiaForm : Form
     private async Task StartLiaAsync()
     {
         var liaFolder = Path.Combine(AppContext.BaseDirectory, "Assets");
-        var videoPath = Path.Combine(liaFolder, "LIA_OFICIAL_TRANSPARENTE.webm");
+        var videoPath = Path.Combine(liaFolder, "leal_ai_feminino_holograma.webm");
 
         // Reserva embutida: se o instalador não copiar o WEBM, extrai para LocalAppData.
         if (!File.Exists(videoPath))
@@ -49,11 +49,11 @@ public sealed class LiaForm : Form
                 "LEAL INFO PDV", "LIA");
             Directory.CreateDirectory(localLiaFolder);
 
-            var localVideoPath = Path.Combine(localLiaFolder, "LIA_OFICIAL_TRANSPARENTE.webm");
+            var localVideoPath = Path.Combine(localLiaFolder, "leal_ai_feminino_holograma.webm");
             if (!File.Exists(localVideoPath))
             {
                 using var input = typeof(LiaForm).Assembly.GetManifestResourceStream(
-                    "LealInfoPDV.Assets.LIA_OFICIAL_TRANSPARENTE.webm");
+                    "LealInfoPDV.Assets.leal_ai_feminino_holograma.webm");
                 if (input is null)
                 {
                     MessageBox.Show(
@@ -137,31 +137,44 @@ video{
 </head>
 <body>
 <video id="lia" autoplay playsinline preload="auto">
-  <source src="https://lia.local/LIA_OFICIAL_TRANSPARENTE.webm" type="video/webm">
+  <source src="https://lia.local/leal_ai_feminino_holograma.webm" type="video/webm">
 </video>
 <script>
 const v = document.getElementById('lia');
+let iniciou = false;
 v.muted = false;
 v.volume = 1.0;
 
-function tocar(){
+function tocarUmaVez(){
+  if (iniciou) return;
+  iniciou = true;
   v.muted = false;
   v.volume = 1.0;
   const p = v.play();
-  if (p && p.catch) p.catch(() => setTimeout(tocar, 180));
+  if (p && p.catch) {
+    p.catch(() => {
+      iniciou = false;
+      setTimeout(tocarUmaVez, 250);
+    });
+  }
 }
 
-document.addEventListener('DOMContentLoaded', tocar);
-v.addEventListener('loadeddata', tocar);
-v.addEventListener('canplay', tocar);
+document.addEventListener('DOMContentLoaded', tocarUmaVez, { once:true });
+v.addEventListener('canplay', tocarUmaVez, { once:true });
 
-// Toca uma vez e congela no último quadro; não entra em loop.
+// Terminou o aceno: fecha o holograma. Sem seek, sem replay, sem falso loop.
 v.addEventListener('ended', () => {
-  try { v.currentTime = Math.max(0, v.duration - 0.04); } catch(e) {}
   v.pause();
-});
+  setTimeout(() => window.chrome.webview.postMessage('close'), 250);
+}, { once:true });
 
+// Clique na LIA também fecha.
 v.addEventListener('click', () => window.chrome.webview.postMessage('close'));
+
+// ESC fecha mesmo se o clique não pegar.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') window.chrome.webview.postMessage('close');
+});
 </script>
 </body>
 </html>
