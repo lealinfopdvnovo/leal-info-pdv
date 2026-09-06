@@ -16,7 +16,7 @@ public sealed class LiaForm : Form
         // Janela invisível como "caixa": só a personagem deve aparecer.
         Text = string.Empty;
         StartPosition = FormStartPosition.Manual;
-        ClientSize = new Size(530, 794);
+        ClientSize = new Size(340, 510);
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
         TopMost = true;
@@ -36,39 +36,54 @@ public sealed class LiaForm : Form
         Shown += async (_, _) =>
         {
             PosicionarAoLadoDoBotaoAi();
+            var destino = Location;
+            Location = new Point(destino.X, destino.Y + 260);
             await StartLiaAsync();
+            AnimarSubida(destino);
         };
     }
 
     private void PosicionarAoLadoDoBotaoAi()
     {
-        // Mantém todo o holograma como já aprovado e muda SOMENTE a posição.
-        // A LIA nasce no canto inferior direito, ligada visualmente ao botão AI.
+        // Tamanho reduzido e posição presa ao botão AI do canto inferior direito.
         var owner = Owner as Form;
         var area = owner is not null
             ? Screen.FromControl(owner).WorkingArea
             : Screen.FromControl(this).WorkingArea;
 
-        int x;
-        int y;
+        // O botão AI mede 58x58, fica a 22 px da direita e acima da barra de status.
+        // A personagem fica imediatamente acima dele, alinhada pelo centro do botão.
+        int botaoCentroX = owner is not null ? owner.Right - 22 - 29 : area.Right - 22 - 29;
+        int botaoTopo = owner is not null ? owner.Bottom - 98 : area.Bottom - 98;
 
-        if (owner is not null)
-        {
-            // Surge no canto inferior direito, visualmente ligada ao botão AI.
-            const int margemDireita = 18;
-            const int margemInferior = 92;
-            x = owner.Right - Width - margemDireita;
-            y = owner.Bottom - Height - margemInferior;
-        }
-        else
-        {
-            x = area.Right - Width - 18;
-            y = area.Bottom - Height - 92;
-        }
+        int x = botaoCentroX - (Width / 2);
+        int y = botaoTopo - Height + 12;
 
-        x = Math.Max(area.Left, Math.Min(x, area.Right - Width));
-        y = Math.Max(area.Top, Math.Min(y, area.Bottom - Height));
+        // Mantém a LIA inteira visível sem perder a ligação visual com o botão.
+        x = Math.Max(area.Left + 6, Math.Min(x, area.Right - Width - 6));
+        y = Math.Max(area.Top + 6, Math.Min(y, area.Bottom - Height - 6));
         Location = new Point(x, y);
+    }
+
+    private void AnimarSubida(Point destino)
+    {
+        // Entrada holográfica: sobe de baixo para cima sem tocar no vídeo/áudio.
+        var timer = new System.Windows.Forms.Timer { Interval = 15 };
+        timer.Tick += (_, _) =>
+        {
+            int restante = Location.Y - destino.Y;
+            if (restante <= 0)
+            {
+                Location = destino;
+                timer.Stop();
+                timer.Dispose();
+                return;
+            }
+
+            int passo = Math.Max(8, restante / 5);
+            Location = new Point(destino.X, Math.Max(destino.Y, Location.Y - passo));
+        };
+        timer.Start();
     }
 
     private async Task StartLiaAsync()
