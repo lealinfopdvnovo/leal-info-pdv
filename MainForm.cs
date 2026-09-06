@@ -406,7 +406,7 @@ public sealed class MainForm : Form
             Font = new Font("Segoe UI", 10, FontStyle.Bold),
             Renderer = new ToolStripProfessionalRenderer(new LealMenuColors())
         };
-        foreach (var title in new[] { "Cadastro", "Consulta", "Movimentação", "Financeiro", "Tela de Vendas", "Utilitários", "Relatórios", "Ajuda", "Sair" })
+        foreach (var title in new[] { "Cadastro", "Consulta", "Movimentação", "Financeiro", "Tela de Vendas", "Utilitários", "Relatórios", "LIA", "Ajuda", "Sair" })
         {
             var item = new ToolStripMenuItem(title)
             {
@@ -467,6 +467,10 @@ public sealed class MainForm : Form
             else if (title == "Tela de Vendas")
             {
                 AddMenu("Abrir Tela de Vendas", OpenSales);
+            }
+            else if (title == "LIA")
+            {
+                AddMenu("Abrir LIA • LEAL AI", () => new LiaForm().Show(this));
             }
             else if (title == "Utilitários")
             {

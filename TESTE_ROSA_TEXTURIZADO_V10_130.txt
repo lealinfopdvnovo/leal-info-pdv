@@ -1,0 +1,3 @@
+LEAL INFO PDV V10.130 - TESTE ROSA TEXTURIZADO
+Base: MARCO ZERO V10.130 auditado
+Alteracao: tema PDV Rosa com textura rosé/vinho acetinada e perolada.
