@@ -11,6 +11,8 @@ public sealed class LiaOrbForm : Form
     private readonly MainForm main;
     private readonly OrbView orb = new();
 
+    public event EventHandler? OrbClicked;
+
     public void SetEstado(string estado) => orb.SetEstado(estado);
 
     public LiaOrbForm(MainForm mainForm)
@@ -31,6 +33,7 @@ public sealed class LiaOrbForm : Form
 
         orb.Dock = DockStyle.Fill;
         Controls.Add(orb);
+        orb.Click += (_, _) => OrbClicked?.Invoke(this, EventArgs.Empty);
 
         Shown += (_, _) => Posicionar();
         main.Move += (_, _) => { if (!IsDisposed) Posicionar(); };
@@ -102,7 +105,7 @@ public sealed class LiaOrbForm : Form
             using var ciano = new SolidBrush(Color.FromArgb(155, 245, 255));
             var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
             e.Graphics.DrawString("LIA", f1, branco, new RectangleF(0, cy - 24, Width, 42), sf);
-            e.Graphics.DrawString(estado == "FALANDO" ? "FALANDO" : "LEAL AI", f2, ciano, new RectangleF(0, cy + 16, Width, 24), sf);
+            e.Graphics.DrawString(estado, f2, ciano, new RectangleF(0, cy + 16, Width, 24), sf);
         }
     }
 }

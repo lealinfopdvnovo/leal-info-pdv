@@ -1,0 +1,2 @@
+LIA VOZ V1
+Sem painel de escrever. Fluxo: Orbe -> microfone -> LIA Core -> resposta por voz.

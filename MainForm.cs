@@ -664,26 +664,24 @@ public sealed class MainForm : Form
 
     private void AbrirLiaCompleta()
     {
-        // V3: existe uma única presença de acesso por vez.
-        // A orbe compacta some durante a apresentação/conversa e volta ao encerrar.
+        // LIA VOZ: sem painel de escrita. Apresentação -> Orbe -> escuta -> Core -> voz.
         if (liaAiFloatingButton is not null) liaAiFloatingButton.Visible = false;
         var apresentacao = new LiaForm();
-        apresentacao.FormClosed += (_, _) =>
+        apresentacao.FormClosed += async (_, _) =>
         {
             if (IsDisposed || !Visible) return;
 
             var orbe = new LiaOrbForm(this);
-            var painel = new LiaInteligenteForm(this, orbe);
-
-            painel.FormClosed += (_, _) =>
+            var voz = new LiaVoiceController(this, orbe);
+            voz.Encerrado += (_, _) =>
             {
-                if (!orbe.IsDisposed) orbe.Close();
+                voz.Dispose();
                 if (liaAiFloatingButton is not null && !liaAiFloatingButton.IsDisposed)
                     liaAiFloatingButton.Visible = true;
             };
 
             orbe.Show(this);
-            painel.Show(this);
+            await voz.IniciarAsync();
         };
         apresentacao.Show(this);
     }
