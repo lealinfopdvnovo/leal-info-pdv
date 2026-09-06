@@ -36,7 +36,7 @@ public sealed class LiaForm : Form
 
     private async Task StartLiaAsync()
     {
-        var liaFolder = Path.Combine(AppContext.BaseDirectory, "Assets", "LIA");
+        var liaFolder = Path.Combine(AppContext.BaseDirectory, "Assets");
         var videoPath = Path.Combine(liaFolder, "LIA_OFICIAL_TRANSPARENTE.webm");
 
         // ETAPA 3: dupla garantia. O arquivo deve ir no publish/Setup e também
@@ -53,7 +53,7 @@ public sealed class LiaForm : Form
             if (!File.Exists(localVideoPath))
             {
                 using var input = typeof(LiaForm).Assembly.GetManifestResourceStream(
-                    "LealInfoPDV.Assets.LIA.LIA_OFICIAL_TRANSPARENTE.webm");
+                    "LealInfoPDV.Assets.LIA_OFICIAL_TRANSPARENTE.webm");
                 if (input is null)
                 {
                     MessageBox.Show(

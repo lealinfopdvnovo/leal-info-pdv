@@ -32,12 +32,12 @@
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
 
-    <Content Include="Assets\LIA\LIA_OFICIAL_TRANSPARENTE.webm">
+    <Content Include="Assets\LIA_OFICIAL_TRANSPARENTE.webm">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <CopyToPublishDirectory>Always</CopyToPublishDirectory>
     </Content>
 
-    <EmbeddedResource Include="Assets\LIA\LIA_OFICIAL_TRANSPARENTE.webm"
-                      LogicalName="LealInfoPDV.Assets.LIA.LIA_OFICIAL_TRANSPARENTE.webm" />
+    <EmbeddedResource Include="Assets\LIA_OFICIAL_TRANSPARENTE.webm"
+                      LogicalName="LealInfoPDV.Assets.LIA_OFICIAL_TRANSPARENTE.webm" />
   </ItemGroup>
 </Project>
