@@ -472,7 +472,7 @@ public sealed class MainForm : Form
             }
             else if (title == "LIA")
             {
-                AddMenu("Abrir LIA • LEAL AI", () => new LiaInteligenteForm(this).Show(this));
+                AddMenu("Abrir LIA • LEAL AI", () => AbrirLiaCompleta());
             }
             else if (title == "Utilitários")
             {
@@ -657,7 +657,7 @@ public sealed class MainForm : Form
         };
         liaAiFloatingButton.FlatAppearance.BorderSize = 0;
         liaAiFloatingButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 210, 255);
-        liaAiFloatingButton.Click += (_, _) => new LiaInteligenteForm(this).Show(this);
+        liaAiFloatingButton.Click += (_, _) => AbrirLiaCompleta();
 
         Controls.Add(liaAiFloatingButton);
 
@@ -674,6 +674,19 @@ public sealed class MainForm : Form
         PosicionarBotaoAi();
 
         new ToolTip().SetToolTip(liaAiFloatingButton, "LEAL AI — abrir LIA");
+    }
+
+    private async void AbrirLiaCompleta()
+    {
+        // Preserva a LIA holográfica aprovada como boas-vindas.
+        new LiaForm().Show(this);
+
+        // O vídeo oficial dura cerca de 5,12 s. O painel entra somente depois da apresentação.
+        await Task.Delay(5400);
+        if (IsDisposed || !Visible) return;
+
+        var painel = new LiaInteligenteForm(this);
+        painel.Show(this);
     }
 
     private void ShowCadastroHelp()
