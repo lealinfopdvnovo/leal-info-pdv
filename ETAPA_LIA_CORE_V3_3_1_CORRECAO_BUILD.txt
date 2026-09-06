@@ -1,0 +1,2 @@
+V3.3.1 - Correcao exclusiva de sintaxe no JavaScript embutido de LiaInteligenteForm.cs.
+Sem alteracao de interface, LiaCore, holograma, orb ou banco de dados.

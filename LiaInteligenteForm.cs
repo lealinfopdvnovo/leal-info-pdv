@@ -397,7 +397,7 @@ public sealed class LiaInteligenteForm : Form
                 u.lang = 'pt-BR';
                 u.rate = 1.06;
                 u.pitch = 1.02;
-                const falar = () => {
+                const falar = () => {{
                     const vs = speechSynthesis.getVoices();
                     const br = vs.filter(v => (v.lang || '').toLowerCase().startsWith('pt-br'));
                     const feminina = br.find(v => /francisca/i.test(v.name)) ||
@@ -406,9 +406,9 @@ public sealed class LiaInteligenteForm : Form
                                      br.find(v => /natural|online/i.test(v.name));
                     if (feminina) u.voice = feminina;
                     speechSynthesis.speak(u);
-                };
+                }};
                 if (speechSynthesis.getVoices().length) falar();
-                else speechSynthesis.addEventListener('voiceschanged', falar, { once:true });
+                else speechSynthesis.addEventListener('voiceschanged', falar, {{ once:true }});
             }})()";
             await vozWeb.CoreWebView2.ExecuteScriptAsync(script);
             // Estado visual volta sozinho; a fala continua no mecanismo do navegador.
