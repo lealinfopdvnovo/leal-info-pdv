@@ -38,11 +38,38 @@ public sealed class LiaForm : Form
     {
         var liaFolder = Path.Combine(AppContext.BaseDirectory, "Assets", "LIA");
         var videoPath = Path.Combine(liaFolder, "LIA_OFICIAL_TRANSPARENTE.webm");
+
+        // ETAPA 3: dupla garantia. O arquivo deve ir no publish/Setup e também
+        // fica embutido no executável como reserva. Se o instalador não copiar
+        // o WEBM por qualquer motivo, extraímos a cópia embutida em LocalAppData.
         if (!File.Exists(videoPath))
         {
-            MessageBox.Show("Arquivo oficial da LIA não encontrado.", "LIA • LEAL AI");
-            Close();
-            return;
+            var localLiaFolder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LEAL INFO PDV", "LIA");
+            Directory.CreateDirectory(localLiaFolder);
+
+            var localVideoPath = Path.Combine(localLiaFolder, "LIA_OFICIAL_TRANSPARENTE.webm");
+            if (!File.Exists(localVideoPath))
+            {
+                using var input = typeof(LiaForm).Assembly.GetManifestResourceStream(
+                    "LealInfoPDV.Assets.LIA.LIA_OFICIAL_TRANSPARENTE.webm");
+                if (input is null)
+                {
+                    MessageBox.Show(
+                        "A LIA não foi incluída na publicação nem no executável.\n\n" +
+                        "Caminho esperado: " + videoPath,
+                        "LIA • LEAL AI");
+                    Close();
+                    return;
+                }
+
+                using var output = File.Create(localVideoPath);
+                await input.CopyToAsync(output);
+            }
+
+            liaFolder = localLiaFolder;
+            videoPath = localVideoPath;
         }
 
         try
