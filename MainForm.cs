@@ -533,6 +533,7 @@ public sealed class MainForm : Form
         AddTool(bar, "RELATÓRIOS", "reports.png", OpenReports);
         AddTool(bar, "BACKUP", "backup.png", Backup);
         AddTool(bar, "CONFIGURAÇÕES", "settings.png", OpenSettings);
+        AddTool(bar, "LIA\nAI", "lealinfo_app_icon.png", () => new LiaForm().Show(this));
         AddTool(bar, "SAIR", "exit.png", ConfirmExit);
 
         // Distribui todos os atalhos pela largura disponível.

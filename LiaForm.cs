@@ -18,12 +18,16 @@ public sealed class LiaForm : Form
         ClientSize = new Size(530, 794);
         MinimumSize = new Size(360, 540);
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
-        BackColor = Color.FromArgb(3, 18, 36);
+        var transparentKey = Color.FromArgb(1, 1, 1);
+        BackColor = transparentKey;
+        TransparencyKey = transparentKey;
         ShowInTaskbar = false;
         TopMost = true;
 
         web.Dock = DockStyle.Fill;
-        web.BackColor = Color.Transparent;
+        // NÃO usar web.BackColor = Color.Transparent: o controle WinForms não suporta
+        // BackColor transparente e lança exceção antes mesmo de o WebView2 iniciar.
+        // A transparência do vídeo fica sob responsabilidade do WebView2/HTML.
         web.DefaultBackgroundColor = Color.Transparent;
         Controls.Add(web);
 
