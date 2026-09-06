@@ -1,0 +1,4 @@
+LIA VOZ V2 — MICROFONE CONTÍNUO
+Mudança isolada: substitui RecognizeAsync por ContinuousRecognitionSession.
+Não altera MainForm, LiaCore, LiaOrbForm, LiaOrbLauncher nem holograma.
+Teste: tocar na Orbe, aguardar OUVINDO e falar "Oi LIA".

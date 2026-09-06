@@ -19,6 +19,7 @@ public sealed class LiaVoiceController : IDisposable
     private bool encerrado;
     private bool vozPronta;
     private bool processando;
+    private readonly SynchronizationContext ui;
 
     public event EventHandler? Encerrado;
 
@@ -26,6 +27,7 @@ public sealed class LiaVoiceController : IDisposable
     {
         main = mainForm;
         orbe = orbForm;
+        ui = SynchronizationContext.Current ?? new WindowsFormsSynchronizationContext();
         vozWeb.Size = new Size(1, 1);
         vozWeb.Location = new Point(-20, -20);
         vozWeb.Visible = true;
@@ -46,7 +48,7 @@ public sealed class LiaVoiceController : IDisposable
             await PrepararVozAsync();
             await PrepararMicrofoneAsync();
             await FalarAsync($"Olá, {Auth.OperatorName}. Estou ouvindo.");
-            _ = LoopEscutaAsync();
+            await IniciarEscutaContinuaAsync();
         }
         catch (Exception ex)
         {
@@ -57,40 +59,64 @@ public sealed class LiaVoiceController : IDisposable
         }
     }
 
-    private async Task LoopEscutaAsync()
+    private async Task IniciarEscutaContinuaAsync()
     {
-        while (!encerrado)
-        {
-            try
-            {
-                if (reconhecedor is null) break;
-                orbe.SetEstado("OUVINDO");
-                var resultado = await reconhecedor.RecognizeAsync();
-                if (encerrado) break;
-                if (resultado.Status != SpeechRecognitionResultStatus.Success || string.IsNullOrWhiteSpace(resultado.Text))
-                    continue;
+        if (reconhecedor is null || encerrado) return;
 
-                var texto = resultado.Text.Trim();
-                if (processando) continue;
-                processando = true;
+        reconhecedor.ContinuousRecognitionSession.ResultGenerated += AoReconhecer;
+        reconhecedor.ContinuousRecognitionSession.Completed += AoEncerrarReconhecimento;
+        await reconhecedor.ContinuousRecognitionSession.StartAsync();
+        orbe.SetEstado("OUVINDO");
+    }
+
+    private async void AoReconhecer(SpeechContinuousRecognitionSession sender, SpeechContinuousRecognitionResultGeneratedEventArgs args)
+    {
+        if (encerrado || processando) return;
+        var r = args.Result;
+        if (r.Status != SpeechRecognitionResultStatus.Success || string.IsNullOrWhiteSpace(r.Text)) return;
+
+        processando = true;
+        try
+        {
+            var texto = r.Text.Trim();
+            await NoUiAsync(async () =>
+            {
+                if (encerrado) return;
                 orbe.SetEstado("PENSANDO");
                 var resposta = Processar(texto);
                 if (!string.IsNullOrWhiteSpace(resposta)) await FalarAsync(resposta);
-                processando = false;
-            }
-            catch (Exception ex)
-            {
-                processando = false;
-                if (encerrado) break;
-                if (EhErroPrivacidadeFala(ex))
-                {
-                    AbrirPrivacidadeDeFalaWindows();
-                    MessageBox.Show("O Windows ainda não liberou o reconhecimento de fala. Ative Reconhecimento de fala online e tente novamente.", "LIA", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                }
-                break;
-            }
+                if (!encerrado) orbe.SetEstado("OUVINDO");
+            });
         }
-        if (!encerrado) Encerrar();
+        catch { }
+        finally { processando = false; }
+    }
+
+    private async void AoEncerrarReconhecimento(SpeechContinuousRecognitionSession sender, SpeechContinuousRecognitionCompletedEventArgs args)
+    {
+        if (encerrado) return;
+        if (args.Status == SpeechRecognitionResultStatus.Success) return;
+        await NoUiAsync(() =>
+        {
+            if (!encerrado)
+            {
+                orbe.SetEstado("ERRO");
+                MessageBox.Show("A escuta da LIA foi interrompida pelo Windows. Toque na Orbe novamente para reiniciar.", "LIA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Encerrar();
+            }
+            return Task.CompletedTask;
+        });
+    }
+
+    private Task NoUiAsync(Func<Task> acao)
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        ui.Post(async _ =>
+        {
+            try { await acao(); tcs.TrySetResult(true); }
+            catch (Exception ex) { tcs.TrySetException(ex); }
+        }, null);
+        return tcs.Task;
     }
 
     private string Processar(string texto)
@@ -136,6 +162,9 @@ public sealed class LiaVoiceController : IDisposable
     {
         reconhecedor?.Dispose();
         reconhecedor = new SpeechRecognizer(new Language("pt-BR"));
+        reconhecedor.Timeouts.InitialSilenceTimeout = TimeSpan.FromSeconds(20);
+        reconhecedor.Timeouts.EndSilenceTimeout = TimeSpan.FromSeconds(1.2);
+        reconhecedor.Timeouts.BabbleTimeout = TimeSpan.FromSeconds(20);
         reconhecedor.Constraints.Add(new SpeechRecognitionTopicConstraint(SpeechRecognitionScenario.Dictation, "LIA"));
         var compilacao = await reconhecedor.CompileConstraintsAsync();
         if (compilacao.Status != SpeechRecognitionResultStatus.Success)
@@ -197,7 +226,16 @@ public sealed class LiaVoiceController : IDisposable
     {
         if (encerrado) return;
         encerrado=true;
-        try { reconhecedor?.StopRecognitionAsync(); } catch { }
+        try
+        {
+            if (reconhecedor is not null)
+            {
+                reconhecedor.ContinuousRecognitionSession.ResultGenerated -= AoReconhecer;
+                reconhecedor.ContinuousRecognitionSession.Completed -= AoEncerrarReconhecimento;
+                _ = reconhecedor.ContinuousRecognitionSession.StopAsync();
+            }
+        }
+        catch { }
         try { reconhecedor?.Dispose(); } catch { }
         try { if (!orbe.IsDisposed) orbe.Close(); } catch { }
         Encerrado?.Invoke(this, EventArgs.Empty);
