@@ -3,6 +3,8 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Web.WebView2.WinForms;
+using Windows.Media.SpeechRecognition;
+using Windows.Globalization;
 
 namespace LealInfoPDV;
 
@@ -24,6 +26,8 @@ public sealed class LiaInteligenteForm : Form
     private readonly Button botaoFalar = new();
     private bool vozPronta;
     private bool ouvindo;
+    private SpeechRecognizer? reconhecedor;
+    private bool microfonePronto;
 
     private static readonly Color AzulEscuro = Color.FromArgb(4, 35, 62);
     private static readonly Color AzulPainel = Color.FromArgb(7, 55, 95);
@@ -42,11 +46,13 @@ public sealed class LiaInteligenteForm : Form
         Font = new Font("Segoe UI", 10);
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
         MaximizeBox = false;
+        FormClosed += (_, _) => { try { reconhecedor?.Dispose(); } catch { } };
         BuildUi();
         Shown += async (_, _) =>
         {
             Posicionar();
             await PrepararVozAsync();
+            await PrepararMicrofoneAsync();
             Responder($"Olá, {Auth.OperatorName}. {LiaCore.ResumoPermissoes()} Escolha escrever ou falar. Você pode trocar quando quiser.");
             pergunta.Focus();
         };
@@ -143,11 +149,12 @@ public sealed class LiaInteligenteForm : Form
     private async void AlternarEscuta()
     {
         if (ouvindo) { PararEscuta(); AtivarEscrita(); return; }
-        if (!vozPronta || vozWeb.CoreWebView2 is null)
+        if (!microfonePronto || reconhecedor is null)
         {
-            Responder("O microfone ainda não está disponível. Você pode continuar escrevendo.");
+            Responder("O microfone não ficou disponível no Windows. Verifique a permissão de microfone para aplicativos da área de trabalho e tente novamente.");
             return;
         }
+
         try
         {
             ouvindo = true;
@@ -156,22 +163,61 @@ public sealed class LiaInteligenteForm : Form
             botaoFalar.BackColor = Color.FromArgb(0, 138, 190);
             status.Text = $"● {Auth.Current?.Role ?? "OPERADOR"} • OUVINDO...";
             orbe?.SetEstado("OUVINDO");
-            await vozWeb.CoreWebView2.ExecuteScriptAsync("window.liaStartListening && window.liaStartListening();");
+
+            var resultado = await reconhecedor.RecognizeAsync();
+            ouvindo = false;
+
+            if (resultado.Status == SpeechRecognitionResultStatus.Success && !string.IsNullOrWhiteSpace(resultado.Text))
+            {
+                ExecutarTexto(resultado.Text.Trim());
+            }
+            else
+            {
+                status.Text = $"● {Auth.Current?.Role ?? "OPERADOR"} • NÃO ENTENDI • TENTE DE NOVO";
+            }
         }
-        catch { PararEscuta(); }
+        catch (UnauthorizedAccessException)
+        {
+            Responder("O Windows bloqueou o microfone. Ative o acesso ao microfone para aplicativos da área de trabalho e tente novamente.");
+        }
+        catch (Exception ex)
+        {
+            Responder("Não consegui ouvir agora. Detalhe técnico: " + ex.Message);
+        }
+        finally
+        {
+            ouvindo = false;
+            pergunta.Enabled = true;
+            botaoEscrever.BackColor = AzulPainel;
+            botaoFalar.BackColor = Color.FromArgb(0, 138, 190);
+            orbe?.SetEstado("PRONTA");
+        }
     }
 
-    private async void PararEscuta()
+    private void PararEscuta()
     {
         ouvindo = false;
         pergunta.Enabled = true;
+        try { reconhecedor?.StopRecognitionAsync(); } catch { }
+        orbe?.SetEstado("PRONTA");
+    }
+
+    private async Task PrepararMicrofoneAsync()
+    {
         try
         {
-            if (vozWeb.CoreWebView2 is not null)
-                await vozWeb.CoreWebView2.ExecuteScriptAsync("window.liaStopListening && window.liaStopListening();");
+            reconhecedor?.Dispose();
+            reconhecedor = new SpeechRecognizer(new Language("pt-BR"));
+            reconhecedor.Constraints.Clear();
+            reconhecedor.Constraints.Add(new SpeechRecognitionTopicConstraint(SpeechRecognitionScenario.Dictation, "LIA"));
+            var compilacao = await reconhecedor.CompileConstraintsAsync();
+            microfonePronto = compilacao.Status == SpeechRecognitionResultStatus.Success;
         }
-        catch { }
-        orbe?.SetEstado("PRONTA");
+        catch
+        {
+            microfonePronto = false;
+            reconhecedor = null;
+        }
     }
 
     private Button Botao(string texto, Action acao)
@@ -319,44 +365,17 @@ public sealed class LiaInteligenteForm : Form
         try
         {
             await vozWeb.EnsureCoreWebView2Async();
-            vozWeb.CoreWebView2.PermissionRequested += (_, e) =>
-            {
-                if (e.PermissionKind == Microsoft.Web.WebView2.Core.CoreWebView2PermissionKind.Microphone)
-                    e.State = Microsoft.Web.WebView2.Core.CoreWebView2PermissionState.Allow;
-            };
-            vozWeb.CoreWebView2.WebMessageReceived += (_, e) =>
-            {
-                try
-                {
-                    var msg = JsonSerializer.Deserialize<LiaVozMensagem>(e.WebMessageAsJson);
-                    if (msg?.tipo == "fala" && !string.IsNullOrWhiteSpace(msg.texto))
-                    {
-                        BeginInvoke(new Action(() =>
-                        {
-                            ouvindo = false;
-                            pergunta.Enabled = true;
-                            ExecutarTexto(msg.texto.Trim());
-                            AtivarEscrita();
-                        }));
-                    }
-                    else if (msg?.tipo == "fim")
-                        BeginInvoke(new Action(() => { if (ouvindo) { ouvindo = false; AtivarEscrita(); } }));
-                }
-                catch { }
-            };
             vozWeb.CoreWebView2.NavigateToString(@"<html><body><script>
-                const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-                let r = null;
-                if (SR) {
-                  r = new SR(); r.lang='pt-BR'; r.interimResults=false; r.continuous=false;
-                  r.onresult = e => chrome.webview.postMessage({tipo:'fala',texto:e.results[0][0].transcript});
-                  r.onend = () => chrome.webview.postMessage({tipo:'fim'});
-                  r.onerror = () => chrome.webview.postMessage({tipo:'fim'});
-                }
-                window.liaStartListening = () => { if(r){ try{r.start();}catch(e){} } };
-                window.liaStopListening = () => { if(r){ try{r.stop();}catch(e){} } };
+                window.liaEscolherVoz = () => {
+                  const vs = speechSynthesis.getVoices();
+                  const br = vs.filter(v => (v.lang || '').toLowerCase().startsWith('pt-br'));
+                  return (br.find(v => /francisca/i.test(v.name)) ||
+                          br.find(v => /maria/i.test(v.name)) ||
+                          br.find(v => /female|feminina/i.test(v.name)) ||
+                          br.find(v => /natural|online/i.test(v.name)) || null)?.name || '';
+                };
             </script></body></html>");
-            await Task.Delay(350);
+            await Task.Delay(700);
             vozPronta = true;
         }
         catch
@@ -378,12 +397,18 @@ public sealed class LiaInteligenteForm : Form
                 u.lang = 'pt-BR';
                 u.rate = 1.06;
                 u.pitch = 1.02;
-                const vs = speechSynthesis.getVoices();
-                const br = vs.filter(v => (v.lang || '').toLowerCase().startsWith('pt-br'));
-                const feminina = br.find(v => /francisca|maria|female|feminina/i.test(v.name));
-                const natural = br.find(v => /natural|online/i.test(v.name));
-                if (feminina || natural || br[0]) u.voice = feminina || natural || br[0];
-                speechSynthesis.speak(u);
+                const falar = () => {
+                    const vs = speechSynthesis.getVoices();
+                    const br = vs.filter(v => (v.lang || '').toLowerCase().startsWith('pt-br'));
+                    const feminina = br.find(v => /francisca/i.test(v.name)) ||
+                                     br.find(v => /maria/i.test(v.name)) ||
+                                     br.find(v => /female|feminina/i.test(v.name)) ||
+                                     br.find(v => /natural|online/i.test(v.name));
+                    if (feminina) u.voice = feminina;
+                    speechSynthesis.speak(u);
+                };
+                if (speechSynthesis.getVoices().length) falar();
+                else speechSynthesis.addEventListener('voiceschanged', falar, { once:true });
             }})()";
             await vozWeb.CoreWebView2.ExecuteScriptAsync(script);
             // Estado visual volta sozinho; a fala continua no mecanismo do navegador.

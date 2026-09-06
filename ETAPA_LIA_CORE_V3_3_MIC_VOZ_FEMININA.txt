@@ -1,0 +1,12 @@
+LIA CORE V3.3 — MICROFONE + VOZ FEMININA
+
+- Microfone deixa de depender do SpeechRecognition do WebView2.
+- Reconhecimento usa Windows.Media.SpeechRecognition em pt-BR.
+- Voz prioriza Microsoft Francisca/Maria e aguarda carregamento das vozes antes de falar.
+- Sem System.Speech.
+- Holograma, orb, banco, login, instalador e workflow não foram alterados.
+
+SUBIR SOMENTE:
+LiaInteligenteForm.cs
+LealInfoPDV.csproj
+ETAPA_LIA_CORE_V3_3_MIC_VOZ_FEMININA.txt
