@@ -23,7 +23,7 @@ public sealed class UpdateInfo
 
 public static class UpdateService
 {
-    public const string CurrentVersion = "10.131";
+    public const string CurrentVersion = "10.132";
 
     private const string VersionUrl =
         "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json";
