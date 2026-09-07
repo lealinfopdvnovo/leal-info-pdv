@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace LealInfoPDV;
@@ -7,7 +6,7 @@ namespace LealInfoPDV;
 internal static class Program
 {
     [STAThread]
-    static async Task Main()
+    static void Main()
     {
         ApplicationConfiguration.Initialize();
 
@@ -20,7 +19,10 @@ internal static class Program
             if (entry.ShowDialog() != DialogResult.OK)
                 return;
 
-            var update = await global::UpdateService.CheckAsync();
+            var update = global::UpdateService
+                .CheckAsync()
+                .GetAwaiter()
+                .GetResult();
 
             if (update != null)
             {
@@ -32,8 +34,10 @@ internal static class Program
 
                 if (resposta == DialogResult.Yes)
                 {
-                    string instalador =
-                        await global::UpdateService.DownloadAsync(update);
+                    string instalador = global::UpdateService
+                        .DownloadAsync(update)
+                        .GetAwaiter()
+                        .GetResult();
 
                     global::UpdateService.Install(instalador);
                     return;
