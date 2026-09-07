@@ -2,6 +2,9 @@ name: Gerar Setup LEAL INFO PDV V10.130 FINAL
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
