@@ -55,13 +55,13 @@ jobs:
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
 
-          gh release create $env:UPDATE_TAG $asset --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "Atualização automática do LEAL INFO PDV."
+          gh release create $env:UPDATE_TAG $asset --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "Atualizacao automatica do LEAL INFO PDV."
 
           $manifest = @{
             version = $env:UPDATE_VERSION
             downloadUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_FILE"
             mandatory = $false
-            message = "Atualização V$env:UPDATE_VERSION disponível. Correção da escuta contínua da LIA."
+            message = "Atualizacao V$env:UPDATE_VERSION disponivel. Correcao da escuta continua da LIA."
           } | ConvertTo-Json
 
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
