@@ -22,7 +22,7 @@ public sealed class MainForm : Form
 
     public MainForm()
     {
-        Text = "LEAL INFO CONECTADO - SISTEMA PDV - V10.130";
+        Text = "LEAL INFO CONECTADO - SISTEMA PDV - V10.133";
         WindowState = FormWindowState.Maximized;
         MinimumSize = new Size(1200, 720);
         BackColor = Color.White;
