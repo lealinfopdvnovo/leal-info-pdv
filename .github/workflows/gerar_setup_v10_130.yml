@@ -36,7 +36,7 @@ jobs:
         run: dotnet restore LealInfoPDV.csproj
 
       - name: Publicar LEAL INFO PDV
-        run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --selfContained true -o publish_setup
+        run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_setup
 
       - name: Instalar Inno Setup
         shell: powershell
