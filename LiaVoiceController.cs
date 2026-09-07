@@ -30,87 +30,53 @@ public sealed class LiaVoiceController : IDisposable
         orbe.OrbClicked += async (_, _) => { if (!encerrado && !processando) await IniciarEscutaAsync(); };
     }
 
-    public async Task IniciarAsync()
-    {
-        if (encerrado) return;
-        try { orbe.SetEstado("PREPARANDO"); await PrepararWebAsync(); if (!encerrado) await IniciarEscutaAsync(); }
-        catch { if (!encerrado) orbe.SetEstado("ERRO"); }
-    }
-
-    private async Task PrepararWebAsync()
-    {
-        Directory.CreateDirectory(webFolder); string html = Path.Combine(webFolder, "voice.html"); await File.WriteAllTextAsync(html, HtmlVoz(), Encoding.UTF8);
-        await web.EnsureCoreWebView2Async(); if (web.CoreWebView2 is null) throw new InvalidOperationException("WebView2 indisponível.");
-        web.CoreWebView2.SetVirtualHostNameToFolderMapping("lia.local", webFolder, CoreWebView2HostResourceAccessKind.Allow);
-        web.CoreWebView2.PermissionRequested += (_, e) => { if (e.PermissionKind == CoreWebView2PermissionKind.Microphone) { e.State = CoreWebView2PermissionState.Allow; e.Handled = true; } };
-        web.CoreWebView2.WebMessageReceived += AoReceberMensagem;
-        var tcs = new TaskCompletionSource<bool>();
-        void Navegou(object? s, CoreWebView2NavigationCompletedEventArgs e) { web.CoreWebView2.NavigationCompleted -= Navegou; if (e.IsSuccess) tcs.TrySetResult(true); else tcs.TrySetException(new InvalidOperationException("Falha ao preparar a escuta.")); }
-        web.CoreWebView2.NavigationCompleted += Navegou; web.Source = new Uri("https://lia.local/voice.html"); await tcs.Task; webPronto = true;
-    }
-
-    private async Task IniciarEscutaAsync()
-    {
-        if (!webPronto || web.CoreWebView2 is null || encerrado || processando) return;
-        orbe.SetEstado("OUVINDO");
-        try { await web.CoreWebView2.ExecuteScriptAsync("window.liaStart && window.liaStart();"); } catch { }
-    }
-
-    private async void AoReceberMensagem(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
-    {
-        if (encerrado) return; string msg; try { msg = e.TryGetWebMessageAsString(); } catch { return; }
-        if (msg.StartsWith("TXT|", StringComparison.Ordinal))
-        {
-            var texto = msg[4..].Trim(); if (texto.Length == 0 || processando) return; processando = true;
-            try { RegistrarLog("OUVIU", texto); orbe.SetEstado("PENSANDO"); var resposta = await ProcessarAsync(texto); RegistrarLog("RESPOSTA", resposta); await FalarAsync(resposta); }
-            finally { processando = false; if (!encerrado) { orbe.SetEstado("PRONTA"); await Task.Delay(300); await IniciarEscutaAsync(); } }
-            return;
-        }
-        if (msg == "SPKEND") { falaTerminou?.TrySetResult(true); return; }
-        if (msg == "LISTEN_END") { if (!processando && !encerrado) { await Task.Delay(250); await IniciarEscutaAsync(); } return; }
-        if (msg.StartsWith("ERR|", StringComparison.Ordinal)) { RegistrarLog("MIC", msg); if (!processando && !encerrado) { orbe.SetEstado("PRONTA"); await Task.Delay(600); await IniciarEscutaAsync(); } }
-    }
-
-    private async Task FalarAsync(string texto)
-    {
-        if (encerrado || !webPronto || web.CoreWebView2 is null || string.IsNullOrWhiteSpace(texto)) return;
-        orbe.SetEstado("FALANDO"); try { await web.CoreWebView2.ExecuteScriptAsync("window.liaStop && window.liaStop();"); } catch { }
-        string jsTexto = JsonSerializer.Serialize(texto.Replace("•", "")); falaTerminou = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        await web.CoreWebView2.ExecuteScriptAsync($"window.liaSpeak && window.liaSpeak({jsTexto});"); var limite = Task.Delay(Math.Clamp(texto.Length * 95, 2500, 15000)); await Task.WhenAny(falaTerminou.Task, limite); falaTerminou = null;
-    }
+    public async Task IniciarAsync(){if(encerrado)return;try{orbe.SetEstado("PREPARANDO");await PrepararWebAsync();if(!encerrado)await IniciarEscutaAsync();}catch{if(!encerrado)orbe.SetEstado("ERRO");}}
+    private async Task PrepararWebAsync(){Directory.CreateDirectory(webFolder);string html=Path.Combine(webFolder,"voice.html");await File.WriteAllTextAsync(html,HtmlVoz(),Encoding.UTF8);await web.EnsureCoreWebView2Async();if(web.CoreWebView2 is null)throw new InvalidOperationException("WebView2 indisponível.");web.CoreWebView2.SetVirtualHostNameToFolderMapping("lia.local",webFolder,CoreWebView2HostResourceAccessKind.Allow);web.CoreWebView2.PermissionRequested+=(_,e)=>{if(e.PermissionKind==CoreWebView2PermissionKind.Microphone){e.State=CoreWebView2PermissionState.Allow;e.Handled=true;}};web.CoreWebView2.WebMessageReceived+=AoReceberMensagem;var tcs=new TaskCompletionSource<bool>();void Navegou(object? s,CoreWebView2NavigationCompletedEventArgs e){web.CoreWebView2.NavigationCompleted-=Navegou;if(e.IsSuccess)tcs.TrySetResult(true);else tcs.TrySetException(new InvalidOperationException("Falha ao preparar a escuta."));}web.CoreWebView2.NavigationCompleted+=Navegou;web.Source=new Uri("https://lia.local/voice.html");await tcs.Task;webPronto=true;}
+    private async Task IniciarEscutaAsync(){if(!webPronto||web.CoreWebView2 is null||encerrado||processando)return;orbe.SetEstado("OUVINDO");try{await web.CoreWebView2.ExecuteScriptAsync("window.liaStart && window.liaStart();");}catch{}}
+    private async void AoReceberMensagem(object? sender,CoreWebView2WebMessageReceivedEventArgs e){if(encerrado)return;string msg;try{msg=e.TryGetWebMessageAsString();}catch{return;}if(msg.StartsWith("TXT|",StringComparison.Ordinal)){var texto=msg[4..].Trim();if(texto.Length==0||processando)return;processando=true;try{RegistrarLog("OUVIU",texto);orbe.SetEstado("PENSANDO");var resposta=await ProcessarAsync(texto);RegistrarLog("RESPOSTA",resposta);await FalarAsync(resposta);}finally{processando=false;if(!encerrado){orbe.SetEstado("PRONTA");await Task.Delay(300);await IniciarEscutaAsync();}}return;}if(msg=="SPKEND"){falaTerminou?.TrySetResult(true);return;}if(msg=="LISTEN_END"){if(!processando&&!encerrado){await Task.Delay(250);await IniciarEscutaAsync();}return;}if(msg.StartsWith("ERR|",StringComparison.Ordinal)){RegistrarLog("MIC",msg);if(!processando&&!encerrado){orbe.SetEstado("PRONTA");await Task.Delay(600);await IniciarEscutaAsync();}}}
+    private async Task FalarAsync(string texto){if(encerrado||!webPronto||web.CoreWebView2 is null||string.IsNullOrWhiteSpace(texto))return;orbe.SetEstado("FALANDO");try{await web.CoreWebView2.ExecuteScriptAsync("window.liaStop && window.liaStop();");}catch{}string jsTexto=JsonSerializer.Serialize(texto.Replace("•",""));falaTerminou=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);await web.CoreWebView2.ExecuteScriptAsync($"window.liaSpeak && window.liaSpeak({jsTexto});");var limite=Task.Delay(Math.Clamp(texto.Length*95,2500,15000));await Task.WhenAny(falaTerminou.Task,limite);falaTerminou=null;}
 
     private async Task<string> ProcessarAsync(string texto)
     {
-        var n = Normalizar(texto);
-        if (Tem(n, "oi lia", "ola lia", "oi", "ola", "bom dia", "boa tarde", "boa noite", "bom dia lia", "boa tarde lia", "boa noite lia", "lia bom dia", "lia boa tarde", "lia boa noite"))
-        { if (n.Contains("bom dia")) return $"Bom dia, {Auth.OperatorName}. Como posso ajudar?"; if (n.Contains("boa tarde")) return $"Boa tarde, {Auth.OperatorName}. Como posso ajudar?"; if (n.Contains("boa noite")) return $"Boa noite, {Auth.OperatorName}. Como posso ajudar?"; return $"Oi, {Auth.OperatorName}. Como posso ajudar?"; }
-        if (Tem(n, "ta me ouvindo", "esta me ouvindo", "voce me ouve", "consegue me ouvir")) return $"Sim, {Auth.OperatorName}. Estou ouvindo você.";
-        if (Tem(n, "quem e voce", "quem voce e", "seu nome")) return "Eu sou a LIA, assistente do LEAL INFO PDV.";
-        if (Tem(n, "obrigado", "obrigada", "valeu")) return "Por nada. Estou pronta para ajudar.";
-        var d = LiaCore.Classificar(n); if (d.RespostaImediata is not null) return d.RespostaImediata;
+        var n=Normalizar(texto);
+        if(Tem(n,"oi lia","ola lia","oi","ola","bom dia","boa tarde","boa noite","bom dia lia","boa tarde lia","boa noite lia","lia bom dia","lia boa tarde","lia boa noite")){if(n.Contains("bom dia"))return $"Bom dia, {Auth.OperatorName}. Como posso ajudar?";if(n.Contains("boa tarde"))return $"Boa tarde, {Auth.OperatorName}. Como posso ajudar?";if(n.Contains("boa noite"))return $"Boa noite, {Auth.OperatorName}. Como posso ajudar?";return $"Oi, {Auth.OperatorName}. Como posso ajudar?";}
+        if(Tem(n,"ta me ouvindo","esta me ouvindo","voce me ouve","consegue me ouvir"))return $"Sim, {Auth.OperatorName}. Estou ouvindo você.";
+        if(Tem(n,"quem e voce","quem voce e","seu nome"))return "Eu sou a LIA, assistente do LEAL INFO PDV.";
+        if(Tem(n,"obrigado","obrigada","valeu"))return "Por nada. Estou pronta para ajudar.";
+        var d=LiaCore.Classificar(n);if(d.RespostaImediata is not null)return d.RespostaImediata;
         try
         {
-            if (d.Intencao == "CONVERSA_AI") { var respostaAi = await LiaCore.ConversarAsync(texto); return string.IsNullOrWhiteSpace(respostaAi) ? "Minha conversa online não respondeu agora. Os comandos do PDV continuam funcionando normalmente." : respostaAi; }
+            if(d.Intencao=="CONVERSA_AI"){var respostaAi=await LiaCore.ConversarAsync(texto);return string.IsNullOrWhiteSpace(respostaAi)?"Minha conversa online não respondeu agora. Os comandos do PDV continuam funcionando normalmente.":respostaAi;}
             return d.Intencao switch
             {
-                "PERMISSOES" => LiaCore.ResumoPermissoes(),
-                "CADASTRO_AMBIGUO" => "Claro. O que você quer cadastrar: produto, cliente, fornecedor ou outra coisa?",
-                "CADASTRAR_PRODUTO" => Acao("Abrindo Produtos para você cadastrar o produto.", main.LiaAbrirProdutos),
-                "RESUMO_EMPRESA" => Auth.IsManager ? ResumoEmpresa() : "Essa visão geral é gerencial. Chame o gerente ou proprietário.",
-                "VENDAS_HOJE" => VendasHoje(), "ESTOQUE_BAIXO" => EstoqueBaixo(), "CLIENTES" => QuantidadeClientes(),
-                "SALDO_CAIXA" => Auth.IsManager ? SaldoCaixa() : "Essa informação é restrita. Chame o gerente.",
-                "CONTAS_PAGAR" => Auth.IsManager ? "O PDV atual ainda não possui uma agenda separada de contas a pagar. Posso abrir o Financeiro." : "Essa informação é do Financeiro. Chame o gerente.",
-                "ABRIR_PRODUTOS" => Acao("Abrindo Produtos.", main.LiaAbrirProdutos), "ABRIR_VENDAS" => Acao("Abrindo a Tela de Vendas.", main.LiaAbrirVendas), "ABRIR_CLIENTES" => Acao("Abrindo Clientes.", main.LiaAbrirClientes),
-                "ABRIR_FINANCEIRO" => Auth.IsManager ? Acao("Abrindo Financeiro.", main.LiaAbrirFinanceiro) : "Seu perfil não tem acesso ao Financeiro. Chame o gerente.",
-                "ABRIR_RELATORIOS" => Auth.IsManager ? Acao("Abrindo Relatórios.", main.LiaAbrirRelatorios) : "Relatórios gerenciais exigem autorização. Chame o gerente.",
-                _ => "Ainda não aprendi esse pedido. Pode falar de outro jeito?"
+                "PERMISSOES"=>LiaCore.ResumoPermissoes(),
+                "CADASTRO_AMBIGUO"=>"Claro. O que você quer cadastrar: produto, cliente, fornecedor ou outra coisa?",
+                "CADASTRAR_PRODUTO"=>Acao("Abrindo Produtos para você cadastrar o produto.",main.LiaAbrirProdutos),
+                "CONSULTAR_ESTOQUE_PRODUTO"=>ConsultarEstoqueProduto(n),
+                "RESUMO_EMPRESA"=>Auth.IsManager?ResumoEmpresa():"Essa visão geral é gerencial. Chame o gerente ou proprietário.",
+                "VENDAS_HOJE"=>VendasHoje(),"ESTOQUE_BAIXO"=>EstoqueBaixo(),"CLIENTES"=>QuantidadeClientes(),
+                "SALDO_CAIXA"=>Auth.IsManager?SaldoCaixa():"Essa informação é restrita. Chame o gerente.",
+                "CONTAS_PAGAR"=>Auth.IsManager?"O PDV atual ainda não possui uma agenda separada de contas a pagar. Posso abrir o Financeiro.":"Essa informação é do Financeiro. Chame o gerente.",
+                "ABRIR_PRODUTOS"=>Acao("Abrindo Produtos.",main.LiaAbrirProdutos),"ABRIR_VENDAS"=>Acao("Abrindo a Tela de Vendas.",main.LiaAbrirVendas),"ABRIR_CLIENTES"=>Acao("Abrindo Clientes.",main.LiaAbrirClientes),
+                "ABRIR_FINANCEIRO"=>Auth.IsManager?Acao("Abrindo Financeiro.",main.LiaAbrirFinanceiro):"Seu perfil não tem acesso ao Financeiro. Chame o gerente.",
+                "ABRIR_RELATORIOS"=>Auth.IsManager?Acao("Abrindo Relatórios.",main.LiaAbrirRelatorios):"Relatórios gerenciais exigem autorização. Chame o gerente.",
+                _=>"Ainda não aprendi esse pedido. Pode falar de outro jeito?"
             };
         }
-        catch (Exception ex) { RegistrarLog("ERRO_CORE", ex.Message); return "Não consegui consultar o PDV agora. Tente novamente."; }
+        catch(Exception ex){RegistrarLog("ERRO_CORE",ex.Message);return "Não consegui consultar o PDV agora. Tente novamente.";}
     }
 
-    private static void RegistrarLog(string tipo, string texto){try{var pasta=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LEAL INFO PDV");Directory.CreateDirectory(pasta);File.AppendAllText(Path.Combine(pasta,"lia_voice.log"),$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} | {tipo} | {texto}{Environment.NewLine}",Encoding.UTF8);}catch{}}
-    private string Acao(string resposta, Action acao){main.BeginInvoke(acao);return resposta;}
+    private string ConsultarEstoqueProduto(string n)
+    {
+        string termo=n;
+        string[] prefixos={"quanto tem de ","quantos tem de ","quantas tem de ","quanto tem no estoque de ","quantos tem no estoque de ","quantas tem no estoque de ","estoque do ","estoque da ","estoque de ","quantidade de "};
+        foreach(var p in prefixos){var i=termo.IndexOf(p,StringComparison.Ordinal);if(i>=0){termo=termo[(i+p.Length)..];break;}}
+        termo=termo.Replace(" no estoque","").Replace(" em estoque","").Trim(' ','?','!','.');
+        if(string.IsNullOrWhiteSpace(termo))return "Qual produto você quer consultar no estoque?";
+        using var cn=Database.Open();using var c=cn.CreateCommand();c.CommandText="SELECT name, stock FROM products WHERE active=1 AND (lower(name) LIKE @q OR barcode=@exact) ORDER BY CASE WHEN lower(name)=@exact THEN 0 ELSE 1 END, name LIMIT 3";c.Parameters.AddWithValue("@q","%"+termo.ToLowerInvariant()+"%");c.Parameters.AddWithValue("@exact",termo.ToLowerInvariant());using var r=c.ExecuteReader();var achados=new List<(string Nome,double Estoque)>();while(r.Read())achados.Add((r.GetString(0),Convert.ToDouble(r.GetValue(1),CultureInfo.InvariantCulture)));if(achados.Count==0)return $"Não encontrei {termo} no cadastro de produtos.";if(achados.Count>1)return "Encontrei mais de um produto: "+string.Join(", ",achados.Select(x=>x.Nome))+". Qual deles?";var pdt=achados[0];return $"{pdt.Nome} está com {pdt.Estoque:0.##} unidades em estoque.";
+    }
+    private static void RegistrarLog(string tipo,string texto){try{var pasta=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LEAL INFO PDV");Directory.CreateDirectory(pasta);File.AppendAllText(Path.Combine(pasta,"lia_voice.log"),$"{DateTime.Now:yyyy-MM-dd HH:mm:ss} | {tipo} | {texto}{Environment.NewLine}",Encoding.UTF8);}catch{}}
+    private string Acao(string resposta,Action acao){main.BeginInvoke(acao);return resposta;}
     private string ResumoEmpresa(){using var cn=Database.Open();int produtos=ScalarInt(cn,"SELECT COUNT(*) FROM products WHERE active=1");int baixos=ScalarInt(cn,"SELECT COUNT(*) FROM products WHERE active=1 AND stock <= min_stock");int clientes=ScalarInt(cn,"SELECT COUNT(*) FROM customers");int vendas=ScalarInt(cn,"SELECT COUNT(*) FROM sales WHERE date(sold_at)=date('now','localtime')");double total=ScalarDouble(cn,"SELECT COALESCE(SUM(total),0) FROM sales WHERE date(sold_at)=date('now','localtime')");return $"Hoje foram {vendas} vendas, totalizando {Moeda(total)}. Você tem {produtos} produtos ativos, {baixos} com estoque baixo e {clientes} clientes cadastrados.";}
     private string VendasHoje(){using var cn=Database.Open();int q=ScalarInt(cn,"SELECT COUNT(*) FROM sales WHERE date(sold_at)=date('now','localtime')");double t=ScalarDouble(cn,"SELECT COALESCE(SUM(total),0) FROM sales WHERE date(sold_at)=date('now','localtime')");return $"Hoje o PDV registra {q} vendas, totalizando {Moeda(t)}.";}
     private string EstoqueBaixo(){using var cn=Database.Open();int q=ScalarInt(cn,"SELECT COUNT(*) FROM products WHERE active=1 AND stock <= min_stock");return q==0?"Não encontrei produtos abaixo do estoque mínimo agora.":$"Existem {q} produtos no estoque mínimo ou abaixo dele.";}
@@ -122,17 +88,15 @@ public sealed class LiaVoiceController : IDisposable
     private static bool Tem(string n,params string[] xs)=>xs.Any(x=>n.Contains(Normalizar(x),StringComparison.Ordinal));
     private static string Normalizar(string t){var f=t.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);var sb=new StringBuilder();foreach(var c in f)if(CharUnicodeInfo.GetUnicodeCategory(c)!=UnicodeCategory.NonSpacingMark)sb.Append(c);return sb.ToString().Normalize(NormalizationForm.FormC);}
 
-    private static string HtmlVoz() => """
+    private static string HtmlVoz()=>"""
 <!doctype html><html><head><meta charset="utf-8"></head><body><script>
-let rec=null, ativo=false, parando=false;
-function post(x){try{chrome.webview.postMessage(x);}catch(e){}}
+let rec=null,ativo=false,parando=false;function post(x){try{chrome.webview.postMessage(x);}catch(e){}}
 window.liaStop=function(){parando=true;try{if(rec){rec.onend=null;rec.onerror=null;rec.abort();}}catch(e){}ativo=false;rec=null;};
 window.liaStart=function(){if(ativo)return;parando=false;try{speechSynthesis.cancel();}catch(e){}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){post('ERR|speech-recognition-indisponivel');return;}try{rec=new SR();rec.lang='pt-BR';rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=1;rec.onstart=()=>{ativo=true;};rec.onresult=(e)=>{const t=(e.results?.[0]?.[0]?.transcript||'').trim();if(t)post('TXT|'+t);};rec.onerror=(e)=>{ativo=false;if(!parando)post('ERR|'+(e.error||'erro-desconhecido'));};rec.onend=()=>{ativo=false;rec=null;if(!parando)post('LISTEN_END');};rec.start();}catch(e){ativo=false;rec=null;if(!parando)post('ERR|'+(e.message||String(e)));}};
 function vozPreferida(){const vs=speechSynthesis.getVoices();const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));const pt=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt'));const nomes=[/francisca/i,/maria/i,/thalita/i,/luciana/i,/fernanda/i,/female/i,/feminina/i];for(const rx of nomes){const v=br.find(x=>rx.test(x.name||''));if(v)return v;}for(const rx of nomes){const v=pt.find(x=>rx.test(x.name||''));if(v)return v;}return br[0]||pt[0]||vs[0]||null;}
 window.liaSpeak=function(texto){try{window.liaStop();speechSynthesis.cancel();const falar=()=>{const u=new SpeechSynthesisUtterance(texto);const v=vozPreferida();u.lang='pt-BR';if(v)u.voice=v;u.rate=1.03;u.pitch=1.0;u.volume=1.0;u.onend=()=>post('SPKEND');u.onerror=()=>post('SPKEND');speechSynthesis.speak(u);};if(speechSynthesis.getVoices().length)falar();else{let foi=false;const uma=()=>{if(foi)return;foi=true;falar();};speechSynthesis.addEventListener('voiceschanged',uma,{once:true});setTimeout(uma,700);}}catch(e){post('SPKEND');}};
 </script></body></html>
 """;
-
     public void Encerrar(){if(encerrado)return;encerrado=true;try{if(web.CoreWebView2 is not null)web.CoreWebView2.WebMessageReceived-=AoReceberMensagem;}catch{}try{if(!orbe.IsDisposed)orbe.Close();}catch{}Encerrado?.Invoke(this,EventArgs.Empty);}
     public void Dispose(){Encerrar();try{web.Dispose();}catch{}}
 }
