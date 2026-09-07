@@ -10,17 +10,9 @@ namespace LealInfoPDV;
 /// </summary>
 public sealed class LiaAiClient
 {
-    private static readonly HttpClient Http = CriarHttp();
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
     private readonly List<(string role, string text)> historico = new();
     private const int MaxHistorico = 6;
-
-    private static HttpClient CriarHttp()
-    {
-        var h = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-        h.DefaultRequestVersion = System.Net.HttpVersion.Version20;
-        h.DefaultVersionPolicy = System.Net.HttpVersionPolicy.RequestVersionOrHigher;
-        return h;
-    }
 
     public bool Configurada => !string.IsNullOrWhiteSpace(Chave());
 
@@ -56,8 +48,6 @@ public sealed class LiaAiClient
         }
 
         using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
-        req.Version = System.Net.HttpVersion.Version20;
-        req.VersionPolicy = System.Net.HttpVersionPolicy.RequestVersionOrHigher;
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", chave);
         req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
