@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -20,6 +21,9 @@ public sealed class LiaVoiceController : IDisposable
     private bool webPronto;
     private TaskCompletionSource<bool>? falaTerminou;
     private readonly string webFolder;
+    private Form? fechamentoPendente;
+    private bool fechamentoSistemaPendente;
+    private DateTime fechamentoPendenteEm;
     public event EventHandler? Encerrado;
 
     public LiaVoiceController(MainForm mainForm, LiaOrbForm orbForm)
@@ -35,7 +39,7 @@ public sealed class LiaVoiceController : IDisposable
     public async Task IniciarAsync(){if(encerrado)return;try{orbe.SetEstado("PREPARANDO");await PrepararWebAsync();if(!encerrado)await IniciarEscutaAsync();}catch{if(!encerrado)orbe.SetEstado("ERRO");}}
     private async Task PrepararWebAsync(){Directory.CreateDirectory(webFolder);string html=Path.Combine(webFolder,"voice.html");await File.WriteAllTextAsync(html,HtmlVoz(),Encoding.UTF8);await web.EnsureCoreWebView2Async();if(web.CoreWebView2 is null)throw new InvalidOperationException("WebView2 indisponível.");web.CoreWebView2.SetVirtualHostNameToFolderMapping("lia.local",webFolder,CoreWebView2HostResourceAccessKind.Allow);web.CoreWebView2.PermissionRequested+=(_,e)=>{if(e.PermissionKind==CoreWebView2PermissionKind.Microphone){e.State=CoreWebView2PermissionState.Allow;e.Handled=true;}};web.CoreWebView2.WebMessageReceived+=AoReceberMensagem;var tcs=new TaskCompletionSource<bool>();void Navegou(object? s,CoreWebView2NavigationCompletedEventArgs e){web.CoreWebView2.NavigationCompleted-=Navegou;if(e.IsSuccess)tcs.TrySetResult(true);else tcs.TrySetException(new InvalidOperationException("Falha ao preparar a escuta."));}web.CoreWebView2.NavigationCompleted+=Navegou;web.Source=new Uri("https://lia.local/voice.html");await tcs.Task;webPronto=true;}
     private async Task IniciarEscutaAsync(){if(!webPronto||web.CoreWebView2 is null||encerrado||processando)return;orbe.SetEstado("OUVINDO");try{await web.CoreWebView2.ExecuteScriptAsync("window.liaStart && window.liaStart();");}catch{}}
-    private async void AoReceberMensagem(object? sender,CoreWebView2WebMessageReceivedEventArgs e){if(encerrado)return;string msg;try{msg=e.TryGetWebMessageAsString();}catch{return;}if(msg.StartsWith("TXT|",StringComparison.Ordinal)){var texto=msg[4..].Trim();if(texto.Length==0||processando)return;processando=true;try{RegistrarLog("OUVIU",texto);orbe.SetEstado("PENSANDO");var resposta=await ProcessarAsync(texto);RegistrarLog("RESPOSTA",resposta);await FalarAsync(resposta);}finally{processando=false;if(!encerrado){orbe.SetEstado("PRONTA");await Task.Delay(300);await IniciarEscutaAsync();}}return;}if(msg=="SPKEND"){falaTerminou?.TrySetResult(true);return;}if(msg=="LISTEN_END"){if(!processando&&!encerrado){await Task.Delay(250);await IniciarEscutaAsync();}return;}if(msg.StartsWith("ERR|",StringComparison.Ordinal)){RegistrarLog("MIC",msg);if(!processando&&!encerrado){orbe.SetEstado("PRONTA");await Task.Delay(600);await IniciarEscutaAsync();}}}
+    private async void AoReceberMensagem(object? sender,CoreWebView2WebMessageReceivedEventArgs e){if(encerrado)return;string msg;try{msg=e.TryGetWebMessageAsString();}catch{return;}if(msg.StartsWith("TXT|",StringComparison.Ordinal)){var texto=msg[4..].Trim();if(texto.Length==0||processando)return;processando=true;try{RegistrarLog("OUVIU",texto);orbe.SetEstado("PENSANDO");var resposta=await ProcessarAsync(texto);RegistrarLog("RESPOSTA",resposta);await FalarAsync(resposta);}finally{processando=false;if(!encerrado){orbe.SetEstado("PRONTA");await Task.Delay(180);await IniciarEscutaAsync();}}return;}if(msg=="SPKEND"){falaTerminou?.TrySetResult(true);return;}if(msg=="LISTEN_END"){if(!processando&&!encerrado){await Task.Delay(180);await IniciarEscutaAsync();}return;}if(msg.StartsWith("ERR|",StringComparison.Ordinal)){RegistrarLog("MIC",msg);if(!processando&&!encerrado){orbe.SetEstado("PRONTA");await Task.Delay(450);await IniciarEscutaAsync();}}}
 
     private static string LimparTextoParaVoz(string texto)
     {
@@ -97,6 +101,10 @@ public sealed class LiaVoiceController : IDisposable
     private async Task<string> ProcessarAsync(string texto)
     {
         var n=Normalizar(texto);
+
+        var respostaConfirmacao=ProcessarConfirmacaoFechamento(n);
+        if(respostaConfirmacao is not null)return respostaConfirmacao;
+
         if(Tem(n,"oi lia","ola lia","oi","ola","bom dia","boa tarde","boa noite","bom dia lia","boa tarde lia","boa noite lia","lia bom dia","lia boa tarde","lia boa noite")){if(n.Contains("bom dia"))return $"Bom dia, {Auth.OperatorName}. Como posso ajudar?";if(n.Contains("boa tarde"))return $"Boa tarde, {Auth.OperatorName}. Como posso ajudar?";if(n.Contains("boa noite"))return $"Boa noite, {Auth.OperatorName}. Como posso ajudar?";return $"Oi, {Auth.OperatorName}. Como posso ajudar?";}
         if(Tem(n,"ta me ouvindo","esta me ouvindo","voce me ouve","consegue me ouvir"))return $"Sim, {Auth.OperatorName}. Estou ouvindo você.";
         if(Tem(n,"quem e voce","quem voce e","seu nome"))return "Eu sou a LIA, assistente do LEAL INFO PDV.";
@@ -115,13 +123,89 @@ public sealed class LiaVoiceController : IDisposable
                 "VENDAS_HOJE"=>VendasHoje(),"ESTOQUE_BAIXO"=>EstoqueBaixo(),"CLIENTES"=>QuantidadeClientes(),
                 "SALDO_CAIXA"=>Auth.IsManager?SaldoCaixa():"Essa informação é restrita. Chame o gerente.",
                 "CONTAS_PAGAR"=>Auth.IsManager?"O PDV atual ainda não possui uma agenda separada de contas a pagar. Posso abrir o Financeiro.":"Essa informação é do Financeiro. Chame o gerente.",
-                "ABRIR_PRODUTOS"=>Acao("Abrindo Produtos.",main.LiaAbrirProdutos),"ABRIR_VENDAS"=>Acao("Abrindo a Tela de Vendas.",main.LiaAbrirVendas),"ABRIR_CLIENTES"=>Acao("Abrindo Clientes.",main.LiaAbrirClientes),
-                "ABRIR_FINANCEIRO"=>Auth.IsManager?Acao("Abrindo Financeiro.",main.LiaAbrirFinanceiro):"Seu perfil não tem acesso ao Financeiro. Chame o gerente.",
-                "ABRIR_RELATORIOS"=>Auth.IsManager?Acao("Abrindo Relatórios.",main.LiaAbrirRelatorios):"Relatórios gerenciais exigem autorização. Chame o gerente.",
+                "ABRIR_PRODUTOS"=>Acao("Pronto, abrindo Produtos.",main.LiaAbrirProdutos),
+                "ABRIR_VENDAS"=>Acao("Pronto, abrindo o PDV.",main.LiaAbrirVendas),
+                "ABRIR_CLIENTES"=>Acao("Pronto, abrindo Clientes.",main.LiaAbrirClientes),
+                "ABRIR_FINANCEIRO"=>Auth.IsManager?Acao("Pronto, abrindo Financeiro.",main.LiaAbrirFinanceiro):"Seu perfil não tem acesso ao Financeiro. Chame o gerente.",
+                "ABRIR_RELATORIOS"=>Auth.IsManager?Acao("Pronto, abrindo Relatórios.",main.LiaAbrirRelatorios):"Relatórios gerenciais exigem autorização. Chame o gerente.",
+                "ABRIR_CONFIGURACOES"=>AbrirConfiguracoes(),
+                "FECHAR_TELA"=>PrepararFechamento(n),
                 _=>"Ainda não aprendi esse pedido. Pode falar de outro jeito?"
             };
         }
         catch(Exception ex){RegistrarLog("ERRO_CORE",ex.Message);return "Não consegui consultar o PDV agora. Tente novamente.";}
+    }
+
+    private string AbrirConfiguracoes()
+    {
+        try
+        {
+            var metodo=typeof(MainForm).GetMethod("OpenSettings",BindingFlags.Instance|BindingFlags.NonPublic);
+            if(metodo is null)return "Não encontrei a tela de Configurações nesta versão.";
+            main.BeginInvoke(new Action(()=>metodo.Invoke(main,null)));
+            return "Pronto, abrindo Configurações.";
+        }
+        catch{return "Não consegui abrir Configurações agora.";}
+    }
+
+    private string PrepararFechamento(string n)
+    {
+        bool querSistema=Tem(n,"fecha o sistema","fechar o sistema","fecha o programa","fechar o programa","sair do sistema","encerrar o sistema");
+        var alvo=querSistema?main:ObterTelaParaFechar();
+        if(alvo is null)return "Você já está na tela principal. Me diga qual tela quer abrir.";
+        fechamentoPendente=alvo;
+        fechamentoSistemaPendente=querSistema || ReferenceEquals(alvo,main);
+        fechamentoPendenteEm=DateTime.Now;
+        bool editando=TelaTemDadosEmEdicao(alvo);
+        if(fechamentoSistemaPendente)return editando?"Tem informações em edição. Tem certeza que quer fechar o sistema?":"Tem certeza que quer fechar o sistema?";
+        var nome=NomeTela(alvo);
+        return editando?$"Tem informações preenchidas ou em edição na tela {nome}. Tem certeza que quer fechar?":$"Tem certeza que quer fechar a tela {nome}?";
+    }
+
+    private string? ProcessarConfirmacaoFechamento(string n)
+    {
+        if(fechamentoPendente is null)return null;
+        if((DateTime.Now-fechamentoPendenteEm)>TimeSpan.FromSeconds(25)||fechamentoPendente.IsDisposed){LimparFechamentoPendente();return null;}
+        if(Tem(n,"nao","não","cancela","cancelar","deixa","deixa aberta","nao fecha","não fecha")){LimparFechamentoPendente();return "Beleza, deixei a tela aberta.";}
+        if(!Tem(n,"sim","pode","pode fechar","fecha","feche","confirmo","isso","isso mesmo","pode sim"))return "Só confirma pra mim: sim ou não?";
+        var alvo=fechamentoPendente;var sistema=fechamentoSistemaPendente;LimparFechamentoPendente();
+        try
+        {
+            if(sistema){main.BeginInvoke(new Action(()=>main.Close()));return "Certo, fechando o sistema.";}
+            alvo.BeginInvoke(new Action(()=>{if(!alvo.IsDisposed)alvo.Close();}));
+            return "Pronto, fechei a tela.";
+        }
+        catch{return "Não consegui fechar essa tela agora.";}
+    }
+
+    private void LimparFechamentoPendente(){fechamentoPendente=null;fechamentoSistemaPendente=false;fechamentoPendenteEm=default;}
+
+    private Form? ObterTelaParaFechar()
+    {
+        var ativa=Form.ActiveForm;
+        if(ativa is not null && ativa.Visible && !ativa.IsDisposed && !ReferenceEquals(ativa,main) && !ReferenceEquals(ativa,orbe))return ativa;
+        return Application.OpenForms.Cast<Form>().Reverse().FirstOrDefault(f=>f.Visible&&!f.IsDisposed&&!ReferenceEquals(f,main)&&!ReferenceEquals(f,orbe));
+    }
+
+    private static string NomeTela(Form f)
+    {
+        var t=(f.Text??"").Trim();
+        if(string.IsNullOrWhiteSpace(t))return "atual";
+        return t.Length>45?t[..45]:t;
+    }
+
+    private static bool TelaTemDadosEmEdicao(Control raiz)
+    {
+        foreach(Control c in raiz.Controls)
+        {
+            if(c is TextBoxBase tb && tb.Visible && tb.Enabled && !tb.ReadOnly && (tb.Modified || (tb.Focused && !string.IsNullOrWhiteSpace(tb.Text))))return true;
+            if(c is ComboBox cb && cb.Visible && cb.Enabled && cb.Focused && cb.SelectedIndex>=0)return true;
+            if(c is NumericUpDown nu && nu.Visible && nu.Enabled && nu.Focused)return true;
+            if(c is DateTimePicker dt && dt.Visible && dt.Enabled && dt.Focused)return true;
+            if(c is DataGridView dg && dg.Visible && dg.Enabled && (dg.IsCurrentCellDirty || dg.IsCurrentRowDirty))return true;
+            if(c.HasChildren && TelaTemDadosEmEdicao(c))return true;
+        }
+        return false;
     }
 
     private string ConsultarEstoqueProduto(string n)
@@ -152,14 +236,7 @@ let rec=null,ativo=false,parando=false,audioAtual=null;function post(x){try{chro
 window.liaStop=function(){parando=true;try{if(rec){rec.onend=null;rec.onerror=null;rec.abort();}}catch(e){}try{speechSynthesis.cancel();}catch(e){}try{if(audioAtual){audioAtual.pause();audioAtual.src='';audioAtual=null;}}catch(e){}ativo=false;rec=null;};
 window.liaStart=function(){if(ativo)return;parando=false;try{speechSynthesis.cancel();}catch(e){}try{if(audioAtual){audioAtual.pause();audioAtual=null;}}catch(e){}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){post('ERR|speech-recognition-indisponivel');return;}try{rec=new SR();rec.lang='pt-BR';rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=1;rec.onstart=()=>{ativo=true;};rec.onresult=(e)=>{const t=(e.results?.[0]?.[0]?.transcript||'').trim();if(t)post('TXT|'+t);};rec.onerror=(e)=>{ativo=false;if(!parando)post('ERR|'+(e.error||'erro-desconhecido'));};rec.onend=()=>{ativo=false;rec=null;if(!parando)post('LISTEN_END');};rec.start();}catch(e){ativo=false;rec=null;if(!parando)post('ERR|'+(e.message||String(e)));}};
 window.liaSpeakAudio=function(base64){try{window.liaStop();parando=false;audioAtual=new Audio('data:audio/mpeg;base64,'+base64);audioAtual.onended=()=>{audioAtual=null;post('SPKEND');};audioAtual.onerror=()=>{audioAtual=null;post('SPKEND');};audioAtual.play().catch(()=>post('SPKEND'));}catch(e){post('SPKEND');}};
-function vozPreferida(){
- const vs=speechSynthesis.getVoices();
- const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));
- const pt=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt'));
- const base=br.length?br:(pt.length?pt:vs);
- const score=v=>{const n=(v.name||'').toLowerCase();let s=0;if((v.lang||'').toLowerCase().startsWith('pt-br'))s+=100;if(/natural|online/.test(n))s+=80;if(/thalita/.test(n))s+=70;if(/francisca/.test(n))s+=65;if(/maria/.test(n))s+=55;if(/luciana|fernanda/.test(n))s+=45;if(/female|feminina/.test(n))s+=30;if(/daniel|antonio|male|masculin/.test(n))s-=100;return s;};
- return [...base].sort((a,b)=>score(b)-score(a))[0]||null;
-}
+function vozPreferida(){const vs=speechSynthesis.getVoices();const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));const pt=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt'));const base=br.length?br:(pt.length?pt:vs);const score=v=>{const n=(v.name||'').toLowerCase();let s=0;if((v.lang||'').toLowerCase().startsWith('pt-br'))s+=100;if(/natural|online/.test(n))s+=80;if(/thalita/.test(n))s+=70;if(/francisca/.test(n))s+=65;if(/maria/.test(n))s+=55;if(/luciana|fernanda/.test(n))s+=45;if(/female|feminina/.test(n))s+=30;if(/daniel|antonio|male|masculin/.test(n))s-=100;return s;};return [...base].sort((a,b)=>score(b)-score(a))[0]||null;}
 window.liaSpeak=function(texto){try{window.liaStop();parando=false;speechSynthesis.cancel();const falar=()=>{const u=new SpeechSynthesisUtterance(texto);const v=vozPreferida();u.lang='pt-BR';if(v)u.voice=v;u.rate=0.96;u.pitch=1.04;u.volume=1.0;u.onend=()=>post('SPKEND');u.onerror=()=>post('SPKEND');speechSynthesis.speak(u);};if(speechSynthesis.getVoices().length)falar();else{let foi=false;const uma=()=>{if(foi)return;foi=true;falar();};speechSynthesis.addEventListener('voiceschanged',uma,{once:true});setTimeout(uma,700);}}catch(e){post('SPKEND');}};
 </script></body></html>
 """;
