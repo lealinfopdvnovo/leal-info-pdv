@@ -16,6 +16,13 @@ public static class LiaCore
     public static LiaDecisao Classificar(string n)
     {
         bool Tem(params string[] xs) => xs.Any(x => n.Contains(x, StringComparison.Ordinal));
+        bool Exato(params string[] xs) => xs.Any(x => n.Trim().Equals(x, StringComparison.Ordinal));
+        bool AcaoTela(params string[] alvos)
+        {
+            var alvo = alvos.Any(x => n.Contains(x, StringComparison.Ordinal));
+            if (!alvo) return false;
+            return Tem("abre", "abrir", "vai", "ir para", "ir pra", "entra", "entrar", "acessa", "acessar", "mostra", "mostrar", "quero", "preciso", "leva", "vá para", "va para") || Exato(alvos);
+        }
 
         if (Tem("fechei o caixa", "encerrei o caixa", "caixa fechado", "fechou o caixa", "reabrir caixa", "reabre o caixa"))
             return new("CAIXA_ENCERRADO", LiaRisco.Critico, "Chame o gerente. Por segurança, o caixa encerrado só pode ser liberado com autorização.", true);
@@ -23,29 +30,34 @@ public static class LiaCore
         if (Tem("apagar", "excluir", "estornar", "cancelar", "reabrir", "alterar preco", "mudar preco") && !Auth.IsManager)
             return new("ACAO_RESTRITA", LiaRisco.Critico, "Chame o gerente. Essa ação precisa de autorização superior.", true);
 
+        if (Tem("fecha essa tela", "fechar essa tela", "fecha a tela", "fechar a tela", "fecha isso", "fechar isso", "fecha aqui", "fechar aqui", "pode fechar", "quero fechar", "volta da tela", "sair dessa tela", "sai dessa tela", "fechar janela", "fecha janela", "fecha o sistema", "fechar o sistema", "fecha o programa", "fechar o programa"))
+            return new("FECHAR_TELA", LiaRisco.Atencao);
+
         if (Tem("o que posso", "minha permissao", "minhas permissoes", "tenho acesso", "posso mexer")) return new("PERMISSOES", LiaRisco.Normal);
 
         if (Tem("quanto tem de", "quantos tem de", "quantas tem de", "tem no estoque", "estoque do", "estoque da", "estoque de", "quantidade de") && !Tem("estoque baixo", "estoque minimo"))
             return new("CONSULTAR_ESTOQUE_PRODUTO", LiaRisco.Normal);
 
-        // Comandos operacionais naturais têm prioridade sobre conversa genérica.
         if (Tem("cadastrar produto", "cadastro produto", "novo produto", "produto novo", "produto nao cadastrado", "produto nao existe", "me ensina produto", "quero cadastrar um produto", "quero cadastrar produto"))
             return new("CADASTRAR_PRODUTO", LiaRisco.Normal);
 
-        if (Tem("abrir produtos", "abre produtos", "abre produto", "ir para produtos", "ir pra produtos", "vai para produtos", "vai pra produtos", "tela de produtos", "cadastro de produtos", "cadastro dos produtos"))
+        if (AcaoTela("produtos", "produto", "cadastro de produtos", "cadastro dos produtos"))
             return new("ABRIR_PRODUTOS", LiaRisco.Normal);
 
-        if (Tem("abrir vendas", "abre vendas", "abrir venda", "abre venda", "nova venda", "fazer uma venda", "fazer venda", "quero vender", "quero fazer uma venda", "tela de vendas", "tela de venda", "ir para vendas", "ir pra vendas", "vai para vendas", "vai pra vendas", "vender"))
+        if (AcaoTela("pdv", "tela de vendas", "tela de venda", "vendas", "venda", "caixa de venda") || Tem("nova venda", "fazer uma venda", "fazer venda", "quero vender", "quero fazer uma venda", "vender"))
             return new("ABRIR_VENDAS", LiaRisco.Normal);
 
-        if (Tem("abrir clientes", "abre clientes", "abrir cliente", "abre cliente", "cadastro de cliente", "cadastro de clientes", "ir para clientes", "ir pra clientes", "vai para clientes", "vai pra clientes"))
+        if (AcaoTela("clientes", "cliente", "cadastro de cliente", "cadastro de clientes"))
             return new("ABRIR_CLIENTES", LiaRisco.Normal);
 
-        if (Tem("abrir financeiro", "abre financeiro", "ir para financeiro", "ir pro financeiro", "vai para financeiro", "vai pro financeiro", "tela do financeiro", "fluxo de caixa"))
+        if (AcaoTela("financeiro", "fluxo de caixa"))
             return new("ABRIR_FINANCEIRO", LiaRisco.Normal);
 
-        if (Tem("abrir relatorio", "abrir relatorios", "abre relatorio", "abre relatorios", "ir para relatorio", "ir para relatorios", "ir pra relatorios", "vai para relatorios", "vai pra relatorios", "tela de relatorios"))
+        if (AcaoTela("relatorios", "relatorio", "tela de relatorios"))
             return new("ABRIR_RELATORIOS", LiaRisco.Normal);
+
+        if (AcaoTela("configuracoes", "configuracao", "config", "ajustes", "preferencias"))
+            return new("ABRIR_CONFIGURACOES", LiaRisco.Normal);
 
         if (Tem("como faz pra cadastrar", "como cadastrar", "quero cadastrar", "onde cadastra", "nao sei cadastrar", "me ajuda a cadastrar", "abre cadastro", "abrir cadastro", "quero ir no cadastro"))
             return new("CADASTRO_AMBIGUO", LiaRisco.Normal);
