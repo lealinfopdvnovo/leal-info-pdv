@@ -39,22 +39,16 @@ public static class LiaCore
         if (Tem("abrir financeiro", "abre financeiro", "fluxo de caixa")) return new("ABRIR_FINANCEIRO", LiaRisco.Normal);
         if (Tem("abrir relatorio", "abrir relatorios", "abre relatorio", "relatorios")) return new("ABRIR_RELATORIOS", LiaRisco.Normal);
 
-        // Somente o que não é comando reconhecido do PDV vai para a conversa online.
-        // A IA não recebe senha, banco, saldo, permissões ocultas nem callbacks de ação.
-        if (Ai.Configurada)
-        {
-            try
-            {
-                var resposta = Ai.ConversarAsync(n).GetAwaiter().GetResult();
-                if (!string.IsNullOrWhiteSpace(resposta)) return new("CONVERSA_AI", LiaRisco.Normal, resposta);
-            }
-            catch
-            {
-                return new("CONVERSA_AI_OFFLINE", LiaRisco.Atencao, "Minha conversa online não respondeu agora. Os comandos do PDV continuam funcionando normalmente.");
-            }
-        }
+        // Conversa livre é resolvida de forma assíncrona pelo controlador de voz.
+        // Assim nenhuma chamada HTTP bloqueia a thread da interface do PDV.
+        return Ai.Configurada ? new("CONVERSA_AI", LiaRisco.Normal) : new("DESCONHECIDA", LiaRisco.Atencao);
+    }
 
-        return new("DESCONHECIDA", LiaRisco.Atencao);
+    public static async Task<string?> ConversarAsync(string texto, CancellationToken cancellationToken = default)
+    {
+        if (!Ai.Configurada) return null;
+        try { return await Ai.ConversarAsync(texto, cancellationToken); }
+        catch { return null; }
     }
 
     public static string ResumoPermissoes()
