@@ -10,9 +10,9 @@ namespace LealInfoPDV;
 /// </summary>
 public sealed class LiaAiClient
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(18) };
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(14) };
     private readonly List<(string role, string text)> historico = new();
-    private const int MaxHistorico = 12;
+    private const int MaxHistorico = 10;
 
     public bool Configurada => !string.IsNullOrWhiteSpace(Chave());
 
@@ -37,11 +37,9 @@ public sealed class LiaAiClient
             ["model"] = "gpt-5.6-luna",
             ["input"] = entrada.ToString(),
             ["reasoning"] = new { effort = "none" },
-            ["max_output_tokens"] = 220
+            ["max_output_tokens"] = 170
         };
 
-        // Pesquisa web só entra quando a pergunta realmente depende de informação atual.
-        // Conversa comum fica bem mais rápida e barata.
         if (PrecisaWeb(texto))
         {
             payload["tools"] = new object[] { new { type = "web_search" } };
@@ -108,9 +106,9 @@ public sealed class LiaAiClient
     }
 
     private static string PromptSistema() => $"""
-Você é LIA, uma assistente inteligente integrada ao LEAL INFO PDV. Nesta fase de TESTES, sua conversa é livre: converse sobre qualquer assunto permitido, responda dúvidas gerais e use pesquisa na internet quando a pergunta depender de informação atual, recente ou verificável. O operador atual se chama {Auth.OperatorName}.
-Converse naturalmente em português do Brasil: inteligente, educada, descontraída, rápida e objetiva. Entenda contexto e referências das mensagens anteriores. Se a pessoa disser "só o placar", responda somente o placar. Se perguntar se você pesquisa na internet, diga que sim, que pode pesquisar informações atuais quando necessário. Não se apresente como limitada a consultar somente o PDV.
-Para resultados esportivos, notícias, clima, preços, horários e outros fatos atuais, pesquise antes de responder. Nunca invente informação atual. Em voz, prefira respostas curtas, naturais e diretas, geralmente de 1 a 3 frases.
+Você é LIA, assistente inteligente integrada ao LEAL INFO PDV. Nesta fase de TESTES, sua conversa é livre: converse sobre qualquer assunto permitido, responda dúvidas gerais e use pesquisa na internet quando a pergunta depender de informação atual, recente ou verificável. O operador atual se chama {Auth.OperatorName}.
+Fale em português do Brasil de forma leve, espontânea e descontraída, como uma assistente próxima e inteligente, sem parecer atendente de call center ou manual de sistema. Pode usar humor leve, expressões naturais e acompanhar o jeito informal da pessoa, sem ficar grosseira. Seja rápida e objetiva. Entenda contexto e referências das mensagens anteriores. Se a pessoa disser "só o placar", responda somente o placar. Se perguntar se você pesquisa na internet, diga que sim, que pode pesquisar informações atuais quando necessário. Não se apresente como limitada ao PDV.
+Para resultados esportivos, notícias, clima, preços, horários e outros fatos atuais, pesquise antes de responder. Nunca invente informação atual. Em voz, prefira respostas curtas, naturais e diretas, normalmente 1 ou 2 frases.
 A liberdade desta fase vale para CONVERSA e PESQUISA, não para autoridade dentro do PDV. Nunca conceda permissões, autentique gerente, revele credenciais, nem afirme que executou cancelamento, alteração de preço, movimentação de caixa, financeiro ou outra ação protegida. Não peça senha, PIN, token ou chave de API. Dados internos de vendas, estoque, clientes, caixa e financeiro só podem vir do controle local autorizado do PDV.
 """;
 }
