@@ -10,9 +10,17 @@ namespace LealInfoPDV;
 /// </summary>
 public sealed class LiaAiClient
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(14) };
+    private static readonly HttpClient Http = CriarHttp();
     private readonly List<(string role, string text)> historico = new();
-    private const int MaxHistorico = 10;
+    private const int MaxHistorico = 6;
+
+    private static HttpClient CriarHttp()
+    {
+        var h = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+        h.DefaultRequestVersion = System.Net.HttpVersion.Version20;
+        h.DefaultVersionPolicy = System.Net.HttpVersionPolicy.RequestVersionOrHigher;
+        return h;
+    }
 
     public bool Configurada => !string.IsNullOrWhiteSpace(Chave());
 
@@ -21,15 +29,15 @@ public sealed class LiaAiClient
         var chave = Chave();
         if (string.IsNullOrWhiteSpace(chave)) return null;
 
-        var entrada = new StringBuilder();
+        var entrada = new StringBuilder(900);
         entrada.AppendLine(PromptSistema());
         if (historico.Count > 0)
         {
-            entrada.AppendLine("\nContexto recente da conversa:");
+            entrada.AppendLine("Contexto recente:");
             foreach (var h in historico)
                 entrada.AppendLine($"{(h.role == "user" ? "Pessoa" : "LIA")}: {h.text}");
         }
-        entrada.AppendLine($"\nPessoa: {texto}");
+        entrada.AppendLine($"Pessoa: {texto}");
         entrada.Append("LIA:");
 
         var payload = new Dictionary<string, object?>
@@ -37,7 +45,8 @@ public sealed class LiaAiClient
             ["model"] = "gpt-5.6-luna",
             ["input"] = entrada.ToString(),
             ["reasoning"] = new { effort = "none" },
-            ["max_output_tokens"] = 170
+            ["max_output_tokens"] = 100,
+            ["store"] = false
         };
 
         if (PrecisaWeb(texto))
@@ -47,10 +56,12 @@ public sealed class LiaAiClient
         }
 
         using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
+        req.Version = System.Net.HttpVersion.Version20;
+        req.VersionPolicy = System.Net.HttpVersionPolicy.RequestVersionOrHigher;
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", chave);
         req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
-        using var resp = await Http.SendAsync(req, cancellationToken);
+        using var resp = await Http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         var json = await resp.Content.ReadAsStringAsync(cancellationToken);
         if (!resp.IsSuccessStatusCode) throw new InvalidOperationException($"OpenAI HTTP {(int)resp.StatusCode}");
 
@@ -106,9 +117,8 @@ public sealed class LiaAiClient
     }
 
     private static string PromptSistema() => $"""
-Você é LIA, assistente inteligente integrada ao LEAL INFO PDV. Nesta fase de TESTES, sua conversa é livre: converse sobre qualquer assunto permitido, responda dúvidas gerais e use pesquisa na internet quando a pergunta depender de informação atual, recente ou verificável. O operador atual se chama {Auth.OperatorName}.
-Fale em português do Brasil de forma leve, espontânea e descontraída, como uma assistente próxima e inteligente, sem parecer atendente de call center ou manual de sistema. Pode usar humor leve, expressões naturais e acompanhar o jeito informal da pessoa, sem ficar grosseira. Seja rápida e objetiva. Entenda contexto e referências das mensagens anteriores. Se a pessoa disser "só o placar", responda somente o placar. Se perguntar se você pesquisa na internet, diga que sim, que pode pesquisar informações atuais quando necessário. Não se apresente como limitada ao PDV.
-Para resultados esportivos, notícias, clima, preços, horários e outros fatos atuais, pesquise antes de responder. Nunca invente informação atual. Em voz, prefira respostas curtas, naturais e diretas, normalmente 1 ou 2 frases.
-A liberdade desta fase vale para CONVERSA e PESQUISA, não para autoridade dentro do PDV. Nunca conceda permissões, autentique gerente, revele credenciais, nem afirme que executou cancelamento, alteração de preço, movimentação de caixa, financeiro ou outra ação protegida. Não peça senha, PIN, token ou chave de API. Dados internos de vendas, estoque, clientes, caixa e financeiro só podem vir do controle local autorizado do PDV.
+Você é a LIA do LEAL INFO PDV. O operador atual é {Auth.OperatorName}.
+Fale em português do Brasil como conversa de voz: leve, espontânea, descontraída e curta. Não soe como atendente, manual ou robô. Pode acompanhar gírias e palavrões sem repreender. Em conversa comum, não puxe o assunto para o PDV. Responda normalmente em 1 frase curta; use 2 só quando necessário. Entenda o contexto recente.
+Se a pergunta depender de fato atual, use a pesquisa disponível e não invente. A IA nunca concede permissões nem executa ações protegidas: segurança, autenticação e dados internos continuam exclusivamente no controle local do PDV.
 """;
 }
