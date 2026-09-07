@@ -5,12 +5,12 @@ using System.Text.Json;
 namespace LealInfoPDV;
 
 /// <summary>
-/// Camada conversacional online da LIA. Não executa ações do PDV e não decide permissões.
-/// Ações e dados sensíveis continuam exclusivamente no LiaCore/Auth.
+/// Camada conversacional online da LIA. Conversa e pesquisa web ficam livres para testes.
+/// Ações, dados sensíveis e permissões do PDV continuam exclusivamente no LiaCore/Auth.
 /// </summary>
 public sealed class LiaAiClient
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(12) };
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(25) };
     private readonly List<(string role, string text)> historico = new();
     private const int MaxHistorico = 12;
 
@@ -21,19 +21,28 @@ public sealed class LiaAiClient
         var chave = Chave();
         if (string.IsNullOrWhiteSpace(chave)) return null;
 
-        var mensagens = new List<object> { new { role = "system", content = PromptSistema() } };
-        foreach (var h in historico) mensagens.Add(new { role = h.role, content = h.text });
-        mensagens.Add(new { role = "user", content = texto });
+        var entrada = new StringBuilder();
+        entrada.AppendLine(PromptSistema());
+        if (historico.Count > 0)
+        {
+            entrada.AppendLine("\nContexto recente da conversa:");
+            foreach (var h in historico)
+                entrada.AppendLine($"{(h.role == "user" ? "Pessoa" : "LIA")}: {h.text}");
+        }
+        entrada.AppendLine($"\nPessoa: {texto}");
+        entrada.Append("LIA:");
 
         var payload = new
         {
             model = "gpt-5.6-luna",
-            messages = mensagens,
-            max_completion_tokens = 220,
-            reasoning_effort = "none"
+            input = entrada.ToString(),
+            tools = new object[] { new { type = "web_search" } },
+            tool_choice = "auto",
+            reasoning = new { effort = "none" },
+            max_output_tokens = 260
         };
 
-        using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
+        using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", chave);
         req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
@@ -56,18 +65,32 @@ public sealed class LiaAiClient
 
     private static string ExtrairTexto(JsonElement root)
     {
-        if (!root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array || choices.GetArrayLength() == 0) return "";
-        var first = choices[0];
-        if (!first.TryGetProperty("message", out var message) || message.ValueKind != JsonValueKind.Object) return "";
-        if (!message.TryGetProperty("content", out var content)) return "";
-        return content.ValueKind == JsonValueKind.String ? content.GetString() ?? "" : "";
+        if (root.TryGetProperty("output_text", out var outputText) && outputText.ValueKind == JsonValueKind.String)
+            return outputText.GetString() ?? "";
+
+        if (!root.TryGetProperty("output", out var output) || output.ValueKind != JsonValueKind.Array) return "";
+        var sb = new StringBuilder();
+        foreach (var item in output.EnumerateArray())
+        {
+            if (!item.TryGetProperty("type", out var type) || type.GetString() != "message") continue;
+            if (!item.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Array) continue;
+            foreach (var part in content.EnumerateArray())
+            {
+                if (!part.TryGetProperty("type", out var partType) || partType.GetString() != "output_text") continue;
+                if (part.TryGetProperty("text", out var textPart) && textPart.ValueKind == JsonValueKind.String)
+                {
+                    if (sb.Length > 0) sb.Append(' ');
+                    sb.Append(textPart.GetString());
+                }
+            }
+        }
+        return sb.ToString();
     }
 
     private static string PromptSistema() => $"""
-Você é LIA, assistente de voz do LEAL INFO PDV. Converse naturalmente em português do Brasil, como uma pessoa inteligente, educada, descontraída, rápida e objetiva. O operador atual se chama {Auth.OperatorName}.
-Entenda o contexto da conversa e responda ao que a pessoa realmente perguntou. Se ela pedir somente o placar, responda somente o placar. Evite discursos, explicações desnecessárias e frases robóticas. Em voz, prefira respostas curtas e naturais.
-Você é a camada de CONVERSA, não a camada de autorização do caixa. Nunca afirme que abriu tela, alterou cadastro, cancelou venda, mexeu em caixa, concedeu permissão, autenticou gerente ou executou qualquer ação no PDV. Nunca peça senha, PIN, token, chave de API ou credencial. Se pedirem uma ação operacional do PDV que chegou até você, diga de forma curta que o comando precisa ser tratado pelo controle seguro da LIA.
-Não invente números de vendas, estoque, clientes, caixa, financeiro ou outros dados internos. Esses dados são consultados localmente pelo PDV quando autorizado.
-Pode conversar normalmente sobre assuntos gerais. Quando uma pergunta depender de informação atual que você não possua com segurança, diga isso de forma curta em vez de inventar. Responda em geral com 1 a 3 frases, pois sua resposta será falada em voz alta.
+Você é LIA, uma assistente inteligente integrada ao LEAL INFO PDV. Nesta fase de TESTES, sua conversa é livre: converse sobre qualquer assunto permitido, responda dúvidas gerais e use pesquisa na internet quando a pergunta depender de informação atual, recente ou verificável. O operador atual se chama {Auth.OperatorName}.
+Converse naturalmente em português do Brasil: inteligente, educada, descontraída, rápida e objetiva. Entenda contexto e referências das mensagens anteriores. Se a pessoa disser "só o placar", responda somente o placar. Se perguntar se você pesquisa na internet, diga que sim, que pode pesquisar informações atuais quando necessário. Não se apresente como limitada a consultar somente o PDV.
+Para resultados esportivos, notícias, clima, preços, horários e outros fatos atuais, pesquise antes de responder. Nunca invente informação atual. Em voz, prefira respostas curtas, naturais e diretas, geralmente de 1 a 3 frases.
+A liberdade desta fase vale para CONVERSA e PESQUISA, não para autoridade dentro do PDV. Nunca conceda permissões, autentique gerente, revele credenciais, nem afirme que executou cancelamento, alteração de preço, movimentação de caixa, financeiro ou outra ação protegida. Não peça senha, PIN, token ou chave de API. Dados internos de vendas, estoque, clientes, caixa e financeiro só podem vir do controle local autorizado do PDV.
 """;
 }
