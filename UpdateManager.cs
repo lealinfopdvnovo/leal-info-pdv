@@ -13,7 +13,7 @@ namespace LealInfoPDV;
 
 internal static class UpdateManager
 {
-    public const string CurrentVersion = "10.137";
+    public const string CurrentVersion = "10.138";
     private const string DefaultFeedUrl = "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json";
     private static readonly string UpdatesFolder = Path.Combine(Database.AppFolder, "Updates");
     private static readonly string LocalManifest = Path.Combine(UpdatesFolder, "manifest.json");
@@ -51,7 +51,7 @@ internal static class UpdateManager
     {
         if(File.Exists(LocalManifest)){var localJson=await File.ReadAllTextAsync(LocalManifest);return JsonSerializer.Deserialize<UpdateManifest>(localJson,JsonOptions());}
         var feed=DefaultFeedUrl; if(File.Exists(FeedConfig)){var configured=(await File.ReadAllTextAsync(FeedConfig)).Trim();if(!string.IsNullOrWhiteSpace(configured))feed=configured;}
-        using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(7)}; http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.137"); using var response=await http.GetAsync(feed); if(!response.IsSuccessStatusCode)return null; var json=await response.Content.ReadAsStringAsync(); return JsonSerializer.Deserialize<UpdateManifest>(json,JsonOptions());
+        using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(7)}; http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.138"); using var response=await http.GetAsync(feed); if(!response.IsSuccessStatusCode)return null; var json=await response.Content.ReadAsStringAsync(); return JsonSerializer.Deserialize<UpdateManifest>(json,JsonOptions());
     }
     private static JsonSerializerOptions JsonOptions()=>new(){PropertyNameCaseInsensitive=true};
     private static bool IsNewer(string candidate,string current){if(!Version.TryParse(candidate.TrimStart('v','V'),out var n))return false;if(!Version.TryParse(current.TrimStart('v','V'),out var c))return false;return n>c;}
@@ -60,7 +60,7 @@ internal static class UpdateManager
     {
         if(string.IsNullOrWhiteSpace(manifest.PackageUrl))throw new InvalidOperationException("O manifesto da atualização não informou o pacote de instalação.");
         var work=Path.Combine(Path.GetTempPath(),"LealInfoPDV_Update_"+Guid.NewGuid().ToString("N")); var zip=Path.Combine(work,"update.zip"); var stage=Path.Combine(work,"payload"); Directory.CreateDirectory(work);Directory.CreateDirectory(stage);
-        if(Uri.TryCreate(manifest.PackageUrl,UriKind.Absolute,out var uri)&&(uri.Scheme=="http"||uri.Scheme=="https")){using var http=new HttpClient{Timeout=TimeSpan.FromMinutes(4)};http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.137");var bytes=await http.GetByteArrayAsync(uri);await File.WriteAllBytesAsync(zip,bytes);}else{var source=Path.IsPathRooted(manifest.PackageUrl)?manifest.PackageUrl:Path.Combine(UpdatesFolder,manifest.PackageUrl);if(!File.Exists(source))throw new FileNotFoundException("Pacote de atualização não encontrado.",source);File.Copy(source,zip,true);}
+        if(Uri.TryCreate(manifest.PackageUrl,UriKind.Absolute,out var uri)&&(uri.Scheme=="http"||uri.Scheme=="https")){using var http=new HttpClient{Timeout=TimeSpan.FromMinutes(4)};http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.138");var bytes=await http.GetByteArrayAsync(uri);await File.WriteAllBytesAsync(zip,bytes);}else{var source=Path.IsPathRooted(manifest.PackageUrl)?manifest.PackageUrl:Path.Combine(UpdatesFolder,manifest.PackageUrl);if(!File.Exists(source))throw new FileNotFoundException("Pacote de atualização não encontrado.",source);File.Copy(source,zip,true);}
         if(!string.IsNullOrWhiteSpace(manifest.Sha256)){using var sha=SHA256.Create();await using var fs=File.OpenRead(zip);var hash=Convert.ToHexString(await sha.ComputeHashAsync(fs));if(!hash.Equals(manifest.Sha256.Replace(" ",""),StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("A verificação de segurança do pacote falhou (SHA-256 diferente).");}
         ZipFile.ExtractToDirectory(zip,stage,true);
         var exe=Environment.ProcessPath??Path.Combine(AppContext.BaseDirectory,"LealInfoPDV.exe");var appDir=AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);var backupDir=Path.Combine(Database.AppFolder,"UpdateBackups","V"+CurrentVersion+"_"+DateTime.Now.ToString("yyyyMMdd_HHmmss"));Directory.CreateDirectory(backupDir);
