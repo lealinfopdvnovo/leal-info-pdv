@@ -13,7 +13,7 @@ namespace LealInfoPDV;
 
 internal static class UpdateManager
 {
-    public const string CurrentVersion = "10.130";
+    public const string CurrentVersion = "10.133";
     private const string DefaultFeedUrl = "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv/main/pdv-manifest.json";
 
     private static readonly string UpdatesFolder = Path.Combine(Database.AppFolder, "Updates");
@@ -194,7 +194,7 @@ internal static class UpdateManager
         }
 
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(7) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.130");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.133");
         using var response = await http.GetAsync(feed);
         if (!response.IsSuccessStatusCode) return null;
         var json = await response.Content.ReadAsStringAsync();
@@ -224,7 +224,7 @@ internal static class UpdateManager
         if (Uri.TryCreate(manifest.PackageUrl, UriKind.Absolute, out var uri) && (uri.Scheme == "http" || uri.Scheme == "https"))
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(4) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.130");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.133");
             var bytes = await http.GetByteArrayAsync(uri);
             await File.WriteAllBytesAsync(zip, bytes);
         }
