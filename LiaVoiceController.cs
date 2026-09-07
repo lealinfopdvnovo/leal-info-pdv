@@ -67,16 +67,8 @@ public sealed class LiaVoiceController : IDisposable
             return;
         }
         if (msg == "SPKEND") { falaTerminou?.TrySetResult(true); return; }
-        if (msg == "LISTEN_END")
-        {
-            if (!processando && !encerrado) { await Task.Delay(250); await IniciarEscutaAsync(); }
-            return;
-        }
-        if (msg.StartsWith("ERR|", StringComparison.Ordinal))
-        {
-            RegistrarLog("MIC", msg);
-            if (!processando && !encerrado) { orbe.SetEstado("PRONTA"); await Task.Delay(600); await IniciarEscutaAsync(); }
-        }
+        if (msg == "LISTEN_END") { if (!processando && !encerrado) { await Task.Delay(250); await IniciarEscutaAsync(); } return; }
+        if (msg.StartsWith("ERR|", StringComparison.Ordinal)) { RegistrarLog("MIC", msg); if (!processando && !encerrado) { orbe.SetEstado("PRONTA"); await Task.Delay(600); await IniciarEscutaAsync(); } }
     }
 
     private async Task FalarAsync(string texto)
@@ -103,7 +95,7 @@ public sealed class LiaVoiceController : IDisposable
             {
                 "PERMISSOES" => LiaCore.ResumoPermissoes(),
                 "CADASTRO_AMBIGUO" => "Claro. O que você quer cadastrar: produto, cliente, fornecedor ou outra coisa?",
-                "CADASTRAR_PRODUTO" => "Para cadastrar produto, abra Produtos e escolha Novo. Se quiser, diga: abrir produtos.",
+                "CADASTRAR_PRODUTO" => Acao("Abrindo Produtos para você cadastrar o produto.", main.LiaAbrirProdutos),
                 "RESUMO_EMPRESA" => Auth.IsManager ? ResumoEmpresa() : "Essa visão geral é gerencial. Chame o gerente ou proprietário.",
                 "VENDAS_HOJE" => VendasHoje(), "ESTOQUE_BAIXO" => EstoqueBaixo(), "CLIENTES" => QuantidadeClientes(),
                 "SALDO_CAIXA" => Auth.IsManager ? SaldoCaixa() : "Essa informação é restrita. Chame o gerente.",
@@ -137,7 +129,7 @@ function post(x){try{chrome.webview.postMessage(x);}catch(e){}}
 window.liaStop=function(){parando=true;try{if(rec){rec.onend=null;rec.onerror=null;rec.abort();}}catch(e){}ativo=false;rec=null;};
 window.liaStart=function(){if(ativo)return;parando=false;try{speechSynthesis.cancel();}catch(e){}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){post('ERR|speech-recognition-indisponivel');return;}try{rec=new SR();rec.lang='pt-BR';rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=1;rec.onstart=()=>{ativo=true;};rec.onresult=(e)=>{const t=(e.results?.[0]?.[0]?.transcript||'').trim();if(t)post('TXT|'+t);};rec.onerror=(e)=>{ativo=false;if(!parando)post('ERR|'+(e.error||'erro-desconhecido'));};rec.onend=()=>{ativo=false;rec=null;if(!parando)post('LISTEN_END');};rec.start();}catch(e){ativo=false;rec=null;if(!parando)post('ERR|'+(e.message||String(e)));}};
 function vozPreferida(){const vs=speechSynthesis.getVoices();const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));const pt=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt'));const nomes=[/francisca/i,/maria/i,/thalita/i,/luciana/i,/fernanda/i,/female/i,/feminina/i];for(const rx of nomes){const v=br.find(x=>rx.test(x.name||''));if(v)return v;}for(const rx of nomes){const v=pt.find(x=>rx.test(x.name||''));if(v)return v;}return br[0]||pt[0]||vs[0]||null;}
-window.liaSpeak=function(texto){try{window.liaStop();speechSynthesis.cancel();const falar=()=>{const u=new SpeechSynthesisUtterance(texto);const v=vozPreferida();u.lang='pt-BR';if(v)u.voice=v;u.rate=1.0;u.pitch=1.16;u.onend=()=>post('SPKEND');u.onerror=()=>post('SPKEND');speechSynthesis.speak(u);};if(speechSynthesis.getVoices().length)falar();else{let foi=false;const uma=()=>{if(foi)return;foi=true;falar();};speechSynthesis.addEventListener('voiceschanged',uma,{once:true});setTimeout(uma,700);}}catch(e){post('SPKEND');}};
+window.liaSpeak=function(texto){try{window.liaStop();speechSynthesis.cancel();const falar=()=>{const u=new SpeechSynthesisUtterance(texto);const v=vozPreferida();u.lang='pt-BR';if(v)u.voice=v;u.rate=1.03;u.pitch=1.0;u.volume=1.0;u.onend=()=>post('SPKEND');u.onerror=()=>post('SPKEND');speechSynthesis.speak(u);};if(speechSynthesis.getVoices().length)falar();else{let foi=false;const uma=()=>{if(foi)return;foi=true;falar();};speechSynthesis.addEventListener('voiceschanged',uma,{once:true});setTimeout(uma,700);}}catch(e){post('SPKEND');}};
 </script></body></html>
 """;
 
