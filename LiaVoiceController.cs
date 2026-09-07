@@ -118,7 +118,12 @@ public sealed class LiaVoiceController : IDisposable
             finally
             {
                 processando = false;
-                if (!encerrado) orbe.SetEstado("PRONTA");
+                if (!encerrado)
+                {
+                    orbe.SetEstado("PRONTA");
+                    await Task.Delay(300);
+                    await IniciarEscutaAsync();
+                }
             }
             return;
         }
