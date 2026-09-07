@@ -1,4 +1,4 @@
-name: Gerar atualização LEAL INFO PDV V10.132
+name: Publicar atualização automática LEAL INFO PDV V10.132
 
 on:
   workflow_dispatch:
@@ -6,12 +6,22 @@ on:
     branches:
       - main
 
+concurrency:
+  group: publicar-atualizacao-pdv
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
-  gerar-setup:
+  publicar-atualizacao:
     runs-on: windows-latest
+    env:
+      UPDATE_VERSION: "10.132"
+      UPDATE_TAG: "v10.132"
+      UPDATE_FILE: "Setup_LEAL_INFO_PDV_V10_132_LIA_FINAL.exe"
+      UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
+      GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
 
     steps:
       - name: Baixar projeto
@@ -22,19 +32,43 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restaurar dependencias
+      - name: Restaurar dependências
         run: dotnet restore LealInfoPDV.csproj
 
       - name: Publicar LEAL INFO PDV
-        run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_setup
+        run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --selfContained true -o publish_setup
 
       - name: Instalar Inno Setup
         shell: powershell
         run: choco install innosetup --yes --no-progress
 
-      - name: Fabricar Setup.exe
+      - name: Fabricar Setup
         shell: powershell
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "INSTALADOR_LEAL_INFO_PDV_V10_130.iss"'
+
+      - name: Publicar Release e ativar atualização
+        shell: powershell
+        run: |
+          $asset = "SETUP_PRONTO/$env:UPDATE_FILE"
+
+          gh release view $env:UPDATE_TAG --repo $env:UPDATE_REPO *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes
+          }
+
+          gh release create $env:UPDATE_TAG $asset --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "Atualização automática do LEAL INFO PDV."
+
+          $manifest = @{
+            version = $env:UPDATE_VERSION
+            downloadUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_FILE"
+            mandatory = $false
+            message = "Atualização V$env:UPDATE_VERSION disponível. Correção da escuta contínua da LIA."
+          } | ConvertTo-Json
+
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
+          $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
+
+          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar atualização V$env:UPDATE_VERSION" -f content="$encoded" -f sha="$sha"
 
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
