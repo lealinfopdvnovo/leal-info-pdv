@@ -1,4 +1,4 @@
-name: Publicar atualização automática LEAL INFO PDV V10.133
+name: Publicar atualização automática LEAL INFO PDV V10.134
 
 on:
   workflow_dispatch:
@@ -17,9 +17,9 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.133"
-      UPDATE_TAG: "v10.133"
-      UPDATE_FILE: "Setup_LEAL_INFO_PDV_V10_133_LIA_FINAL.exe"
+      UPDATE_VERSION: "10.134"
+      UPDATE_TAG: "v10.134"
+      UPDATE_FILE: "Setup_LEAL_INFO_PDV_V10_134_LIA_FINAL.exe"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
 
@@ -58,10 +58,10 @@ jobs:
           gh release create $env:UPDATE_TAG $asset --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "Atualizacao automatica do LEAL INFO PDV."
 
           $manifest = @{
-            version = $env:UPDATE_VERSION
-            downloadUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_FILE"
-            mandatory = $false
-            message = "Atualizacao V$env:UPDATE_VERSION disponivel. Novo tema rosa aquarela no botão STILO."
+            Version = $env:UPDATE_VERSION
+            PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_FILE"
+            Sha256 = ""
+            Notes = "Novo tema rosa aquarela e correcao definitiva da atualizacao automatica."
           } | ConvertTo-Json
 
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
@@ -72,6 +72,6 @@ jobs:
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_133_LIA_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_133_LIA_FINAL.exe
+          name: Setup_LEAL_INFO_PDV_V10_134_LIA_FINAL
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_134_LIA_FINAL.exe
           if-no-files-found: error
