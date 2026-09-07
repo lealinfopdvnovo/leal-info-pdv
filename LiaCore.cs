@@ -24,20 +24,35 @@ public static class LiaCore
             return new("ACAO_RESTRITA", LiaRisco.Critico, "Chame o gerente. Essa ação precisa de autorização superior.", true);
 
         if (Tem("o que posso", "minha permissao", "minhas permissoes", "tenho acesso", "posso mexer")) return new("PERMISSOES", LiaRisco.Normal);
-        if (Tem("como faz pra cadastrar", "como cadastrar", "quero cadastrar", "onde cadastra", "nao sei cadastrar", "me ajuda a cadastrar")) return new("CADASTRO_AMBIGUO", LiaRisco.Normal);
-        if (Tem("cadastrar produto", "cadastro produto", "novo produto", "produto nao cadastrado", "produto nao existe", "me ensina produto")) return new("CADASTRAR_PRODUTO", LiaRisco.Normal);
+
+        // Comandos operacionais naturais têm prioridade sobre conversa genérica.
+        if (Tem("cadastrar produto", "cadastro produto", "novo produto", "produto novo", "produto nao cadastrado", "produto nao existe", "me ensina produto", "quero cadastrar um produto", "quero cadastrar produto"))
+            return new("CADASTRAR_PRODUTO", LiaRisco.Normal);
+
+        if (Tem("abrir produtos", "abre produtos", "abre produto", "ir para produtos", "ir pra produtos", "vai para produtos", "vai pra produtos", "tela de produtos", "cadastro de produtos", "cadastro dos produtos"))
+            return new("ABRIR_PRODUTOS", LiaRisco.Normal);
+
+        if (Tem("abrir vendas", "abre vendas", "abrir venda", "abre venda", "nova venda", "fazer uma venda", "fazer venda", "quero vender", "quero fazer uma venda", "tela de vendas", "tela de venda", "ir para vendas", "ir pra vendas", "vai para vendas", "vai pra vendas", "vender"))
+            return new("ABRIR_VENDAS", LiaRisco.Normal);
+
+        if (Tem("abrir clientes", "abre clientes", "abrir cliente", "abre cliente", "cadastro de cliente", "cadastro de clientes", "ir para clientes", "ir pra clientes", "vai para clientes", "vai pra clientes"))
+            return new("ABRIR_CLIENTES", LiaRisco.Normal);
+
+        if (Tem("abrir financeiro", "abre financeiro", "ir para financeiro", "ir pro financeiro", "vai para financeiro", "vai pro financeiro", "tela do financeiro", "fluxo de caixa"))
+            return new("ABRIR_FINANCEIRO", LiaRisco.Normal);
+
+        if (Tem("abrir relatorio", "abrir relatorios", "abre relatorio", "abre relatorios", "ir para relatorio", "ir para relatorios", "ir pra relatorios", "vai para relatorios", "vai pra relatorios", "tela de relatorios"))
+            return new("ABRIR_RELATORIOS", LiaRisco.Normal);
+
+        if (Tem("como faz pra cadastrar", "como cadastrar", "quero cadastrar", "onde cadastra", "nao sei cadastrar", "me ajuda a cadastrar", "abre cadastro", "abrir cadastro", "quero ir no cadastro"))
+            return new("CADASTRO_AMBIGUO", LiaRisco.Normal);
+
         if (Tem("como esta minha empresa", "como esta a loja", "resumo", "situacao da loja", "como foi a loja")) return new("RESUMO_EMPRESA", LiaRisco.Normal);
         if (Tem("vendi", "vendas", "faturamento", "movimento") && Tem("hoje", "dia")) return new("VENDAS_HOJE", LiaRisco.Normal);
         if (Tem("estoque baixo", "acabando", "faltando", "estoque minimo", "repor", "reposicao")) return new("ESTOQUE_BAIXO", LiaRisco.Normal);
         if (Tem("cliente", "clientes") && Tem("quantos", "cadastrado", "cadastro", "tenho")) return new("CLIENTES", LiaRisco.Normal);
         if (Tem("o que tenho pra pagar", "o que tenho para pagar", "contas a pagar", "tenho pra pagar", "tenho para pagar", "pagamentos pendentes", "vencimentos")) return new("CONTAS_PAGAR", LiaRisco.Normal);
         if (Tem("caixa", "saldo") && !Tem("abrir")) return new("SALDO_CAIXA", LiaRisco.Normal);
-
-        if (Tem("abrir produtos", "abre produtos", "ir para produtos")) return new("ABRIR_PRODUTOS", LiaRisco.Normal);
-        if (Tem("abrir vendas", "abre vendas", "nova venda", "tela de vendas", "vender")) return new("ABRIR_VENDAS", LiaRisco.Normal);
-        if (Tem("abrir clientes", "abre clientes", "cadastro de cliente")) return new("ABRIR_CLIENTES", LiaRisco.Normal);
-        if (Tem("abrir financeiro", "abre financeiro", "fluxo de caixa")) return new("ABRIR_FINANCEIRO", LiaRisco.Normal);
-        if (Tem("abrir relatorio", "abrir relatorios", "abre relatorio", "relatorios")) return new("ABRIR_RELATORIOS", LiaRisco.Normal);
 
         // Conversa livre é resolvida de forma assíncrona pelo controlador de voz.
         // Assim nenhuma chamada HTTP bloqueia a thread da interface do PDV.
