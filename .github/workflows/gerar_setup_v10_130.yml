@@ -1,5 +1,5 @@
-# V10.143 correcao do reinicio automatico
-name: Publicar atualização automática LEAL INFO PDV V10.143
+# V10.144 correcao da fala da LIA
+name: Publicar atualização automática LEAL INFO PDV V10.144
 
 on:
   workflow_dispatch:
@@ -18,10 +18,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.143"
-      UPDATE_TAG: "v10.143"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_143_LIA_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_143_UPDATE.zip"
+      UPDATE_VERSION: "10.144"
+      UPDATE_TAG: "v10.144"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_144_LIA_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_144_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -54,12 +54,12 @@ jobs:
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.143: correção do encerramento e reinício automático após atualização."
+          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.144: correção da fala da LIA, removendo marcações de formatação da voz e priorizando voz natural em português do Brasil."
           $manifest = @{
             Version = $env:UPDATE_VERSION
             PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"
             Sha256 = ""
-            Notes = "V10.143: correção do reinício automático após atualização."
+            Notes = "V10.144: fala da LIA corrigida e mais natural."
           } | ConvertTo-Json
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
@@ -67,12 +67,12 @@ jobs:
       - name: Guardar pacote de atualização
         uses: actions/upload-artifact@v4
         with:
-          name: LEAL_INFO_PDV_V10_143_UPDATE
-          path: LEAL_INFO_PDV_V10_143_UPDATE.zip
+          name: LEAL_INFO_PDV_V10_144_UPDATE
+          path: LEAL_INFO_PDV_V10_144_UPDATE.zip
           if-no-files-found: error
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_143_LIA_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_143_LIA_FINAL.exe
+          name: Setup_LEAL_INFO_PDV_V10_144_LIA_FINAL
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_144_LIA_FINAL.exe
           if-no-files-found: error
