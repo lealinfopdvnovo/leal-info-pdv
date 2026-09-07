@@ -4,6 +4,7 @@ using Microsoft.Web.WebView2.WinForms;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace LealInfoPDV;
 
@@ -34,7 +35,25 @@ public sealed class LiaVoiceController : IDisposable
     private async Task PrepararWebAsync(){Directory.CreateDirectory(webFolder);string html=Path.Combine(webFolder,"voice.html");await File.WriteAllTextAsync(html,HtmlVoz(),Encoding.UTF8);await web.EnsureCoreWebView2Async();if(web.CoreWebView2 is null)throw new InvalidOperationException("WebView2 indisponível.");web.CoreWebView2.SetVirtualHostNameToFolderMapping("lia.local",webFolder,CoreWebView2HostResourceAccessKind.Allow);web.CoreWebView2.PermissionRequested+=(_,e)=>{if(e.PermissionKind==CoreWebView2PermissionKind.Microphone){e.State=CoreWebView2PermissionState.Allow;e.Handled=true;}};web.CoreWebView2.WebMessageReceived+=AoReceberMensagem;var tcs=new TaskCompletionSource<bool>();void Navegou(object? s,CoreWebView2NavigationCompletedEventArgs e){web.CoreWebView2.NavigationCompleted-=Navegou;if(e.IsSuccess)tcs.TrySetResult(true);else tcs.TrySetException(new InvalidOperationException("Falha ao preparar a escuta."));}web.CoreWebView2.NavigationCompleted+=Navegou;web.Source=new Uri("https://lia.local/voice.html");await tcs.Task;webPronto=true;}
     private async Task IniciarEscutaAsync(){if(!webPronto||web.CoreWebView2 is null||encerrado||processando)return;orbe.SetEstado("OUVINDO");try{await web.CoreWebView2.ExecuteScriptAsync("window.liaStart && window.liaStart();");}catch{}}
     private async void AoReceberMensagem(object? sender,CoreWebView2WebMessageReceivedEventArgs e){if(encerrado)return;string msg;try{msg=e.TryGetWebMessageAsString();}catch{return;}if(msg.StartsWith("TXT|",StringComparison.Ordinal)){var texto=msg[4..].Trim();if(texto.Length==0||processando)return;processando=true;try{RegistrarLog("OUVIU",texto);orbe.SetEstado("PENSANDO");var resposta=await ProcessarAsync(texto);RegistrarLog("RESPOSTA",resposta);await FalarAsync(resposta);}finally{processando=false;if(!encerrado){orbe.SetEstado("PRONTA");await Task.Delay(300);await IniciarEscutaAsync();}}return;}if(msg=="SPKEND"){falaTerminou?.TrySetResult(true);return;}if(msg=="LISTEN_END"){if(!processando&&!encerrado){await Task.Delay(250);await IniciarEscutaAsync();}return;}if(msg.StartsWith("ERR|",StringComparison.Ordinal)){RegistrarLog("MIC",msg);if(!processando&&!encerrado){orbe.SetEstado("PRONTA");await Task.Delay(600);await IniciarEscutaAsync();}}}
-    private async Task FalarAsync(string texto){if(encerrado||!webPronto||web.CoreWebView2 is null||string.IsNullOrWhiteSpace(texto))return;orbe.SetEstado("FALANDO");try{await web.CoreWebView2.ExecuteScriptAsync("window.liaStop && window.liaStop();");}catch{}string jsTexto=JsonSerializer.Serialize(texto.Replace("•",""));falaTerminou=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);await web.CoreWebView2.ExecuteScriptAsync($"window.liaSpeak && window.liaSpeak({jsTexto});");var limite=Task.Delay(Math.Clamp(texto.Length*95,2500,15000));await Task.WhenAny(falaTerminou.Task,limite);falaTerminou=null;}
+
+    private static string LimparTextoParaVoz(string texto)
+    {
+        if(string.IsNullOrWhiteSpace(texto)) return string.Empty;
+        var t = texto;
+        t = Regex.Replace(t, @"```[\s\S]*?```", " ");
+        t = Regex.Replace(t, @"`([^`]*)`", "$1");
+        t = Regex.Replace(t, @"!\[([^\]]*)\]\([^\)]*\)", "$1");
+        t = Regex.Replace(t, @"\[([^\]]+)\]\([^\)]*\)", "$1");
+        t = Regex.Replace(t, @"^\s{0,3}#{1,6}\s*", "", RegexOptions.Multiline);
+        t = Regex.Replace(t, @"^\s*[-+>]\s+", "", RegexOptions.Multiline);
+        t = Regex.Replace(t, @"^\s*\d+[\.)]\s+", "", RegexOptions.Multiline);
+        t = t.Replace("**", "").Replace("__", "").Replace("*", "").Replace("_", "");
+        t = t.Replace("•", "").Replace("#", "").Replace("~", "");
+        t = Regex.Replace(t, @"\s+", " ").Trim();
+        return t;
+    }
+
+    private async Task FalarAsync(string texto){if(encerrado||!webPronto||web.CoreWebView2 is null||string.IsNullOrWhiteSpace(texto))return;var textoVoz=LimparTextoParaVoz(texto);if(string.IsNullOrWhiteSpace(textoVoz))return;orbe.SetEstado("FALANDO");try{await web.CoreWebView2.ExecuteScriptAsync("window.liaStop && window.liaStop();");}catch{}string jsTexto=JsonSerializer.Serialize(textoVoz);falaTerminou=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);await web.CoreWebView2.ExecuteScriptAsync($"window.liaSpeak && window.liaSpeak({jsTexto});");var limite=Task.Delay(Math.Clamp(textoVoz.Length*95,2500,15000));await Task.WhenAny(falaTerminou.Task,limite);falaTerminou=null;}
 
     private async Task<string> ProcessarAsync(string texto)
     {
@@ -93,8 +112,15 @@ public sealed class LiaVoiceController : IDisposable
 let rec=null,ativo=false,parando=false;function post(x){try{chrome.webview.postMessage(x);}catch(e){}}
 window.liaStop=function(){parando=true;try{if(rec){rec.onend=null;rec.onerror=null;rec.abort();}}catch(e){}ativo=false;rec=null;};
 window.liaStart=function(){if(ativo)return;parando=false;try{speechSynthesis.cancel();}catch(e){}const SR=window.SpeechRecognition||window.webkitSpeechRecognition;if(!SR){post('ERR|speech-recognition-indisponivel');return;}try{rec=new SR();rec.lang='pt-BR';rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=1;rec.onstart=()=>{ativo=true;};rec.onresult=(e)=>{const t=(e.results?.[0]?.[0]?.transcript||'').trim();if(t)post('TXT|'+t);};rec.onerror=(e)=>{ativo=false;if(!parando)post('ERR|'+(e.error||'erro-desconhecido'));};rec.onend=()=>{ativo=false;rec=null;if(!parando)post('LISTEN_END');};rec.start();}catch(e){ativo=false;rec=null;if(!parando)post('ERR|'+(e.message||String(e)));}};
-function vozPreferida(){const vs=speechSynthesis.getVoices();const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));const pt=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt'));const nomes=[/francisca/i,/maria/i,/thalita/i,/luciana/i,/fernanda/i,/female/i,/feminina/i];for(const rx of nomes){const v=br.find(x=>rx.test(x.name||''));if(v)return v;}for(const rx of nomes){const v=pt.find(x=>rx.test(x.name||''));if(v)return v;}return br[0]||pt[0]||vs[0]||null;}
-window.liaSpeak=function(texto){try{window.liaStop();speechSynthesis.cancel();const falar=()=>{const u=new SpeechSynthesisUtterance(texto);const v=vozPreferida();u.lang='pt-BR';if(v)u.voice=v;u.rate=1.03;u.pitch=1.0;u.volume=1.0;u.onend=()=>post('SPKEND');u.onerror=()=>post('SPKEND');speechSynthesis.speak(u);};if(speechSynthesis.getVoices().length)falar();else{let foi=false;const uma=()=>{if(foi)return;foi=true;falar();};speechSynthesis.addEventListener('voiceschanged',uma,{once:true});setTimeout(uma,700);}}catch(e){post('SPKEND');}};
+function vozPreferida(){
+ const vs=speechSynthesis.getVoices();
+ const br=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt-br'));
+ const pt=vs.filter(v=>(v.lang||'').toLowerCase().startsWith('pt'));
+ const base=br.length?br:(pt.length?pt:vs);
+ const score=v=>{const n=(v.name||'').toLowerCase();let s=0;if((v.lang||'').toLowerCase().startsWith('pt-br'))s+=100;if(/natural|online/.test(n))s+=80;if(/thalita/.test(n))s+=70;if(/francisca/.test(n))s+=65;if(/maria/.test(n))s+=55;if(/luciana|fernanda/.test(n))s+=45;if(/female|feminina/.test(n))s+=30;if(/daniel|antonio|male|masculin/.test(n))s-=100;return s;};
+ return [...base].sort((a,b)=>score(b)-score(a))[0]||null;
+}
+window.liaSpeak=function(texto){try{window.liaStop();speechSynthesis.cancel();const falar=()=>{const u=new SpeechSynthesisUtterance(texto);const v=vozPreferida();u.lang='pt-BR';if(v)u.voice=v;u.rate=0.96;u.pitch=1.04;u.volume=1.0;u.onend=()=>post('SPKEND');u.onerror=()=>post('SPKEND');speechSynthesis.speak(u);};if(speechSynthesis.getVoices().length)falar();else{let foi=false;const uma=()=>{if(foi)return;foi=true;falar();};speechSynthesis.addEventListener('voiceschanged',uma,{once:true});setTimeout(uma,700);}}catch(e){post('SPKEND');}};
 </script></body></html>
 """;
     public void Encerrar(){if(encerrado)return;encerrado=true;try{if(web.CoreWebView2 is not null)web.CoreWebView2.WebMessageReceived-=AoReceberMensagem;}catch{}try{if(!orbe.IsDisposed)orbe.Close();}catch{}Encerrado?.Invoke(this,EventArgs.Empty);}
