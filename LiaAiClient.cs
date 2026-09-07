@@ -10,9 +10,9 @@ namespace LealInfoPDV;
 /// </summary>
 public sealed class LiaAiClient
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(20) };
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(12) };
     private readonly List<(string role, string text)> historico = new();
-    private const int MaxHistorico = 10;
+    private const int MaxHistorico = 12;
 
     public bool Configurada => !string.IsNullOrWhiteSpace(Chave());
 
@@ -27,20 +27,19 @@ public sealed class LiaAiClient
 
         var payload = new
         {
-            model = "openrouter/free",
+            model = "gpt-5.6-luna",
             messages = mensagens,
-            max_tokens = 220
+            max_completion_tokens = 220,
+            reasoning_effort = "none"
         };
 
-        using var req = new HttpRequestMessage(HttpMethod.Post, "https://openrouter.ai/api/v1/chat/completions");
+        using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", chave);
-        req.Headers.TryAddWithoutValidation("HTTP-Referer", "https://lealinfo.local");
-        req.Headers.TryAddWithoutValidation("X-Title", "LEAL INFO PDV - LIA");
         req.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
         using var resp = await Http.SendAsync(req, cancellationToken);
         var json = await resp.Content.ReadAsStringAsync(cancellationToken);
-        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException($"OpenRouter HTTP {(int)resp.StatusCode}");
+        if (!resp.IsSuccessStatusCode) throw new InvalidOperationException($"OpenAI HTTP {(int)resp.StatusCode}");
 
         using var doc = JsonDocument.Parse(json);
         var resposta = ExtrairTexto(doc.RootElement);
@@ -52,8 +51,8 @@ public sealed class LiaAiClient
         return resposta.Trim();
     }
 
-    private static string? Chave() => Environment.GetEnvironmentVariable("OPENROUTER_API_KEY", EnvironmentVariableTarget.User)
-                                      ?? Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+    private static string? Chave() => Environment.GetEnvironmentVariable("OPENAI_API_KEY", EnvironmentVariableTarget.User)
+                                      ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
 
     private static string ExtrairTexto(JsonElement root)
     {
@@ -65,9 +64,10 @@ public sealed class LiaAiClient
     }
 
     private static string PromptSistema() => $"""
-Você é LIA, assistente de voz do LEAL INFO PDV. Converse naturalmente em português do Brasil, de forma humana, simpática, objetiva e apropriada para resposta falada. O operador atual se chama {Auth.OperatorName}.
+Você é LIA, assistente de voz do LEAL INFO PDV. Converse naturalmente em português do Brasil, como uma pessoa inteligente, educada, descontraída, rápida e objetiva. O operador atual se chama {Auth.OperatorName}.
+Entenda o contexto da conversa e responda ao que a pessoa realmente perguntou. Se ela pedir somente o placar, responda somente o placar. Evite discursos, explicações desnecessárias e frases robóticas. Em voz, prefira respostas curtas e naturais.
 Você é a camada de CONVERSA, não a camada de autorização do caixa. Nunca afirme que abriu tela, alterou cadastro, cancelou venda, mexeu em caixa, concedeu permissão, autenticou gerente ou executou qualquer ação no PDV. Nunca peça senha, PIN, token, chave de API ou credencial. Se pedirem uma ação operacional do PDV que chegou até você, diga de forma curta que o comando precisa ser tratado pelo controle seguro da LIA.
 Não invente números de vendas, estoque, clientes, caixa, financeiro ou outros dados internos. Esses dados são consultados localmente pelo PDV quando autorizado.
-Pode conversar normalmente sobre assuntos gerais. Quando não tiver informação atual confiável, diga isso de forma curta em vez de inventar. Responda em geral com 1 a 3 frases, pois sua resposta será falada em voz alta.
+Pode conversar normalmente sobre assuntos gerais. Quando uma pergunta depender de informação atual que você não possua com segurança, diga isso de forma curta em vez de inventar. Responda em geral com 1 a 3 frases, pois sua resposta será falada em voz alta.
 """;
 }
