@@ -27,6 +27,14 @@ jobs:
     steps:
       - name: Baixar projeto
         uses: actions/checkout@v4
+      - name: Alinhar versão interna do atualizador
+        shell: powershell
+        run: |
+          $p = "UpdateManager.cs"
+          $c = Get-Content $p -Raw
+          $c = $c.Replace('CurrentVersion="10.143"','CurrentVersion="10.144"')
+          $c = $c.Replace('Updater/10.143','Updater/10.144')
+          Set-Content -Path $p -Value $c -Encoding UTF8
       - name: Instalar .NET 8
         uses: actions/setup-dotnet@v4
         with:
