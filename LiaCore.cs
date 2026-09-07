@@ -25,6 +25,9 @@ public static class LiaCore
 
         if (Tem("o que posso", "minha permissao", "minhas permissoes", "tenho acesso", "posso mexer")) return new("PERMISSOES", LiaRisco.Normal);
 
+        if (Tem("quanto tem de", "quantos tem de", "quantas tem de", "tem no estoque", "estoque do", "estoque da", "estoque de", "quantidade de") && !Tem("estoque baixo", "estoque minimo"))
+            return new("CONSULTAR_ESTOQUE_PRODUTO", LiaRisco.Normal);
+
         // Comandos operacionais naturais têm prioridade sobre conversa genérica.
         if (Tem("cadastrar produto", "cadastro produto", "novo produto", "produto novo", "produto nao cadastrado", "produto nao existe", "me ensina produto", "quero cadastrar um produto", "quero cadastrar produto"))
             return new("CADASTRAR_PRODUTO", LiaRisco.Normal);
@@ -54,8 +57,6 @@ public static class LiaCore
         if (Tem("o que tenho pra pagar", "o que tenho para pagar", "contas a pagar", "tenho pra pagar", "tenho para pagar", "pagamentos pendentes", "vencimentos")) return new("CONTAS_PAGAR", LiaRisco.Normal);
         if (Tem("caixa", "saldo") && !Tem("abrir")) return new("SALDO_CAIXA", LiaRisco.Normal);
 
-        // Conversa livre é resolvida de forma assíncrona pelo controlador de voz.
-        // Assim nenhuma chamada HTTP bloqueia a thread da interface do PDV.
         return Ai.Configurada ? new("CONVERSA_AI", LiaRisco.Normal) : new("DESCONHECIDA", LiaRisco.Atencao);
     }
 
