@@ -51,7 +51,7 @@ public sealed class LiaVoiceController : IDisposable
             {
                 "PERMISSOES"=>LiaCore.ResumoPermissoes(),
                 "CADASTRO_AMBIGUO"=>"Claro. O que você quer cadastrar: produto, cliente, fornecedor ou outra coisa?",
-                "CADASTRAR_PRODUTO"=>Acao("Abrindo Produtos para você cadastrar o produto.",main.LiaAbrirProdutos),
+                "CADASTRAR_PRODUTO"=>Acao("Abrindo o cadastro de novo produto.",main.LiaCadastrarNovoProduto),
                 "CONSULTAR_ESTOQUE_PRODUTO"=>ConsultarEstoqueProduto(n),
                 "RESUMO_EMPRESA"=>Auth.IsManager?ResumoEmpresa():"Essa visão geral é gerencial. Chame o gerente ou proprietário.",
                 "VENDAS_HOJE"=>VendasHoje(),"ESTOQUE_BAIXO"=>EstoqueBaixo(),"CLIENTES"=>QuantidadeClientes(),
