@@ -130,8 +130,21 @@ public sealed class SplashForm : Form
 
         Controls.Add(login);
         login.Show();
+        ApplyCurrentVersionToLogin(login);
         login.SendToBack();
         introLayer.BringToFront();
+    }
+
+    private static void ApplyCurrentVersionToLogin(Control root)
+    {
+        foreach (Control control in root.Controls)
+        {
+            if (control is Label label && label.Text.Contains("ACESSO SEGURO", StringComparison.OrdinalIgnoreCase))
+                label.Text = $"LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V{UpdateManager.CurrentVersion}";
+
+            if (control.HasChildren)
+                ApplyCurrentVersionToLogin(control);
+        }
     }
 
     private void AnimateIntro()
