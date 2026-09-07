@@ -4621,7 +4621,7 @@ public sealed class MainForm : Form
 
             add.BackColor = accent;
             clear.BackColor = secondary;
-            styleButton.BackColor = Color.FromArgb(112,72,190);
+            styleButton.BackColor = Color.FromArgb(255, 20, 147);
             finish.BackColor = Color.FromArgb(0,170,105);
             remove.BackColor = Color.FromArgb(165,48,62);
             close.BackColor = Color.FromArgb(55,68,82);
