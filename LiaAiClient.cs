@@ -10,7 +10,7 @@ namespace LealInfoPDV;
 /// </summary>
 public sealed class LiaAiClient
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(25) };
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(18) };
     private readonly List<(string role, string text)> historico = new();
     private const int MaxHistorico = 12;
 
@@ -32,15 +32,21 @@ public sealed class LiaAiClient
         entrada.AppendLine($"\nPessoa: {texto}");
         entrada.Append("LIA:");
 
-        var payload = new
+        var payload = new Dictionary<string, object?>
         {
-            model = "gpt-5.6-luna",
-            input = entrada.ToString(),
-            tools = new object[] { new { type = "web_search" } },
-            tool_choice = "auto",
-            reasoning = new { effort = "none" },
-            max_output_tokens = 260
+            ["model"] = "gpt-5.6-luna",
+            ["input"] = entrada.ToString(),
+            ["reasoning"] = new { effort = "none" },
+            ["max_output_tokens"] = 220
         };
+
+        // Pesquisa web só entra quando a pergunta realmente depende de informação atual.
+        // Conversa comum fica bem mais rápida e barata.
+        if (PrecisaWeb(texto))
+        {
+            payload["tools"] = new object[] { new { type = "web_search" } };
+            payload["tool_choice"] = "auto";
+        }
 
         using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
         req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", chave);
@@ -58,6 +64,20 @@ public sealed class LiaAiClient
         historico.Add(("assistant", resposta));
         while (historico.Count > MaxHistorico) historico.RemoveAt(0);
         return resposta.Trim();
+    }
+
+    private static bool PrecisaWeb(string texto)
+    {
+        var t = texto.ToLowerInvariant();
+        string[] sinais =
+        {
+            "hoje", "agora", "atual", "atualmente", "último", "ultimo", "última", "ultima",
+            "placar", "jogo", "jogando", "resultado", "notícia", "noticia", "notícias", "noticias",
+            "clima", "tempo em", "temperatura", "previsão", "previsao", "cotação", "cotacao",
+            "dólar", "dolar", "euro", "preço hoje", "preco hoje", "horário", "horario",
+            "quem ganhou", "quem venceu", "aconteceu", "pesquisa", "pesquise", "internet"
+        };
+        return sinais.Any(t.Contains);
     }
 
     private static string? Chave() => Environment.GetEnvironmentVariable("OPENAI_API_KEY", EnvironmentVariableTarget.User)
