@@ -44,7 +44,9 @@ internal static class Program
                 }
             }
 
-            Application.Run(new MainForm());
+            var main = new MainForm();
+            main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - V{UpdateManager.CurrentVersion}";
+            Application.Run(main);
         }
         catch (Exception ex)
         {
