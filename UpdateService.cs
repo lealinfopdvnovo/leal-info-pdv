@@ -23,7 +23,7 @@ public sealed class UpdateInfo
 
 public static class UpdateService
 {
-    public const string CurrentVersion = "10.130";
+    public const string CurrentVersion = "10.131";
 
     private const string VersionUrl =
         "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json";
@@ -38,13 +38,9 @@ public static class UpdateService
         try
         {
             string json = await Http.GetStringAsync(VersionUrl);
-
             UpdateInfo? update = JsonSerializer.Deserialize<UpdateInfo>(
                 json,
-                new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (update == null ||
                 string.IsNullOrWhiteSpace(update.Version) ||
@@ -53,7 +49,6 @@ public static class UpdateService
 
             Version installed = new(CurrentVersion);
             Version available = new(update.Version);
-
             return available > installed ? update : null;
         }
         catch
@@ -70,7 +65,6 @@ public static class UpdateService
 
         byte[] file = await Http.GetByteArrayAsync(update.DownloadUrl);
         await File.WriteAllBytesAsync(destination, file);
-
         return destination;
     }
 
