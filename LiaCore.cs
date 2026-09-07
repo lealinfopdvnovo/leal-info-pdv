@@ -6,11 +6,11 @@ public enum LiaRisco { Normal, Atencao, Critico }
 public sealed record LiaDecisao(string Intencao, LiaRisco Risco, string? RespostaImediata = null, bool ExigeGerente = false);
 
 /// <summary>
-/// LIA CORE V1 — regras locais, leves e offline.
-/// Não concede permissões: apenas interpreta a intenção; a autorização continua no PDV/Auth.
+/// LIA CORE — comandos e segurança continuam locais. Conversa livre usa a camada online sem poder executar ações.
 /// </summary>
 public static class LiaCore
 {
+    private static readonly LiaAiClient Ai = new();
     public static LiaModo ModoAtual => Auth.IsManager ? LiaModo.Gerencial : LiaModo.Operacional;
 
     public static LiaDecisao Classificar(string n)
@@ -23,38 +23,36 @@ public static class LiaCore
         if (Tem("apagar", "excluir", "estornar", "cancelar", "reabrir", "alterar preco", "mudar preco") && !Auth.IsManager)
             return new("ACAO_RESTRITA", LiaRisco.Critico, "Chame o gerente. Essa ação precisa de autorização superior.", true);
 
-        if (Tem("o que posso", "minha permissao", "minhas permissoes", "tenho acesso", "posso mexer"))
-            return new("PERMISSOES", LiaRisco.Normal);
-
-        if (Tem("como faz pra cadastrar", "como cadastrar", "quero cadastrar", "onde cadastra", "nao sei cadastrar", "me ajuda a cadastrar"))
-            return new("CADASTRO_AMBIGUO", LiaRisco.Normal);
-
-        if (Tem("cadastrar produto", "cadastro produto", "novo produto", "produto nao cadastrado", "produto nao existe", "me ensina produto"))
-            return new("CADASTRAR_PRODUTO", LiaRisco.Normal);
-
-        if (Tem("como esta minha empresa", "como esta a loja", "resumo", "situacao da loja", "como foi a loja"))
-            return new("RESUMO_EMPRESA", LiaRisco.Normal);
-
-        if (Tem("vendi", "vendas", "faturamento", "movimento") && Tem("hoje", "dia"))
-            return new("VENDAS_HOJE", LiaRisco.Normal);
-
-        if (Tem("estoque baixo", "acabando", "faltando", "estoque minimo", "repor", "reposicao"))
-            return new("ESTOQUE_BAIXO", LiaRisco.Normal);
-
-        if (Tem("cliente", "clientes") && Tem("quantos", "cadastrado", "cadastro", "tenho"))
-            return new("CLIENTES", LiaRisco.Normal);
-
-        if (Tem("o que tenho pra pagar", "o que tenho para pagar", "contas a pagar", "tenho pra pagar", "tenho para pagar", "pagamentos pendentes", "vencimentos"))
-            return new("CONTAS_PAGAR", LiaRisco.Normal);
-
-        if (Tem("caixa", "saldo") && !Tem("abrir"))
-            return new("SALDO_CAIXA", LiaRisco.Normal);
+        if (Tem("o que posso", "minha permissao", "minhas permissoes", "tenho acesso", "posso mexer")) return new("PERMISSOES", LiaRisco.Normal);
+        if (Tem("como faz pra cadastrar", "como cadastrar", "quero cadastrar", "onde cadastra", "nao sei cadastrar", "me ajuda a cadastrar")) return new("CADASTRO_AMBIGUO", LiaRisco.Normal);
+        if (Tem("cadastrar produto", "cadastro produto", "novo produto", "produto nao cadastrado", "produto nao existe", "me ensina produto")) return new("CADASTRAR_PRODUTO", LiaRisco.Normal);
+        if (Tem("como esta minha empresa", "como esta a loja", "resumo", "situacao da loja", "como foi a loja")) return new("RESUMO_EMPRESA", LiaRisco.Normal);
+        if (Tem("vendi", "vendas", "faturamento", "movimento") && Tem("hoje", "dia")) return new("VENDAS_HOJE", LiaRisco.Normal);
+        if (Tem("estoque baixo", "acabando", "faltando", "estoque minimo", "repor", "reposicao")) return new("ESTOQUE_BAIXO", LiaRisco.Normal);
+        if (Tem("cliente", "clientes") && Tem("quantos", "cadastrado", "cadastro", "tenho")) return new("CLIENTES", LiaRisco.Normal);
+        if (Tem("o que tenho pra pagar", "o que tenho para pagar", "contas a pagar", "tenho pra pagar", "tenho para pagar", "pagamentos pendentes", "vencimentos")) return new("CONTAS_PAGAR", LiaRisco.Normal);
+        if (Tem("caixa", "saldo") && !Tem("abrir")) return new("SALDO_CAIXA", LiaRisco.Normal);
 
         if (Tem("abrir produtos", "abre produtos", "ir para produtos")) return new("ABRIR_PRODUTOS", LiaRisco.Normal);
         if (Tem("abrir vendas", "abre vendas", "nova venda", "tela de vendas", "vender")) return new("ABRIR_VENDAS", LiaRisco.Normal);
         if (Tem("abrir clientes", "abre clientes", "cadastro de cliente")) return new("ABRIR_CLIENTES", LiaRisco.Normal);
         if (Tem("abrir financeiro", "abre financeiro", "fluxo de caixa")) return new("ABRIR_FINANCEIRO", LiaRisco.Normal);
         if (Tem("abrir relatorio", "abrir relatorios", "abre relatorio", "relatorios")) return new("ABRIR_RELATORIOS", LiaRisco.Normal);
+
+        // Somente o que não é comando reconhecido do PDV vai para a conversa online.
+        // A IA não recebe senha, banco, saldo, permissões ocultas nem callbacks de ação.
+        if (Ai.Configurada)
+        {
+            try
+            {
+                var resposta = Ai.ConversarAsync(n).GetAwaiter().GetResult();
+                if (!string.IsNullOrWhiteSpace(resposta)) return new("CONVERSA_AI", LiaRisco.Normal, resposta);
+            }
+            catch
+            {
+                return new("CONVERSA_AI_OFFLINE", LiaRisco.Atencao, "Minha conversa online não respondeu agora. Os comandos do PDV continuam funcionando normalmente.");
+            }
+        }
 
         return new("DESCONHECIDA", LiaRisco.Atencao);
     }
