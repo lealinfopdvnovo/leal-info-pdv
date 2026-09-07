@@ -51,10 +51,9 @@ jobs:
         run: |
           $asset = "SETUP_PRONTO/$env:UPDATE_FILE"
 
-          gh release view $env:UPDATE_TAG --repo $env:UPDATE_REPO *> $null
-          if ($LASTEXITCODE -eq 0) {
-            gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes
-          }
+          $ErrorActionPreference = "Continue"
+          gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
+          $ErrorActionPreference = "Stop"
 
           gh release create $env:UPDATE_TAG $asset --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "Atualização automática do LEAL INFO PDV."
 
