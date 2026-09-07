@@ -22,7 +22,7 @@
     <Content Include="Assets\*.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
     <Content Include="Assets\*.wav"><CopyToOutputDirectory>Always</CopyToOutputDirectory></Content>
     <Content Include="Assets\*.mp4"><CopyToOutputDirectory>Always</CopyToOutputDirectory></Content>
-    <Content Include="Assets\leal_ai_feminino_holograma.webm"><CopyToOutputDirectory>Always</CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
+    <Content Include="Assets\leal_ai_feminino_holograma.webm"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
     <EmbeddedResource Include="Assets\leal_ai_feminino_holograma.webm" LogicalName="LealInfoPDV.Assets.leal_ai_feminino_holograma.webm" />
   </ItemGroup>
 </Project>
