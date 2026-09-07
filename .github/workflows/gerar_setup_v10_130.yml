@@ -19,7 +19,8 @@ jobs:
     env:
       UPDATE_VERSION: "10.135"
       UPDATE_TAG: "v10.135"
-      UPDATE_FILE: "Setup_LEAL_INFO_PDV_V10_135_LIA_FINAL.exe"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_135_LIA_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_135_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
 
@@ -38,6 +39,12 @@ jobs:
       - name: Publicar LEAL INFO PDV
         run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_setup
 
+      - name: Criar pacote da atualização automática
+        shell: powershell
+        run: |
+          if (Test-Path $env:UPDATE_PACKAGE) { Remove-Item $env:UPDATE_PACKAGE -Force }
+          Compress-Archive -Path "publish_setup\*" -DestinationPath $env:UPDATE_PACKAGE -CompressionLevel Optimal
+
       - name: Instalar Inno Setup
         shell: powershell
         run: choco install innosetup --yes --no-progress
@@ -49,25 +56,33 @@ jobs:
       - name: Publicar Release e ativar atualização
         shell: powershell
         run: |
-          $asset = "SETUP_PRONTO/$env:UPDATE_FILE"
+          $setup = "SETUP_PRONTO/$env:SETUP_FILE"
+          $package = $env:UPDATE_PACKAGE
 
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
 
-          gh release create $env:UPDATE_TAG $asset --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "Atualizacao automatica do LEAL INFO PDV."
+          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "Atualizacao automatica do LEAL INFO PDV."
 
           $manifest = @{
             Version = $env:UPDATE_VERSION
-            PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_FILE"
+            PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"
             Sha256 = ""
-            Notes = "V10.135: versao atual exibida na tela de login e validacao da atualizacao automatica."
+            Notes = "V10.135: versao atual exibida na tela de login e correcao do pacote da atualizacao automatica."
           } | ConvertTo-Json
 
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
 
           gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar atualização V$env:UPDATE_VERSION" -f content="$encoded" -f sha="$sha"
+
+      - name: Guardar pacote de atualização
+        uses: actions/upload-artifact@v4
+        with:
+          name: LEAL_INFO_PDV_V10_135_UPDATE
+          path: LEAL_INFO_PDV_V10_135_UPDATE.zip
+          if-no-files-found: error
 
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
