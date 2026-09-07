@@ -1,5 +1,5 @@
-# V10.137 LIA conversacional
-name: Publicar atualização automática LEAL INFO PDV V10.137
+# V10.138 LIA conversacional - correcao de congelamento
+name: Publicar atualização automática LEAL INFO PDV V10.138
 
 on:
   workflow_dispatch:
@@ -18,10 +18,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.137"
-      UPDATE_TAG: "v10.137"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_137_LIA_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_137_UPDATE.zip"
+      UPDATE_VERSION: "10.138"
+      UPDATE_TAG: "v10.138"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_138_LIA_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_138_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
 
@@ -55,12 +55,12 @@ jobs:
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "LIA conversacional integrada ao nucleo seguro do LEAL INFO PDV."
+          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "Correcao da conversa online da LIA sem bloquear a interface do PDV."
           $manifest = @{
             Version = $env:UPDATE_VERSION
             PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"
             Sha256 = ""
-            Notes = "V10.137: LIA CONVERSACIONAL - conversa natural online com comandos e permissoes do PDV protegidos localmente."
+            Notes = "V10.138: LIA CONVERSACIONAL - correcao para a conversa online nao congelar a tela do PDV."
           } | ConvertTo-Json
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
@@ -68,12 +68,12 @@ jobs:
       - name: Guardar pacote de atualização
         uses: actions/upload-artifact@v4
         with:
-          name: LEAL_INFO_PDV_V10_137_UPDATE
-          path: LEAL_INFO_PDV_V10_137_UPDATE.zip
+          name: LEAL_INFO_PDV_V10_138_UPDATE
+          path: LEAL_INFO_PDV_V10_138_UPDATE.zip
           if-no-files-found: error
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_137_LIA_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_137_LIA_FINAL.exe
+          name: Setup_LEAL_INFO_PDV_V10_138_LIA_FINAL
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_138_LIA_FINAL.exe
           if-no-files-found: error
