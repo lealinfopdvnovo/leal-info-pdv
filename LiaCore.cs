@@ -24,6 +24,18 @@ public static class LiaCore
             return Tem("abre", "abrir", "vai", "ir para", "ir pra", "entra", "entrar", "acessa", "acessar", "mostra", "mostrar", "quero", "preciso", "leva", "vá para", "va para") || Exato(alvos);
         }
 
+        // Wake words/apelidos informais: se vierem sozinhos, LIA atende na hora.
+        // Se vierem junto de um comando (ex.: "vagabunda abre produtos"), o restante da frase
+        // continua sendo classificado normalmente e a ação é executada.
+        if (Exato(
+            "lia", "liá", "lea", "leia",
+            "vagabunda", "sua vagabunda",
+            "piranha", "sua piranha",
+            "gostosa", "sua gostosa",
+            "filha da puta", "o filha da puta", "ô filha da puta", "sua filha da puta",
+            "fdp", "sua fdp"))
+            return new("CHAMADO_LIA", LiaRisco.Normal, "Oi? Tô aqui.");
+
         if (Tem("fechei o caixa", "encerrei o caixa", "caixa fechado", "fechou o caixa", "reabrir caixa", "reabre o caixa"))
             return new("CAIXA_ENCERRADO", LiaRisco.Critico, "Chame o gerente. Por segurança, o caixa encerrado só pode ser liberado com autorização.", true);
 
