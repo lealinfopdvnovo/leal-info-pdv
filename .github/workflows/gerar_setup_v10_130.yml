@@ -1,4 +1,4 @@
-name: Gerar atualização LEAL INFO PDV V10.131
+name: Gerar atualização LEAL INFO PDV V10.132
 
 on:
   workflow_dispatch:
@@ -39,6 +39,6 @@ jobs:
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_131_LIA_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_131_LIA_FINAL.exe
+          name: Setup_LEAL_INFO_PDV_V10_132_LIA_FINAL
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_132_LIA_FINAL.exe
           if-no-files-found: error
