@@ -254,6 +254,7 @@ internal static class UpdateManager
         Directory.CreateDirectory(backupDir);
 
         var ps = Path.Combine(work, "apply-update.ps1");
+        var log = Path.Combine(Database.AppFolder, "Updates", "apply-update.log");
         var script = $$"""
         $ErrorActionPreference = 'Stop'
         $pidToWait = {{Environment.ProcessId}}
@@ -261,33 +262,50 @@ internal static class UpdateManager
         $app = '{{EscapePs(appDir)}}'
         $backup = '{{EscapePs(backupDir)}}'
         $exe = '{{EscapePs(exe)}}'
-        try { Wait-Process -Id $pidToWait -Timeout 30 -ErrorAction SilentlyContinue } catch {}
-        Start-Sleep -Milliseconds 900
-        Get-ChildItem -Path $stage -File -Recurse | ForEach-Object {
-            $rel = $_.FullName.Substring($stage.Length).TrimStart('\\')
-            $dest = Join-Path $app $rel
-            if (Test-Path $dest) {
-                $b = Join-Path $backup $rel
-                New-Item -ItemType Directory -Force -Path (Split-Path $b) | Out-Null
-                Copy-Item -Force $dest $b
+        $log = '{{EscapePs(log)}}'
+        try {
+            "$(Get-Date -Format s) - Iniciando atualização" | Out-File -FilePath $log -Encoding UTF8 -Append
+            try { Wait-Process -Id $pidToWait -Timeout 30 -ErrorAction SilentlyContinue } catch {}
+            Start-Sleep -Milliseconds 1200
+            Get-ChildItem -Path $stage -File -Recurse | ForEach-Object {
+                $rel = $_.FullName.Substring($stage.Length).TrimStart('\\')
+                $dest = Join-Path $app $rel
+                if (Test-Path $dest) {
+                    $b = Join-Path $backup $rel
+                    New-Item -ItemType Directory -Force -Path (Split-Path $b) | Out-Null
+                    Copy-Item -Force $dest $b
+                }
+                New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
+                Copy-Item -Force $_.FullName $dest
             }
-            New-Item -ItemType Directory -Force -Path (Split-Path $dest) | Out-Null
-            Copy-Item -Force $_.FullName $dest
+            "$(Get-Date -Format s) - Arquivos atualizados com sucesso" | Out-File -FilePath $log -Encoding UTF8 -Append
+            Start-Process -FilePath $exe -WorkingDirectory $app
         }
-        Start-Process -FilePath $exe -WorkingDirectory $app
+        catch {
+            "$(Get-Date -Format s) - ERRO: $($_.Exception.Message)" | Out-File -FilePath $log -Encoding UTF8 -Append
+            throw
+        }
         """;
         await File.WriteAllTextAsync(ps, script);
 
-        Process.Start(new ProcessStartInfo
+        try
         {
-            FileName = "powershell.exe",
-            Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{ps}\"",
-            UseShellExecute = true,
-            WorkingDirectory = work
-        });
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "powershell.exe",
+                Arguments = $"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{ps}\"",
+                UseShellExecute = true,
+                Verb = "runas",
+                WorkingDirectory = work
+            });
+        }
+        catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        {
+            throw new InvalidOperationException("A atualização precisa da autorização do Windows. Clique em SIM na janela de Controle de Conta de Usuário para concluir.");
+        }
 
         MessageBox.Show(owner,
-            "A atualização foi preparada.\n\nO PDV será fechado, os arquivos serão atualizados e o sistema abrirá novamente automaticamente.",
+            "A atualização foi preparada.\n\nO PDV será fechado, os arquivos serão atualizados e o sistema abrirá novamente automaticamente.\n\nSe o Windows pedir autorização, clique em SIM.",
             "LEAL INFO PDV",
             MessageBoxButtons.OK, MessageBoxIcon.Information);
         Application.Exit();
