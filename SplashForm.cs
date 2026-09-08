@@ -1,13 +1,16 @@
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using System.Drawing;
-using System.Media;
+using System.Text;
+using System.Text.Json;
 
 namespace LealInfoPDV;
 
 public sealed class SplashForm : Form
 {
     private static readonly Color Fundo = Color.FromArgb(3, 13, 27);
+    private static readonly HttpClient VozHttp = new() { Timeout = TimeSpan.FromSeconds(25) };
+    private const string FalaAbertura = "Bem-vindo à Leal Info Conectado. Tecnologia que conecta. Na próxima tela, coloque suas credenciais.";
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 16 };
     private readonly Panel introLayer = new();
     private readonly Panel pageEdge = new();
@@ -17,7 +20,6 @@ public sealed class SplashForm : Form
     private readonly Label product = new();
     private readonly Label next = new();
     private int ticks;
-    private SoundPlayer? player;
     private LoginForm? login;
     private bool loginLoaded;
 
@@ -44,8 +46,6 @@ public sealed class SplashForm : Form
         introLayer.Controls.Add(product);
         introLayer.Controls.Add(next);
 
-        // Hotfix V10.155: nenhum controle WinForms recebe Color.Transparent.
-        // O vídeo usa o mesmo fundo da splash, eliminando dependência de transparência.
         lia.BackColor = Fundo;
         lia.DefaultBackgroundColor = Fundo;
         introLayer.Controls.Add(lia);
@@ -90,8 +90,8 @@ public sealed class SplashForm : Form
     private async Task StartIntroAsync()
     {
         LayoutSplash();
-        TryPlayOpeningSound();
         await StartLiaHologramAsync();
+        await FalarAberturaAsync();
         timer.Start();
     }
 
@@ -112,20 +112,41 @@ public sealed class SplashForm : Form
             lia.CoreWebView2.Settings.IsStatusBarEnabled=false;
             lia.CoreWebView2.SetVirtualHostNameToFolderMapping("lia-splash.local",assets,CoreWebView2HostResourceAccessKind.Allow);
             const string html="""
-<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030d1b}body{display:flex;align-items:center;justify-content:center}video{width:100%;height:100%;object-fit:contain;background:#030d1b;filter:drop-shadow(0 0 8px rgba(0,210,255,.65)) drop-shadow(0 0 24px rgba(0,125,255,.35))}</style></head><body><video autoplay muted loop playsinline preload="auto"><source src="https://lia-splash.local/leal_ai_feminino_holograma.webm" type="video/webm"></video></body></html>
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#030d1b}body{display:flex;align-items:center;justify-content:center}video{width:100%;height:100%;object-fit:contain;background:#030d1b;filter:drop-shadow(0 0 8px rgba(0,210,255,.65)) drop-shadow(0 0 24px rgba(0,125,255,.35))}</style></head><body><video autoplay muted loop playsinline preload="auto"><source src="https://lia-splash.local/leal_ai_feminino_holograma.webm" type="video/webm"></video><script>window.liaOpeningAudio=function(b64){try{const a=new Audio('data:audio/mpeg;base64,'+b64);a.volume=1;a.play().catch(()=>{});}catch(e){}}</script></body></html>
 """;
             lia.NavigateToString(html);
+            await Task.Delay(250);
         }
         catch{lia.Visible=false;}
     }
 
-    private void TryPlayOpeningSound()
+    private static string? ChaveOpenAi() => Environment.GetEnvironmentVariable("OPENAI_API_KEY", EnvironmentVariableTarget.User) ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
+
+    private async Task FalarAberturaAsync()
     {
+        if(lia.CoreWebView2 is null)return;
+        var chave=ChaveOpenAi();
+        if(string.IsNullOrWhiteSpace(chave))return;
         try
         {
-            var wav=Path.Combine(AppContext.BaseDirectory,"Assets","abertura.wav");
-            if(!File.Exists(wav))return;
-            player=new SoundPlayer(wav);player.Load();player.Play();
+            var payload=new
+            {
+                model="gpt-4o-mini-tts",
+                voice="marin",
+                input=FalaAbertura,
+                instructions="Fale em português do Brasil, com voz feminina natural, calorosa, clara, moderna e profissional. Tom de boas-vindas elegante e confiante. Ritmo de conversa normal, sem soar robótica.",
+                response_format="mp3",
+                speed=1.04
+            };
+            using var req=new HttpRequestMessage(HttpMethod.Post,"https://api.openai.com/v1/audio/speech");
+            req.Headers.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",chave);
+            req.Content=new StringContent(JsonSerializer.Serialize(payload),Encoding.UTF8,"application/json");
+            using var resp=await VozHttp.SendAsync(req);
+            if(!resp.IsSuccessStatusCode)return;
+            var bytes=await resp.Content.ReadAsByteArrayAsync();
+            if(bytes.Length==0)return;
+            var js=JsonSerializer.Serialize(Convert.ToBase64String(bytes));
+            await lia.CoreWebView2.ExecuteScriptAsync($"window.liaOpeningAudio && window.liaOpeningAudio({js});");
         }
         catch{}
     }
@@ -156,11 +177,11 @@ public sealed class SplashForm : Form
     {
         ticks++;
         if(ticks<=28)Opacity=Math.Min(1,ticks/28.0);
-        if(ticks==190)LoadRealLogin();
-        if(ticks>285)
+        if(ticks==250)LoadRealLogin();
+        if(ticks>390)
         {
             if(!loginLoaded)LoadRealLogin();
-            timer.Stop();player?.Stop();introLayer.Visible=false;login?.BringToFront();TopMost=false;
+            timer.Stop();introLayer.Visible=false;login?.BringToFront();TopMost=false;
         }
     }
 }
