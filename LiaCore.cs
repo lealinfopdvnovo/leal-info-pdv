@@ -24,9 +24,6 @@ public static class LiaCore
             return Tem("abre", "abrir", "vai", "ir para", "ir pra", "entra", "entrar", "acessa", "acessar", "mostra", "mostrar", "quero", "preciso", "leva", "vá para", "va para") || Exato(alvos);
         }
 
-        // Wake words/apelidos informais: se vierem sozinhos, LIA atende na hora.
-        // Se vierem junto de um comando (ex.: "vagabunda abre produtos"), o restante da frase
-        // continua sendo classificado normalmente e a ação é executada.
         if (Exato(
             "lia", "liá", "lea", "leia",
             "vagabunda", "sua vagabunda",
@@ -80,6 +77,14 @@ public static class LiaCore
         if (Tem("cliente", "clientes") && Tem("quantos", "cadastrado", "cadastro", "tenho")) return new("CLIENTES", LiaRisco.Normal);
         if (Tem("o que tenho pra pagar", "o que tenho para pagar", "contas a pagar", "tenho pra pagar", "tenho para pagar", "pagamentos pendentes", "vencimentos")) return new("CONTAS_PAGAR", LiaRisco.Normal);
         if (Tem("caixa", "saldo") && !Tem("abrir")) return new("SALDO_CAIXA", LiaRisco.Normal);
+
+        // V10.149: segunda camada local. Entende intenção por conceitos, não por frase decorada.
+        var semantica = LiaSemanticRouter.Interpretar(n);
+        if (!string.IsNullOrWhiteSpace(semantica))
+        {
+            var risco = semantica == "FECHAR_TELA" ? LiaRisco.Atencao : LiaRisco.Normal;
+            return new(semantica, risco);
+        }
 
         return Ai.Configurada ? new("CONVERSA_AI", LiaRisco.Normal) : new("DESCONHECIDA", LiaRisco.Atencao);
     }
