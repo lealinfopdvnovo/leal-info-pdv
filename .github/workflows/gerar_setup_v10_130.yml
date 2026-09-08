@@ -20,7 +20,7 @@ jobs:
     env:
       UPDATE_VERSION: "10.158"
       UPDATE_TAG: "v10.158"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_158_LIA_FINAL.exe"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_157_LIA_FINAL.exe"
       UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_158_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
@@ -78,6 +78,7 @@ jobs:
           $setup = "SETUP_PRONTO/$env:SETUP_FILE"
           $package = $env:UPDATE_PACKAGE
           $packageHash = (Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
+          if (!(Test-Path $setup)) { throw "Setup nao encontrado: $setup" }
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
@@ -103,5 +104,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Setup_LEAL_INFO_PDV_V10_158_LIA_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_158_LIA_FINAL.exe
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_157_LIA_FINAL.exe
           if-no-files-found: error
