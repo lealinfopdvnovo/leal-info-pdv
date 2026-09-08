@@ -12,6 +12,7 @@ public static class LiaCore
 {
     private static readonly LiaAiClient Ai = new();
     public static LiaModo ModoAtual => Auth.IsManager ? LiaModo.Gerencial : LiaModo.Operacional;
+    public static bool ModoAdminLivre => Auth.IsAdmin;
 
     public static LiaDecisao Classificar(string n)
     {
@@ -29,23 +30,18 @@ public static class LiaCore
             return Tem("abre", "abrir", "vai", "ir para", "ir pra", "entra", "entrar", "acessa", "acessar", "mostra", "mostrar", "quero", "preciso", "leva", "vá para", "va para") || Exato(alvos);
         }
 
-        // V10.150: identidade fixa e chamada robusta. Nunca deixa um simples chamado cair na IA online.
-        if (Exato(
-            "lia", "liá", "lea", "leah", "leia", "liah",
-            "vagabunda", "sua vagabunda",
-            "piranha", "sua piranha",
-            "gostosa", "sua gostosa",
-            "filha da puta", "o filha da puta", "ô filha da puta", "sua filha da puta",
-            "fdp", "sua fdp") ||
+        if (Exato("lia", "liá", "lea", "leah", "leia", "liah", "vagabunda", "sua vagabunda", "piranha", "sua piranha", "gostosa", "sua gostosa", "filha da puta", "o filha da puta", "ô filha da puta", "sua filha da puta", "fdp", "sua fdp") ||
             Tem("lia ta ai", "lia esta ai", "lia voce ta ai", "lia voce esta ai", "lia responde", "lia me ouve", "lia me escuta", "ei lia", "e ai lia"))
             return new("CHAMADO_LIA", LiaRisco.Normal, "Oi? Tô aqui.");
 
         if (Tem("quem e voce", "quem voce e", "qual seu nome", "qual e seu nome", "qual e o seu nome", "como voce se chama", "como se chama", "voce e a lia", "seu nome e lia", "seu nome"))
             return new("IDENTIDADE_LIA", LiaRisco.Normal, "Eu sou a LIA, assistente do LEAL INFO PDV.");
 
-        if (Tem("fechei o caixa", "encerrei o caixa", "caixa fechado", "fechou o caixa", "reabrir caixa", "reabre o caixa"))
+        if (Tem("fechei o caixa", "encerrei o caixa", "caixa fechado", "fechou o caixa", "reabrir caixa", "reabre o caixa") && !Auth.IsAdmin)
             return new("CAIXA_ENCERRADO", LiaRisco.Critico, "Chame o gerente. Por segurança, o caixa encerrado só pode ser liberado com autorização.", true);
 
+        // ADMIN autenticado não recebe bloqueios conversacionais/gerenciais da LIA.
+        // Confirmações destrutivas continuam no fluxo da ação correspondente para evitar comando ouvido errado.
         if (Tem("apagar", "excluir", "estornar", "cancelar", "reabrir", "alterar preco", "mudar preco") && !Auth.IsManager)
             return new("ACAO_RESTRITA", LiaRisco.Critico, "Chame o gerente. Essa ação precisa de autorização superior.", true);
 
@@ -53,34 +49,15 @@ public static class LiaCore
             return new("FECHAR_TELA", LiaRisco.Atencao);
 
         if (Tem("o que posso", "minha permissao", "minhas permissoes", "tenho acesso", "posso mexer")) return new("PERMISSOES", LiaRisco.Normal);
-
-        if (Tem("quanto tem de", "quantos tem de", "quantas tem de", "tem no estoque", "estoque do", "estoque da", "estoque de", "quantidade de") && !Tem("estoque baixo", "estoque minimo"))
-            return new("CONSULTAR_ESTOQUE_PRODUTO", LiaRisco.Normal);
-
-        if (Tem("cadastrar produto", "cadastro produto", "novo produto", "produto novo", "produto nao cadastrado", "produto nao existe", "me ensina produto", "quero cadastrar um produto", "quero cadastrar produto"))
-            return new("CADASTRAR_PRODUTO", LiaRisco.Normal);
-
-        if (AcaoTela("produtos", "produto", "cadastro de produtos", "cadastro dos produtos"))
-            return new("ABRIR_PRODUTOS", LiaRisco.Normal);
-
-        if (AcaoTela("pdv", "tela de vendas", "tela de venda", "vendas", "venda", "caixa de venda") || Tem("nova venda", "fazer uma venda", "fazer venda", "quero vender", "quero fazer uma venda", "vender"))
-            return new("ABRIR_VENDAS", LiaRisco.Normal);
-
-        if (AcaoTela("clientes", "cliente", "cadastro de cliente", "cadastro de clientes"))
-            return new("ABRIR_CLIENTES", LiaRisco.Normal);
-
-        if (AcaoTela("financeiro", "fluxo de caixa"))
-            return new("ABRIR_FINANCEIRO", LiaRisco.Normal);
-
-        if (AcaoTela("relatorios", "relatorio", "tela de relatorios"))
-            return new("ABRIR_RELATORIOS", LiaRisco.Normal);
-
-        if (AcaoTela("configuracoes", "configuracao", "config", "ajustes", "preferencias"))
-            return new("ABRIR_CONFIGURACOES", LiaRisco.Normal);
-
-        if (Tem("como faz pra cadastrar", "como cadastrar", "quero cadastrar", "onde cadastra", "nao sei cadastrar", "me ajuda a cadastrar", "abre cadastro", "abrir cadastro", "quero ir no cadastro"))
-            return new("CADASTRO_AMBIGUO", LiaRisco.Normal);
-
+        if (Tem("quanto tem de", "quantos tem de", "quantas tem de", "tem no estoque", "estoque do", "estoque da", "estoque de", "quantidade de") && !Tem("estoque baixo", "estoque minimo")) return new("CONSULTAR_ESTOQUE_PRODUTO", LiaRisco.Normal);
+        if (Tem("cadastrar produto", "cadastro produto", "novo produto", "produto novo", "produto nao cadastrado", "produto nao existe", "me ensina produto", "quero cadastrar um produto", "quero cadastrar produto")) return new("CADASTRAR_PRODUTO", LiaRisco.Normal);
+        if (AcaoTela("produtos", "produto", "cadastro de produtos", "cadastro dos produtos")) return new("ABRIR_PRODUTOS", LiaRisco.Normal);
+        if (AcaoTela("pdv", "tela de vendas", "tela de venda", "vendas", "venda", "caixa de venda") || Tem("nova venda", "fazer uma venda", "fazer venda", "quero vender", "quero fazer uma venda", "vender")) return new("ABRIR_VENDAS", LiaRisco.Normal);
+        if (AcaoTela("clientes", "cliente", "cadastro de cliente", "cadastro de clientes")) return new("ABRIR_CLIENTES", LiaRisco.Normal);
+        if (AcaoTela("financeiro", "fluxo de caixa")) return new("ABRIR_FINANCEIRO", LiaRisco.Normal);
+        if (AcaoTela("relatorios", "relatorio", "tela de relatorios")) return new("ABRIR_RELATORIOS", LiaRisco.Normal);
+        if (AcaoTela("configuracoes", "configuracao", "config", "ajustes", "preferencias")) return new("ABRIR_CONFIGURACOES", LiaRisco.Normal);
+        if (Tem("como faz pra cadastrar", "como cadastrar", "quero cadastrar", "onde cadastra", "nao sei cadastrar", "me ajuda a cadastrar", "abre cadastro", "abrir cadastro", "quero ir no cadastro")) return new("CADASTRO_AMBIGUO", LiaRisco.Normal);
         if (Tem("como esta minha empresa", "como esta a loja", "resumo", "situacao da loja", "como foi a loja")) return new("RESUMO_EMPRESA", LiaRisco.Normal);
         if (Tem("vendi", "vendas", "faturamento", "movimento") && Tem("hoje", "dia")) return new("VENDAS_HOJE", LiaRisco.Normal);
         if (Tem("estoque baixo", "acabando", "faltando", "estoque minimo", "repor", "reposicao")) return new("ESTOQUE_BAIXO", LiaRisco.Normal);
@@ -88,14 +65,8 @@ public static class LiaCore
         if (Tem("o que tenho pra pagar", "o que tenho para pagar", "contas a pagar", "tenho pra pagar", "tenho para pagar", "pagamentos pendentes", "vencimentos")) return new("CONTAS_PAGAR", LiaRisco.Normal);
         if (Tem("caixa", "saldo") && !Tem("abrir")) return new("SALDO_CAIXA", LiaRisco.Normal);
 
-        // V10.149: segunda camada local. Entende intenção por conceitos, não por frase decorada.
         var semantica = LiaSemanticRouter.Interpretar(n);
-        if (!string.IsNullOrWhiteSpace(semantica))
-        {
-            var risco = semantica == "FECHAR_TELA" ? LiaRisco.Atencao : LiaRisco.Normal;
-            return new(semantica, risco);
-        }
-
+        if (!string.IsNullOrWhiteSpace(semantica)) return new(semantica, semantica == "FECHAR_TELA" ? LiaRisco.Atencao : LiaRisco.Normal);
         return Ai.Configurada ? new("CONVERSA_AI", LiaRisco.Normal) : new("DESCONHECIDA", LiaRisco.Atencao);
     }
 
@@ -108,7 +79,7 @@ public static class LiaCore
 
     public static string ResumoPermissoes()
     {
-        if (Auth.IsAdmin) return "Você está como ADMINISTRADOR. Posso ajudar com operação e gestão. Ações críticas continuam exigindo confirmação.";
+        if (Auth.IsAdmin) return "Modo Administrador ativo. Você tem comando livre da LIA dentro das funções disponíveis no LEAL INFO PDV. Só mantenho confirmação quando houver risco real de perda de dados.";
         if (Auth.IsManager) return "Você está como GERENTE. Posso ajudar com operação e funções gerenciais autorizadas.";
         return "Você está como OPERADOR. Posso ajudar com vendas e tarefas operacionais. Financeiro e ações críticas ficam protegidos e, quando necessário, eu chamo o gerente.";
     }
