@@ -12,12 +12,18 @@ public static class LiaSemanticRouter
     private static readonly Dictionary<string, string[]> Conceitos = new(StringComparer.Ordinal)
     {
         ["ABRIR_PRODUTOS"] = new[] { "produto", "produtos", "mercadoria", "mercadorias", "item", "itens", "estoque", "preco", "precos", "codigo de barras", "cadastro de produto" },
-        ["ABRIR_VENDAS"] = new[] { "pdv", "venda", "vendas", "caixa", "vender", "passar compra", "registrar venda", "lancar venda", "fazer venda", "atendimento" },
         ["ABRIR_CLIENTES"] = new[] { "cliente", "clientes", "consumidor", "comprador", "cadastro de cliente" },
+        ["ABRIR_FORNECEDORES"] = new[] { "fornecedor", "fornecedores", "empresa fornecedora", "parceiro", "parceiros", "cadastro de fornecedor" },
+        ["ABRIR_SERVICOS"] = new[] { "servico", "servicos", "prestacao de servico", "cadastro de servico" },
+        ["ABRIR_HISTORICO"] = new[] { "historico de vendas", "historico vendas", "vendas antigas", "vendas anteriores", "consultar vendas", "movimentacoes de venda" },
         ["ABRIR_FINANCEIRO"] = new[] { "financeiro", "financas", "fluxo de caixa", "contas", "pagamentos", "recebimentos" },
+        ["ABRIR_ORDENS"] = new[] { "ordem de servico", "ordens de servico", "ordem", "ordens", "os", "o s", "chamado de servico" },
+        ["ABRIR_ORCAMENTOS"] = new[] { "orcamento", "orcamentos", "cotacao para cliente", "proposta", "propostas" },
+        ["ABRIR_VENDAS"] = new[] { "pdv", "venda", "vendas", "caixa", "vender", "passar compra", "registrar venda", "lancar venda", "fazer venda", "atendimento" },
         ["ABRIR_RELATORIOS"] = new[] { "relatorio", "relatorios", "relatorio gerencial", "resumo gerencial", "indicadores" },
+        ["FAZER_BACKUP"] = new[] { "backup", "copia de seguranca", "salvar copia", "fazer copia do sistema" },
         ["ABRIR_CONFIGURACOES"] = new[] { "configuracao", "configuracoes", "config", "ajustes", "preferencias", "parametros", "opcoes do sistema" },
-        ["FECHAR_TELA"] = new[] { "fechar tela", "fecha tela", "fechar janela", "fecha janela", "sair dessa tela", "voltar dessa tela", "fecha isso", "fechar isso" },
+        ["FECHAR_TELA"] = new[] { "fechar tela", "fecha tela", "fechar janela", "fecha janela", "sair dessa tela", "voltar dessa tela", "fecha isso", "fechar isso", "sair do sistema", "fecha o sistema", "fechar o sistema", "encerrar o sistema" },
         ["PERMISSOES"] = new[] { "permissao", "permissoes", "o que posso fazer", "meu acesso", "meus acessos", "tenho acesso" },
         ["CONSULTAR_ESTOQUE_PRODUTO"] = new[] { "quanto tem", "quantidade em estoque", "estoque de", "tem no estoque", "quantos tem" },
         ["CADASTRAR_PRODUTO"] = new[] { "cadastrar produto", "novo produto", "adicionar produto", "criar produto", "incluir produto", "cadastrar mercadoria", "nova mercadoria" },
@@ -32,7 +38,8 @@ public static class LiaSemanticRouter
     private static readonly string[] VerbosAcao =
     {
         "abre", "abrir", "entra", "entrar", "vai", "ir", "leva", "mostrar", "mostra", "quero", "preciso",
-        "acessa", "acessar", "cadastro", "cadastrar", "criar", "novo", "nova", "lancar", "registrar", "fazer"
+        "acessa", "acessar", "cadastro", "cadastrar", "criar", "novo", "nova", "lancar", "registrar", "fazer",
+        "consulta", "consultar", "ver", "visualizar"
     };
 
     public static string? Interpretar(string texto)
@@ -72,7 +79,6 @@ public static class LiaSemanticRouter
             }
         }
 
-        // Evita transformar conversa casual em comando. Ações de tela exigem evidência mais forte.
         if (melhor is null) return null;
         var minimo = melhor.StartsWith("ABRIR_", StringComparison.Ordinal) ? 4.8 : 4.0;
         return melhorScore >= minimo ? melhor : null;
