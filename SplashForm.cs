@@ -62,8 +62,10 @@ public sealed class SplashForm : Form
         introLayer.Controls.Add(product);
         introLayer.Controls.Add(next);
 
+        // WebView2 WinForms não aceita BackColor transparente no próprio controle.
+        // A transparência visual é aplicada pelo DefaultBackgroundColor/CoreWebView2.
+        lia.BackColor = Color.FromArgb(3, 13, 27);
         lia.DefaultBackgroundColor = Color.Transparent;
-        lia.BackColor = Color.Transparent;
         introLayer.Controls.Add(lia);
         lia.BringToFront();
 
