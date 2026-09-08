@@ -1,3 +1,5 @@
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
 using System.Drawing;
 using System.Media;
 
@@ -8,10 +10,11 @@ public sealed class SplashForm : Form
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 16 };
     private readonly Panel introLayer = new();
     private readonly Panel pageEdge = new();
-    private readonly WalkingRobotControl walker = new();
+    private readonly WebView2 lia = new();
     private readonly Label brand = new();
     private readonly Label slogan = new();
     private readonly Label product = new();
+    private readonly Label next = new();
     private int ticks;
     private SoundPlayer? player;
     private LoginForm? login;
@@ -40,23 +43,29 @@ public sealed class SplashForm : Form
         slogan.Font = new Font("Segoe UI", 15, FontStyle.Bold);
         slogan.TextAlign = ContentAlignment.MiddleCenter;
 
-        product.Text = "LEAL INFO PDV PRO";
+        product.Text = "LEAL INFO PDV PRO  •  LIA";
         product.ForeColor = Color.FromArgb(155, 180, 200);
         product.BackColor = Color.Transparent;
         product.Font = new Font("Segoe UI", 10, FontStyle.Regular);
         product.TextAlign = ContentAlignment.MiddleCenter;
 
+        next.Text = "Na próxima tela, coloque suas credenciais";
+        next.ForeColor = Color.FromArgb(190, 220, 235);
+        next.BackColor = Color.Transparent;
+        next.Font = new Font("Segoe UI", 11, FontStyle.Regular);
+        next.TextAlign = ContentAlignment.MiddleCenter;
+
         introLayer.BackColor = Color.FromArgb(3, 13, 27);
         Controls.Add(introLayer);
-        walker.Size = new Size(150, 190);
-        walker.BackColor = Color.Transparent;
-        walker.Visible = false;
-        Controls.Add(walker);
-        walker.BringToFront();
-
         introLayer.Controls.Add(brand);
         introLayer.Controls.Add(slogan);
         introLayer.Controls.Add(product);
+        introLayer.Controls.Add(next);
+
+        lia.DefaultBackgroundColor = Color.Transparent;
+        lia.BackColor = Color.Transparent;
+        introLayer.Controls.Add(lia);
+        lia.BringToFront();
 
         pageEdge.BackColor = Color.FromArgb(0, 163, 224);
         pageEdge.Width = 5;
@@ -64,7 +73,7 @@ public sealed class SplashForm : Form
         pageEdge.BringToFront();
 
         Resize += (_, _) => LayoutSplash();
-        Shown += (_, _) => StartIntro();
+        Shown += async (_, _) => await StartIntroAsync();
         timer.Tick += (_, _) => AnimateIntro();
         KeyDown += (_,e) => { if(e.KeyCode==Keys.Escape && loginLoaded) Close(); };
     }
@@ -73,18 +82,48 @@ public sealed class SplashForm : Form
     {
         introLayer.Bounds = ClientRectangle;
         pageEdge.SetBounds(Math.Max(0, introLayer.Width - 5), 0, 5, introLayer.Height);
-        int w = Math.Min(1100, Math.Max(650, ClientSize.Width - 240));
+        int w = Math.Min(900, Math.Max(580, ClientSize.Width / 2));
         int centerY = ClientSize.Height / 2;
-        brand.Bounds = new Rectangle((ClientSize.Width - w) / 2, centerY - 105, w, 82);
-        slogan.Bounds = new Rectangle((ClientSize.Width - w) / 2, centerY - 20, w, 48);
-        product.Bounds = new Rectangle((ClientSize.Width - w) / 2, centerY + 42, w, 30);
+        int liaW = Math.Min(390, Math.Max(280, ClientSize.Width / 5));
+        int liaH = Math.Min(570, Math.Max(410, ClientSize.Height * 2 / 3));
+        lia.SetBounds(Math.Max(30, ClientSize.Width / 2 - liaW - 80), Math.Max(30, centerY - liaH / 2), liaW, liaH);
+        int textX = Math.Min(ClientSize.Width - w - 40, ClientSize.Width / 2 + 20);
+        brand.Bounds = new Rectangle(textX, centerY - 120, w, 82);
+        slogan.Bounds = new Rectangle(textX, centerY - 35, w, 48);
+        product.Bounds = new Rectangle(textX, centerY + 25, w, 30);
+        next.Bounds = new Rectangle(textX, centerY + 82, w, 42);
     }
 
-    private void StartIntro()
+    private async Task StartIntroAsync()
     {
         LayoutSplash();
         TryPlayOpeningSound();
+        await StartLiaHologramAsync();
         timer.Start();
+    }
+
+    private async Task StartLiaHologramAsync()
+    {
+        try
+        {
+            var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
+            var video = Path.Combine(assets, "leal_ai_feminino_holograma.webm");
+            if(!File.Exists(video)) { lia.Visible=false; return; }
+            var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV", "WebView2", "LIA_SPLASH");
+            Directory.CreateDirectory(data);
+            var options = new CoreWebView2EnvironmentOptions(additionalBrowserArguments: "--autoplay-policy=no-user-gesture-required");
+            var env = await CoreWebView2Environment.CreateAsync(null, data, options);
+            await lia.EnsureCoreWebView2Async(env);
+            lia.CoreWebView2.Settings.AreDefaultContextMenusEnabled=false;
+            lia.CoreWebView2.Settings.AreDevToolsEnabled=false;
+            lia.CoreWebView2.Settings.IsStatusBarEnabled=false;
+            lia.CoreWebView2.SetVirtualHostNameToFolderMapping("lia-splash.local", assets, CoreWebView2HostResourceAccessKind.Allow);
+            const string html="""
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}body{display:flex;align-items:center;justify-content:center}video{width:100%;height:100%;object-fit:contain;background:transparent;filter:drop-shadow(0 0 8px rgba(0,210,255,.65)) drop-shadow(0 0 24px rgba(0,125,255,.35))}</style></head><body><video autoplay muted loop playsinline preload="auto"><source src="https://lia-splash.local/leal_ai_feminino_holograma.webm" type="video/webm"></video></body></html>
+""";
+            lia.NavigateToString(html);
+        }
+        catch { lia.Visible=false; }
     }
 
     private void TryPlayOpeningSound()
@@ -104,168 +143,33 @@ public sealed class SplashForm : Form
     {
         if(loginLoaded) return;
         loginLoaded=true;
-
-        login = new LoginForm
-        {
-            EmbeddedMode = true,
-            TopLevel = false,
-            FormBorderStyle = FormBorderStyle.None,
-            WindowState = FormWindowState.Normal,
-            Dock = DockStyle.Fill,
-            TopMost = false
-        };
+        login = new LoginForm { EmbeddedMode=true, TopLevel=false, FormBorderStyle=FormBorderStyle.None, WindowState=FormWindowState.Normal, Dock=DockStyle.Fill, TopMost=false };
         login.FormClosed += (_,_) =>
         {
-            if(login.DialogResult == DialogResult.OK)
-            {
-                DialogResult = DialogResult.OK;
-                Close();
-            }
-            else if(!IsDisposed)
-            {
-                DialogResult = DialogResult.Cancel;
-                Close();
-            }
+            if(login.DialogResult == DialogResult.OK){DialogResult=DialogResult.OK;Close();}
+            else if(!IsDisposed){DialogResult=DialogResult.Cancel;Close();}
         };
-
-        Controls.Add(login);
-        login.Show();
-        ApplyCurrentVersionToLogin(login);
-        login.SendToBack();
-        introLayer.BringToFront();
+        Controls.Add(login); login.Show(); ApplyCurrentVersionToLogin(login); login.SendToBack(); introLayer.BringToFront();
     }
 
     private static void ApplyCurrentVersionToLogin(Control root)
     {
-        foreach (Control control in root.Controls)
+        foreach(Control control in root.Controls)
         {
-            if (control is Label label && label.Text.Contains("ACESSO SEGURO", StringComparison.OrdinalIgnoreCase))
-                label.Text = $"LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V{UpdateManager.CurrentVersion}";
-
-            if (control.HasChildren)
-                ApplyCurrentVersionToLogin(control);
+            if(control is Label label && label.Text.Contains("ACESSO SEGURO",StringComparison.OrdinalIgnoreCase)) label.Text=$"LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V{UpdateManager.CurrentVersion}";
+            if(control.HasChildren)ApplyCurrentVersionToLogin(control);
         }
     }
 
     private void AnimateIntro()
     {
         ticks++;
-
-        if (ticks <= 28)
-            Opacity = Math.Min(1, ticks / 28.0);
-
-        // Login já fica carregado atrás da abertura.
-        if (ticks == 150)
-            LoadRealLogin();
-
-        // Transição direta aprovada: abertura -> login.
-        if (ticks > 210)
+        if(ticks<=28)Opacity=Math.Min(1,ticks/28.0);
+        if(ticks==190)LoadRealLogin();
+        if(ticks>285)
         {
-            if (!loginLoaded) LoadRealLogin();
-            timer.Stop();
-            player?.Stop();
-            introLayer.Visible = false;
-            walker.Visible = false;
-            login?.BringToFront();
-            TopMost = false;
+            if(!loginLoaded)LoadRealLogin();
+            timer.Stop(); player?.Stop(); introLayer.Visible=false; login?.BringToFront(); TopMost=false;
         }
     }
 }
-
-internal sealed class WalkingRobotControl : Control
-{
-    public int WalkPhase { get; set; }
-    public bool IsPushing { get; set; }
-    public double PushProgress { get; set; }
-
-    public WalkingRobotControl()
-    {
-        SetStyle(ControlStyles.AllPaintingInWmPaint |
-                 ControlStyles.UserPaint |
-                 ControlStyles.OptimizedDoubleBuffer |
-                 ControlStyles.SupportsTransparentBackColor, true);
-        BackColor = Color.Transparent;
-    }
-
-    protected override void OnPaint(PaintEventArgs e)
-    {
-        base.OnPaint(e);
-        var g = e.Graphics;
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-
-        double phase = WalkPhase * 0.38;
-        int swing = IsPushing ? 0 : (int)(Math.Sin(phase) * 12);
-        int bob = IsPushing ? 0 : (int)(Math.Abs(Math.Sin(phase)) * 4);
-
-        using var armorDark = new SolidBrush(Color.FromArgb(18,30,44));
-        using var armor = new SolidBrush(Color.FromArgb(76,98,120));
-        using var steel = new SolidBrush(Color.FromArgb(160,180,196));
-        using var cyan = new SolidBrush(Color.FromArgb(45,210,255));
-        using var outline = new Pen(Color.FromArgb(5,14,24),4f);
-
-        using(var shadow = new SolidBrush(Color.FromArgb(65,0,0,0)))
-            g.FillEllipse(shadow,32,172,88,12);
-
-        int y = bob;
-
-        DrawLimb(g,62,122+y,55-swing/2,166,16,steel,armorDark,outline);
-        DrawLimb(g,89,122+y,96+swing/2,166,16,steel,armorDark,outline);
-
-        var torso = new Rectangle(48,64+y,58,66);
-        using(var torsoPath = Rounded(torso,14))
-        {
-            g.FillPath(armor, torsoPath);
-            g.DrawPath(outline, torsoPath);
-        }
-        g.FillRectangle(armorDark,57,83+y,40,28);
-        g.FillEllipse(cyan,70,91+y,14,14);
-
-        var head = new Rectangle(51,22+y,54,48);
-        using(var headPath = Rounded(head,16))
-        {
-            g.FillPath(steel, headPath);
-            g.DrawPath(outline, headPath);
-        }
-        g.FillRectangle(armorDark,60,38+y,36,17);
-        g.FillEllipse(cyan,67,43+y,8,6);
-        g.FillEllipse(cyan,83,43+y,8,6);
-
-        if(IsPushing)
-        {
-            int reach = 28 + (int)(8*Math.Sin(Math.Min(1.0,PushProgress)*Math.PI));
-            DrawLimb(g,100,79+y,128+reach,82+y,13,steel,armorDark,outline);
-            DrawLimb(g,101,101+y,130+reach,105+y,13,steel,armorDark,outline);
-        }
-        else
-        {
-            DrawLimb(g,49,78+y,32+swing,115+y,13,steel,armorDark,outline);
-            DrawLimb(g,105,78+y,121-swing,113+y,13,steel,armorDark,outline);
-        }
-    }
-
-    private static void DrawLimb(Graphics g,int x1,int y1,int x2,int y2,int width,
-        Brush steel,Brush joint,Pen outline)
-    {
-        using var p = new Pen(Color.FromArgb(150,170,188),width);
-        p.StartCap = System.Drawing.Drawing2D.LineCap.Round;
-        p.EndCap = System.Drawing.Drawing2D.LineCap.Round;
-        g.DrawLine(p,x1,y1,x2,y2);
-        g.FillEllipse(joint,x1-7,y1-7,14,14);
-        g.FillEllipse(joint,x2-7,y2-7,14,14);
-        g.DrawEllipse(outline,x1-7,y1-7,14,14);
-        g.DrawEllipse(outline,x2-7,y2-7,14,14);
-    }
-
-    private static System.Drawing.Drawing2D.GraphicsPath Rounded(Rectangle r,int radius)
-    {
-        int d=radius*2;
-        var p=new System.Drawing.Drawing2D.GraphicsPath();
-        p.AddArc(r.X,r.Y,d,d,180,90);
-        p.AddArc(r.Right-d,r.Y,d,d,270,90);
-        p.AddArc(r.Right-d,r.Bottom-d,d,d,0,90);
-        p.AddArc(r.X,r.Bottom-d,d,d,90,90);
-        p.CloseFigure();
-        return p;
-    }
-}
-
