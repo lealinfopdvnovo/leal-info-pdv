@@ -1,5 +1,5 @@
-# V10.151 LIA modo administrador livre
-name: Publicar atualização automática LEAL INFO PDV V10.151
+# V10.152 LIA com modo conversa e modo trabalho
+name: Publicar atualização automática LEAL INFO PDV V10.152
 
 on:
   workflow_dispatch:
@@ -18,10 +18,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.151"
-      UPDATE_TAG: "v10.151"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_151_LIA_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_151_UPDATE.zip"
+      UPDATE_VERSION: "10.152"
+      UPDATE_TAG: "v10.152"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_152_LIA_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_152_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -32,9 +32,9 @@ jobs:
         run: |
           $p = "UpdateManager.cs"
           $c = Get-Content $p -Raw
-          foreach ($v in @('10.143','10.144','10.145','10.146','10.147','10.148','10.149','10.150')) {
-            $c = $c.Replace(('CurrentVersion="' + $v + '"'),'CurrentVersion="10.151"')
-            $c = $c.Replace(('Updater/' + $v),'Updater/10.151')
+          foreach ($v in @('10.143','10.144','10.145','10.146','10.147','10.148','10.149','10.150','10.151')) {
+            $c = $c.Replace(('CurrentVersion="' + $v + '"'),'CurrentVersion="10.152"')
+            $c = $c.Replace(('Updater/' + $v),'Updater/10.152')
           }
           Set-Content -Path $p -Value $c -Encoding UTF8
       - name: Instalar .NET 8
@@ -65,12 +65,12 @@ jobs:
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.151: Modo Administrador livre da LIA. ADMIN autenticado conversa e comanda as funções disponíveis sem bloqueios de gerente. Confirmações de segurança permanecem somente onde há risco real de perda de dados."
+          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.152: LIA com dois estados de interação. Modo conversa é o padrão e evita abrir telas por palavras soltas. Ao ouvir 'vamos trabalhar', a LIA entra em modo trabalho e prioriza comandos do PDV. 'Vamos conversar' devolve a conversa natural. Permissões e segurança continuam no Auth local."
           $manifest = @{
             Version = $env:UPDATE_VERSION
             PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"
             Sha256 = $packageHash
-            Notes = "V10.151: LIA com Modo Administrador livre para ADMIN autenticado."
+            Notes = "V10.152: LIA com modo conversa e modo trabalho, sem perder a resposta rápida atual."
           } | ConvertTo-Json
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
@@ -78,12 +78,12 @@ jobs:
       - name: Guardar pacote de atualização
         uses: actions/upload-artifact@v4
         with:
-          name: LEAL_INFO_PDV_V10_151_UPDATE
-          path: LEAL_INFO_PDV_V10_151_UPDATE.zip
+          name: LEAL_INFO_PDV_V10_152_UPDATE
+          path: LEAL_INFO_PDV_V10_152_UPDATE.zip
           if-no-files-found: error
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_151_LIA_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_151_LIA_FINAL.exe
+          name: Setup_LEAL_INFO_PDV_V10_152_LIA_FINAL
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_152_LIA_FINAL.exe
           if-no-files-found: error
