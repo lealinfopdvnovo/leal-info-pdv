@@ -16,7 +16,12 @@ public static class LiaCore
     public static LiaDecisao Classificar(string n)
     {
         bool Tem(params string[] xs) => xs.Any(x => n.Contains(x, StringComparison.Ordinal));
-        bool Exato(params string[] xs) => xs.Any(x => n.Trim().Equals(x, StringComparison.Ordinal));
+        string LimparFinal(string s) => s.Trim().Trim(' ', '.', ',', '?', '!', ';', ':', '-', '–', '—');
+        bool Exato(params string[] xs)
+        {
+            var atual = LimparFinal(n);
+            return xs.Any(x => atual.Equals(LimparFinal(x), StringComparison.Ordinal));
+        }
         bool AcaoTela(params string[] alvos)
         {
             var alvo = alvos.Any(x => n.Contains(x, StringComparison.Ordinal));
@@ -24,14 +29,19 @@ public static class LiaCore
             return Tem("abre", "abrir", "vai", "ir para", "ir pra", "entra", "entrar", "acessa", "acessar", "mostra", "mostrar", "quero", "preciso", "leva", "vá para", "va para") || Exato(alvos);
         }
 
+        // V10.150: identidade fixa e chamada robusta. Nunca deixa um simples chamado cair na IA online.
         if (Exato(
-            "lia", "liá", "lea", "leia",
+            "lia", "liá", "lea", "leah", "leia", "liah",
             "vagabunda", "sua vagabunda",
             "piranha", "sua piranha",
             "gostosa", "sua gostosa",
             "filha da puta", "o filha da puta", "ô filha da puta", "sua filha da puta",
-            "fdp", "sua fdp"))
+            "fdp", "sua fdp") ||
+            Tem("lia ta ai", "lia esta ai", "lia voce ta ai", "lia voce esta ai", "lia responde", "lia me ouve", "lia me escuta", "ei lia", "e ai lia"))
             return new("CHAMADO_LIA", LiaRisco.Normal, "Oi? Tô aqui.");
+
+        if (Tem("quem e voce", "quem voce e", "qual seu nome", "qual e seu nome", "qual e o seu nome", "como voce se chama", "como se chama", "voce e a lia", "seu nome e lia", "seu nome"))
+            return new("IDENTIDADE_LIA", LiaRisco.Normal, "Eu sou a LIA, assistente do LEAL INFO PDV.");
 
         if (Tem("fechei o caixa", "encerrei o caixa", "caixa fechado", "fechou o caixa", "reabrir caixa", "reabre o caixa"))
             return new("CAIXA_ENCERRADO", LiaRisco.Critico, "Chame o gerente. Por segurança, o caixa encerrado só pode ser liberado com autorização.", true);
