@@ -9,6 +9,9 @@ on:
       - 'tools/LealInfoLicenseGenerator/**'
       - '.github/workflows/build-license-generator.yml'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -27,8 +30,21 @@ jobs:
       - name: Compilar
         run: dotnet publish tools/LealInfoLicenseGenerator/LealInfoLicenseGenerator.csproj -c Release -r win-x64 --self-contained false -o out/license-generator
 
-      - name: Publicar artefato
-        uses: actions/upload-artifact@v4
-        with:
-          name: LEAL_INFO_GERADOR_DE_SERIAL
-          path: out/license-generator/**
+      - name: Empacotar gerador
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "out/license-generator/*" -DestinationPath "LEAL_INFO_GERADOR_DE_SERIAL.zip" -Force
+
+      - name: Publicar na Release privada
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "gerador-serial-v1"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag "LEAL_INFO_GERADOR_DE_SERIAL.zip" --title "LEAL INFO • Gerador de Serial" --notes "Gerador interno de licenças STANDARD, PLUS e PRO. Uso exclusivo LEAL INFO."
+          }
+          else {
+            gh release upload $tag "LEAL_INFO_GERADOR_DE_SERIAL.zip" --clobber
+          }
