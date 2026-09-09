@@ -46,6 +46,7 @@ internal static class Program
 
             var main = new MainForm();
             main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - V{UpdateManager.CurrentVersion}";
+            using var clockSync = new SystemClockSync(main);
             Application.Run(main);
         }
         catch (Exception ex)
