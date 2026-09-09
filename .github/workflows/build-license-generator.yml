@@ -1,0 +1,34 @@
+name: Build Gerador de Serial LEAL INFO
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - licenciamento-v1
+    paths:
+      - 'tools/LealInfoLicenseGenerator/**'
+      - '.github/workflows/build-license-generator.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restaurar
+        run: dotnet restore tools/LealInfoLicenseGenerator/LealInfoLicenseGenerator.csproj
+
+      - name: Compilar
+        run: dotnet publish tools/LealInfoLicenseGenerator/LealInfoLicenseGenerator.csproj -c Release -r win-x64 --self-contained false -o out/license-generator
+
+      - name: Publicar artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: LEAL_INFO_GERADOR_DE_SERIAL
+          path: out/license-generator/**
