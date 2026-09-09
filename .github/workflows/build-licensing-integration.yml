@@ -1,0 +1,30 @@
+name: Validar Licenciamento LEAL INFO PDV
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - licenciamento-v1
+    paths:
+      - 'LicenseManager.cs'
+      - 'LicenseActivationForm.cs'
+      - 'Program.cs'
+      - '.github/workflows/build-licensing-integration.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restaurar
+        run: dotnet restore LealInfoPDV.csproj
+
+      - name: Compilar PDV com licenciamento
+        run: dotnet build LealInfoPDV.csproj -c Release --no-restore
