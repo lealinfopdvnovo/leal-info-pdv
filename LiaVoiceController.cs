@@ -35,7 +35,9 @@ public sealed class LiaVoiceController : IDisposable
         web.Size = new Size(2, 2); web.Location = new Point(-50, -50); web.Visible = true;
         web.CreationProperties = new CoreWebView2CreationProperties { UserDataFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV", "WebView2", "LIA_VOZ_V3") };
         orbe.Controls.Add(web); web.SendToBack();
-        orbe.OrbClicked += async (_, _) => { if (!encerrado && !processando) await IniciarEscutaAsync(); };
+        // O clique na orbe funciona como botão liga/desliga. Se a LIA já está ativa,
+        // um novo clique encerra toda a sessão (microfone, fala, WebView2 e orbe).
+        orbe.OrbClicked += (_, _) => Encerrar();
     }
 
     public async Task IniciarAsync(){if(encerrado)return;try{orbe.SetEstado("PREPARANDO");await PrepararWebAsync();if(!encerrado)await IniciarEscutaAsync();}catch{if(!encerrado)orbe.SetEstado("ERRO");}}
@@ -266,6 +268,17 @@ function vozPreferida(){const vs=speechSynthesis.getVoices();const br=vs.filter(
 window.liaSpeak=function(texto){try{window.liaStop();parando=false;speechSynthesis.cancel();const falar=()=>{const u=new SpeechSynthesisUtterance(texto);const v=vozPreferida();u.lang='pt-BR';if(v)u.voice=v;u.rate=0.98;u.pitch=1.04;u.volume=1.0;u.onend=()=>post('SPKEND');u.onerror=()=>post('SPKEND');speechSynthesis.speak(u);};if(speechSynthesis.getVoices().length)falar();else{let foi=false;const uma=()=>{if(foi)return;foi=true;falar();};speechSynthesis.addEventListener('voiceschanged',uma,{once:true});setTimeout(uma,500);}}catch(e){post('SPKEND');}};
 </script></body></html>
 """;
-    public void Encerrar(){if(encerrado)return;encerrado=true;try{if(web.CoreWebView2 is not null)web.CoreWebView2.WebMessageReceived-=AoReceberMensagem;}catch{}try{if(!orbe.IsDisposed)orbe.Close();}catch{}Encerrado?.Invoke(this,EventArgs.Empty);}
+    public void Encerrar()
+    {
+        if(encerrado)return;
+        encerrado=true;
+        falaTerminou?.TrySetResult(true);
+        falaTerminou=null;
+        try{if(web.CoreWebView2 is not null)web.CoreWebView2.WebMessageReceived-=AoReceberMensagem;}catch{}
+        // Dispose do WebView2 corta imediatamente captura do microfone e qualquer áudio em execução.
+        try{web.Dispose();}catch{}
+        try{if(!orbe.IsDisposed)orbe.Close();}catch{}
+        Encerrado?.Invoke(this,EventArgs.Empty);
+    }
     public void Dispose(){Encerrar();try{web.Dispose();}catch{}}
 }
