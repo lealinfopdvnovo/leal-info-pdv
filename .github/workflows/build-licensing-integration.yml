@@ -9,6 +9,7 @@ on:
       - 'LicenseManager.cs'
       - 'LicenseActivationForm.cs'
       - 'Program.cs'
+      - 'LealInfoPDV.csproj'
       - '.github/workflows/build-licensing-integration.yml'
 
 jobs:
