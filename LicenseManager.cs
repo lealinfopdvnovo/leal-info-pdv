@@ -165,7 +165,7 @@ public static class LicenseManager
     private static byte[] FromBase64Url(string text)
     {
         var s = text.Replace('-', '+').Replace('_', '/');
-        s += s.Length % 4 switch { 2 => "==", 3 => "=", _ => "" };
+        s += (s.Length % 4) switch { 2 => "==", 3 => "=", _ => "" };
         return Convert.FromBase64String(s);
     }
 
