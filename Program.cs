@@ -14,6 +14,18 @@ internal static class Program
         {
             Database.Initialize();
 
+            LicenseManager.Reload();
+            if (!LicenseManager.IsValid)
+            {
+                using var activation = new LicenseActivationForm();
+                if (activation.ShowDialog() != DialogResult.OK)
+                    return;
+
+                LicenseManager.Reload();
+                if (!LicenseManager.IsValid)
+                    return;
+            }
+
             using var entry = new SplashForm();
 
             if (entry.ShowDialog() != DialogResult.OK)
@@ -45,7 +57,7 @@ internal static class Program
             }
 
             var main = new MainForm();
-            main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - V{UpdateManager.CurrentVersion}";
+            main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - {LicenseManager.Edition.ToString().ToUpperInvariant()} - V{UpdateManager.CurrentVersion}";
             using var clockSync = new SystemClockSync(main);
             Application.Run(main);
         }
