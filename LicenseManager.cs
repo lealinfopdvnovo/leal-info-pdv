@@ -38,14 +38,18 @@ internal sealed record SignedLicensePayload(
 public static class LicenseManager
 {
     private const string LicenseFileName = "license.key";
-    private const string PublicKeyFileName = "leal-info-license-public-key.pem";
+    private const string PublicKeyPem = """
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmrzEW3COUihKnOn02fzZePFoDBs8
+cRlG+AJPy2CLvUkJlYN8Kf66nRR+zYosuWGSZy7hhiisiuF/wjltF8Jn5Q==
+-----END PUBLIC KEY-----
+""";
     private static LicenseState? _current;
 
     private static string LicenseDirectory
         => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO", "PDV");
 
     private static string LicensePath => Path.Combine(LicenseDirectory, LicenseFileName);
-    private static string PublicKeyPath => Path.Combine(AppContext.BaseDirectory, PublicKeyFileName);
 
     public static LicenseState Current => _current ??= Load();
     public static LicenseEdition Edition => Current.Edition;
@@ -105,19 +109,13 @@ public static class LicenseManager
             return false;
         }
 
-        if (!File.Exists(PublicKeyPath))
-        {
-            state = Invalid($"Chave pública de licenciamento não encontrada: {PublicKeyFileName}");
-            return false;
-        }
-
         try
         {
             var payloadBytes = FromBase64Url(parts[1]);
             var signature = FromBase64Url(parts[2]);
 
             using var ecdsa = ECDsa.Create();
-            ecdsa.ImportFromPem(File.ReadAllText(PublicKeyPath));
+            ecdsa.ImportFromPem(PublicKeyPem);
             if (!ecdsa.VerifyData(payloadBytes, signature, HashAlgorithmName.SHA256))
             {
                 state = Invalid("Assinatura do serial inválida.");
