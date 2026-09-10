@@ -1,5 +1,5 @@
-# V10.165 preserva a abertura oficial V10.160 e melhora chamada, latência e conversa livre da LIA
-name: Publicar atualização automática LEAL INFO PDV V10.165
+# V10.166 preserva a abertura oficial V10.160 e adiciona balão comercial discreto após login
+name: Publicar atualização automática LEAL INFO PDV V10.166
 
 on:
   workflow_dispatch:
@@ -18,10 +18,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.165"
-      UPDATE_TAG: "v10.165"
+      UPDATE_VERSION: "10.166"
+      UPDATE_TAG: "v10.166"
       SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_157_LIA_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_165_UPDATE.zip"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_166_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -32,16 +32,16 @@ jobs:
         shell: powershell
         run: |
           $video = "Assets\lia_abertura_pro.mp4"
-          if (!(Test-Path $video)) { throw "Assets/lia_abertura_pro.mp4 nao encontrado. V10.165 cancelada." }
+          if (!(Test-Path $video)) { throw "Assets/lia_abertura_pro.mp4 nao encontrado. V10.166 cancelada." }
 
       - name: Alinhar versão interna do atualizador
         shell: powershell
         run: |
           $p = "UpdateManager.cs"
           $c = Get-Content $p -Raw
-          foreach ($v in @('10.143','10.144','10.145','10.146','10.147','10.148','10.149','10.150','10.151','10.152','10.153','10.154','10.155','10.156','10.157','10.158','10.159','10.160','10.161','10.162','10.163','10.164')) {
-            $c = $c.Replace(('CurrentVersion="' + $v + '"'),'CurrentVersion="10.165"')
-            $c = $c.Replace(('Updater/' + $v),'Updater/10.165')
+          foreach ($v in @('10.143','10.144','10.145','10.146','10.147','10.148','10.149','10.150','10.151','10.152','10.153','10.154','10.155','10.156','10.157','10.158','10.159','10.160','10.161','10.162','10.163','10.164','10.165')) {
+            $c = $c.Replace(('CurrentVersion="' + $v + '"'),'CurrentVersion="10.166"')
+            $c = $c.Replace(('Updater/' + $v),'Updater/10.166')
           }
           Set-Content -Path $p -Value $c -Encoding UTF8
 
@@ -81,12 +81,12 @@ jobs:
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.165: chamada 'LIA' mais confiável, escuta de voz mais estável, conversa online assíncrona para reduzir travamento/latência e respostas livres menos truncadas e mais coerentes. Correção V10.164 e abertura oficial preservadas."
+          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.166: novo balão comercial discreto exibido uma vez após o login. STANDARD apresenta o PLUS, PLUS apresenta o PRO e PRO apresenta extensão da LIA. Abertura oficial V10.160 preservada e sem alterações no MainForm."
           $manifest = @{
             Version = $env:UPDATE_VERSION
             PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"
             Sha256 = $packageHash
-            Notes = "V10.165: chamada 'LIA' mais confiável, escuta de voz mais estável, conversa online assíncrona para reduzir travamento/latência e respostas livres menos truncadas e mais coerentes. Correção V10.164 e abertura oficial preservadas."
+            Notes = "V10.166: novo balão comercial discreto exibido uma vez após o login. STANDARD apresenta o PLUS, PLUS apresenta o PRO e PRO apresenta extensão da LIA. Abertura oficial V10.160 preservada e sem alterações no MainForm."
           } | ConvertTo-Json
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
@@ -95,13 +95,13 @@ jobs:
       - name: Guardar pacote de atualização
         uses: actions/upload-artifact@v4
         with:
-          name: LEAL_INFO_PDV_V10_165_UPDATE
-          path: LEAL_INFO_PDV_V10_165_UPDATE.zip
+          name: LEAL_INFO_PDV_V10_166_UPDATE
+          path: LEAL_INFO_PDV_V10_166_UPDATE.zip
           if-no-files-found: error
 
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_165_LIA_FINAL
+          name: Setup_LEAL_INFO_PDV_V10_166_LIA_FINAL
           path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_157_LIA_FINAL.exe
           if-no-files-found: error
