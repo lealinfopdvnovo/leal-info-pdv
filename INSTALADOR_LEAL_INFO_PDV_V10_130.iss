@@ -1,5 +1,5 @@
 ﻿#define MyAppName "LEAL INFO PDV"
-#define MyAppVersion "10.168"
+#define MyAppVersion "10.169"
 #define MyAppPublisher "LEAL INFO CONECTADO"
 #define MyAppExeName "LealInfoPDV.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\LEAL INFO PDV
 DefaultGroupName={#MyAppName}
 UsePreviousAppDir=yes
 OutputDir=SETUP_PRONTO
-OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_168_LIA_FINAL
+OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_169_LIA_FINAL
 SetupIconFile=Assets\lealinfo.ico
 Compression=lzma2
 SolidCompression=yes
@@ -25,11 +25,9 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 CloseApplications=yes
 RestartApplications=no
 
+; V10.169: instalação limpa do programa. Cadastros, licença e backups ficam em LocalAppData e são preservados.
 [InstallDelete]
-Type: files; Name: "{app}\*.exe"
-Type: files; Name: "{app}\*.dll"
-Type: files; Name: "{app}\*.deps.json"
-Type: files; Name: "{app}\*.runtimeconfig.json"
+Type: filesandordirs; Name: "{app}\*"
 
 [Files]
 Source: "publish_setup\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
