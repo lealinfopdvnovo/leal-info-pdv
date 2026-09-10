@@ -81,10 +81,10 @@ internal sealed class GeneratorForm : Form
         devicePanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         device.Dock = DockStyle.Fill;
         device.Margin = new Padding(0, 5, 8, 5);
-        var copyDevice = Button("COPIAR ID", (_, _) => CopyDeviceId());
-        copyDevice.Margin = new Padding(0, 5, 0, 5);
+        var pasteDevice = Button("COLAR ID", (_, _) => PasteDeviceId());
+        pasteDevice.Margin = new Padding(0, 5, 0, 5);
         devicePanel.Controls.Add(device, 0, 0);
-        devicePanel.Controls.Add(copyDevice, 1, 0);
+        devicePanel.Controls.Add(pasteDevice, 1, 0);
 
         AddRow(grid, 3, "ID do computador", devicePanel);
         AddRow(grid, 4, "Vencimento", expires);
@@ -190,11 +190,13 @@ internal sealed class GeneratorForm : Form
             expiresAt);
     }
 
-    private void CopyDeviceId()
+    private void PasteDeviceId()
     {
-        if (string.IsNullOrWhiteSpace(device.Text)) return;
-        Clipboard.SetText(device.Text.Trim());
-        MessageBox.Show("ID copiado.", "LEAL INFO", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        if (!Clipboard.ContainsText()) return;
+        var id = Clipboard.GetText().Trim();
+        if (string.IsNullOrWhiteSpace(id)) return;
+        device.Text = id.ToUpperInvariant();
+        device.SelectionStart = device.Text.Length;
     }
 
     private void CopySerial()
