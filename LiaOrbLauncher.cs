@@ -5,7 +5,7 @@ namespace LealInfoPDV;
 /// <summary>Orbe compacta oficial que substitui o antigo botão AI.</summary>
 public sealed class LiaOrbLauncher : Control
 {
-    private readonly System.Windows.Forms.Timer timer = new() { Interval = 1000 };
+    private readonly System.Windows.Forms.Timer timer = new() { Interval = 35 };
     private double fase;
 
     public LiaOrbLauncher()
