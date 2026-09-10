@@ -9,17 +9,21 @@ internal static class WebView2DataBootstrap
     {
         try
         {
-            // V10.172: usa um perfil compartilhado NOVO e exclusivo para esta geração.
-            // Isso evita reaproveitar estado/locks de perfis anteriores que podem deixar
-            // o WebView2 em estado inválido (HRESULT 0x8007139F) após atualização/reinício.
-            var folder = Path.Combine(
+            // V10.174: cada execução do PDV recebe um perfil WebView2 novo e exclusivo.
+            // Tutorial e LIA compartilham ESTE MESMO perfil durante a execução, mas o
+            // próximo início nunca reaproveita locks/estado Chromium de uma sessão anterior.
+            var root = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "LEAL INFO", "PDV", "WebView2-V10.172");
+                "LEAL INFO", "PDV", "WebView2-Sessions");
 
+            Directory.CreateDirectory(root);
+            LimparSessoesAntigas(root);
+
+            var folder = Path.Combine(
+                root,
+                $"session-{Environment.ProcessId}-{Guid.NewGuid():N}");
             Directory.CreateDirectory(folder);
 
-            // LIA e Tutorial continuam obrigatoriamente no mesmo perfil e com os mesmos
-            // argumentos de processo. Não cria ambientes incompatíveis em paralelo.
             Environment.SetEnvironmentVariable(
                 "WEBVIEW2_USER_DATA_FOLDER",
                 folder,
@@ -33,6 +37,29 @@ internal static class WebView2DataBootstrap
         catch
         {
             // Nunca derruba o PDV por falha de preparação do perfil do WebView2.
+        }
+    }
+
+    private static void LimparSessoesAntigas(string root)
+    {
+        try
+        {
+            var limite = DateTime.UtcNow.AddDays(-2);
+            foreach (var dir in Directory.EnumerateDirectories(root, "session-*"))
+            {
+                try
+                {
+                    if (Directory.GetLastWriteTimeUtc(dir) < limite)
+                        Directory.Delete(dir, true);
+                }
+                catch
+                {
+                    // Perfil ainda em uso/bloqueado: deixa para uma próxima inicialização.
+                }
+            }
+        }
+        catch
+        {
         }
     }
 }
