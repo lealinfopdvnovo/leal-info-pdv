@@ -43,12 +43,45 @@ internal sealed class LicenseActivationForm : Form
             ForeColor = Color.Gainsboro
         };
 
+        var deviceId = LicenseManager.DeviceId();
         var device = new Label
         {
-            Text = $"ID deste computador: {LicenseManager.DeviceId()}",
+            Text = $"ID deste computador: {deviceId}",
             AutoSize = true,
-            ForeColor = Color.LightSkyBlue
+            ForeColor = Color.LightSkyBlue,
+            Anchor = AnchorStyles.Left,
+            Margin = new Padding(0, 8, 12, 0)
         };
+
+        var copyDevice = new Button
+        {
+            Text = "COPIAR ID",
+            AutoSize = true,
+            Height = 32,
+            Padding = new Padding(12, 2, 12, 2),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(20, 94, 180),
+            ForeColor = Color.White,
+            Margin = new Padding(0)
+        };
+        copyDevice.FlatAppearance.BorderSize = 0;
+        copyDevice.Click += (_, _) =>
+        {
+            Clipboard.SetText(deviceId);
+            status.Text = "ID copiado!";
+            status.ForeColor = Color.LightGreen;
+        };
+
+        var deviceRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0, 4, 0, 6)
+        };
+        deviceRow.Controls.Add(device);
+        deviceRow.Controls.Add(copyDevice);
 
         var activate = new Button
         {
@@ -102,7 +135,7 @@ internal sealed class LicenseActivationForm : Form
 
         layout.Controls.Add(title, 0, 0);
         layout.Controls.Add(subtitle, 0, 1);
-        layout.Controls.Add(device, 0, 2);
+        layout.Controls.Add(deviceRow, 0, 2);
         layout.Controls.Add(serial, 0, 3);
         layout.Controls.Add(status, 0, 4);
         layout.Controls.Add(buttons, 0, 5);
