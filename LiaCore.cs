@@ -62,6 +62,9 @@ public static class LiaCore
             return false;
         }
 
+        if (Tem("quanto tempo falta", "quanto tempo ainda", "quanto tempo resta", "tempo da lia", "saldo da lia", "saldo de conversa", "meu saldo de conversa", "olha o reloginho", "olhe o reloginho"))
+            return new("SALDO_CONVERSA", LiaRisco.Normal, MensagemSaldoConversacao());
+
         if (Tem("vamos trabalhar", "vamo trabalhar", "vamos trabalha", "modo trabalho", "ativa modo trabalho", "ativar modo trabalho", "hora de trabalhar", "bora trabalhar", "bora trabalha"))
         {
             modoInteracao = LiaInteracaoModo.Trabalho;
@@ -121,7 +124,7 @@ public static class LiaCore
             return new("LIA_ESSENCIAL", LiaRisco.Normal, "A conversa da LIA não está disponível neste plano.");
 
         if (!LiaUsageManager.HasTimeRemaining)
-            return new("SALDO_LIA_ESGOTADO", LiaRisco.Normal, LiaUsageManager.ExhaustedMessage);
+            return new("SALDO_LIA_ESGOTADO", LiaRisco.Normal, "Olha o reloginho... nosso tempo de conversa terminou. " + LiaUsageManager.ExhaustedMessage);
 
         if (!Ai.Configurada)
             return new("LIA_SEM_CONFIGURACAO", LiaRisco.Normal, "A conversa da LIA está disponível no seu plano, mas a conexão de IA ainda não está configurada neste computador.");
@@ -133,14 +136,34 @@ public static class LiaCore
                 return new("CONVERSA_AI", LiaRisco.Normal, "Não consegui responder pela IA agora. Tente novamente em instantes.");
 
             var aviso = LiaUsageManager.TakeWarningIfNeeded();
-            if (!string.IsNullOrWhiteSpace(aviso)) resposta += "\n\n" + aviso;
-            if (!LiaUsageManager.HasTimeRemaining) resposta += "\n\n" + LiaUsageManager.ExhaustedMessage;
+            if (!string.IsNullOrWhiteSpace(aviso))
+            {
+                var minutos = LiaUsageManager.Remaining.TotalMinutes <= 5 ? 5 : LiaUsageManager.Remaining.TotalMinutes <= 10 ? 10 : 30;
+                resposta += $"\n\nOlha o reloginho... faltam aproximadamente {minutos:0} minutos de conversa.";
+            }
+            if (!LiaUsageManager.HasTimeRemaining) resposta += "\n\nOlha o reloginho... nosso tempo de conversa terminou. " + LiaUsageManager.ExhaustedMessage;
             return new("CONVERSA_AI", LiaRisco.Normal, resposta);
         }
         catch
         {
             return new("CONVERSA_AI", LiaRisco.Normal, "Não consegui acessar a conversa da LIA agora. Os comandos locais do PDV continuam disponíveis.");
         }
+    }
+
+    public static string MensagemSaldoConversacao()
+    {
+        if (!LiaUsageManager.HasConversationQuota)
+            return "Este plano não possui saldo de conversa da LIA.";
+        if (!LiaUsageManager.HasTimeRemaining)
+            return "Olha o reloginho... nosso tempo de conversa terminou. " + LiaUsageManager.ExhaustedMessage;
+
+        var t = LiaUsageManager.Remaining;
+        var horas = (int)t.TotalHours;
+        if (horas > 0)
+            return $"Olha o reloginho... ainda temos {horas} hora{(horas == 1 ? "" : "s")}, {t.Minutes} minuto{(t.Minutes == 1 ? "" : "s")} e {t.Seconds} segundo{(t.Seconds == 1 ? "" : "s")} de conversa.";
+        if (t.Minutes > 0)
+            return $"Olha o reloginho... ainda temos {t.Minutes} minuto{(t.Minutes == 1 ? "" : "s")} e {t.Seconds} segundo{(t.Seconds == 1 ? "" : "s")} de conversa.";
+        return $"Olha o reloginho... restam {Math.Max(0, t.Seconds)} segundos de conversa.";
     }
 
     private static void SincronizarOperador()
