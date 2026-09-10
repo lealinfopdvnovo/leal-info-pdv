@@ -1,0 +1,1 @@
+V10.170: WebView2 tutorial and LIA must share the same default process environment. Do not create a second CoreWebView2Environment with different options/user-data folder in LiaForm; this can trigger HRESULT 0x8007139F on the tutorial WebView2.
