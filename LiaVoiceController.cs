@@ -219,7 +219,8 @@ public sealed class LiaVoiceController : IDisposable
     {
         var t=(f.Text??"").Trim();
         if(string.IsNullOrWhiteSpace(t))return "atual";
-        return t.Length>45?t[..45]:t;
+        t=Regex.Replace(t,@"\s*[-–—|•:]?\s*V\s*\d+(?:[\.,]\d+)+(?:[\w.-]*)?\s*$","",RegexOptions.IgnoreCase).Trim();
+        return string.IsNullOrWhiteSpace(t)?"atual":(t.Length>45?t[..45]:t);
     }
 
     private static bool TelaTemDadosEmEdicao(Control raiz)
