@@ -69,7 +69,24 @@ internal sealed class GeneratorForm : Form
         AddRow(grid, 0, "Cliente / Empresa", customer);
         AddRow(grid, 1, "Plano", edition);
         AddRow(grid, 2, "Validade (meses)", months);
-        AddRow(grid, 3, "ID do computador", device);
+
+        var devicePanel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            ColumnCount = 2,
+            Margin = new Padding(0)
+        };
+        devicePanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        devicePanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        device.Dock = DockStyle.Fill;
+        device.Margin = new Padding(0, 5, 8, 5);
+        var copyDevice = Button("COPIAR ID", (_, _) => CopyDeviceId());
+        copyDevice.Margin = new Padding(0, 5, 0, 5);
+        devicePanel.Controls.Add(device, 0, 0);
+        devicePanel.Controls.Add(copyDevice, 1, 0);
+
+        AddRow(grid, 3, "ID do computador", devicePanel);
         AddRow(grid, 4, "Vencimento", expires);
 
         var generate = Button("GERAR SERIAL", (_, _) => Generate());
@@ -127,7 +144,8 @@ internal sealed class GeneratorForm : Form
         grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var l = new Label { Text = label, AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(0, 9, 12, 9) };
         control.Dock = DockStyle.Top;
-        control.Margin = new Padding(0, 5, 0, 5);
+        if (control.Margin == Padding.Empty)
+            control.Margin = new Padding(0, 5, 0, 5);
         grid.Controls.Add(l, 0, row);
         grid.Controls.Add(control, 1, row);
     }
@@ -170,6 +188,13 @@ internal sealed class GeneratorForm : Form
             customer.Text,
             device.Text,
             expiresAt);
+    }
+
+    private void CopyDeviceId()
+    {
+        if (string.IsNullOrWhiteSpace(device.Text)) return;
+        Clipboard.SetText(device.Text.Trim());
+        MessageBox.Show("ID copiado.", "LEAL INFO", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void CopySerial()
