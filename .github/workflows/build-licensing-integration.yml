@@ -13,6 +13,8 @@ on:
       - 'LiaAiClient.cs'
       - 'Program.cs'
       - 'LealInfoPDV.csproj'
+      - 'tools/LealInfoLicenseGenerator/LicenseSigner.cs'
+      - 'tools/LicenseCompatibilityCheck/**'
       - '.github/workflows/build-licensing-integration.yml'
 
 jobs:
@@ -27,8 +29,14 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restaurar
+      - name: Restaurar PDV
         run: dotnet restore LealInfoPDV.csproj
 
       - name: Compilar PDV com licenciamento
         run: dotnet build LealInfoPDV.csproj -c Release --no-restore
+
+      - name: Restaurar teste de compatibilidade
+        run: dotnet restore tools/LicenseCompatibilityCheck/LicenseCompatibilityCheck.csproj
+
+      - name: Testar serial real do gerador no validador do PDV
+        run: dotnet run --project tools/LicenseCompatibilityCheck/LicenseCompatibilityCheck.csproj -c Release --no-restore
