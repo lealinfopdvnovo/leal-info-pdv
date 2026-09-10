@@ -1,4 +1,4 @@
-﻿namespace LealInfoPDV;
+namespace LealInfoPDV;
 
 public enum LiaModo { Instrutora, Operacional, Gerencial }
 public enum LiaRisco { Normal, Atencao, Critico }
@@ -23,6 +23,9 @@ public static class LiaCore
     public static LiaDecisao Classificar(string n)
     {
         SincronizarOperador();
+
+        if (!LicenseFeatures.LiaEssencial)
+            return new("PLANO_SEM_LIA", LiaRisco.Normal, "A LIA está disponível nos planos PLUS e PRO.");
 
         bool Tem(params string[] xs) => xs.Any(x => n.Contains(x, StringComparison.Ordinal));
         string LimparFinal(string s) => s.Trim().Trim(' ', '.', ',', '?', '!', ';', ':', '-', '–', '—');
@@ -59,7 +62,6 @@ public static class LiaCore
             return false;
         }
 
-        // Alternância explícita: conversa é o padrão; trabalho prioriza operação do PDV.
         if (Tem("vamos trabalhar", "vamo trabalhar", "vamos trabalha", "modo trabalho", "ativa modo trabalho", "ativar modo trabalho", "hora de trabalhar", "bora trabalhar", "bora trabalha"))
         {
             modoInteracao = LiaInteracaoModo.Trabalho;
@@ -84,10 +86,12 @@ public static class LiaCore
         if (Tem("apagar", "excluir", "estornar", "cancelar", "reabrir", "alterar preco", "mudar preco") && !Auth.IsManager)
             return new("ACAO_RESTRITA", LiaRisco.Critico, "Chame o gerente. Essa ação precisa de autorização superior.", true);
 
-        // No modo conversa, só entra no PDV quando o pedido for claramente operacional.
-        // Assim, mencionar produtos, vendas ou clientes em uma conversa não abre telas sozinho.
         if (modoInteracao == LiaInteracaoModo.Conversa && !ComandoExplicito())
-            return Ai.Configurada ? new("CONVERSA_AI", LiaRisco.Normal) : new("DESCONHECIDA", LiaRisco.Atencao);
+        {
+            if (LicenseFeatures.LiaConversaNatural && Ai.Configurada)
+                return new("CONVERSA_AI", LiaRisco.Normal);
+            return new("LIA_ESSENCIAL", LiaRisco.Normal, "No PLUS eu funciono em modo essencial: voz e comandos do PDV. A conversa natural e os recursos online ficam no PRO.");
+        }
 
         if (Tem("fecha essa tela", "fechar essa tela", "fecha a tela", "fechar a tela", "fecha isso", "fechar isso", "fecha aqui", "fechar aqui", "pode fechar", "quero fechar", "volta da tela", "sair dessa tela", "sai dessa tela", "fechar janela", "fecha janela", "fecha o sistema", "fechar o sistema", "fecha o programa", "fechar o programa"))
             return new("FECHAR_TELA", LiaRisco.Atencao);
@@ -111,7 +115,10 @@ public static class LiaCore
 
         var semantica = LiaSemanticRouter.Interpretar(n);
         if (!string.IsNullOrWhiteSpace(semantica)) return new(semantica, semantica == "FECHAR_TELA" ? LiaRisco.Atencao : LiaRisco.Normal);
-        return Ai.Configurada ? new("CONVERSA_AI", LiaRisco.Normal) : new("DESCONHECIDA", LiaRisco.Atencao);
+
+        if (LicenseFeatures.LiaConversaNatural && Ai.Configurada)
+            return new("CONVERSA_AI", LiaRisco.Normal);
+        return new("LIA_ESSENCIAL", LiaRisco.Normal, "No PLUS eu funciono em modo essencial: voz e comandos do PDV. A conversa natural e os recursos online ficam no PRO.");
     }
 
     private static void SincronizarOperador()
@@ -124,7 +131,7 @@ public static class LiaCore
 
     public static async Task<string?> ConversarAsync(string texto, CancellationToken cancellationToken = default)
     {
-        if (!Ai.Configurada) return null;
+        if (!LicenseFeatures.LiaConversaNatural || !Ai.Configurada) return null;
         try { return await Ai.ConversarAsync(texto, cancellationToken); }
         catch { return null; }
     }
@@ -132,8 +139,9 @@ public static class LiaCore
     public static string ResumoPermissoes()
     {
         var estado = modoInteracao == LiaInteracaoModo.Trabalho ? "Modo trabalho ativo." : "Modo conversa ativo.";
-        if (Auth.IsAdmin) return $"{estado} Você está como ADMINISTRADOR e pode comandar as funções disponíveis no PDV. Só mantenho confirmação quando houver risco real de perda de dados.";
-        if (Auth.IsManager) return $"{estado} Você está como GERENTE. Posso ajudar com operação e funções gerenciais autorizadas.";
-        return $"{estado} Você está como OPERADOR. Posso ajudar com vendas e tarefas operacionais. Financeiro e ações críticas continuam protegidos.";
+        var plano = $"Plano {LicenseFeatures.NomePlano}.";
+        if (Auth.IsAdmin) return $"{plano} {estado} Você está como ADMINISTRADOR e pode comandar as funções disponíveis no PDV. Só mantenho confirmação quando houver risco real de perda de dados.";
+        if (Auth.IsManager) return $"{plano} {estado} Você está como GERENTE. Posso ajudar com operação e funções gerenciais autorizadas.";
+        return $"{plano} {estado} Você está como OPERADOR. Posso ajudar com vendas e tarefas operacionais. Financeiro e ações críticas continuam protegidos.";
     }
 }
