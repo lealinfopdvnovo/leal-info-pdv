@@ -87,11 +87,7 @@ public static class LiaCore
             return new("ACAO_RESTRITA", LiaRisco.Critico, "Chame o gerente. Essa ação precisa de autorização superior.", true);
 
         if (modoInteracao == LiaInteracaoModo.Conversa && !ComandoExplicito())
-        {
-            if (LicenseFeatures.LiaConversaNatural && Ai.Configurada)
-                return new("CONVERSA_AI", LiaRisco.Normal);
-            return new("LIA_ESSENCIAL", LiaRisco.Normal, "No PLUS eu funciono em modo essencial: voz e comandos do PDV. A conversa natural e os recursos online ficam no PRO.");
-        }
+            return DecidirConversa(n);
 
         if (Tem("fecha essa tela", "fechar essa tela", "fecha a tela", "fechar a tela", "fecha isso", "fechar isso", "fecha aqui", "fechar aqui", "pode fechar", "quero fechar", "volta da tela", "sair dessa tela", "sai dessa tela", "fechar janela", "fecha janela", "fecha o sistema", "fechar o sistema", "fecha o programa", "fechar o programa"))
             return new("FECHAR_TELA", LiaRisco.Atencao);
@@ -116,9 +112,35 @@ public static class LiaCore
         var semantica = LiaSemanticRouter.Interpretar(n);
         if (!string.IsNullOrWhiteSpace(semantica)) return new(semantica, semantica == "FECHAR_TELA" ? LiaRisco.Atencao : LiaRisco.Normal);
 
-        if (LicenseFeatures.LiaConversaNatural && Ai.Configurada)
-            return new("CONVERSA_AI", LiaRisco.Normal);
-        return new("LIA_ESSENCIAL", LiaRisco.Normal, "No PLUS eu funciono em modo essencial: voz e comandos do PDV. A conversa natural e os recursos online ficam no PRO.");
+        return DecidirConversa(n);
+    }
+
+    private static LiaDecisao DecidirConversa(string texto)
+    {
+        if (!LicenseFeatures.LiaConversaNatural)
+            return new("LIA_ESSENCIAL", LiaRisco.Normal, "A conversa da LIA não está disponível neste plano.");
+
+        if (!LiaUsageManager.HasTimeRemaining)
+            return new("SALDO_LIA_ESGOTADO", LiaRisco.Normal, LiaUsageManager.ExhaustedMessage);
+
+        if (!Ai.Configurada)
+            return new("LIA_SEM_CONFIGURACAO", LiaRisco.Normal, "A conversa da LIA está disponível no seu plano, mas a conexão de IA ainda não está configurada neste computador.");
+
+        try
+        {
+            var resposta = Task.Run(() => Ai.ConversarAsync(texto)).GetAwaiter().GetResult();
+            if (string.IsNullOrWhiteSpace(resposta))
+                return new("CONVERSA_AI", LiaRisco.Normal, "Não consegui responder pela IA agora. Tente novamente em instantes.");
+
+            var aviso = LiaUsageManager.TakeWarningIfNeeded();
+            if (!string.IsNullOrWhiteSpace(aviso)) resposta += "\n\n" + aviso;
+            if (!LiaUsageManager.HasTimeRemaining) resposta += "\n\n" + LiaUsageManager.ExhaustedMessage;
+            return new("CONVERSA_AI", LiaRisco.Normal, resposta);
+        }
+        catch
+        {
+            return new("CONVERSA_AI", LiaRisco.Normal, "Não consegui acessar a conversa da LIA agora. Os comandos locais do PDV continuam disponíveis.");
+        }
     }
 
     private static void SincronizarOperador()
@@ -140,8 +162,9 @@ public static class LiaCore
     {
         var estado = modoInteracao == LiaInteracaoModo.Trabalho ? "Modo trabalho ativo." : "Modo conversa ativo.";
         var plano = $"Plano {LicenseFeatures.NomePlano}.";
-        if (Auth.IsAdmin) return $"{plano} {estado} Você está como ADMINISTRADOR e pode comandar as funções disponíveis no PDV. Só mantenho confirmação quando houver risco real de perda de dados.";
-        if (Auth.IsManager) return $"{plano} {estado} Você está como GERENTE. Posso ajudar com operação e funções gerenciais autorizadas.";
-        return $"{plano} {estado} Você está como OPERADOR. Posso ajudar com vendas e tarefas operacionais. Financeiro e ações críticas continuam protegidos.";
+        var saldo = LiaUsageManager.HasConversationQuota ? $" Saldo de conversa: {LiaUsageManager.RemainingText}." : "";
+        if (Auth.IsAdmin) return $"{plano} {estado}{saldo} Você está como ADMINISTRADOR e pode comandar as funções disponíveis no PDV. Só mantenho confirmação quando houver risco real de perda de dados.";
+        if (Auth.IsManager) return $"{plano} {estado}{saldo} Você está como GERENTE. Posso ajudar com operação e funções gerenciais autorizadas.";
+        return $"{plano} {estado}{saldo} Você está como OPERADOR. Posso ajudar com vendas e tarefas operacionais. Financeiro e ações críticas continuam protegidos.";
     }
 }
