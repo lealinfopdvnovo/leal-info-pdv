@@ -38,12 +38,23 @@ internal sealed record SignedLicensePayload(
 public static class LicenseManager
 {
     private const string LicenseFileName = "license.key";
-    private const string PublicKeyPem = """
+
+    // Chave original preservada para não invalidar licenças já emitidas.
+    private const string LegacyPublicKeyPem = """
 -----BEGIN PUBLIC KEY-----
 MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEmrzEW3COUihKnOn02fzZePFoDBs8
 cRlG+AJPy2CLvUkJlYN8Kf66nRR+zYosuWGSZy7hhiisiuF/wjltF8Jn5Q==
 -----END PUBLIC KEY-----
 """;
+
+    // Chave mestre definitiva usada pelo gerador oficial a partir da V10.167.
+    private const string MasterPublicKeyPem = """
+-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE1GjpQjxzqJ9rdANxMqYovNQwoQK0
+hCyja+31dBUqMHzttQJNFzFo6VFJLQXlfGJLkjIN7gxO8VExDNIBY54N3Q==
+-----END PUBLIC KEY-----
+""";
+
     private static LicenseState? _current;
 
     private static string LicenseDirectory
@@ -114,9 +125,7 @@ cRlG+AJPy2CLvUkJlYN8Kf66nRR+zYosuWGSZy7hhiisiuF/wjltF8Jn5Q==
             var payloadBytes = FromBase64Url(parts[1]);
             var signature = FromBase64Url(parts[2]);
 
-            using var ecdsa = ECDsa.Create();
-            ecdsa.ImportFromPem(PublicKeyPem);
-            if (!ecdsa.VerifyData(payloadBytes, signature, HashAlgorithmName.SHA256))
+            if (!VerifySignature(payloadBytes, signature))
             {
                 state = Invalid("Assinatura do serial inválida.");
                 return false;
@@ -158,6 +167,26 @@ cRlG+AJPy2CLvUkJlYN8Kf66nRR+zYosuWGSZy7hhiisiuF/wjltF8Jn5Q==
             state = Invalid("Não foi possível validar o serial: " + ex.Message);
             return false;
         }
+    }
+
+    private static bool VerifySignature(byte[] payloadBytes, byte[] signature)
+    {
+        foreach (var publicKey in new[] { MasterPublicKeyPem, LegacyPublicKeyPem })
+        {
+            try
+            {
+                using var ecdsa = ECDsa.Create();
+                ecdsa.ImportFromPem(publicKey);
+                if (ecdsa.VerifyData(payloadBytes, signature, HashAlgorithmName.SHA256))
+                    return true;
+            }
+            catch
+            {
+                // Se uma chave estiver corrompida, tenta a próxima sem derrubar a ativação.
+            }
+        }
+
+        return false;
     }
 
     private static byte[] FromBase64Url(string text)

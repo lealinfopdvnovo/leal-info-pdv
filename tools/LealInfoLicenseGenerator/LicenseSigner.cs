@@ -1,5 +1,4 @@
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 
 namespace LealInfoLicenseGenerator;
@@ -15,11 +14,18 @@ internal sealed record LicensePayload(
 
 internal static class LicenseSigner
 {
-    private const string KeyName = "LEAL_INFO_PDV_LICENSE_SIGNING_KEY_V1";
+    // Chave mestre fixa do gerador oficial. Não depende mais do computador onde o gerador é executado.
+    private const string PrivateKeyPem = """
+-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgARlE7siRnOOLUoYO
+sL2QihBd5EjmX5N+Svi/MCairmGhRANCAATUaOlCPHOon2t0A3Eypii81DChArSE
+LKNr7fV0FSowfO21Ak0XMWjpUUktBeV8YkuSMg3uDE7xUTEM0gFjng3d
+-----END PRIVATE KEY-----
+""";
 
     internal static string CreateLicense(string edition, string customer, string deviceId, DateTime expiresAtUtc)
     {
-        using var ecdsa = OpenOrCreateSigningKey();
+        using var ecdsa = OpenSigningKey();
 
         var payload = new LicensePayload(
             1,
@@ -38,32 +44,15 @@ internal static class LicenseSigner
 
     internal static string ExportPublicKeyPem()
     {
-        using var ecdsa = OpenOrCreateSigningKey();
+        using var ecdsa = OpenSigningKey();
         return ecdsa.ExportSubjectPublicKeyInfoPem();
     }
 
-    private static ECDsa OpenOrCreateSigningKey()
+    private static ECDsa OpenSigningKey()
     {
-        CngKey key;
-        if (CngKey.Exists(KeyName))
-        {
-            key = CngKey.Open(KeyName);
-        }
-        else
-        {
-            var options = new CngKeyCreationParameters
-            {
-                Provider = CngProvider.MicrosoftSoftwareKeyStorageProvider,
-                KeyCreationOptions = CngKeyCreationOptions.None,
-                KeyUsage = CngKeyUsages.Signing
-            };
-            key = CngKey.Create(CngAlgorithm.ECDsaP256, KeyName, options);
-        }
-
-        return new ECDsaCng(key)
-        {
-            HashAlgorithm = CngAlgorithm.Sha256
-        };
+        var ecdsa = ECDsa.Create();
+        ecdsa.ImportFromPem(PrivateKeyPem);
+        return ecdsa;
     }
 
     private static string Base64Url(byte[] data)

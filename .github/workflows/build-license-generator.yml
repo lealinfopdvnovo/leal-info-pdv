@@ -28,7 +28,7 @@ jobs:
         run: dotnet restore tools/LealInfoLicenseGenerator/LealInfoLicenseGenerator.csproj
 
       - name: Compilar
-        run: dotnet publish tools/LealInfoLicenseGenerator/LealInfoLicenseGenerator.csproj -c Release -r win-x64 --self-contained false -o out/license-generator
+        run: dotnet publish tools/LealInfoLicenseGenerator/LealInfoLicenseGenerator.csproj -c Release -r win-x64 --self-contained true -o out/license-generator
 
       - name: Empacotar gerador
         shell: pwsh
@@ -43,8 +43,9 @@ jobs:
           $tag = "gerador-serial-v1"
           gh release view $tag 2>$null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag "LEAL_INFO_GERADOR_DE_SERIAL.zip" --title "LEAL INFO • Gerador de Serial" --notes "Gerador interno de licenças STANDARD, PLUS e PRO. Uso exclusivo LEAL INFO."
+            gh release create $tag "LEAL_INFO_GERADOR_DE_SERIAL.zip" --title "LEAL INFO • Gerador de Serial DEFINITIVO" --notes "Gerador mestre fixo para STANDARD, PLUS e PRO, com acesso protegido por senha local."
           }
           else {
             gh release upload $tag "LEAL_INFO_GERADOR_DE_SERIAL.zip" --clobber
+            gh release edit $tag --title "LEAL INFO • Gerador de Serial DEFINITIVO" --notes "Gerador mestre fixo para STANDARD, PLUS e PRO, com acesso protegido por senha local."
           }
