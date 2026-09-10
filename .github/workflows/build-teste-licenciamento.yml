@@ -1,0 +1,64 @@
+name: Publicar Setup Teste Licenciamento
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - licenciamento-v1
+    paths:
+      - 'LicenseManager.cs'
+      - 'LicenseActivationForm.cs'
+      - 'LicensePlanFeatures.cs'
+      - 'LiaAiClient.cs'
+      - 'LiaVoiceController.cs'
+      - 'Program.cs'
+      - 'LealInfoPDV.csproj'
+      - 'INSTALADOR_LEAL_INFO_PDV_TESTE_LICENCIAMENTO.iss'
+      - '.github/workflows/build-teste-licenciamento.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  setup-teste:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restaurar
+        run: dotnet restore LealInfoPDV.csproj
+
+      - name: Publicar PDV de teste
+        run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_teste_licenciamento
+
+      - name: Validar abertura oficial preservada
+        shell: powershell
+        run: |
+          if (!(Test-Path 'publish_teste_licenciamento\Assets\lia_abertura_pro.mp4')) { throw 'Abertura oficial nao foi empacotada.' }
+
+      - name: Instalar Inno Setup
+        shell: powershell
+        run: choco install innosetup --yes --no-progress
+
+      - name: Fabricar Setup de teste
+        shell: powershell
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "INSTALADOR_LEAL_INFO_PDV_TESTE_LICENCIAMENTO.iss"'
+
+      - name: Publicar Release privada de teste
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'licenciamento-teste-v1'
+          $setup = 'SETUP_TESTE_LICENCIAMENTO/Setup_LEAL_INFO_PDV_TESTE_LICENCIAMENTO.exe'
+          if (!(Test-Path $setup)) { throw "Setup nao encontrado: $setup" }
+          $ErrorActionPreference = 'Continue'
+          gh release delete $tag --cleanup-tag --yes 2>$null
+          $ErrorActionPreference = 'Stop'
+          gh release create $tag $setup --title 'LEAL INFO PDV - Teste de Licenciamento' --notes 'Setup isolado para testar STANDARD, PLUS e PRO. Nao substitui o PDV oficial e preserva a abertura oficial.'
