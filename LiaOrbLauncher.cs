@@ -10,12 +10,10 @@ public sealed class LiaOrbLauncher : Control
 
     public LiaOrbLauncher()
     {
-        Size = new Size(92, 86);
+        Size = new Size(112, 92);
         Cursor = Cursors.Hand;
         TabStop = false;
 
-        // WinForms exige este estilo antes de aceitar Color.Transparent
-        // em um Control personalizado. Sem isso, o PDV falha na inicializacao.
         SetStyle(ControlStyles.UserPaint |
                  ControlStyles.AllPaintingInWmPaint |
                  ControlStyles.OptimizedDoubleBuffer |
@@ -28,21 +26,57 @@ public sealed class LiaOrbLauncher : Control
         Disposed += (_, _) => timer.Dispose();
     }
 
+    protected override void OnPaintBackground(PaintEventArgs e)
+    {
+        // Não pinta retângulo próprio: reproduz o fundo real do controle pai.
+        // Isso elimina o bloco branco ao redor da orbe no canto do PDV.
+        if (Parent is null)
+        {
+            e.Graphics.Clear(Color.Black);
+            return;
+        }
+
+        var state = e.Graphics.Save();
+        try
+        {
+            e.Graphics.TranslateTransform(-Left, -Top);
+            var pea = new PaintEventArgs(e.Graphics, Parent.ClientRectangle);
+            InvokePaintBackground(Parent, pea);
+            InvokePaint(Parent, pea);
+        }
+        finally
+        {
+            e.Graphics.Restore(state);
+        }
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+
         float p = (float)((Math.Sin(fase) + 1) / 2);
-        float cx = Width / 2f, cy = 32f, r = 24f + p * 3f;
-        using var halo = new Pen(Color.FromArgb(80 + (int)(p * 80), 0, 220, 255), 3f);
-        e.Graphics.DrawEllipse(halo, cx-r-3, cy-r-3, (r+3)*2, (r+3)*2);
+        float cx = Width / 2f, cy = 31f, r = 23f + p * 2f;
+
+        using var haloOuter = new Pen(Color.FromArgb(45 + (int)(p * 45), 60, 220, 255), 2f);
+        using var haloInner = new Pen(Color.FromArgb(155 + (int)(p * 70), 125, 238, 255), 2f);
+        e.Graphics.DrawEllipse(haloOuter, cx-r-5, cy-r-5, (r+5)*2, (r+5)*2);
+        e.Graphics.DrawEllipse(haloInner, cx-r-2, cy-r-2, (r+2)*2, (r+2)*2);
+
         var rect = new RectangleF(cx-r, cy-r, r*2, r*2);
-        using var path = new GraphicsPath(); path.AddEllipse(rect);
-        using var fill = new PathGradientBrush(path) { CenterColor = Color.FromArgb(245,18,128,210), SurroundColors = new[] { Color.FromArgb(230,0,24,62) } };
+        using var path = new GraphicsPath();
+        path.AddEllipse(rect);
+        using var fill = new PathGradientBrush(path)
+        {
+            CenterColor = Color.FromArgb(250, 20, 130, 205),
+            SurroundColors = new[] { Color.FromArgb(245, 0, 24, 62) }
+        };
         e.Graphics.FillEllipse(fill, rect);
-        using var font = new Font("Segoe UI", 12, FontStyle.Bold);
+
+        using var font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
         using var br = new SolidBrush(Color.White);
-        var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-        e.Graphics.DrawString("LIA", font, br, new RectangleF(0, 7, Width, 50), sf);
+        using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        e.Graphics.DrawString("LIA", font, br, new RectangleF(0, 6, Width, 50), sf);
 
         if (LiaUsageManager.HasConversationQuota)
         {
@@ -52,7 +86,7 @@ public sealed class LiaOrbLauncher : Control
                 ? Color.FromArgb(124, 238, 255)
                 : Color.FromArgb(255, 170, 170));
             e.Graphics.DrawString($"⏱ {saldo}", clockFont, clockBrush,
-                new RectangleF(0, 62, Width, 22), sf);
+                new RectangleF(0, 64, Width, 22), sf);
         }
     }
 }
