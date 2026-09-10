@@ -9,7 +9,7 @@ public sealed class LiaAiClient
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(10) };
     private readonly List<(string role, string text)> historico = new();
-    private const int MaxHistorico = 4;
+    private const int MaxHistorico = 8;
     public bool Configurada => LicenseFeatures.LiaConversaNatural && LiaUsageManager.HasTimeRemaining && !string.IsNullOrWhiteSpace(Chave());
 
     public async Task<string?> ConversarAsync(string texto, CancellationToken cancellationToken = default)
@@ -18,10 +18,10 @@ public sealed class LiaAiClient
         if (!LiaUsageManager.HasTimeRemaining) return LiaUsageManager.ExhaustedMessage;
 
         var chave = Chave(); if (string.IsNullOrWhiteSpace(chave)) return null;
-        var entrada = new StringBuilder(760); entrada.AppendLine(PromptSistema());
+        var entrada = new StringBuilder(1100); entrada.AppendLine(PromptSistema());
         if (historico.Count > 0) { entrada.AppendLine("Contexto recente:"); foreach (var h in historico) entrada.AppendLine($"{(h.role == "user" ? "Pessoa" : "LIA")}: {h.text}"); }
         entrada.AppendLine($"Pessoa: {texto}"); entrada.Append("LIA:");
-        var payload = new Dictionary<string, object?> { ["model"]="gpt-5.6-luna", ["input"]=entrada.ToString(), ["reasoning"]=new { effort="none" }, ["max_output_tokens"]=80, ["store"]=false, ["stream"]=true, ["prompt_cache_key"]="lia-pdv-voz-v151" };
+        var payload = new Dictionary<string, object?> { ["model"]="gpt-5.6-luna", ["input"]=entrada.ToString(), ["reasoning"]=new { effort="none" }, ["max_output_tokens"]=80, ["store"]=false, ["stream"]=true, ["prompt_cache_key"]="lia-pdv-voz-v152" };
         if (LicenseFeatures.LiaPesquisaWeb && PrecisaWeb(texto)) { payload["tools"] = new object[] { new { type="web_search" } }; payload["tool_choice"]="auto"; }
 
         var sw = Stopwatch.StartNew();
@@ -42,7 +42,26 @@ public sealed class LiaAiClient
         }
     }
 
-    private static bool PrecisaWeb(string texto){var t=texto.ToLowerInvariant();string[] sinais={"hoje","agora","atual","atualmente","último","ultimo","última","ultima","placar","jogo","jogando","resultado","notícia","noticia","notícias","noticias","clima","tempo em","temperatura","previsão","previsao","cotação","cotacao","dólar","dolar","euro","preço hoje","preco hoje","horário","horario","quem ganhou","quem venceu","aconteceu","pesquisa","pesquise","internet"};return sinais.Any(t.Contains);}
+    private static bool PrecisaWeb(string texto)
+    {
+        var t = texto.ToLowerInvariant();
+        if (t.Contains("pesquisa") || t.Contains("pesquise") || t.Contains("internet")) return true;
+
+        string[] sinaisDiretos =
+        {
+            "placar", "resultado do jogo", "quem ganhou", "quem venceu",
+            "notícia", "noticia", "notícias", "noticias",
+            "clima", "tempo em", "temperatura", "previsão", "previsao",
+            "cotação", "cotacao", "dólar", "dolar", "euro",
+            "preço hoje", "preco hoje"
+        };
+        if (sinaisDiretos.Any(t.Contains)) return true;
+
+        var pedeAtualidade = t.Contains("hoje") || t.Contains("agora") || t.Contains("atual") || t.Contains("atualmente") || t.Contains("último") || t.Contains("ultimo") || t.Contains("última") || t.Contains("ultima");
+        var temaAtual = t.Contains("jogo") || t.Contains("preço") || t.Contains("preco") || t.Contains("mercado") || t.Contains("notícia") || t.Contains("noticia") || t.Contains("clima") || t.Contains("cotação") || t.Contains("cotacao");
+        return pedeAtualidade && temaAtual;
+    }
+
     private static string? Chave()=>Environment.GetEnvironmentVariable("OPENAI_API_KEY",EnvironmentVariableTarget.User)??Environment.GetEnvironmentVariable("OPENAI_API_KEY");
     private static string PromptSistema()
     {
@@ -53,13 +72,13 @@ public sealed class LiaAiClient
             : "Respeite as restrições do perfil atual. A execução de ações e permissões continua no roteador local/Auth.";
         var limite=LicenseManager.IsPlus
             ? "Plano PLUS: conversa natural permitida somente dentro do saldo contratado. Não use pesquisa web."
-            : "Plano PRO: conversa completa dentro do saldo contratado; pesquisa web disponível quando necessária.";
+            : "Plano PRO: conversa completa dentro do saldo contratado; pesquisa web disponível somente quando a pergunta realmente depender de informação atual ou quando o operador pedir pesquisa.";
         return $"""
 Você é a LIA do LEAL INFO PDV. Seu nome é LIA e nunca use outro nome para si mesma. Operador: {Auth.OperatorName}. Perfil: {perfil}. Plano: {LicenseFeatures.NomePlano}.
 {liberdade}
 {limite}
-Converse em português do Brasil como voz ao vivo: rápida, inteligente, espontânea, descontraída e natural. Entenda intenção, contexto, gíria e frase incompleta. Não arraste conversa comum para o PDV. Responda em uma frase curta e útil; use duas somente quando necessário. Não exponha raciocínio interno.
-Se depender de fato atual, use pesquisa apenas quando o plano permitir e não invente. A conversa nunca altera permissões: autenticação e autorização permanecem exclusivamente no Auth local.
+Converse em português do Brasil como voz ao vivo: rápida, inteligente, espontânea, descontraída e natural. Entenda intenção, contexto, gíria e frase incompleta. Use o contexto recente para manter continuidade e não contradizer o que acabou de ser dito. Não arraste conversa comum para o PDV. Responda em uma frase curta e útil; use duas somente quando necessário. Não exponha raciocínio interno.
+Se depender de fato atual, use pesquisa apenas quando o plano permitir e quando realmente for necessária; não pesquise por causa de palavras soltas como "agora" ou "hoje". A conversa nunca altera permissões: autenticação e autorização permanecem exclusivamente no Auth local.
 """;
     }
 }
