@@ -129,25 +129,9 @@ public static class LiaCore
         if (!Ai.Configurada)
             return new("LIA_SEM_CONFIGURACAO", LiaRisco.Normal, "A conversa da LIA está disponível no seu plano, mas a conexão de IA ainda não está configurada neste computador.");
 
-        try
-        {
-            var resposta = Task.Run(() => Ai.ConversarAsync(texto)).GetAwaiter().GetResult();
-            if (string.IsNullOrWhiteSpace(resposta))
-                return new("CONVERSA_AI", LiaRisco.Normal, "Não consegui responder pela IA agora. Tente novamente em instantes.");
-
-            var aviso = LiaUsageManager.TakeWarningIfNeeded();
-            if (!string.IsNullOrWhiteSpace(aviso))
-            {
-                var minutos = LiaUsageManager.Remaining.TotalMinutes <= 5 ? 5 : LiaUsageManager.Remaining.TotalMinutes <= 10 ? 10 : 30;
-                resposta += $"\n\nOlha o reloginho... faltam aproximadamente {minutos:0} minutos de conversa.";
-            }
-            if (!LiaUsageManager.HasTimeRemaining) resposta += "\n\nOlha o reloginho... nosso tempo de conversa terminou. " + LiaUsageManager.ExhaustedMessage;
-            return new("CONVERSA_AI", LiaRisco.Normal, resposta);
-        }
-        catch
-        {
-            return new("CONVERSA_AI", LiaRisco.Normal, "Não consegui acessar a conversa da LIA agora. Os comandos locais do PDV continuam disponíveis.");
-        }
+        // A classificação só decide a intenção. A chamada online acontece de forma assíncrona
+        // no controlador de voz, evitando bloquear a escuta e a interface antes da resposta.
+        return new("CONVERSA_AI", LiaRisco.Normal);
     }
 
     public static string MensagemSaldoConversacao()
