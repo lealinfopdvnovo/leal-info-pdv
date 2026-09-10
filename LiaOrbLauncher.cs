@@ -21,33 +21,42 @@ public sealed class LiaOrbLauncher : Control
         UpdateStyles();
         DoubleBuffered = true;
         BackColor = Color.Transparent;
+
+        Resize += (_, _) => AplicarRecorte();
+        HandleCreated += (_, _) => AplicarRecorte();
         timer.Tick += (_, _) => { fase += 0.10; Invalidate(); };
         timer.Start();
         Disposed += (_, _) => timer.Dispose();
     }
 
+    private void AplicarRecorte()
+    {
+        if (Width <= 0 || Height <= 0) return;
+
+        using var shape = new GraphicsPath();
+
+        // Área circular da orbe/halo.
+        shape.AddEllipse((Width - 66) / 2f, 0, 66, 66);
+
+        // Área inferior do relógio em formato de cápsula.
+        var timerRect = new RectangleF(5, 63, Width - 10, 26);
+        const float d = 18f;
+        shape.StartFigure();
+        shape.AddArc(timerRect.X, timerRect.Y, d, d, 180, 90);
+        shape.AddArc(timerRect.Right - d, timerRect.Y, d, d, 270, 90);
+        shape.AddArc(timerRect.Right - d, timerRect.Bottom - d, d, d, 0, 90);
+        shape.AddArc(timerRect.X, timerRect.Bottom - d, d, d, 90, 90);
+        shape.CloseFigure();
+
+        Region?.Dispose();
+        Region = new Region(shape);
+    }
+
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        // Não pinta retângulo próprio: reproduz o fundo real do controle pai.
-        // Isso elimina o bloco branco ao redor da orbe no canto do PDV.
-        if (Parent is null)
-        {
-            e.Graphics.Clear(Color.Black);
-            return;
-        }
-
-        var state = e.Graphics.Save();
-        try
-        {
-            e.Graphics.TranslateTransform(-Left, -Top);
-            var pea = new PaintEventArgs(e.Graphics, Parent.ClientRectangle);
-            InvokePaintBackground(Parent, pea);
-            InvokePaint(Parent, pea);
-        }
-        finally
-        {
-            e.Graphics.Restore(state);
-        }
+        // Fundo escuro somente dentro do recorte; fora dele o controle nem existe visualmente.
+        // Assim desaparece de vez o painel retangular branco do WinForms.
+        e.Graphics.Clear(Color.FromArgb(3, 18, 36));
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -86,7 +95,7 @@ public sealed class LiaOrbLauncher : Control
                 ? Color.FromArgb(124, 238, 255)
                 : Color.FromArgb(255, 170, 170));
             e.Graphics.DrawString($"⏱ {saldo}", clockFont, clockBrush,
-                new RectangleF(0, 64, Width, 22), sf);
+                new RectangleF(4, 65, Width - 8, 20), sf);
         }
     }
 }
