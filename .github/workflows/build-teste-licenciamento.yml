@@ -7,9 +7,14 @@ on:
       - licenciamento-v1
     paths:
       - 'LicenseManager.cs'
+      - 'LicenseFeatures.cs'
       - 'LicenseActivationForm.cs'
       - 'LicensePlanFeatures.cs'
+      - 'LiaCore.cs'
+      - 'LiaUsageManager.cs'
       - 'LiaAiClient.cs'
+      - 'LiaInteligenteForm.cs'
+      - 'LiaOrbLauncher.cs'
       - 'LiaVoiceController.cs'
       - 'Program.cs'
       - 'LealInfoPDV.csproj'
