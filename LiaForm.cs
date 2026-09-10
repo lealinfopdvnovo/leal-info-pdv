@@ -123,21 +123,11 @@ public sealed class LiaForm : Form
 
         try
         {
-            var webViewUserDataFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "LEAL INFO PDV", "WebView2", "LIA");
-            Directory.CreateDirectory(webViewUserDataFolder);
-
-            // Libera autoplay COM ÁUDIO. Sem isso o WebView2 pode tocar o vídeo mudo.
-            var options = new CoreWebView2EnvironmentOptions(
-                additionalBrowserArguments: "--autoplay-policy=no-user-gesture-required");
-
-            var environment = await CoreWebView2Environment.CreateAsync(
-                browserExecutableFolder: null,
-                userDataFolder: webViewUserDataFolder,
-                options: options);
-
-            await web.EnsureCoreWebView2Async(environment);
+            // V10.170: usa o ambiente padrão compartilhado do processo.
+            // O perfil e o autoplay são definidos por WebView2DataBootstrap antes de qualquer formulário.
+            // Não criar um segundo CoreWebView2Environment aqui: ambientes diferentes no mesmo processo
+            // podem causar HRESULT 0x8007139F quando o Tutorial abre outro WebView2.
+            await web.EnsureCoreWebView2Async();
 
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;
