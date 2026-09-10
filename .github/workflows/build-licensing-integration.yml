@@ -7,7 +7,10 @@ on:
       - licenciamento-v1
     paths:
       - 'LicenseManager.cs'
+      - 'LicenseFeatures.cs'
       - 'LicenseActivationForm.cs'
+      - 'LiaCore.cs'
+      - 'LiaAiClient.cs'
       - 'Program.cs'
       - 'LealInfoPDV.csproj'
       - '.github/workflows/build-licensing-integration.yml'
