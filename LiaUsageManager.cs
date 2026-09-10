@@ -4,11 +4,11 @@ namespace LealInfoPDV;
 
 /// <summary>
 /// Controla o saldo de conversação da LIA por licença.
-/// Comandos locais do PDV não devem chamar Consume; somente conversação LIA/IA.
+/// Comandos locais do PDV não chamam Consume; somente conversação LIA/IA.
 /// </summary>
 public static class LiaUsageManager
 {
-    private sealed record UsageState(string LicenseId, long RemainingSeconds, DateTime UpdatedAtUtc);
+    private sealed record UsageState(string LicenseId, long RemainingSeconds, DateTime UpdatedAtUtc, int LastWarningMinutes);
 
     private static readonly object Sync = new();
     private static UsageState? _state;
@@ -53,6 +53,13 @@ public static class LiaUsageManager
         }
     }
 
+    public static string ExhaustedMessage => LicenseManager.Edition switch
+    {
+        LicenseEdition.Plus => "Seu saldo de conversa da LIA terminou. Os comandos locais do PDV continuam funcionando normalmente.",
+        LicenseEdition.Pro => "Seu pacote de 5 horas da LIA terminou. Os comandos locais do PDV continuam funcionando. Para voltar a conversar com a LIA, ative uma nova recarga de 5 horas.",
+        _ => "Conversa da LIA indisponível neste plano."
+    };
+
     /// <summary>
     /// Desconta tempo apenas de conversação LIA/IA. Não usar para comandos locais.
     /// </summary>
@@ -76,7 +83,44 @@ public static class LiaUsageManager
     }
 
     /// <summary>
-    /// Reinicia o saldo quando uma nova licença/recarga é ativada (LicenseId diferente).
+    /// Retorna cada aviso somente uma vez por pacote: 30, 10 e 5 minutos.
+    /// </summary>
+    public static string? TakeWarningIfNeeded()
+    {
+        if (!HasConversationQuota) return null;
+
+        lock (Sync)
+        {
+            EnsureLoaded();
+            if (_state is null || _state.RemainingSeconds <= 0) return null;
+
+            int remainingMinutes = (int)Math.Ceiling(_state.RemainingSeconds / 60d);
+            int warning = remainingMinutes <= 5 ? 5 : remainingMinutes <= 10 ? 10 : remainingMinutes <= 30 ? 30 : 0;
+            if (warning == 0 || _state.LastWarningMinutes == warning) return null;
+
+            _state = _state with { LastWarningMinutes = warning, UpdatedAtUtc = DateTime.UtcNow };
+            Save();
+            return $"Aviso: restam aproximadamente {warning} minutos de conversa com a LIA.";
+        }
+    }
+
+    /// <summary>
+    /// Recarrega manualmente o pacote da licença atual. Deve ser chamado somente após validação comercial/ativação da recarga.
+    /// PLUS recebe 1 hora; PRO recebe 5 horas.
+    /// </summary>
+    public static void RechargeCurrentPackage()
+    {
+        if (!HasConversationQuota) return;
+        lock (Sync)
+        {
+            var licenseId = LicenseManager.Current.LicenseId ?? string.Empty;
+            _state = new UsageState(licenseId, (long)InitialQuota.TotalSeconds, DateTime.UtcNow, 0);
+            Save();
+        }
+    }
+
+    /// <summary>
+    /// Reinicia o estado quando uma nova licença/recarga com LicenseId diferente é ativada.
     /// </summary>
     public static void Reload()
     {
@@ -112,7 +156,7 @@ public static class LiaUsageManager
             // Se o arquivo estiver corrompido, recria com o saldo da licença atual.
         }
 
-        _state = new UsageState(licenseId, initialSeconds, DateTime.UtcNow);
+        _state = new UsageState(licenseId, initialSeconds, DateTime.UtcNow, 0);
         Save();
     }
 
