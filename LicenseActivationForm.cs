@@ -23,8 +23,8 @@ internal sealed class LicenseActivationForm : Form
     {
         Text = "LEAL INFO • Ativação";
         StartPosition = FormStartPosition.CenterScreen;
-        Size = new Size(760, 510);
-        MinimumSize = new Size(680, 470);
+        Size = new Size(760, 540);
+        MinimumSize = new Size(680, 500);
         BackColor = Color.FromArgb(10, 18, 34);
         ForeColor = Color.White;
         Font = new Font("Segoe UI", 10F);
@@ -83,6 +83,29 @@ internal sealed class LicenseActivationForm : Form
         deviceRow.Controls.Add(device);
         deviceRow.Controls.Add(copyDevice);
 
+        var pasteSerial = new Button
+        {
+            Text = "COLAR SERIAL",
+            AutoSize = true,
+            Height = 34,
+            Padding = new Padding(14, 3, 14, 3),
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(20, 94, 180),
+            ForeColor = Color.White,
+            Margin = new Padding(0, 6, 0, 6)
+        };
+        pasteSerial.FlatAppearance.BorderSize = 0;
+        pasteSerial.Click += (_, _) => PasteSerial();
+
+        var pasteRow = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0)
+        };
+        pasteRow.Controls.Add(pasteSerial);
+
         var activate = new Button
         {
             Text = "ATIVAR LICENÇA",
@@ -123,7 +146,7 @@ internal sealed class LicenseActivationForm : Form
             Dock = DockStyle.Fill,
             Padding = new Padding(28),
             ColumnCount = 1,
-            RowCount = 7
+            RowCount = 8
         };
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -132,15 +155,28 @@ internal sealed class LicenseActivationForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         layout.Controls.Add(title, 0, 0);
         layout.Controls.Add(subtitle, 0, 1);
         layout.Controls.Add(deviceRow, 0, 2);
         layout.Controls.Add(serial, 0, 3);
-        layout.Controls.Add(status, 0, 4);
-        layout.Controls.Add(buttons, 0, 5);
+        layout.Controls.Add(pasteRow, 0, 4);
+        layout.Controls.Add(status, 0, 5);
+        layout.Controls.Add(buttons, 0, 6);
 
         Controls.Add(layout);
+    }
+
+    private void PasteSerial()
+    {
+        if (!Clipboard.ContainsText()) return;
+        var text = Clipboard.GetText().Trim();
+        if (string.IsNullOrWhiteSpace(text)) return;
+        serial.Text = text;
+        serial.SelectionStart = serial.Text.Length;
+        status.Text = "Serial colado!";
+        status.ForeColor = Color.LightGreen;
     }
 
     private void ActivateLicense()
