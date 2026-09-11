@@ -1,11 +1,10 @@
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 
 namespace LealInfoPDV;
 
-// Mantem exatamente o tamanho/layout atual da barra e apenas colore os icones.
+// Mantem exatamente o tamanho/layout atual da barra e troca somente a cor dos icones.
 internal static class CompactToolbarColorBootstrap
 {
     [ModuleInitializer]
@@ -33,55 +32,77 @@ internal static class CompactToolbarColorBootstrap
             var caption = pic.Parent?.Controls.OfType<Label>().FirstOrDefault();
             if (caption is null) continue;
 
-            var text = (caption.Text ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Trim().ToUpperInvariant();
+            var text = (caption.Text ?? string.Empty)
+                .Replace("\r", " ")
+                .Replace("\n", " ")
+                .Trim()
+                .ToUpperInvariant();
+
             var accent = AccentFor(text);
             if (accent == Color.Empty) continue;
 
-            pic.Image = Colorize(pic.Image, accent);
+            var old = pic.Image;
+            pic.Image = Colorize(old, accent);
+            if (!ReferenceEquals(old, pic.Image)) old.Dispose();
         }
     }
 
     private static Color AccentFor(string text)
     {
-        if (text.Contains("PRODUT")) return Color.FromArgb(255, 190, 45);       // amarelo/laranja
-        if (text.Contains("CLIENT")) return Color.FromArgb(70, 220, 135);       // verde
-        if (text.Contains("FORNEC")) return Color.FromArgb(80, 180, 255);       // azul claro
-        if (text.Contains("SERVI")) return Color.FromArgb(190, 120, 255);       // violeta
-        if (text.Contains("HIST")) return Color.FromArgb(70, 215, 220);         // turquesa
-        if (text.Contains("FLUXO") || text.Contains("CAIXA")) return Color.FromArgb(75, 220, 110); // verde dinheiro
-        if (text.Contains("ORDENS") || text.Contains("OS")) return Color.FromArgb(255, 155, 65);    // laranja
-        if (text.Contains("ORÇ") || text.Contains("ORC")) return Color.FromArgb(255, 210, 70);       // dourado
-        if (text.Contains("TELA") || text.Contains("VENDAS")) return Color.FromArgb(60, 205, 255);  // ciano
-        if (text.Contains("RELAT")) return Color.FromArgb(105, 185, 255);       // azul
-        if (text.Contains("BACKUP")) return Color.FromArgb(110, 220, 180);      // verde agua
-        if (text.Contains("CONFIG")) return Color.FromArgb(185, 190, 205);      // prata
-        if (text.Contains("SAIR")) return Color.FromArgb(255, 105, 90);         // vermelho coral
+        if (text.Contains("PRODUT")) return Color.FromArgb(255, 185, 35);       // amarelo/laranja
+        if (text.Contains("CLIENT")) return Color.FromArgb(45, 220, 105);       // verde vivo
+        if (text.Contains("FORNEC")) return Color.FromArgb(60, 170, 255);       // azul claro
+        if (text.Contains("SERVI")) return Color.FromArgb(195, 90, 255);        // violeta
+        if (text.Contains("HIST")) return Color.FromArgb(0, 215, 205);          // turquesa
+        if (text.Contains("FLUXO") || text.Contains("CAIXA")) return Color.FromArgb(70, 220, 75); // verde dinheiro
+        if (text.Contains("ORDENS") || text.Contains("OS")) return Color.FromArgb(255, 135, 35);   // laranja
+        if (text.Contains("ORÇ") || text.Contains("ORC")) return Color.FromArgb(255, 205, 35);      // dourado
+        if (text.Contains("TELA") || text.Contains("VENDAS")) return Color.FromArgb(0, 195, 255);  // ciano
+        if (text.Contains("RELAT")) return Color.FromArgb(80, 135, 255);        // azul royal
+        if (text.Contains("BACKUP")) return Color.FromArgb(30, 215, 155);       // verde agua
+        if (text.Contains("CONFIG")) return Color.FromArgb(205, 205, 215);      // prata
+        if (text.Contains("SAIR")) return Color.FromArgb(255, 80, 70);          // vermelho coral
         return Color.Empty;
     }
 
     private static Bitmap Colorize(Image source, Color accent)
     {
-        var bmp = new Bitmap(source.Width, source.Height);
-        using var g = Graphics.FromImage(bmp);
-        g.SmoothingMode = SmoothingMode.HighQuality;
-        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        using var src = new Bitmap(source);
+        var dst = new Bitmap(src.Width, src.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 
-        using var attrs = new System.Drawing.Imaging.ImageAttributes();
-        float r = accent.R / 255f;
-        float gr = accent.G / 255f;
-        float b = accent.B / 255f;
-        var matrix = new System.Drawing.Imaging.ColorMatrix(new[]
+        for (int y = 0; y < src.Height; y++)
         {
-            new float[] { r, 0, 0, 0, 0 },
-            new float[] { 0, gr, 0, 0, 0 },
-            new float[] { 0, 0, b, 0, 0 },
-            new float[] { 0, 0, 0, 1, 0 },
-            new float[] { 0, 0, 0, 0, 1 }
-        });
-        attrs.SetColorMatrix(matrix);
-        g.DrawImage(source, new Rectangle(0, 0, bmp.Width, bmp.Height), 0, 0, source.Width, source.Height, GraphicsUnit.Pixel, attrs);
-        return bmp;
+            for (int x = 0; x < src.Width; x++)
+            {
+                var p = src.GetPixel(x, y);
+                if (p.A == 0)
+                {
+                    dst.SetPixel(x, y, Color.Transparent);
+                    continue;
+                }
+
+                // Usa o brilho original apenas para manter volume/sombra,
+                // mas substitui de verdade a tonalidade azul pela cor escolhida.
+                int brightness = Math.Max(p.R, Math.Max(p.G, p.B));
+                double factor = 0.55 + (brightness / 255.0) * 0.45;
+
+                int r = Math.Clamp((int)(accent.R * factor), 0, 255);
+                int g = Math.Clamp((int)(accent.G * factor), 0, 255);
+                int b = Math.Clamp((int)(accent.B * factor), 0, 255);
+
+                // Realce leve nas partes originalmente quase brancas.
+                if (brightness > 225)
+                {
+                    r = Math.Min(255, r + 28);
+                    g = Math.Min(255, g + 28);
+                    b = Math.Min(255, b + 28);
+                }
+
+                dst.SetPixel(x, y, Color.FromArgb(p.A, r, g, b));
+            }
+        }
+
+        return dst;
     }
 
     private static IEnumerable<Control> Descendants(Control root)
