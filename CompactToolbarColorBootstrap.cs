@@ -4,22 +4,27 @@ using System.Windows.Forms;
 
 namespace LealInfoPDV;
 
-// Mantem exatamente o tamanho/layout atual da barra e troca somente a cor dos icones.
+// Mantem exatamente o tamanho/layout atual e troca somente a cor visual dos icones.
 internal static class CompactToolbarColorBootstrap
 {
+    private static System.Windows.Forms.Timer? timer;
+
     [ModuleInitializer]
     internal static void Initialize()
     {
-        Application.Idle += ApplyWhenReady;
+        timer = new System.Windows.Forms.Timer { Interval = 250 };
+        timer.Tick += (_, _) => ApplyWhenReady();
+        timer.Start();
     }
 
-    private static void ApplyWhenReady(object? sender, EventArgs e)
+    private static void ApplyWhenReady()
     {
         var main = Application.OpenForms.OfType<MainForm>().FirstOrDefault();
         if (main is null || main.IsDisposed || !main.Visible) return;
-
-        Application.Idle -= ApplyWhenReady;
         Apply(main);
+        timer?.Stop();
+        timer?.Dispose();
+        timer = null;
     }
 
     private static void Apply(Control root)
@@ -32,36 +37,32 @@ internal static class CompactToolbarColorBootstrap
             var caption = pic.Parent?.Controls.OfType<Label>().FirstOrDefault();
             if (caption is null) continue;
 
-            var text = (caption.Text ?? string.Empty)
-                .Replace("\r", " ")
-                .Replace("\n", " ")
-                .Trim()
-                .ToUpperInvariant();
-
+            var text = (caption.Text ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Trim().ToUpperInvariant();
             var accent = AccentFor(text);
             if (accent == Color.Empty) continue;
 
             var old = pic.Image;
             pic.Image = Colorize(old, accent);
-            if (!ReferenceEquals(old, pic.Image)) old.Dispose();
+            old.Dispose();
+            pic.Invalidate();
         }
     }
 
     private static Color AccentFor(string text)
     {
-        if (text.Contains("PRODUT")) return Color.FromArgb(255, 185, 35);       // amarelo/laranja
-        if (text.Contains("CLIENT")) return Color.FromArgb(45, 220, 105);       // verde vivo
-        if (text.Contains("FORNEC")) return Color.FromArgb(60, 170, 255);       // azul claro
-        if (text.Contains("SERVI")) return Color.FromArgb(195, 90, 255);        // violeta
-        if (text.Contains("HIST")) return Color.FromArgb(0, 215, 205);          // turquesa
-        if (text.Contains("FLUXO") || text.Contains("CAIXA")) return Color.FromArgb(70, 220, 75); // verde dinheiro
-        if (text.Contains("ORDENS") || text.Contains("OS")) return Color.FromArgb(255, 135, 35);   // laranja
-        if (text.Contains("ORÇ") || text.Contains("ORC")) return Color.FromArgb(255, 205, 35);      // dourado
-        if (text.Contains("TELA") || text.Contains("VENDAS")) return Color.FromArgb(0, 195, 255);  // ciano
-        if (text.Contains("RELAT")) return Color.FromArgb(80, 135, 255);        // azul royal
-        if (text.Contains("BACKUP")) return Color.FromArgb(30, 215, 155);       // verde agua
-        if (text.Contains("CONFIG")) return Color.FromArgb(205, 205, 215);      // prata
-        if (text.Contains("SAIR")) return Color.FromArgb(255, 80, 70);          // vermelho coral
+        if (text.Contains("PRODUT")) return Color.FromArgb(255, 205, 35);       // amarelo
+        if (text.Contains("CLIENT")) return Color.FromArgb(55, 220, 95);       // verde
+        if (text.Contains("FORNEC")) return Color.FromArgb(255, 145, 35);      // laranja
+        if (text.Contains("SERVI")) return Color.FromArgb(205, 95, 255);       // roxo
+        if (text.Contains("HIST")) return Color.FromArgb(35, 220, 210);        // turquesa
+        if (text.Contains("FLUXO")) return Color.FromArgb(70, 225, 80);        // verde dinheiro
+        if (text.Contains("ORDENS")) return Color.FromArgb(255, 105, 55);      // laranja vermelho
+        if (text.Contains("ORÇ") || text.Contains("ORC")) return Color.FromArgb(255, 190, 30); // dourado
+        if (text.Contains("TELA")) return Color.FromArgb(0, 205, 255);         // ciano
+        if (text.Contains("RELAT")) return Color.FromArgb(115, 135, 255);      // azul violeta
+        if (text.Contains("BACKUP")) return Color.FromArgb(45, 225, 165);      // verde agua
+        if (text.Contains("CONFIG")) return Color.FromArgb(235, 185, 45);      // ouro
+        if (text.Contains("SAIR")) return Color.FromArgb(255, 70, 65);         // vermelho
         return Color.Empty;
     }
 
@@ -71,37 +72,18 @@ internal static class CompactToolbarColorBootstrap
         var dst = new Bitmap(src.Width, src.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
 
         for (int y = 0; y < src.Height; y++)
+        for (int x = 0; x < src.Width; x++)
         {
-            for (int x = 0; x < src.Width; x++)
-            {
-                var p = src.GetPixel(x, y);
-                if (p.A == 0)
-                {
-                    dst.SetPixel(x, y, Color.Transparent);
-                    continue;
-                }
+            var p = src.GetPixel(x, y);
+            if (p.A < 8) { dst.SetPixel(x, y, Color.Transparent); continue; }
 
-                // Usa o brilho original apenas para manter volume/sombra,
-                // mas substitui de verdade a tonalidade azul pela cor escolhida.
-                int brightness = Math.Max(p.R, Math.Max(p.G, p.B));
-                double factor = 0.55 + (brightness / 255.0) * 0.45;
-
-                int r = Math.Clamp((int)(accent.R * factor), 0, 255);
-                int g = Math.Clamp((int)(accent.G * factor), 0, 255);
-                int b = Math.Clamp((int)(accent.B * factor), 0, 255);
-
-                // Realce leve nas partes originalmente quase brancas.
-                if (brightness > 225)
-                {
-                    r = Math.Min(255, r + 28);
-                    g = Math.Min(255, g + 28);
-                    b = Math.Min(255, b + 28);
-                }
-
-                dst.SetPixel(x, y, Color.FromArgb(p.A, r, g, b));
-            }
+            int lum = (p.R * 30 + p.G * 59 + p.B * 11) / 100;
+            double shade = 0.72 + (lum / 255.0) * 0.38;
+            int r = Math.Clamp((int)(accent.R * shade), 0, 255);
+            int g = Math.Clamp((int)(accent.G * shade), 0, 255);
+            int b = Math.Clamp((int)(accent.B * shade), 0, 255);
+            dst.SetPixel(x, y, Color.FromArgb(p.A, r, g, b));
         }
-
         return dst;
     }
 
@@ -110,8 +92,7 @@ internal static class CompactToolbarColorBootstrap
         foreach (Control child in root.Controls)
         {
             yield return child;
-            foreach (var nested in Descendants(child))
-                yield return nested;
+            foreach (var nested in Descendants(child)) yield return nested;
         }
     }
 }
