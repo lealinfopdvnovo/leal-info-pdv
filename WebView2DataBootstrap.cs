@@ -1,17 +1,19 @@
+using Microsoft.Web.WebView2.Core;
 using System.Runtime.CompilerServices;
 
 namespace LealInfoPDV;
 
 internal static class WebView2DataBootstrap
 {
+    private static CoreWebView2Environment? sharedEnvironment;
+    private static Task<CoreWebView2Environment>? sharedEnvironmentTask;
+    private static string? sessionFolder;
+
     [ModuleInitializer]
     internal static void Initialize()
     {
         try
         {
-            // V10.174: cada execução do PDV recebe um perfil WebView2 novo e exclusivo.
-            // Tutorial e LIA compartilham ESTE MESMO perfil durante a execução, mas o
-            // próximo início nunca reaproveita locks/estado Chromium de uma sessão anterior.
             var root = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "LEAL INFO", "PDV", "WebView2-Sessions");
@@ -19,14 +21,12 @@ internal static class WebView2DataBootstrap
             Directory.CreateDirectory(root);
             LimparSessoesAntigas(root);
 
-            var folder = Path.Combine(
-                root,
-                $"session-{Environment.ProcessId}-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(folder);
+            sessionFolder = Path.Combine(root, $"session-{Environment.ProcessId}-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(sessionFolder);
 
             Environment.SetEnvironmentVariable(
                 "WEBVIEW2_USER_DATA_FOLDER",
-                folder,
+                sessionFolder,
                 EnvironmentVariableTarget.Process);
 
             Environment.SetEnvironmentVariable(
@@ -36,8 +36,26 @@ internal static class WebView2DataBootstrap
         }
         catch
         {
-            // Nunca derruba o PDV por falha de preparação do perfil do WebView2.
+            // Nunca derruba o PDV por falha de preparacao do perfil do WebView2.
         }
+    }
+
+    // Um unico CoreWebView2Environment por processo. Isso evita o 0x8007139F
+    // quando Tutorial e LIA inicializam WebView2 na mesma execucao do PDV.
+    internal static Task<CoreWebView2Environment> GetEnvironmentAsync()
+    {
+        if (sharedEnvironment is not null)
+            return Task.FromResult(sharedEnvironment);
+
+        return sharedEnvironmentTask ??= CreateEnvironmentAsync();
+    }
+
+    private static async Task<CoreWebView2Environment> CreateEnvironmentAsync()
+    {
+        var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
+        var env = await CoreWebView2Environment.CreateAsync(null, sessionFolder, options);
+        sharedEnvironment = env;
+        return env;
     }
 
     private static void LimparSessoesAntigas(string root)
@@ -54,7 +72,7 @@ internal static class WebView2DataBootstrap
                 }
                 catch
                 {
-                    // Perfil ainda em uso/bloqueado: deixa para uma próxima inicialização.
+                    // Perfil ainda em uso/bloqueado: deixa para uma proxima inicializacao.
                 }
             }
         }
