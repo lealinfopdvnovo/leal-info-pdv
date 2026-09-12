@@ -28,13 +28,14 @@ public sealed class SplashForm : Form
         KeyPreview = true;
 
         introLayer.BackColor = Fundo;
+        introLayer.Dock = DockStyle.Fill;
         Controls.Add(introLayer);
 
         videoView.BackColor = Fundo;
         videoView.DefaultBackgroundColor = Fundo;
+        videoView.Dock = DockStyle.Fill;
         introLayer.Controls.Add(videoView);
 
-        Resize += (_, _) => LayoutSplash();
         Shown += async (_, _) => await StartIntroAsync();
         fallbackTimer.Tick += (_, _) =>
         {
@@ -49,15 +50,8 @@ public sealed class SplashForm : Form
         };
     }
 
-    private void LayoutSplash()
-    {
-        introLayer.Bounds = ClientRectangle;
-        videoView.Bounds = introLayer.ClientRectangle;
-    }
-
     private async Task StartIntroAsync()
     {
-        LayoutSplash();
         LoadRealLogin();
         SelectOpeningForToday();
 
@@ -73,7 +67,12 @@ public sealed class SplashForm : Form
             fallbackLimitSeconds = 12;
         }
 
-        var ok = await StartVideoAsync(videoName);
+        introLayer.Visible = true;
+        introLayer.BringToFront();
+        videoView.Visible = true;
+        videoView.BringToFront();
+
+        var ok = await StartVideoAsync(videoName, !markDailyIntro);
         if (!ok)
         {
             FinishIntro();
@@ -86,99 +85,65 @@ public sealed class SplashForm : Form
 
     private void SelectOpeningForToday()
     {
-        var stateDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "LEAL INFO PDV");
+        var stateDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV");
         Directory.CreateDirectory(stateDir);
-
         var stateFile = Path.Combine(stateDir, "lia-abertura-diaria.txt");
         var today = DateTime.Now.ToString("yyyy-MM-dd");
         string last = "";
-        try
-        {
-            if (File.Exists(stateFile))
-                last = File.ReadAllText(stateFile).Trim();
-        }
-        catch { }
-
+        try { if (File.Exists(stateFile)) last = File.ReadAllText(stateFile).Trim(); } catch { }
         markDailyIntro = !string.Equals(last, today, StringComparison.Ordinal);
     }
 
-    private async Task<bool> StartVideoAsync(string videoName)
+    private async Task<bool> StartVideoAsync(string videoName, bool fillScreen)
     {
         try
         {
-            videoView.Visible = true;
-            videoView.BringToFront();
-
             var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
             var video = Path.Combine(assets, videoName);
-            if (!File.Exists(video))
-                return false;
+            if (!File.Exists(video)) return false;
 
-            var data = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "LEAL INFO PDV", "WebView2", "LIA_SPLASH_VIDEO");
+            var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV", "WebView2", "LIA_SPLASH_VIDEO");
             Directory.CreateDirectory(data);
-
-            var options = new CoreWebView2EnvironmentOptions(
-                additionalBrowserArguments: "--autoplay-policy=no-user-gesture-required");
+            var options = new CoreWebView2EnvironmentOptions(additionalBrowserArguments: "--autoplay-policy=no-user-gesture-required");
             var env = await CoreWebView2Environment.CreateAsync(null, data, options);
             await videoView.EnsureCoreWebView2Async(env);
 
             videoView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             videoView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             videoView.CoreWebView2.Settings.IsStatusBarEnabled = false;
-            videoView.CoreWebView2.SetVirtualHostNameToFolderMapping(
-                "lia-splash.local", assets, CoreWebView2HostResourceAccessKind.Allow);
-
+            videoView.CoreWebView2.SetVirtualHostNameToFolderMapping("lia-splash.local", assets, CoreWebView2HostResourceAccessKind.Allow);
             videoView.CoreWebView2.WebMessageReceived += (_, e) =>
             {
-                var msg = "";
+                string msg = "";
                 try { msg = e.TryGetWebMessageAsString(); } catch { }
-                if (msg == "splash-video-ended")
-                    FinishIntro();
+                if (msg == "splash-video-ended") FinishIntro();
             };
 
             var safeVideoName = videoName.Replace("'", "").Replace("\"", "");
+            var fit = fillScreen ? "cover" : "contain";
             var html =
                 "<!doctype html><html><head><meta charset=\"utf-8\"><style>" +
-                "html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}" +
-                "body{display:flex;align-items:center;justify-content:center;background:#000}" +
-                "video{width:100%;height:100%;object-fit:contain;background:#000}" +
+                "html,body{margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#000}" +
+                "body{position:fixed;inset:0;background:#000}" +
+                "video{position:absolute;inset:0;width:100vw;height:100vh;object-fit:" + fit + ";object-position:center center;background:#000}" +
                 "</style></head><body>" +
                 "<video id=\"splashVideo\" autoplay playsinline preload=\"auto\"><source src=\"https://lia-splash.local/" + safeVideoName + "\" type=\"video/mp4\"></video>" +
-                "<script>" +
-                "const v=document.getElementById('splashVideo');" +
-                "const done=()=>chrome.webview.postMessage('splash-video-ended');" +
-                "v.addEventListener('ended',done);" +
-                "v.addEventListener('error',done);" +
-                "v.play().catch(done);" +
-                "</script></body></html>";
-
+                "<script>const v=document.getElementById('splashVideo');const done=()=>chrome.webview.postMessage('splash-video-ended');v.addEventListener('ended',done);v.addEventListener('error',done);v.play().catch(done);</script>" +
+                "</body></html>";
             videoView.NavigateToString(html);
             return true;
         }
-        catch
-        {
-            return false;
-        }
+        catch { return false; }
     }
 
     private void MarkDailyIntroCompleted()
     {
-        if (!markDailyIntro)
-            return;
-
+        if (!markDailyIntro) return;
         try
         {
-            var stateDir = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "LEAL INFO PDV");
+            var stateDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LEAL INFO PDV");
             Directory.CreateDirectory(stateDir);
-            File.WriteAllText(
-                Path.Combine(stateDir, "lia-abertura-diaria.txt"),
-                DateTime.Now.ToString("yyyy-MM-dd"));
+            File.WriteAllText(Path.Combine(stateDir, "lia-abertura-diaria.txt"), DateTime.Now.ToString("yyyy-MM-dd"));
             markDailyIntro = false;
         }
         catch { }
@@ -186,16 +151,12 @@ public sealed class SplashForm : Form
 
     private void FinishIntro()
     {
-        if (introFinished)
-            return;
-
+        if (introFinished) return;
         introFinished = true;
         fallbackTimer.Stop();
         MarkDailyIntroCompleted();
-
-        if (!loginLoaded)
-            LoadRealLogin();
-
+        if (!loginLoaded) LoadRealLogin();
+        videoView.Visible = false;
         introLayer.Visible = false;
         login?.BringToFront();
         TopMost = false;
@@ -203,9 +164,7 @@ public sealed class SplashForm : Form
 
     private void LoadRealLogin()
     {
-        if (loginLoaded)
-            return;
-
+        if (loginLoaded) return;
         loginLoaded = true;
         login = new LoginForm
         {
@@ -216,21 +175,11 @@ public sealed class SplashForm : Form
             Dock = DockStyle.Fill,
             TopMost = false
         };
-
         login.FormClosed += (_, _) =>
         {
-            if (login.DialogResult == DialogResult.OK)
-            {
-                DialogResult = DialogResult.OK;
-                Close();
-            }
-            else if (!IsDisposed)
-            {
-                DialogResult = DialogResult.Cancel;
-                Close();
-            }
+            if (login.DialogResult == DialogResult.OK) { DialogResult = DialogResult.OK; Close(); }
+            else if (!IsDisposed) { DialogResult = DialogResult.Cancel; Close(); }
         };
-
         Controls.Add(login);
         login.Show();
         ApplyCurrentVersionToLogin(login);
@@ -242,14 +191,9 @@ public sealed class SplashForm : Form
     {
         foreach (Control control in root.Controls)
         {
-            if (control is Label label &&
-                label.Text.Contains("ACESSO SEGURO", StringComparison.OrdinalIgnoreCase))
-            {
+            if (control is Label label && label.Text.Contains("ACESSO SEGURO", StringComparison.OrdinalIgnoreCase))
                 label.Text = $"LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V{UpdateManager.CurrentVersion}";
-            }
-
-            if (control.HasChildren)
-                ApplyCurrentVersionToLogin(control);
+            if (control.HasChildren) ApplyCurrentVersionToLogin(control);
         }
     }
 }
