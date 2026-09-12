@@ -55,19 +55,20 @@ jobs:
           $p = "LiaVoiceController.cs"
           $c = Get-Content $p -Raw
           $alvo = '        var n=Normalizar(texto);'
-          $novo = @'
-        var n=Normalizar(texto);
-
-        // V10.183: permite recolher a LIA por voz, mantendo o clique liga/desliga existente.
-        if(Tem(n,"recolher lia","recolhe lia","lia recolher","lia recolhe","fechar lia","fecha lia"))
-        {
-            orbe.SetEstado("RECOLHENDO");
-            main.BeginInvoke(new Action(Encerrar));
-            return string.Empty;
-        }
-'@
+          $linhas = @(
+            $alvo,
+            '',
+            '        // V10.183: permite recolher a LIA por voz, mantendo o clique liga/desliga existente.',
+            '        if(Tem(n,"recolher lia","recolhe lia","lia recolher","lia recolhe","fechar lia","fecha lia"))',
+            '        {',
+            '            orbe.SetEstado("RECOLHENDO");',
+            '            main.BeginInvoke(new Action(Encerrar));',
+            '            return string.Empty;',
+            '        }'
+          )
+          $novo = $linhas -join "`r`n"
           if (-not $c.Contains($alvo)) { throw "Ponto de insercao do comando Recolher LIA nao encontrado." }
-          $c = $c.Replace($alvo, $novo.TrimEnd())
+          $c = $c.Replace($alvo, $novo)
           Set-Content -Path $p -Value $c -Encoding UTF8
           $check = Get-Content $p -Raw
           if (-not $check.Contains('"recolher lia"')) { throw "Comando Recolher LIA nao foi aplicado." }
@@ -112,7 +113,7 @@ jobs:
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          gh release create $env:UPDATE_TAG $package --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.183: adiciona o comando de voz 'Recolher LIA' para fechar/recolher a LIA sem clicar novamente. O clique liga/desliga continua funcionando normalmente. Mantém a correção WebView2 da V10.182 e preserva o restante do sistema. Atualização automática, sem Setup."
+          gh release create $env:UPDATE_TAG $package --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.183: adiciona o comando de voz Recolher LIA para fechar/recolher a LIA sem clicar novamente. O clique liga/desliga continua funcionando normalmente. Mantém a correção WebView2 da V10.182 e preserva o restante do sistema. Atualização automática, sem Setup."
           $manifest = @{
             Version = $env:UPDATE_VERSION
             PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"
@@ -130,5 +131,3 @@ jobs:
           path: LEAL_INFO_PDV_V10_183_UPDATE.zip
           if-no-files-found: error
           retention-days: 7
-
-      # Mantém a base aprovada; adiciona somente o comando de recolhimento por voz.
