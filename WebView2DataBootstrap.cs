@@ -7,26 +7,24 @@ internal static class WebView2DataBootstrap
 {
     private static CoreWebView2Environment? sharedEnvironment;
     private static Task<CoreWebView2Environment>? sharedEnvironmentTask;
-    private static string? sessionFolder;
+    private static string? sharedFolder;
 
     [ModuleInitializer]
     internal static void Initialize()
     {
         try
         {
-            var root = Path.Combine(
+            // V10.181: um único perfil físico para toda a LIA nesta execução.
+            // Alinha LiaForm e LiaVoiceController no mesmo UserDataFolder e evita 0x8007139F.
+            sharedFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "LEAL INFO", "PDV", "WebView2-Sessions");
+                "LEAL INFO PDV", "WebView2", "LIA_VOZ_V3");
 
-            Directory.CreateDirectory(root);
-            LimparSessoesAntigas(root);
-
-            sessionFolder = Path.Combine(root, $"session-{Environment.ProcessId}-{Guid.NewGuid():N}");
-            Directory.CreateDirectory(sessionFolder);
+            Directory.CreateDirectory(sharedFolder);
 
             Environment.SetEnvironmentVariable(
                 "WEBVIEW2_USER_DATA_FOLDER",
-                sessionFolder,
+                sharedFolder,
                 EnvironmentVariableTarget.Process);
 
             Environment.SetEnvironmentVariable(
@@ -36,12 +34,10 @@ internal static class WebView2DataBootstrap
         }
         catch
         {
-            // Nunca derruba o PDV por falha de preparacao do perfil do WebView2.
+            // Nunca derruba o PDV por falha de preparação do perfil do WebView2.
         }
     }
 
-    // Um unico CoreWebView2Environment por processo. Isso evita o 0x8007139F
-    // quando Tutorial e LIA inicializam WebView2 na mesma execucao do PDV.
     internal static Task<CoreWebView2Environment> GetEnvironmentAsync()
     {
         if (sharedEnvironment is not null)
@@ -52,32 +48,15 @@ internal static class WebView2DataBootstrap
 
     private static async Task<CoreWebView2Environment> CreateEnvironmentAsync()
     {
+        sharedFolder ??= Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LEAL INFO PDV", "WebView2", "LIA_VOZ_V3");
+
+        Directory.CreateDirectory(sharedFolder);
+
         var options = new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
-        var env = await CoreWebView2Environment.CreateAsync(null, sessionFolder, options);
+        var env = await CoreWebView2Environment.CreateAsync(null, sharedFolder, options);
         sharedEnvironment = env;
         return env;
-    }
-
-    private static void LimparSessoesAntigas(string root)
-    {
-        try
-        {
-            var limite = DateTime.UtcNow.AddDays(-2);
-            foreach (var dir in Directory.EnumerateDirectories(root, "session-*"))
-            {
-                try
-                {
-                    if (Directory.GetLastWriteTimeUtc(dir) < limite)
-                        Directory.Delete(dir, true);
-                }
-                catch
-                {
-                    // Perfil ainda em uso/bloqueado: deixa para uma proxima inicializacao.
-                }
-            }
-        }
-        catch
-        {
-        }
     }
 }
