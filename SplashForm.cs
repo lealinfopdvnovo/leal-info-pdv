@@ -1,8 +1,6 @@
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
-using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 
 namespace LealInfoPDV;
 
@@ -13,11 +11,11 @@ public sealed class SplashForm : Form
     private readonly WebView2 videoView = new();
     private readonly System.Windows.Forms.Timer fallbackTimer = new() { Interval = 1000 };
     private int fallbackSeconds;
+    private int fallbackLimitSeconds = 35;
     private LoginForm? login;
     private bool loginLoaded;
     private bool introFinished;
     private bool markDailyIntro;
-    private LogoIntroControl? logoIntro;
 
     public SplashForm()
     {
@@ -41,7 +39,7 @@ public sealed class SplashForm : Form
         fallbackTimer.Tick += (_, _) =>
         {
             fallbackSeconds++;
-            if (fallbackSeconds >= 35)
+            if (fallbackSeconds >= fallbackLimitSeconds)
                 FinishIntro();
         };
         KeyDown += (_, e) =>
@@ -55,8 +53,6 @@ public sealed class SplashForm : Form
     {
         introLayer.Bounds = ClientRectangle;
         videoView.Bounds = introLayer.ClientRectangle;
-        if (logoIntro is not null)
-            logoIntro.Bounds = introLayer.ClientRectangle;
     }
 
     private async Task StartIntroAsync()
@@ -65,13 +61,19 @@ public sealed class SplashForm : Form
         LoadRealLogin();
         SelectOpeningForToday();
 
-        if (!markDailyIntro)
+        string videoName;
+        if (markDailyIntro)
         {
-            StartLogoIntro();
-            return;
+            videoName = "lia_abertura_pro.mp4";
+            fallbackLimitSeconds = 35;
+        }
+        else
+        {
+            videoName = "logo_abertura_login.mp4";
+            fallbackLimitSeconds = 12;
         }
 
-        var ok = await StartOpeningVideoAsync();
+        var ok = await StartVideoAsync(videoName);
         if (!ok)
         {
             FinishIntro();
@@ -102,38 +104,15 @@ public sealed class SplashForm : Form
         markDailyIntro = !string.Equals(last, today, StringComparison.Ordinal);
     }
 
-    private void StartLogoIntro()
-    {
-        try
-        {
-            videoView.Visible = false;
-            logoIntro?.Dispose();
-            logoIntro = new LogoIntroControl
-            {
-                Dock = DockStyle.Fill,
-                BackColor = Color.Black
-            };
-            logoIntro.Completed += (_, _) => FinishIntro();
-            introLayer.Controls.Add(logoIntro);
-            logoIntro.BringToFront();
-            logoIntro.Start();
-
-            fallbackSeconds = 0;
-            fallbackTimer.Start();
-        }
-        catch
-        {
-            FinishIntro();
-        }
-    }
-
-    private async Task<bool> StartOpeningVideoAsync()
+    private async Task<bool> StartVideoAsync(string videoName)
     {
         try
         {
             videoView.Visible = true;
+            videoView.BringToFront();
+
             var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
-            var video = Path.Combine(assets, "lia_abertura_pro.mp4");
+            var video = Path.Combine(assets, videoName);
             if (!File.Exists(video))
                 return false;
 
@@ -155,18 +134,27 @@ public sealed class SplashForm : Form
 
             videoView.CoreWebView2.WebMessageReceived += (_, e) =>
             {
-                if (e.TryGetWebMessageAsString() == "lia-video-ended")
+                var msg = "";
+                try { msg = e.TryGetWebMessageAsString(); } catch { }
+                if (msg == "splash-video-ended")
                     FinishIntro();
             };
 
-            const string html = """
+            var safeVideoName = videoName.Replace("'", "").Replace("\"", "");
+            var html = $"""
 <!doctype html><html><head><meta charset="utf-8"><style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
-body{display:flex;align-items:center;justify-content:center}
-video{width:100%;height:100%;object-fit:contain;background:#000}
+html,body{{margin:0;width:100%;height:100%;overflow:hidden;background:#000}}
+body{{display:flex;align-items:center;justify-content:center;background:#000}}
+video{{width:100%;height:100%;object-fit:contain;background:#000}}
 </style></head><body>
-<video id="liaVideo" autoplay playsinline preload="auto"><source src="https://lia-splash.local/lia_abertura_pro.mp4" type="video/mp4"></video>
-<script>const v=document.getElementById('liaVideo');v.addEventListener('ended',()=>chrome.webview.postMessage('lia-video-ended'));v.addEventListener('error',()=>chrome.webview.postMessage('lia-video-ended'));v.play().catch(()=>{});</script>
+<video id="splashVideo" autoplay playsinline preload="auto"><source src="https://lia-splash.local/{safeVideoName}" type="video/mp4"></video>
+<script>
+const v=document.getElementById('splashVideo');
+const done=()=>chrome.webview.postMessage('splash-video-ended');
+v.addEventListener('ended',done);
+v.addEventListener('error',done);
+v.play().catch(done);
+</script>
 </body></html>
 """;
 
@@ -206,14 +194,6 @@ video{width:100%;height:100%;object-fit:contain;background:#000}
         introFinished = true;
         fallbackTimer.Stop();
         MarkDailyIntroCompleted();
-
-        try
-        {
-            logoIntro?.Stop();
-            logoIntro?.Dispose();
-            logoIntro = null;
-        }
-        catch { }
 
         if (!loginLoaded)
             LoadRealLogin();
@@ -272,159 +252,6 @@ video{width:100%;height:100%;object-fit:contain;background:#000}
 
             if (control.HasChildren)
                 ApplyCurrentVersionToLogin(control);
-        }
-    }
-
-    private sealed class LogoIntroControl : Control
-    {
-        private readonly System.Windows.Forms.Timer timer = new() { Interval = 16 };
-        private readonly Stopwatch watch = new();
-        private Image? logo;
-        private bool completed;
-
-        public event EventHandler? Completed;
-
-        public LogoIntroControl()
-        {
-            DoubleBuffered = true;
-            SetStyle(
-                ControlStyles.AllPaintingInWmPaint |
-                ControlStyles.UserPaint |
-                ControlStyles.OptimizedDoubleBuffer,
-                true);
-
-            timer.Tick += (_, _) =>
-            {
-                if (!watch.IsRunning)
-                    return;
-
-                Invalidate();
-                if (watch.Elapsed.TotalMilliseconds >= 5000)
-                {
-                    Stop();
-                    if (!completed)
-                    {
-                        completed = true;
-                        Completed?.Invoke(this, EventArgs.Empty);
-                    }
-                }
-            };
-        }
-
-        public void Start()
-        {
-            LoadLogo();
-            completed = false;
-            watch.Restart();
-            timer.Start();
-            Invalidate();
-        }
-
-        public void Stop()
-        {
-            timer.Stop();
-            watch.Stop();
-        }
-
-        private void LoadLogo()
-        {
-            if (logo is not null)
-                return;
-
-            var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
-            var candidates = new[]
-            {
-                Path.Combine(assets, "logo.png"),
-                Path.Combine(assets, "lealinfo_app_icon.png")
-            };
-
-            foreach (var path in candidates)
-            {
-                if (!File.Exists(path))
-                    continue;
-
-                try
-                {
-                    using var source = Image.FromFile(path);
-                    logo = new Bitmap(source);
-                    return;
-                }
-                catch { }
-            }
-        }
-
-        protected override void OnPaint(PaintEventArgs e)
-        {
-            base.OnPaint(e);
-            var g = e.Graphics;
-            g.Clear(Color.Black);
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
-            var elapsed = watch.IsRunning ? watch.Elapsed.TotalMilliseconds : 5000.0;
-            var t = Math.Clamp(elapsed / 5000.0, 0.0, 1.0);
-
-            var zoomT = Math.Clamp(t / 0.72, 0.0, 1.0);
-            var ease = 1.0 - Math.Pow(1.0 - zoomT, 3.0);
-
-            if (logo is not null)
-            {
-                var fit = Math.Min(
-                    ClientSize.Width * 0.78 / logo.Width,
-                    ClientSize.Height * 0.72 / logo.Height);
-                var scale = fit * (0.045 + 1.08 * ease);
-                var w = Math.Max(1, (int)(logo.Width * scale));
-                var h = Math.Max(1, (int)(logo.Height * scale));
-                var x = (ClientSize.Width - w) / 2;
-                var y = (ClientSize.Height - h) / 2;
-
-                var glow = (int)(70 + 110 * ease);
-                using var glowPen1 = new Pen(Color.FromArgb(Math.Min(150, glow), 0, 190, 255), Math.Max(2f, 3f + (float)ease * 8f));
-                using var glowPen2 = new Pen(Color.FromArgb(Math.Min(90, glow / 2), 80, 225, 255), Math.Max(1f, 1.5f + (float)ease * 4f));
-                var pad = (int)(18 + 35 * ease);
-                g.DrawEllipse(glowPen1, x - pad, y - pad, w + pad * 2, h + pad * 2);
-                g.DrawEllipse(glowPen2, x - pad / 2, y - pad / 2, w + pad, h + pad);
-                g.DrawImage(logo, new Rectangle(x, y, w, h));
-            }
-
-            if (t >= 0.68)
-            {
-                var p = Math.Clamp((t - 0.68) / 0.32, 0.0, 1.0);
-                var maxRadius = Math.Sqrt(ClientSize.Width * ClientSize.Width + ClientSize.Height * ClientSize.Height);
-                var radius = (float)(30 + maxRadius * 0.82 * p);
-                var cx = ClientSize.Width / 2f;
-                var cy = ClientSize.Height / 2f;
-
-                using var ring1 = new Pen(Color.FromArgb((int)(230 * (1 - p * 0.5)), 0, 190, 255), Math.Max(4f, 18f * (float)(1 - p) + 4f));
-                using var ring2 = new Pen(Color.FromArgb((int)(210 * (1 - p * 0.35)), 220, 250, 255), Math.Max(2f, 9f * (float)(1 - p) + 2f));
-                g.DrawEllipse(ring1, cx - radius, cy - radius, radius * 2, radius * 2);
-                g.DrawEllipse(ring2, cx - radius * 0.72f, cy - radius * 0.72f, radius * 1.44f, radius * 1.44f);
-
-                var flashProgress = Math.Clamp((p - 0.15) / 0.85, 0.0, 1.0);
-                var flashAlpha = (int)(255 * Math.Pow(flashProgress, 0.72));
-                using var flash = new SolidBrush(Color.FromArgb(flashAlpha, 225, 248, 255));
-                g.FillRectangle(flash, ClientRectangle);
-
-                if (p > 0.72)
-                {
-                    var whiteAlpha = (int)(255 * Math.Clamp((p - 0.72) / 0.28, 0.0, 1.0));
-                    using var white = new SolidBrush(Color.FromArgb(whiteAlpha, 248, 253, 255));
-                    g.FillRectangle(white, ClientRectangle);
-                }
-            }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                timer.Stop();
-                timer.Dispose();
-                logo?.Dispose();
-                logo = null;
-            }
-            base.Dispose(disposing);
         }
     }
 }
