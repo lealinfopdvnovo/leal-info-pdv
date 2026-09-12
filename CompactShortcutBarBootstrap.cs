@@ -127,7 +127,7 @@ internal static class CompactShortcutBarBootstrap
 
             var caption = new Label
             {
-                Text = text,
+                Text = Normalize(text),
                 Top = 54,
                 Height = 18,
                 TextAlign = ContentAlignment.TopCenter,
