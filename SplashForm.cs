@@ -141,22 +141,20 @@ public sealed class SplashForm : Form
             };
 
             var safeVideoName = videoName.Replace("'", "").Replace("\"", "");
-            var html = $"""
-<!doctype html><html><head><meta charset="utf-8"><style>
-html,body{{margin:0;width:100%;height:100%;overflow:hidden;background:#000}}
-body{{display:flex;align-items:center;justify-content:center;background:#000}}
-video{{width:100%;height:100%;object-fit:contain;background:#000}}
-</style></head><body>
-<video id="splashVideo" autoplay playsinline preload="auto"><source src="https://lia-splash.local/{safeVideoName}" type="video/mp4"></video>
-<script>
-const v=document.getElementById('splashVideo');
-const done=()=>chrome.webview.postMessage('splash-video-ended');
-v.addEventListener('ended',done);
-v.addEventListener('error',done);
-v.play().catch(done);
-</script>
-</body></html>
-""";
+            var html =
+                "<!doctype html><html><head><meta charset=\"utf-8\"><style>" +
+                "html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}" +
+                "body{display:flex;align-items:center;justify-content:center;background:#000}" +
+                "video{width:100%;height:100%;object-fit:contain;background:#000}" +
+                "</style></head><body>" +
+                "<video id=\"splashVideo\" autoplay playsinline preload=\"auto\"><source src=\"https://lia-splash.local/" + safeVideoName + "\" type=\"video/mp4\"></video>" +
+                "<script>" +
+                "const v=document.getElementById('splashVideo');" +
+                "const done=()=>chrome.webview.postMessage('splash-video-ended');" +
+                "v.addEventListener('ended',done);" +
+                "v.addEventListener('error',done);" +
+                "v.play().catch(done);" +
+                "</script></body></html>";
 
             videoView.NavigateToString(html);
             return true;
