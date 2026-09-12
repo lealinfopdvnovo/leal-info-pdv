@@ -116,9 +116,9 @@ internal static class CompactShortcutBarBootstrap
 
             var pic = new PictureBox
             {
-                Width = 30,
-                Height = 30,
-                Top = 4,
+                Width = 55,
+                Height = 55,
+                Top = 0,
                 SizeMode = PictureBoxSizeMode.Zoom,
                 BackColor = Color.Transparent,
                 Image = sourceImage,
@@ -128,8 +128,8 @@ internal static class CompactShortcutBarBootstrap
             var caption = new Label
             {
                 Text = text,
-                Top = 36,
-                Height = 32,
+                Top = 54,
+                Height = 18,
                 TextAlign = ContentAlignment.TopCenter,
                 ForeColor = Color.White,
                 BackColor = Color.Transparent,
