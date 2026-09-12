@@ -43,16 +43,21 @@ public sealed class SplashForm : Form
             if (fallbackSeconds >= fallbackLimitSeconds)
                 FinishIntro();
         };
-        KeyDown += (_, e) =>
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        if (keyData == Keys.Escape && introFinished)
         {
-            if (e.KeyCode == Keys.Escape && loginLoaded)
-                FinishIntro();
-        };
+            DialogResult = DialogResult.Cancel;
+            Close();
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
     }
 
     private async Task StartIntroAsync()
     {
-        LoadRealLogin();
         SelectOpeningForToday();
 
         string videoName;
@@ -155,9 +160,9 @@ public sealed class SplashForm : Form
         introFinished = true;
         fallbackTimer.Stop();
         MarkDailyIntroCompleted();
-        if (!loginLoaded) LoadRealLogin();
         videoView.Visible = false;
         introLayer.Visible = false;
+        LoadRealLogin();
         login?.BringToFront();
         TopMost = false;
     }
@@ -183,8 +188,7 @@ public sealed class SplashForm : Form
         Controls.Add(login);
         login.Show();
         ApplyCurrentVersionToLogin(login);
-        login.SendToBack();
-        introLayer.BringToFront();
+        login.BringToFront();
     }
 
     private static void ApplyCurrentVersionToLogin(Control root)
