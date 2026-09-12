@@ -117,7 +117,10 @@ public sealed class LiaForm : Form
 
         try
         {
-            await web.EnsureCoreWebView2Async();
+            // V10.180: usa o mesmo ambiente WebView2 já preparado para este processo.
+            // Isso evita o 0x8007139F causado por inicializações com perfis diferentes.
+            var env = await WebView2DataBootstrap.GetEnvironmentAsync();
+            await web.EnsureCoreWebView2Async(env);
 
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;
