@@ -1,5 +1,5 @@
-# V10.187: atualização automática sem setup — vinheta secundária cobrindo a tela inteira
-name: Publicar atualização LEAL INFO PDV V10.187
+# V10.188: atualização automática sem setup — remove flash inicial e ESC fecha login
+name: Publicar atualização LEAL INFO PDV V10.188
 
 on:
   workflow_dispatch:
@@ -18,9 +18,9 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.187"
-      UPDATE_TAG: "v10.187"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_187_UPDATE.zip"
+      UPDATE_VERSION: "10.188"
+      UPDATE_TAG: "v10.188"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_188_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -32,8 +32,8 @@ jobs:
         run: |
           $lia = "Assets\lia_abertura_pro.mp4"
           $logo = "Assets\logo_abertura_login.mp4"
-          if (!(Test-Path $lia)) { throw "Assets/lia_abertura_pro.mp4 nao encontrado. V10.187 cancelada." }
-          if (!(Test-Path $logo)) { throw "Assets/logo_abertura_login.mp4 nao encontrado. V10.187 cancelada." }
+          if (!(Test-Path $lia)) { throw "Assets/lia_abertura_pro.mp4 nao encontrado. V10.188 cancelada." }
+          if (!(Test-Path $logo)) { throw "Assets/logo_abertura_login.mp4 nao encontrado. V10.188 cancelada." }
 
       - name: Manter correção WebView2 da LIA por voz
         shell: powershell
@@ -65,9 +65,9 @@ jobs:
         run: |
           $p = "UpdateManager.cs"
           $c = Get-Content $p -Raw
-          foreach ($v in @('10.143','10.144','10.145','10.146','10.147','10.148','10.149','10.150','10.151','10.152','10.153','10.154','10.155','10.156','10.157','10.158','10.159','10.160','10.161','10.162','10.163','10.164','10.165','10.166','10.167','10.168','10.169','10.170','10.171','10.172','10.173','10.174','10.175','10.176','10.177','10.178','10.179','10.180','10.181','10.182','10.183','10.184','10.185','10.186')) {
-            $c = $c.Replace(('CurrentVersion="' + $v + '"'),'CurrentVersion="10.187"')
-            $c = $c.Replace(('Updater/' + $v),'Updater/10.187')
+          foreach ($v in @('10.143','10.144','10.145','10.146','10.147','10.148','10.149','10.150','10.151','10.152','10.153','10.154','10.155','10.156','10.157','10.158','10.159','10.160','10.161','10.162','10.163','10.164','10.165','10.166','10.167','10.168','10.169','10.170','10.171','10.172','10.173','10.174','10.175','10.176','10.177','10.178','10.179','10.180','10.181','10.182','10.183','10.184','10.185','10.186','10.187')) {
+            $c = $c.Replace(('CurrentVersion="' + $v + '"'),'CurrentVersion="10.188"')
+            $c = $c.Replace(('Updater/' + $v),'Updater/10.188')
           }
           Set-Content -Path $p -Value $c -Encoding UTF8
 
@@ -95,15 +95,15 @@ jobs:
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          gh release create $env:UPDATE_TAG $package --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.187: mantém a LIA somente na primeira abertura do dia. Nas demais, reproduz o vídeo aprovado cobrindo 100% da tela e só revela o login ao terminar. LIA e restante preservados. Atualização automática, sem Setup."
-          $manifest = @{ Version=$env:UPDATE_VERSION; PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"; Sha256=$packageHash; Notes="V10.187: vinheta aprovada em tela cheia nas demais aberturas; restante preservado." } | ConvertTo-Json
+          gh release create $env:UPDATE_TAG $package --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.188: remove o flash do login antes da vinheta, carregando a tela de login somente após o vídeo terminar. Na tela de login, ESC agora fecha o PDV. Mantém a LIA, vídeo aprovado e restante do sistema preservados. Atualização automática, sem Setup."
+          $manifest = @{ Version=$env:UPDATE_VERSION; PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"; Sha256=$packageHash; Notes="V10.188: remove flash inicial e permite fechar a tela de login com ESC; restante preservado." } | ConvertTo-Json
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
           gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar atualização V$env:UPDATE_VERSION" -f content="$encoded" -f sha="$sha"
       - name: Guardar pacote como artefato
         uses: actions/upload-artifact@v4
         with:
-          name: LEAL_INFO_PDV_V10_187_UPDATE
-          path: LEAL_INFO_PDV_V10_187_UPDATE.zip
+          name: LEAL_INFO_PDV_V10_188_UPDATE
+          path: LEAL_INFO_PDV_V10_188_UPDATE.zip
           if-no-files-found: error
           retention-days: 7
