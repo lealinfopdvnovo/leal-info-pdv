@@ -7,6 +7,7 @@ public sealed class LiaOrbLauncher : Control
 {
     private readonly System.Windows.Forms.Timer timer = new() { Interval = 35 };
     private double fase;
+    private bool ajusteHostPendente;
 
     public LiaOrbLauncher()
     {
@@ -23,10 +24,68 @@ public sealed class LiaOrbLauncher : Control
         BackColor = Color.Transparent;
 
         Resize += (_, _) => AplicarRecorte();
-        HandleCreated += (_, _) => AplicarRecorte();
+        HandleCreated += (_, _) =>
+        {
+            AplicarRecorte();
+            AgendarAjusteDeHost();
+        };
+        ParentChanged += (_, _) => AgendarAjusteDeHost();
         timer.Tick += (_, _) => { fase += 0.10; Invalidate(); };
         timer.Start();
         Disposed += (_, _) => timer.Dispose();
+    }
+
+    private void AgendarAjusteDeHost()
+    {
+        if (ajusteHostPendente || IsDisposed || !IsHandleCreated) return;
+        ajusteHostPendente = true;
+        BeginInvoke(new Action(() =>
+        {
+            ajusteHostPendente = false;
+            AjustarHostEPosicao();
+        }));
+    }
+
+    private void AjustarHostEPosicao()
+    {
+        if (IsDisposed) return;
+
+        var form = FindForm();
+        if (form == null) return;
+
+        // A LIA precisa ficar dentro do painel principal do PDV, e não diretamente
+        // no Form. Isso evita o retângulo/fundo estranho do WinForms e mantém a
+        // transparência visual correta sobre a tela principal.
+        Control? host = null;
+        foreach (Control c in form.Controls)
+        {
+            host = EncontrarHostPrincipal(c);
+            if (host != null) break;
+        }
+
+        if (host != null && Parent != host)
+        {
+            Parent = host;
+            Anchor = AnchorStyles.Right | AnchorStyles.Bottom;
+        }
+
+        if (Parent == null) return;
+        Left = Math.Max(8, Parent.ClientSize.Width - Width - 18);
+        Top = Math.Max(8, Parent.ClientSize.Height - Height - 14);
+        BringToFront();
+    }
+
+    private static Control? EncontrarHostPrincipal(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            if (c is PictureBox pb && pb.Dock == DockStyle.Fill && pb.Parent is not null)
+                return pb.Parent;
+
+            var nested = EncontrarHostPrincipal(c);
+            if (nested != null) return nested;
+        }
+        return null;
     }
 
     private void AplicarRecorte()
@@ -54,8 +113,8 @@ public sealed class LiaOrbLauncher : Control
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        // Fundo escuro somente dentro do recorte; fora dele o controle nem existe visualmente.
-        // Assim desaparece de vez o painel retangular branco do WinForms.
+        // Dentro do recorte usamos o mesmo fundo escuro da orbe; fora do recorte
+        // não há área visível do controle.
         e.Graphics.Clear(Color.FromArgb(3, 18, 36));
     }
 
