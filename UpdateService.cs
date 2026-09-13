@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
@@ -23,8 +24,6 @@ public sealed class UpdateInfo
 
 public static class UpdateService
 {
-    public const string CurrentVersion = "10.132";
-
     private const string VersionUrl =
         "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json";
 
@@ -32,6 +31,20 @@ public static class UpdateService
     {
         Timeout = TimeSpan.FromSeconds(15)
     };
+
+    private static Version Normalize(Version v) => new(
+        v.Major,
+        v.Minor,
+        v.Build < 0 ? 0 : v.Build,
+        v.Revision < 0 ? 0 : v.Revision);
+
+    private static Version GetInstalledVersion()
+    {
+        var assemblyVersion = Assembly.GetEntryAssembly()?.GetName().Version
+            ?? Assembly.GetExecutingAssembly().GetName().Version
+            ?? new Version(0, 0, 0, 0);
+        return Normalize(assemblyVersion);
+    }
 
     public static async Task<UpdateInfo?> CheckAsync()
     {
@@ -47,8 +60,11 @@ public static class UpdateService
                 string.IsNullOrWhiteSpace(update.DownloadUrl))
                 return null;
 
-            Version installed = new(CurrentVersion);
-            Version available = new(update.Version);
+            if (!Version.TryParse(update.Version.TrimStart('v', 'V'), out var parsedAvailable))
+                return null;
+
+            Version installed = GetInstalledVersion();
+            Version available = Normalize(parsedAvailable);
             return available > installed ? update : null;
         }
         catch
