@@ -1,6 +1,0 @@
-LIA ETAPA 3 - ARQUIVO GARANTIDO
-
-- WEBM oficial copiado explicitamente para o publish.
-- WEBM oficial também embutido no assembly como reserva.
-- Se Assets/LIA não existir após instalação, a LIA é extraída automaticamente em LocalAppData.
-- Não altera o Marco Zero original.
