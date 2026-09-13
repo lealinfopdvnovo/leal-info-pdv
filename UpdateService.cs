@@ -27,9 +27,11 @@ public static class UpdateService
     private const string VersionUrl =
         "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json";
 
+    // O download do instalador pode levar mais de 15 segundos em conexoes normais.
+    // Um timeout curto jamais deve impedir a inicializacao do PDV.
     private static readonly HttpClient Http = new()
     {
-        Timeout = TimeSpan.FromSeconds(15)
+        Timeout = TimeSpan.FromMinutes(5)
     };
 
     private static Version Normalize(Version v) => new(
@@ -69,23 +71,35 @@ public static class UpdateService
         }
         catch
         {
+            // Sem internet/servidor lento: abre o PDV normalmente.
             return null;
         }
     }
 
-    public static async Task<string> DownloadAsync(UpdateInfo update)
+    public static async Task<string?> DownloadAsync(UpdateInfo update)
     {
-        string destination = Path.Combine(
-            Path.GetTempPath(),
-            $"LEAL_INFO_PDV_Update_{update.Version}.exe");
+        try
+        {
+            string destination = Path.Combine(
+                Path.GetTempPath(),
+                $"LEAL_INFO_PDV_Update_{update.Version}.exe");
 
-        byte[] file = await Http.GetByteArrayAsync(update.DownloadUrl);
-        await File.WriteAllBytesAsync(destination, file);
-        return destination;
+            byte[] file = await Http.GetByteArrayAsync(update.DownloadUrl);
+            await File.WriteAllBytesAsync(destination, file);
+            return destination;
+        }
+        catch
+        {
+            // Falha de rede na atualizacao nao pode derrubar o sistema.
+            return null;
+        }
     }
 
     public static void Install(string installerPath)
     {
+        if (string.IsNullOrWhiteSpace(installerPath) || !File.Exists(installerPath))
+            return;
+
         Process.Start(new ProcessStartInfo
         {
             FileName = installerPath,
