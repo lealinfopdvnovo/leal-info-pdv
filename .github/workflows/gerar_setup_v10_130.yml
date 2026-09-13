@@ -1,5 +1,5 @@
-# V10.165 corrige o empacotamento e garante que setup, binário e feed tenham a mesma versão
-name: Publicar atualização automática LEAL INFO PDV V10.165
+# V10.166 corrige o travamento da LIA e restaura destaque visual dos atalhos
+name: Publicar atualização automática LEAL INFO PDV V10.166
 
 on:
   workflow_dispatch:
@@ -18,10 +18,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.165"
-      UPDATE_TAG: "v10.165"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_165_LIA_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_165_UPDATE.zip"
+      UPDATE_VERSION: "10.166"
+      UPDATE_TAG: "v10.166"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_166_LIA_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_166_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -34,11 +34,66 @@ jobs:
           $u = Get-Content "UpdateManager.cs" -Raw
           $p = Get-Content "LealInfoPDV.csproj" -Raw
           $i = Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw
-          if ($u -notmatch 'CurrentVersion="10\.165"') { throw "UpdateManager.cs nao esta em V10.165" }
-          if ($p -notmatch '<Version>10\.165\.0</Version>') { throw "csproj nao esta em V10.165" }
-          if ($i -notmatch '#define MyAppVersion "10\.165"') { throw "Instalador nao esta em V10.165" }
-          if ($i -notmatch 'OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_165_LIA_FINAL') { throw "Nome do setup incorreto" }
+          if ($u -notmatch 'CurrentVersion="10\.166"') { throw "UpdateManager.cs nao esta em V10.166" }
+          if ($p -notmatch '<Version>10\.166\.0</Version>') { throw "csproj nao esta em V10.166" }
+          if ($i -notmatch '#define MyAppVersion "10\.166"') { throw "Instalador nao esta em V10.166" }
+          if ($i -notmatch 'OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_166_LIA_FINAL') { throw "Nome do setup incorreto" }
           if (!(Test-Path "Assets\lia_abertura_pro.mp4")) { throw "Video oficial da abertura Pro nao encontrado" }
+
+      - name: Restaurar visual destacado dos atalhos
+        shell: powershell
+        run: |
+          $main = Get-Content "MainForm.cs" -Raw
+          $main = $main.Replace('Width = 42,`r`n            Height = 42,','Width = 56,`r`n            Height = 56,')
+          $main = $main.Replace('Left = (cardW - 42) / 2,','Left = (cardW - 56) / 2,')
+          $main = $main.Replace('Top = 4,`r`n            SizeMode = PictureBoxSizeMode.Zoom,','Top = 1,`r`n            SizeMode = PictureBoxSizeMode.Zoom,')
+          $main = $main.Replace('Top = 48,','Top = 58,')
+          $main = $main.Replace('Height = 52,','Height = 42,')
+          $main = $main.Replace('int target = 42;','int target = 56;')
+          $main = $main.Replace('target = on ? 52 : 42;','target = on ? 64 : 56;')
+          $main = $main.Replace('pic.Top = hover ? 0 : 4;','pic.Top = hover ? 0 : 1;')
+          $main = $main.Replace('4-(next-42)/3','1-(next-56)/3')
+          $main = $main.Replace(': 4;',': 1;')
+          Set-Content "MainForm.cs" $main -Encoding UTF8
+
+          Add-Type -AssemblyName System.Drawing
+          $cores = @{
+            'products.png'  = [System.Drawing.Color]::FromArgb(255, 202, 40)
+            'customers.png' = [System.Drawing.Color]::FromArgb(41, 182, 246)
+            'suppliers.png' = [System.Drawing.Color]::FromArgb(255, 112, 67)
+            'services.png'  = [System.Drawing.Color]::FromArgb(102, 187, 106)
+            'history.png'   = [System.Drawing.Color]::FromArgb(171, 71, 188)
+            'finance.png'   = [System.Drawing.Color]::FromArgb(38, 198, 218)
+            'orders.png'    = [System.Drawing.Color]::FromArgb(255, 167, 38)
+            'quotes.png'    = [System.Drawing.Color]::FromArgb(0, 188, 212)
+            'sales.png'     = [System.Drawing.Color]::FromArgb(236, 64, 122)
+            'reports.png'   = [System.Drawing.Color]::FromArgb(92, 107, 192)
+            'backup.png'    = [System.Drawing.Color]::FromArgb(77, 208, 225)
+            'settings.png'  = [System.Drawing.Color]::FromArgb(189, 189, 189)
+            'exit.png'      = [System.Drawing.Color]::FromArgb(239, 83, 80)
+          }
+          foreach ($nome in $cores.Keys) {
+            $path = Join-Path 'Assets' $nome
+            if (!(Test-Path $path)) { continue }
+            $target = $cores[$nome]
+            $bmp = New-Object System.Drawing.Bitmap($path)
+            for ($x = 0; $x -lt $bmp.Width; $x++) {
+              for ($y = 0; $y -lt $bmp.Height; $y++) {
+                $c = $bmp.GetPixel($x,$y)
+                if ($c.A -eq 0) { continue }
+                $lum = (($c.R + $c.G + $c.B) / 765.0)
+                $f = 0.45 + (0.55 * $lum)
+                $r = [Math]::Min(255,[int]($target.R * $f))
+                $g = [Math]::Min(255,[int]($target.G * $f))
+                $b = [Math]::Min(255,[int]($target.B * $f))
+                $bmp.SetPixel($x,$y,[System.Drawing.Color]::FromArgb($c.A,$r,$g,$b))
+              }
+            }
+            $tmp = "$path.tmp.png"
+            $bmp.Save($tmp,[System.Drawing.Imaging.ImageFormat]::Png)
+            $bmp.Dispose()
+            Move-Item $tmp $path -Force
+          }
 
       - name: Instalar .NET 8
         uses: actions/setup-dotnet@v4
@@ -76,7 +131,7 @@ jobs:
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          $notes = "V10.165: correção do empacotamento. Setup, executável, atualizador e feed agora usam a mesma versão. Atualização interna por ZIP preservada para versões novas."
+          $notes = "V10.166: corrige o travamento da LIA em PENSANDO e restaura o destaque colorido e o tamanho dos atalhos superiores. Mantida a correção do atualizador."
           gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes $notes
           $manifest = @{
             Version = $env:UPDATE_VERSION
@@ -94,13 +149,13 @@ jobs:
       - name: Guardar pacote de atualização
         uses: actions/upload-artifact@v4
         with:
-          name: LEAL_INFO_PDV_V10_165_UPDATE
-          path: LEAL_INFO_PDV_V10_165_UPDATE.zip
+          name: LEAL_INFO_PDV_V10_166_UPDATE
+          path: LEAL_INFO_PDV_V10_166_UPDATE.zip
           if-no-files-found: error
 
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_165_LIA_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_165_LIA_FINAL.exe
+          name: Setup_LEAL_INFO_PDV_V10_166_LIA_FINAL
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_166_LIA_FINAL.exe
           if-no-files-found: error
