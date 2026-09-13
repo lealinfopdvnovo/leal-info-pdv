@@ -1,8 +1,0 @@
-LEAL INFO PDV V10.130 - LIA ETAPA 2
-
-Correções:
-- removido web.BackColor = Color.Transparent (causava exceção WinForms)
-- mantido WebView2 DefaultBackgroundColor transparente
-- janela usa TransparencyKey para teste de recorte visual
-- adicionado botão visível LIA AI na barra principal
-- Marco Zero original não alterado
