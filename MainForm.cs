@@ -13,7 +13,6 @@ namespace LealInfoPDV;
 public sealed class MainForm : Form
 {
     private PictureBox? mainScreenPicture;
-    private LiaOrbLauncher? liaAiFloatingButton;
 
     private readonly Color Blue = Color.FromArgb(10, 104, 157);
     private readonly Color DarkBlue = Color.FromArgb(4, 70, 112);
@@ -28,7 +27,6 @@ public sealed class MainForm : Form
         BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
         BuildUi();
-        BuildLiaAiFloatingButton();
         RefreshDashboard();
 
         Shown += (_, _) =>
@@ -408,7 +406,7 @@ public sealed class MainForm : Form
             Font = new Font("Segoe UI", 10, FontStyle.Bold),
             Renderer = new ToolStripProfessionalRenderer(new LealMenuColors())
         };
-        foreach (var title in new[] { "Cadastro", "Consulta", "Movimentação", "Financeiro", "Tela de Vendas", "Utilitários", "Relatórios", "LIA", "Ajuda", "Sair" })
+        foreach (var title in new[] { "Cadastro", "Consulta", "Movimentação", "Financeiro", "Tela de Vendas", "Utilitários", "Relatórios", "Ajuda", "Sair" })
         {
             var item = new ToolStripMenuItem(title)
             {
@@ -469,10 +467,6 @@ public sealed class MainForm : Form
             else if (title == "Tela de Vendas")
             {
                 AddMenu("Abrir Tela de Vendas", OpenSales);
-            }
-            else if (title == "LIA")
-            {
-                AddMenu("Abrir LIA • LEAL AI", () => AbrirLiaCompleta());
             }
             else if (title == "Utilitários")
             {
@@ -620,8 +614,8 @@ public sealed class MainForm : Form
         lowStockLabel.Height = 130;
         monitor.Controls.Add(mt);
         monitor.Controls.Add(lowStockLabel);
-        body.Controls.Add(monitor);
-        monitor.BringToFront();
+        // Monitor antigo removido da tela principal.
+        // Monitor antigo nao e mais exibido.
         body.Resize += (_, _) =>
         {
             monitor.Left = Math.Max(10, body.ClientSize.Width - monitor.Width - 20);
@@ -636,54 +630,6 @@ public sealed class MainForm : Form
         status.Items.Add(new ToolStripStatusLabel($"Serial: {Database.DeviceSerial()}"));
         status.Items.Add(new ToolStripStatusLabel($"V{UpdateManager.CurrentVersion}"));
         Controls.Add(status);
-    }
-
-    private void BuildLiaAiFloatingButton()
-    {
-        // V3: a própria ORBE LIA é o acesso oficial. O antigo botão AI foi aposentado.
-        liaAiFloatingButton = new LiaOrbLauncher
-        {
-            Anchor = AnchorStyles.Right | AnchorStyles.Bottom
-        };
-        liaAiFloatingButton.Click += (_, _) => AbrirLiaCompleta();
-        Controls.Add(liaAiFloatingButton);
-
-        void PosicionarBotaoAi()
-        {
-            if (liaAiFloatingButton == null) return;
-            liaAiFloatingButton.Left = Math.Max(8, ClientSize.Width - liaAiFloatingButton.Width - 18);
-            liaAiFloatingButton.Top = Math.Max(140, ClientSize.Height - liaAiFloatingButton.Height - status.Height - 14);
-            liaAiFloatingButton.BringToFront();
-        }
-
-        Resize += (_, _) => PosicionarBotaoAi();
-        Shown += (_, _) => PosicionarBotaoAi();
-        PosicionarBotaoAi();
-        new ToolTip().SetToolTip(liaAiFloatingButton, "LIA — conversar");
-    }
-
-    private void AbrirLiaCompleta()
-    {
-        // LIA VOZ: sem painel de escrita. Apresentação -> Orbe -> escuta -> Core -> voz.
-        if (liaAiFloatingButton is not null) liaAiFloatingButton.Visible = false;
-        var apresentacao = new LiaForm();
-        apresentacao.FormClosed += async (_, _) =>
-        {
-            if (IsDisposed || !Visible) return;
-
-            var orbe = new LiaOrbForm(this);
-            var voz = new LiaVoiceController(this, orbe);
-            voz.Encerrado += (_, _) =>
-            {
-                voz.Dispose();
-                if (liaAiFloatingButton is not null && !liaAiFloatingButton.IsDisposed)
-                    liaAiFloatingButton.Visible = true;
-            };
-
-            orbe.Show(this);
-            await voz.IniciarAsync();
-        };
-        apresentacao.Show(this);
     }
 
     private void ShowCadastroHelp()
@@ -1146,7 +1092,6 @@ public sealed class MainForm : Form
     {
         const int cardW = 92;
         const int cardH = 104;
-
         var card = new Panel
         {
             Width = cardW,
@@ -1157,125 +1102,97 @@ public sealed class MainForm : Form
         };
 
         bool hover = false;
+        int pulse = 0;
+        bool pulseUp = true;
+        string normalizedText = text.Replace("\n", " ").Trim();
+        bool shouldPulse = normalizedText.Equals("PRODUTOS", StringComparison.OrdinalIgnoreCase)
+            || normalizedText.Equals("TELA DE VENDAS", StringComparison.OrdinalIgnoreCase);
+        var pulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
 
         card.Paint += (_, e) =>
         {
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            var rect = new Rectangle(1, 1, card.Width - 3, card.Height - 3);
-            int radius = 16;
+            int visualPulse = shouldPulse ? pulse : 0;
+            int inset = Math.Max(1, 3 - visualPulse / 4);
+            var rect = new Rectangle(inset, inset, card.Width - inset * 2 - 1, card.Height - inset * 2 - 1);
+            const int radius = 20;
             using var gp = new System.Drawing.Drawing2D.GraphicsPath();
             gp.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
             gp.AddArc(rect.Right-radius, rect.Y, radius, radius, 270, 90);
             gp.AddArc(rect.Right-radius, rect.Bottom-radius, radius, radius, 0, 90);
             gp.AddArc(rect.X, rect.Bottom-radius, radius, radius, 90, 90);
             gp.CloseFigure();
-            using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(
-                rect,
-                hover ? Color.FromArgb(18, 125, 190) : Color.FromArgb(8, 80, 135),
-                Color.FromArgb(3, 48, 88), 90f);
+
+            int lift = visualPulse * 5;
+            using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect,
+                hover ? Color.FromArgb(22, 170, 235) : Color.FromArgb(8, 115 + lift, 180 + lift),
+                Color.FromArgb(2, 28, 66), 90f);
             e.Graphics.FillPath(bg, gp);
-            using var pen = new Pen(
-                hover ? Color.FromArgb(120,225,255) : Color.FromArgb(45,135,190),
-                hover ? 2f : 1f);
-            e.Graphics.DrawPath(pen, gp);
-        };
 
-        var path = Path.Combine(AppContext.BaseDirectory, "Assets", iconFile);
-        Image? icon = null;
-        if (File.Exists(path))
-        {
-            using var src = Image.FromFile(path);
-            icon = new Bitmap(src);
-        }
+            int alpha = Math.Min(255, 105 + visualPulse * 18 + (hover ? 45 : 0));
+            using var glow = new Pen(Color.FromArgb(alpha, 80, 225, 255), hover ? 4.5f : 3.2f + visualPulse * 0.12f);
+            e.Graphics.DrawPath(glow, gp);
 
-        var pic = new PictureBox
-        {
-            Width = 42,
-            Height = 42,
-            Left = (cardW - 42) / 2,
-            Top = 4,
-            SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.Transparent,
-            Image = icon,
-            Cursor = Cursors.Hand
+            var innerRect = Rectangle.Inflate(rect, -4, -4);
+            using var innerPath = new System.Drawing.Drawing2D.GraphicsPath();
+            innerPath.AddArc(innerRect.X, innerRect.Y, radius - 4, radius - 4, 180, 90);
+            innerPath.AddArc(innerRect.Right-(radius-4), innerRect.Y, radius - 4, radius - 4, 270, 90);
+            innerPath.AddArc(innerRect.Right-(radius-4), innerRect.Bottom-(radius-4), radius - 4, radius - 4, 0, 90);
+            innerPath.AddArc(innerRect.X, innerRect.Bottom-(radius-4), radius - 4, radius - 4, 90, 90);
+            innerPath.CloseFigure();
+            using var innerGlow = new Pen(Color.FromArgb(70 + visualPulse * 10, 210, 250, 255), 1.2f);
+            e.Graphics.DrawPath(innerGlow, innerPath);
         };
 
         var caption = new Label
         {
-            Text = text,
-            Width = cardW,
-            Height = 52,
-            Left = 0,
-            Top = 48,
+            Text = normalizedText,
+            Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleCenter,
             ForeColor = Color.White,
             BackColor = Color.Transparent,
-            Font = new Font("Segoe UI", 7.8f, FontStyle.Bold),
+            Font = new Font("Segoe UI", 9.2f, FontStyle.Bold),
             AutoEllipsis = false,
-            Cursor = Cursors.Hand
+            Cursor = Cursors.Hand,
+            Padding = new Padding(3)
         };
-
-        card.Controls.Add(pic);
         card.Controls.Add(caption);
 
-        int target = 42;
-        var timer = new System.Windows.Forms.Timer { Interval = 12 };
+        if (shouldPulse)
+        {
+            pulseTimer.Tick += (_, _) =>
+            {
+                pulse += pulseUp ? 1 : -1;
+                if (pulse >= 7) { pulse = 7; pulseUp = false; }
+                if (pulse <= 0) { pulse = 0; pulseUp = true; }
+                card.Invalidate();
+            };
+            pulseTimer.Start();
+        }
 
         void SetHover(bool on)
         {
             hover = on;
-            target = on ? 52 : 42;
+            caption.Font = new Font("Segoe UI", on ? 9.7f : 9.2f, FontStyle.Bold);
             card.Invalidate();
-            timer.Start();
         }
-
-        timer.Tick += (_, _) =>
-        {
-            int diff = target - pic.Width;
-            if (Math.Abs(diff) <= 1)
-            {
-                pic.Size = new Size(target, target);
-                pic.Left = (card.Width - target) / 2;
-                pic.Top = hover ? 0 : 4;
-                timer.Stop();
-                return;
-            }
-            int step = Math.Max(2, Math.Abs(diff)/3);
-            int next = pic.Width + Math.Sign(diff)*step;
-            pic.Size = new Size(next,next);
-            pic.Left = (card.Width-next)/2;
-            pic.Top = hover ? Math.Max(0,4-(next-42)/3) : 4;
-            pic.BringToFront();
-        };
-
         void Enter(object? s, EventArgs e) => SetHover(true);
         void Leave(object? s, EventArgs e)
         {
             var pt = card.PointToClient(Cursor.Position);
             if (!card.ClientRectangle.Contains(pt)) SetHover(false);
         }
-        foreach (Control c in new Control[]{card,pic,caption})
-        {
-            c.MouseEnter += Enter;
-            c.MouseLeave += Leave;
-        }
-
+        card.MouseEnter += Enter;
+        card.MouseLeave += Leave;
+        caption.MouseEnter += Enter;
+        caption.MouseLeave += Leave;
         void Run(object? s, EventArgs e) => action();
         card.Click += Run;
-        pic.Click += Run;
         caption.Click += Run;
-
-        card.Disposed += (_, _) =>
-        {
-            timer.Dispose();
-            pic.Image?.Dispose();
-        };
-
+        card.Disposed += (_, _) => pulseTimer.Dispose();
         parent.Controls.Add(card);
     }
-
-
-    private void ApplyFloatingTheme(Form f)
+private void ApplyFloatingTheme(Form f)
     {
         f.BackColor = Color.FromArgb(224, 239, 248);
         f.Font = new Font("Segoe UI", 10);
@@ -1388,19 +1305,6 @@ public sealed class MainForm : Form
                 $"Produtos cadastrados\n{rd.GetInt32(0)} produto(s)\n\n" +
                 $"Vendas realizadas\n{rd.GetInt32(2)} venda(s)";
         }
-    }
-
-    // PONTES DA LIA INTELIGENTE — versão de teste.
-    // Mantêm a lógica original do PDV centralizada no MainForm.
-    internal void LiaAbrirProdutos() => OpenProducts();
-    internal void LiaCadastrarNovoProduto() => EditProduct(null);
-    internal void LiaAbrirClientes() => OpenCustomers();
-    internal void LiaAbrirVendas() => OpenSales();
-    internal void LiaAbrirRelatorios() => OpenReports();
-    internal void LiaAbrirFinanceiro()
-    {
-        if (Auth.IsManager) OpenFinance();
-        else MessageBox.Show("Seu nível de acesso não permite abrir o Financeiro.", "LIA • LEAL AI");
     }
 
     private void OpenProducts() => ShowCrud(
@@ -4536,6 +4440,18 @@ public sealed class MainForm : Form
                     secondary = Color.FromArgb(25, 72, 125);
                     break;
 
+                case "Verde Texturizado":
+                    bg = Color.FromArgb(8, 45, 34);
+                    headerBg = Color.FromArgb(10, 92, 63);
+                    accent = Color.FromArgb(32, 190, 118);
+                    accentHover = Color.FromArgb(72, 225, 150);
+                    leftBg = Color.FromArgb(18, 105, 72);
+                    rightBg = Color.FromArgb(232, 248, 239);
+                    fieldBg = Color.FromArgb(250, 255, 252);
+                    textDark = Color.FromArgb(12, 65, 45);
+                    soft = Color.FromArgb(205, 238, 220);
+                    secondary = Color.FromArgb(38, 125, 86);
+                    break;
                 case "PDV Rosa":
                     // Rosa Elegance: rosé, framboesa e vinho com acabamento acetinado/perolado.
                     bg = Color.FromArgb(65, 10, 43);
@@ -4573,6 +4489,12 @@ public sealed class MainForm : Form
             body.BackColor = bg;
             header.BackColor = headerBg;
 
+            if (theme == "Verde Texturizado")
+            {
+                SetTexture(f, Color.FromArgb(8, 58, 42), Color.FromArgb(18, 118, 78), Color.FromArgb(70, 235, 155), false, 1711);
+                SetTexture(body, Color.FromArgb(10, 62, 44), Color.FromArgb(20, 112, 76), Color.FromArgb(70, 235, 155), false, 1712);
+                SetTexture(left, Color.FromArgb(16, 92, 62), Color.FromArgb(9, 58, 42), Color.FromArgb(90, 245, 170), false, 1713);
+            }
             if (theme == "PDV Rosa")
             {
                 // Aquarela rosa clara escolhida pelo usuário para o tema PDV Rosa.
@@ -4632,7 +4554,7 @@ public sealed class MainForm : Form
             foreach (Control c in leftLayout.Controls)
             {
                 if (c is Label lbl && lbl != statusBox)
-                    lbl.ForeColor = theme == "Clean Pro" ? textDark : Color.White;
+                    lbl.ForeColor = (theme == "Clean Pro" || theme == "PDV Rosa") ? (theme == "PDV Rosa" ? Color.Black : textDark) : Color.White;
             }
 
             SetSetting("sales_theme", theme);
@@ -5408,3 +5330,5 @@ f.ShowDialog(this);
         return f.ShowDialog()==DialogResult.OK?cb.SelectedItem?.ToString():null;
     }
 }
+
+
