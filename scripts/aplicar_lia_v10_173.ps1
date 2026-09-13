@@ -7,21 +7,22 @@ function Replace-Required([string]$old,[string]$new,[string]$label) {
     $script:c = $script:c.Replace($old,$new)
 }
 
-# Fecha/recolhe a LIA somente depois que ela terminar de falar a confirmação.
-Replace-Required '    private bool webPronto;`r`n    private TaskCompletionSource<bool>? falaTerminou;' '    private bool webPronto;`r`n    private bool encerrarAposFala;`r`n    private TaskCompletionSource<bool>? falaTerminou;' 'campo encerrarAposFala'
+# Campo para encerrar/recolher a LIA somente depois da resposta falada.
 if (-not $c.Contains('private bool encerrarAposFala;')) {
-    Replace-Required "    private bool webPronto;`n    private TaskCompletionSource<bool>? falaTerminou;" "    private bool webPronto;`n    private bool encerrarAposFala;`n    private TaskCompletionSource<bool>? falaTerminou;" 'campo encerrarAposFala LF'
+    $novo = [regex]::Replace($c,'(?m)^(\s*private bool webPronto;\r?$)','$1' + [Environment]::NewLine + '    private bool encerrarAposFala;',1)
+    if ($novo -eq $c) { throw 'Anchor nao encontrado: campo encerrarAposFala' }
+    $c = $novo
 }
 
-# Voz mais próxima do perfil Viola disponível na API pública: leve, espontânea e curiosa.
+# Voz pública mais próxima do perfil desejado: leve, espontânea e curiosa.
 $oldVoice='            var payload=new{model="gpt-4o-mini-tts",voice="marin",input=texto,instructions="Fale em português do Brasil, com voz feminina natural, calorosa, clara e profissional. Ritmo de conversa normal, sem soar robótica.",response_format="mp3",speed=1.04};'
 $newVoice='            var payload=new{model="gpt-4o-mini-tts",voice="shimmer",input=texto,instructions="Fale em português do Brasil com voz feminina leve, espontânea, curiosa, humana e expressiva. Tom próximo e natural de conversa ao vivo, com suavidade e personalidade, sem soar robótica, formal ou infantil. Use variação natural de ritmo e emoção.",response_format="mp3",speed=1.0};'
 Replace-Required $oldVoice $newVoice 'voz TTS'
 
-# Após a fala 'Fechando', encerra a sessão e recolhe o botão/orbe de verdade.
+# Após dizer 'Fechando', encerra de verdade e recolhe a orbe.
 Replace-Required 'RegistrarLog("RESPOSTA",resposta);await FalarAsync(resposta);' 'RegistrarLog("RESPOSTA",resposta);await FalarAsync(resposta);if(encerrarAposFala){encerrarAposFala=false;Encerrar();return;}' 'execucao apos fala'
 
-# Hora local deve ser instantânea/local, sem chamada de IA/web.
+# Hora local e recolhimento do botão são resolvidos localmente, sem gastar chamada de IA.
 $processAnchor='        var n=Normalizar(texto);'
 $processInsert=@'
         var n=Normalizar(texto);
@@ -34,19 +35,20 @@ $processInsert=@'
 '@
 Replace-Required $processAnchor $processInsert 'atalhos locais'
 
-# Nome curto nos cumprimentos em vez do nome civil completo.
+# Nome curto nos cumprimentos.
 $oldGreeting='        if(Tem(n,"oi lia","ola lia","oi","ola","bom dia","boa tarde","boa noite","bom dia lia","boa tarde lia","boa noite lia","lia bom dia","lia boa tarde","lia boa noite")){if(n.Contains("bom dia"))return $"Bom dia, {Auth.OperatorName}. Como posso ajudar?";if(n.Contains("boa tarde"))return $"Boa tarde, {Auth.OperatorName}. Como posso ajudar?";if(n.Contains("boa noite"))return $"Boa noite, {Auth.OperatorName}. Como posso ajudar?";return $"Oi, {Auth.OperatorName}. Como posso ajudar?";}'
-$newGreeting='        if(Tem(n,"oi lia","ola lia","oi","ola","bom dia","boa tarde","boa noite","bom dia lia","boa tarde lia","boa noite lia","lia bom dia","lia boa tarde","lia boa noite")){var nome=NomeCurtoOperador();if(n.Contains("bom dia"))return $"Bom dia, {nome}. Como posso ajudar?";if(n.Contains("boa tarde"))return $"Boa tarde, {nome}. Como posso ajudar?";if(n.Contains("boa noite"))return $"Boa noite, {nome}. Como posso ajudar?";return $"Oi, {nome}. Como posso ajudar?";}'
+$newGreeting='        if(Tem(n,"oi lia","ola lia","oi","ola","bom dia","boa tarde","boa noite","bom dia lia","boa tarde lia","boa noite lia","lia bom dia","lia boa tarde lia","lia boa tarde","lia boa noite")){var nome=NomeCurtoOperador();if(n.Contains("bom dia"))return $"Bom dia, {nome}. Como posso ajudar?";if(n.Contains("boa tarde"))return $"Boa tarde, {nome}. Como posso ajudar?";if(n.Contains("boa noite"))return $"Boa noite, {nome}. Como posso ajudar?";return $"Oi, {nome}. Como posso ajudar?";}'
+# corrigir variante acidental para manter exatamente a lista normal
+$newGreeting=$newGreeting.Replace('"lia boa tarde lia",','')
 Replace-Required $oldGreeting $newGreeting 'cumprimento nome curto'
 Replace-Required '        if(Tem(n,"ta me ouvindo","esta me ouvindo","voce me ouve","consegue me ouvir"))return $"Sim, {Auth.OperatorName}. Estou ouvindo você.";' '        if(Tem(n,"ta me ouvindo","esta me ouvindo","voce me ouve","consegue me ouvir"))return $"Sim, {NomeCurtoOperador()}. Estou ouvindo você.";' 'nome curto ouvindo'
 
 # Nova intenção local do roteador semântico.
-Replace-Required '                "FECHAR_TELA"=>PrepararFechamento(n),' '                "RECOLHER_LIA"=>RecolherLia(),`r`n                "FECHAR_TELA"=>PrepararFechamento(n),' 'switch recolher'
-if (-not $c.Contains('"RECOLHER_LIA"=>RecolherLia()')) {
-    Replace-Required "                \"FECHAR_TELA\"=>PrepararFechamento(n)," "                \"RECOLHER_LIA\"=>RecolherLia(),`n                \"FECHAR_TELA\"=>PrepararFechamento(n)," 'switch recolher LF'
-}
+$oldSwitch='                "FECHAR_TELA"=>PrepararFechamento(n),'
+$newSwitch="                \"RECOLHER_LIA\"=>RecolherLia(),$([Environment]::NewLine)                \"FECHAR_TELA\"=>PrepararFechamento(n),"
+Replace-Required $oldSwitch $newSwitch 'switch recolher'
 
-# Métodos auxiliares antes do abridor genérico de telas.
+# Auxiliares.
 $helperAnchor='    private string AbrirTelaMain(string metodo,string nome)'
 $helpers=@'
     private string RecolherLia()
@@ -66,12 +68,12 @@ $helpers=@'
 '@
 Replace-Required $helperAnchor $helpers 'helpers'
 
-# Confirmações naturais: aceita 'tenho', 'certeza', 'claro', etc., mesmo com palavrões junto.
+# Aceita confirmação natural mesmo com palavras extras/palavrões.
 $oldYes='        if(!Tem(n,"sim","pode","pode fechar","fecha","feche","confirmo","isso","isso mesmo","pode sim"))return "Só confirma pra mim: sim ou não?";'
 $newYes='        if(!Tem(n,"sim","pode","pode fechar","fecha","feche","confirmo","isso","isso mesmo","pode sim","tenho","tenho certeza","certeza","claro","com certeza","confirmado","confirmada","pode ir","manda","manda ver","vai","bora"))return "Só confirma pra mim: sim ou não?";'
 Replace-Required $oldYes $newYes 'confirmacoes naturais'
 
-# Nome amigável da tela: remove versão/título técnico e chama PDV de 'tela de vendas'.
+# Nome amigável das telas, sem versão/título técnico.
 $oldNome=@'
     private static string NomeTela(Form f)
     {
