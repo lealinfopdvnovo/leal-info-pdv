@@ -6,15 +6,11 @@ $c=Get-Content $path -Raw
 $c=[regex]::Replace($c,'(?m)^\s*private LiaOrbLauncher\? liaAiFloatingButton;\r?\n','')
 $c=[regex]::Replace($c,'(?m)^\s*BuildLiaAiFloatingButton\(\);\r?\n','')
 
-# Menu superior.
+# Menu superior: retira o item LIA da lista e o bloco que o trata.
 $c=$c.Replace(', "LIA"','')
-$menuOld=@'
-            else if (title == "LIA")
-            {
-                AddMenu("Abrir LIA • LEAL AI", () => AbrirLiaCompleta());
-            }
-'@
-$c=$c.Replace($menuOld,'')
+$menuInicio=$c.IndexOf('            else if (title == "LIA")')
+$menuFim=$c.IndexOf('            else if (title == "Utilitários")',[Math]::Max(0,$menuInicio))
+if($menuInicio -ge 0 -and $menuFim -gt $menuInicio){$c=$c.Substring(0,$menuInicio)+$c.Substring($menuFim)}
 
 # Remove em um bloco unico o launcher e toda a apresentacao/voz/orbe,
 # preservando exatamente o metodo normal que vem depois.
@@ -34,5 +30,13 @@ Set-Content $path $c -Encoding UTF8
 
 $check=Get-Content $path -Raw
 $forbidden=@('LiaOrbLauncher','AbrirLiaCompleta','BuildLiaAiFloatingButton','LiaAbrirProdutos','LiaAbrirVendas','LiaAbrirClientes','LiaAbrirRelatorios','LiaAbrirFinanceiro','LiaVoiceController','LiaOrbForm','new LiaForm')
-foreach($x in $forbidden){if($check.Contains($x)){throw "Referencia residual encontrada no MainForm: $x"}}
+foreach($x in $forbidden){
+    if($check.Contains($x)){
+        $pos=$check.IndexOf($x)
+        $ini=[Math]::Max(0,$pos-180)
+        $tam=[Math]::Min(420,$check.Length-$ini)
+        Write-Host $check.Substring($ini,$tam)
+        throw "Referencia residual encontrada no MainForm: $x"
+    }
+}
 Write-Host 'Assistente antigo removido do MainForm.'
