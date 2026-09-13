@@ -6,7 +6,7 @@ namespace LealInfoPDV;
 
 public sealed class LiaAiClient
 {
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(7) };
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(5) };
     private readonly List<(string role, string text)> historico = new();
     private const int MaxHistorico = 12;
     public bool Configurada => !string.IsNullOrWhiteSpace(Chave());
@@ -17,12 +17,12 @@ public sealed class LiaAiClient
         var entrada = new StringBuilder(1400); entrada.AppendLine(PromptSistema());
         if (historico.Count > 0) { entrada.AppendLine("Contexto recente da conversa (use para manter continuidade e não repetir perguntas):"); foreach (var h in historico) entrada.AppendLine($"{(h.role == "user" ? "Pessoa" : "LIA")}: {h.text}"); }
         entrada.AppendLine($"Pessoa: {texto}"); entrada.Append("LIA:");
-        var payload = new Dictionary<string, object?> { ["model"]="gpt-5.6-luna", ["input"]=entrada.ToString(), ["reasoning"]=new { effort="none" }, ["max_output_tokens"]=110, ["store"]=false, ["stream"]=true, ["prompt_cache_key"]="lia-pdv-natural-v135" };
+        var payload = new Dictionary<string, object?> { ["model"]="gpt-5.6-luna", ["input"]=entrada.ToString(), ["reasoning"]=new { effort="none" }, ["max_output_tokens"]=110, ["store"]=false, ["stream"]=true, ["prompt_cache_key"]="lia-pdv-natural-v136" };
         if (PrecisaWeb(texto)) { payload["tools"] = new object[] { new { type="web_search" } }; payload["tool_choice"]="auto"; }
         using var req = new HttpRequestMessage(HttpMethod.Post,"https://api.openai.com/v1/responses"); req.Headers.Authorization=new AuthenticationHeaderValue("Bearer",chave); req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream")); req.Content=new StringContent(JsonSerializer.Serialize(payload),Encoding.UTF8,"application/json");
-        using var resp=await Http.SendAsync(req,HttpCompletionOption.ResponseHeadersRead,cancellationToken); if(!resp.IsSuccessStatusCode) throw new InvalidOperationException($"OpenAI HTTP {(int)resp.StatusCode}");
-        await using var stream=await resp.Content.ReadAsStreamAsync(cancellationToken); using var reader=new StreamReader(stream,Encoding.UTF8); var resposta=new StringBuilder(220);
-        while(!reader.EndOfStream){var line=await reader.ReadLineAsync(cancellationToken);if(string.IsNullOrWhiteSpace(line)||!line.StartsWith("data:",StringComparison.Ordinal))continue;var data=line[5..].Trim();if(data=="[DONE]")break;try{using var doc=JsonDocument.Parse(data);var root=doc.RootElement;if(!root.TryGetProperty("type",out var tipo)||tipo.GetString()!="response.output_text.delta")continue;if(!root.TryGetProperty("delta",out var delta)||delta.ValueKind!=JsonValueKind.String)continue;resposta.Append(delta.GetString());var parcial=resposta.ToString().Trim();if(parcial.Length>=14&&(parcial.EndsWith('.')||parcial.EndsWith('!')||parcial.EndsWith('?')))break;if(parcial.Length>=150)break;}catch(JsonException){}}
+        using var resp=await Http.SendAsync(req,HttpCompletionOption.ResponseHeadersRead,cancellationToken).ConfigureAwait(false); if(!resp.IsSuccessStatusCode) throw new InvalidOperationException($"OpenAI HTTP {(int)resp.StatusCode}");
+        await using var stream=await resp.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false); using var reader=new StreamReader(stream,Encoding.UTF8); var resposta=new StringBuilder(220);
+        while(!reader.EndOfStream){var line=await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);if(string.IsNullOrWhiteSpace(line)||!line.StartsWith("data:",StringComparison.Ordinal))continue;var data=line[5..].Trim();if(data=="[DONE]")break;try{using var doc=JsonDocument.Parse(data);var root=doc.RootElement;if(!root.TryGetProperty("type",out var tipo)||tipo.GetString()!="response.output_text.delta")continue;if(!root.TryGetProperty("delta",out var delta)||delta.ValueKind!=JsonValueKind.String)continue;resposta.Append(delta.GetString());var parcial=resposta.ToString().Trim();if(parcial.Length>=14&&(parcial.EndsWith('.')||parcial.EndsWith('!')||parcial.EndsWith('?')))break;if(parcial.Length>=150)break;}catch(JsonException){}}
         var final=resposta.ToString().Trim();if(string.IsNullOrWhiteSpace(final))return null;historico.Add(("user",texto));historico.Add(("assistant",final));while(historico.Count>MaxHistorico)historico.RemoveAt(0);return final;
     }
 
