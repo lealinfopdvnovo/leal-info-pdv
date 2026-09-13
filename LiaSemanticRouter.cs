@@ -23,6 +23,7 @@ public static class LiaSemanticRouter
         ["ABRIR_RELATORIOS"] = new[] { "relatorio", "relatorios", "relatorio gerencial", "resumo gerencial", "indicadores" },
         ["FAZER_BACKUP"] = new[] { "backup", "copia de seguranca", "salvar copia", "fazer copia do sistema" },
         ["ABRIR_CONFIGURACOES"] = new[] { "configuracao", "configuracoes", "config", "ajustes", "preferencias", "parametros", "opcoes do sistema" },
+        ["RECOLHER_LIA"] = new[] { "fechar botao lia", "fecha botao lia", "fechar o botao lia", "fecha o botao lia", "fechar seu botao", "fecha seu botao", "fechar o seu botao", "fecha o seu botao", "recolher lia", "recolhe lia", "recolher botao lia", "recolhe botao lia", "recolher seu botao", "recolhe seu botao", "esconder lia", "esconde lia", "ocultar lia", "oculta lia", "vai dormir lia", "some com a lia", "some com o botao lia" },
         ["FECHAR_TELA"] = new[] { "fechar tela", "fecha tela", "fechar janela", "fecha janela", "sair dessa tela", "voltar dessa tela", "fecha isso", "fechar isso", "sair do sistema", "fecha o sistema", "fechar o sistema", "encerrar o sistema" },
         ["PERMISSOES"] = new[] { "permissao", "permissoes", "o que posso fazer", "meu acesso", "meus acessos", "tenho acesso" },
         ["CONSULTAR_ESTOQUE_PRODUTO"] = new[] { "quanto tem", "quantidade em estoque", "estoque de", "tem no estoque", "quantos tem" },
@@ -39,13 +40,20 @@ public static class LiaSemanticRouter
     {
         "abre", "abrir", "entra", "entrar", "vai", "ir", "leva", "mostrar", "mostra", "quero", "preciso",
         "acessa", "acessar", "cadastro", "cadastrar", "criar", "novo", "nova", "lancar", "registrar", "fazer",
-        "consulta", "consultar", "ver", "visualizar"
+        "consulta", "consultar", "ver", "visualizar", "fecha", "fechar", "feche", "recolhe", "recolher", "esconde", "esconder", "oculta", "ocultar"
     };
 
     public static string? Interpretar(string texto)
     {
         var n = Normalizar(texto);
         if (string.IsNullOrWhiteSpace(n)) return null;
+
+        // O tom não muda a intenção. Se houver verbo de recolher/fechar + botão/LIA,
+        // a ação deve ser reconhecida mesmo no meio de gírias ou palavrões.
+        var querRecolher = new[] { "fecha", "fechar", "feche", "recolhe", "recolher", "esconde", "esconder", "oculta", "ocultar", "some" }
+            .Any(v => n.Contains(v, StringComparison.Ordinal));
+        var alvoLia = n.Contains("lia", StringComparison.Ordinal) || n.Contains("botao", StringComparison.Ordinal);
+        if (querRecolher && alvoLia) return "RECOLHER_LIA";
 
         var tokens = Tokenizar(n);
         var temVerboAcao = VerbosAcao.Any(v => n.Contains(v, StringComparison.Ordinal));
