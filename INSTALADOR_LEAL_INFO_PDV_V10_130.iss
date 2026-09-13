@@ -1,5 +1,5 @@
 ﻿#define MyAppName "LEAL INFO PDV"
-#define MyAppVersion "10.166"
+#define MyAppVersion "10.168"
 #define MyAppPublisher "LEAL INFO CONECTADO"
 #define MyAppExeName "LealInfoPDV.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\LEAL INFO PDV
 DefaultGroupName={#MyAppName}
 UsePreviousAppDir=yes
 OutputDir=SETUP_PRONTO
-OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_166_LIA_FINAL
+OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_168_LIA_FINAL
 SetupIconFile=Assets\lealinfo.ico
 Compression=lzma2
 SolidCompression=yes
@@ -33,13 +33,3 @@ Type: files; Name: "{app}\*.runtimeconfig.json"
 
 [Files]
 Source: "publish_setup\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-
-[Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
-
-[Tasks]
-Name: "desktopicon"; Description: "Criar atalho na area de trabalho"; GroupDescription: "Atalhos:"; Flags: unchecked
-
-[Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Abrir {#MyAppName}"; Flags: nowait postinstall skipifsilent
