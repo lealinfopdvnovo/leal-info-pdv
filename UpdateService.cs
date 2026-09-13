@@ -40,9 +40,9 @@ public static class UpdateService
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true, NoStore = true };
             request.Headers.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater");
-            using var response = await Http.SendAsync(request);
+            using var response = await Http.SendAsync(request).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
-            string json = await response.Content.ReadAsStringAsync();
+            string json = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
             UpdateInfo? update = JsonSerializer.Deserialize<UpdateInfo>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             if (update == null || string.IsNullOrWhiteSpace(update.Version) || string.IsNullOrWhiteSpace(update.DownloadUrl)) return null;
             if (!Version.TryParse(update.Version.TrimStart('v', 'V'), out var parsedAvailable)) return null;
@@ -58,21 +58,22 @@ public static class UpdateService
             string destination = Path.Combine(Path.GetTempPath(), $"LEAL_INFO_PDV_Update_{update.Version}.exe");
             using var request = new HttpRequestMessage(HttpMethod.Get, update.DownloadUrl);
             request.Headers.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater");
-            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             var total = response.Content.Headers.ContentLength;
-            await using var input = await response.Content.ReadAsStreamAsync();
+            await using var input = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
             await using var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
             var buffer = new byte[81920];
             long received = 0;
             int read;
-            while ((read = await input.ReadAsync(buffer)) > 0)
+            while ((read = await input.ReadAsync(buffer).ConfigureAwait(false)) > 0)
             {
-                await output.WriteAsync(buffer.AsMemory(0, read));
+                await output.WriteAsync(buffer.AsMemory(0, read)).ConfigureAwait(false);
                 received += read;
                 if (total.HasValue && total.Value > 0)
                     progress?.Report((int)Math.Clamp(received * 100 / total.Value, 0, 100));
             }
+            await output.FlushAsync().ConfigureAwait(false);
             progress?.Report(100);
             return destination;
         }
