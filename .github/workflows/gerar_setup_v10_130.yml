@@ -35,8 +35,8 @@ jobs:
           $u = $u.Replace('Updater/10.171','Updater/10.172')
           Set-Content "UpdateManager.cs" $u -Encoding UTF8
           $i = Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw
-          $i = $i.Replace('#define MyAppVersion "10.171"','#define MyAppVersion "10.172"')
-          $i = $i.Replace('OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_171_LIA_FINAL','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_172_LIA_FINAL')
+          $i = [regex]::Replace($i, '#define MyAppVersion "[^"]+"', '#define MyAppVersion "10.172"')
+          $i = [regex]::Replace($i, 'OutputBaseFilename=.*', 'OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_172_LIA_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
           if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.172\.0</Version>') { throw "csproj nao esta em V10.172" }
           if (!(Test-Path "Assets\lia_abertura_pro.mp4")) { throw "Video oficial da abertura Pro nao encontrado" }
