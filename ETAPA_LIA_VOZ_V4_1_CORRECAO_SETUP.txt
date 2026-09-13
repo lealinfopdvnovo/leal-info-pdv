@@ -1,5 +1,0 @@
-CORREÇÃO V4.1 — SETUP
-
-Correção exclusiva do nome de saída do Inno Setup.
-Nome gerado: Setup_LEAL_INFO_PDV_V10_130_LIA_FINAL.exe
-Nenhum arquivo da LIA/voz/Core foi alterado nesta correção.
