@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 $path = 'MainForm.cs'
 $main = Get-Content $path -Raw
 
-# 1) Cards superiores: sem circulos/arcos antigos, brilho holografico vivo e pulsacao suave.
+# Cards superiores: mantem o visual V10.171, mas pulsa somente PRODUTOS e TELA DE VENDAS.
 $start = $main.IndexOf('private void AddTool(')
 $end = $main.IndexOf('private void ApplyFloatingTheme', $start)
 if ($start -lt 0 -or $end -lt 0) { throw 'Metodo AddTool nao localizado' }
@@ -25,12 +25,16 @@ private void AddTool(Control parent, string text, string iconFile, Action action
         bool hover = false;
         int pulse = 0;
         bool pulseUp = true;
+        string normalizedText = text.Replace("\n", " ").Trim();
+        bool shouldPulse = normalizedText.Equals("PRODUTOS", StringComparison.OrdinalIgnoreCase)
+            || normalizedText.Equals("TELA DE VENDAS", StringComparison.OrdinalIgnoreCase);
         var pulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
 
         card.Paint += (_, e) =>
         {
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            int inset = Math.Max(1, 3 - pulse / 4);
+            int visualPulse = shouldPulse ? pulse : 0;
+            int inset = Math.Max(1, 3 - visualPulse / 4);
             var rect = new Rectangle(inset, inset, card.Width - inset * 2 - 1, card.Height - inset * 2 - 1);
             const int radius = 20;
             using var gp = new System.Drawing.Drawing2D.GraphicsPath();
@@ -40,14 +44,14 @@ private void AddTool(Control parent, string text, string iconFile, Action action
             gp.AddArc(rect.X, rect.Bottom-radius, radius, radius, 90, 90);
             gp.CloseFigure();
 
-            int lift = pulse * 5;
+            int lift = visualPulse * 5;
             using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect,
                 hover ? Color.FromArgb(22, 170, 235) : Color.FromArgb(8, 115 + lift, 180 + lift),
                 Color.FromArgb(2, 28, 66), 90f);
             e.Graphics.FillPath(bg, gp);
 
-            int alpha = Math.Min(255, 105 + pulse * 18 + (hover ? 45 : 0));
-            using var glow = new Pen(Color.FromArgb(alpha, 80, 225, 255), hover ? 4.5f : 3.2f + pulse * 0.12f);
+            int alpha = Math.Min(255, 105 + visualPulse * 18 + (hover ? 45 : 0));
+            using var glow = new Pen(Color.FromArgb(alpha, 80, 225, 255), hover ? 4.5f : 3.2f + visualPulse * 0.12f);
             e.Graphics.DrawPath(glow, gp);
 
             var innerRect = Rectangle.Inflate(rect, -4, -4);
@@ -57,13 +61,13 @@ private void AddTool(Control parent, string text, string iconFile, Action action
             innerPath.AddArc(innerRect.Right-(radius-4), innerRect.Bottom-(radius-4), radius - 4, radius - 4, 0, 90);
             innerPath.AddArc(innerRect.X, innerRect.Bottom-(radius-4), radius - 4, radius - 4, 90, 90);
             innerPath.CloseFigure();
-            using var innerGlow = new Pen(Color.FromArgb(70 + pulse * 10, 210, 250, 255), 1.2f);
+            using var innerGlow = new Pen(Color.FromArgb(70 + visualPulse * 10, 210, 250, 255), 1.2f);
             e.Graphics.DrawPath(innerGlow, innerPath);
         };
 
         var caption = new Label
         {
-            Text = text.Replace("\n", " "),
+            Text = normalizedText,
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleCenter,
             ForeColor = Color.White,
@@ -75,14 +79,17 @@ private void AddTool(Control parent, string text, string iconFile, Action action
         };
         card.Controls.Add(caption);
 
-        pulseTimer.Tick += (_, _) =>
+        if (shouldPulse)
         {
-            pulse += pulseUp ? 1 : -1;
-            if (pulse >= 7) { pulse = 7; pulseUp = false; }
-            if (pulse <= 0) { pulse = 0; pulseUp = true; }
-            card.Invalidate();
-        };
-        pulseTimer.Start();
+            pulseTimer.Tick += (_, _) =>
+            {
+                pulse += pulseUp ? 1 : -1;
+                if (pulse >= 7) { pulse = 7; pulseUp = false; }
+                if (pulse <= 0) { pulse = 0; pulseUp = true; }
+                card.Invalidate();
+            };
+            pulseTimer.Start();
+        }
 
         void SetHover(bool on)
         {
@@ -110,11 +117,10 @@ private void AddTool(Control parent, string text, string iconFile, Action action
 '@
 $main = $before + $tool + $after
 
-# 2) Remove o quadro antigo Monitor de Estoque da tela principal.
-$main = $main.Replace('        body.Controls.Add(monitor);', '        // V10.171: monitor antigo removido da tela principal.')
+# Mantem as correcoes aprovadas da V10.171.
+$main = $main.Replace('        body.Controls.Add(monitor);', '        // V10.172: monitor antigo removido da tela principal.')
 $main = $main.Replace('        monitor.BringToFront();', '        // monitor antigo nao e mais exibido.')
 
-# 3) Restaura o tema Verde Texturizado no seletor e na logica de temas.
 $greenCase = @'
                 case "Verde Texturizado":
                     bg = Color.FromArgb(8, 45, 34);
@@ -131,11 +137,8 @@ $greenCase = @'
 
 '@
 $anchor = '                case "PDV Rosa":'
-if ($main.Contains($anchor) -and -not $main.Contains('case "Verde Texturizado":')) {
-    $main = $main.Replace($anchor, $greenCase + $anchor)
-}
+if ($main.Contains($anchor) -and -not $main.Contains('case "Verde Texturizado":')) { $main = $main.Replace($anchor, $greenCase + $anchor) }
 
-# Textura verde profissional usando o gerador ja existente.
 $textureAnchor = '            if (theme == "PDV Rosa")'
 $greenTexture = @'
             if (theme == "Verde Texturizado")
@@ -146,19 +149,13 @@ $greenTexture = @'
             }
 
 '@
-if ($main.Contains($textureAnchor) -and -not $main.Contains('SetTexture(f, Color.FromArgb(8, 58, 42)')) {
-    $main = $main.Replace($textureAnchor, $greenTexture + $textureAnchor)
-}
+if ($main.Contains($textureAnchor) -and -not $main.Contains('SetTexture(f, Color.FromArgb(8, 58, 42)')) { $main = $main.Replace($textureAnchor, $greenTexture + $textureAnchor) }
 
-# 4) PDV Rosa: letras pretas, como no padrao aprovado anteriormente.
 $main = $main.Replace('lbl.ForeColor = theme == "Clean Pro" ? textDark : Color.White;', 'lbl.ForeColor = (theme == "Clean Pro" || theme == "PDV Rosa") ? (theme == "PDV Rosa" ? Color.Black : textDark) : Color.White;')
 
-# 5) Adiciona o card Verde Texturizado no espaco livre do seletor.
 $themeAnchor = '            options.Controls.Add(ThemeCard("PDV Rosa", "Rosé texturizado + vinho acetinado", Color.FromArgb(125, 20, 86), Color.FromArgb(255, 72, 165)), 0, 2);'
 $greenCard = '            options.Controls.Add(ThemeCard("Verde Texturizado", "Verde profundo + textura acetinada", Color.FromArgb(18, 105, 72), Color.FromArgb(72, 225, 150)), 1, 2);'
-if ($main.Contains($themeAnchor) -and -not $main.Contains('ThemeCard("Verde Texturizado"')) {
-    $main = $main.Replace($themeAnchor, $themeAnchor + "`r`n" + $greenCard)
-}
+if ($main.Contains($themeAnchor) -and -not $main.Contains('ThemeCard("Verde Texturizado"')) { $main = $main.Replace($themeAnchor, $themeAnchor + "`r`n" + $greenCard) }
 
 Set-Content $path $main -Encoding UTF8
-Write-Host 'V10.171 aplicada: cards pulsantes e brilhantes, monitor removido, verde restaurado e rosa com letras pretas.'
+Write-Host 'V10.172 aplicada: somente Produtos e Tela de Vendas pulsam; demais cards ficam estaticos.'
