@@ -1,4 +1,4 @@
-name: Publicar atualização automática LEAL INFO PDV V10.170
+name: Publicar atualizacao LEAL INFO PDV V10.170
 
 on:
   workflow_dispatch:
@@ -27,7 +27,7 @@ jobs:
       - name: Baixar projeto
         uses: actions/checkout@v4
 
-      - name: Preparar V10.170
+      - name: Preparar versao
         shell: powershell
         run: |
           $u = Get-Content "UpdateManager.cs" -Raw
@@ -45,108 +45,22 @@ jobs:
           if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.170\.0</Version>') { throw "csproj nao esta em V10.170" }
           if (!(Test-Path "Assets\lia_abertura_pro.mp4")) { throw "Video oficial da abertura Pro nao encontrado" }
 
-      - name: Aplicar cards holográficos sem bolinhas
+      - name: Aplicar visual dos cards
         shell: powershell
-        run: |
-          $main = Get-Content "MainForm.cs" -Raw
-          $start = $main.IndexOf('private void AddTool(')
-          $end = $main.IndexOf('private void ApplyFloatingTheme', $start)
-          if ($start -lt 0 -or $end -lt 0) { throw "Metodo AddTool nao localizado" }
-          $before = $main.Substring(0,$start)
-          $after = $main.Substring($end)
-          $tool = @'
-private void AddTool(Control parent, string text, string iconFile, Action action)
-    {
-        const int cardW = 92;
-        const int cardH = 104;
-        var card = new Panel
-        {
-            Width = cardW,
-            Height = cardH,
-            Margin = new Padding(1),
-            BackColor = Color.Transparent,
-            Cursor = Cursors.Hand
-        };
-        bool hover = false;
-        card.Paint += (_, e) =>
-        {
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            var rect = new Rectangle(2, 2, card.Width - 5, card.Height - 5);
-            int radius = 20;
-            using var gp = new System.Drawing.Drawing2D.GraphicsPath();
-            gp.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
-            gp.AddArc(rect.Right-radius, rect.Y, radius, radius, 270, 90);
-            gp.AddArc(rect.Right-radius, rect.Bottom-radius, radius, radius, 0, 90);
-            gp.AddArc(rect.X, rect.Bottom-radius, radius, radius, 90, 90);
-            gp.CloseFigure();
-            using var glow = new Pen(hover ? Color.FromArgb(185,235,255) : Color.FromArgb(80,205,255), hover ? 4f : 3f);
-            e.Graphics.DrawPath(glow, gp);
-            var inner = Rectangle.Inflate(rect, -3, -3);
-            using var gp2 = new System.Drawing.Drawing2D.GraphicsPath();
-            gp2.AddArc(inner.X, inner.Y, radius, radius, 180, 90);
-            gp2.AddArc(inner.Right-radius, inner.Y, radius, radius, 270, 90);
-            gp2.AddArc(inner.Right-radius, inner.Bottom-radius, radius, radius, 0, 90);
-            gp2.AddArc(inner.X, inner.Bottom-radius, radius, radius, 90, 90);
-            gp2.CloseFigure();
-            using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(inner,
-                hover ? Color.FromArgb(22,145,210) : Color.FromArgb(10,96,160),
-                Color.FromArgb(2,31,69), 90f);
-            e.Graphics.FillPath(bg, gp2);
-            using var shine = new Pen(Color.FromArgb(hover ? 175 : 100, 225, 250, 255), 1.5f);
-            e.Graphics.DrawArc(shine, inner.X+8, inner.Y+5, inner.Width-16, 28, 195, 150);
-        };
-        var caption = new Label
-        {
-            Text = text.Replace("\n", " "),
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = Color.White,
-            BackColor = Color.Transparent,
-            Font = new Font("Segoe UI", 9.2f, FontStyle.Bold),
-            AutoEllipsis = false,
-            Cursor = Cursors.Hand,
-            Padding = new Padding(4)
-        };
-        card.Controls.Add(caption);
-        void SetHover(bool on)
-        {
-            hover = on;
-            caption.Font = new Font("Segoe UI", on ? 9.7f : 9.2f, FontStyle.Bold);
-            card.Invalidate();
-        }
-        void Enter(object? s, EventArgs e) => SetHover(true);
-        void Leave(object? s, EventArgs e)
-        {
-            var pt = card.PointToClient(Cursor.Position);
-            if (!card.ClientRectangle.Contains(pt)) SetHover(false);
-        }
-        card.MouseEnter += Enter;
-        card.MouseLeave += Leave;
-        caption.MouseEnter += Enter;
-        caption.MouseLeave += Leave;
-        void Run(object? s, EventArgs e) => action();
-        card.Click += Run;
-        caption.Click += Run;
-        parent.Controls.Add(card);
-    }
-
-
-    '@
-          $main = $before + $tool + $after
-          Set-Content "MainForm.cs" $main -Encoding UTF8
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_cards_lia_v10_170.ps1"
 
       - name: Instalar .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restaurar dependências
+      - name: Restaurar dependencias
         run: dotnet restore LealInfoPDV.csproj
 
       - name: Publicar LEAL INFO PDV
         run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_setup
 
-      - name: Criar pacote da atualização automática
+      - name: Criar pacote
         shell: powershell
         run: |
           if (Test-Path $env:UPDATE_PACKAGE) { Remove-Item $env:UPDATE_PACKAGE -Force }
@@ -160,18 +74,18 @@ private void AddTool(Control parent, string text, string iconFile, Action action
         shell: powershell
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "INSTALADOR_LEAL_INFO_PDV_V10_130.iss"'
 
-      - name: Publicar Release e ativar atualização
+      - name: Publicar Release e ativar atualizacao
         shell: pwsh
         run: |
           $setup = "SETUP_PRONTO/$env:SETUP_FILE"
           $package = $env:UPDATE_PACKAGE
-          if (!(Test-Path $package)) { throw "Pacote nao encontrado: $package" }
-          if (!(Test-Path $setup)) { throw "Setup nao encontrado: $setup" }
+          if (!(Test-Path $package)) { throw "Pacote nao encontrado" }
+          if (!(Test-Path $setup)) { throw "Setup nao encontrado" }
           $packageHash = (Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          $notes = "V10.170: remove os círculos dos atalhos; nomes centralizados; cards retangulares de bordas arredondadas com acabamento holográfico inspirado no botão da LIA."
+          $notes = "V10.170: sem circulos nos atalhos, nomes centralizados e cards retangulares arredondados com acabamento holografico inspirado na LIA."
           gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes $notes
           $manifest = @{
             Version = $env:UPDATE_VERSION
@@ -186,7 +100,7 @@ private void AddTool(Control parent, string text, string iconFile, Action action
           $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
           gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar atualizacao V$env:UPDATE_VERSION" -f content="$encoded" -f sha="$sha"
 
-      - name: Guardar pacote de atualização
+      - name: Guardar pacote
         uses: actions/upload-artifact@v4
         with:
           name: LEAL_INFO_PDV_V10_170_UPDATE
