@@ -48,11 +48,71 @@ jobs:
         shell: powershell
         run: |
           $main = Get-Content "MainForm.cs" -Raw
-          $main = [regex]::Replace($main,'(?s)(var pic = new PictureBox\s*\{\s*Width = )42(,\s*Height = )42','$1'+'82'+'$2'+'76',1)
-          $main = $main.Replace('Left = (cardW - 42) / 2,','Left = (cardW - 82) / 2,')
-          $main = [regex]::Replace($main,'(?s)(var pic = new PictureBox.*?Top = )4,','$1'+'2,',1)
-          $main = [regex]::Replace($main,'(?s)(var caption = new Label.*?Top = )48,','$1'+'77,',1)
-          $main = [regex]::Replace($main,'(?s)(var caption = new Label.*?Height = )52,','$1'+'25,',1)
+
+          $oldPic = @"
+        var pic = new PictureBox
+        {
+            Width = 42,
+            Height = 42,
+            Left = (cardW - 42) / 2,
+            Top = 4,
+            SizeMode = PictureBoxSizeMode.Zoom,
+            BackColor = Color.Transparent,
+            Image = icon,
+            Cursor = Cursors.Hand
+        };
+"@
+          $newPic = @"
+        var pic = new PictureBox
+        {
+            Width = 82,
+            Height = 76,
+            Left = (cardW - 82) / 2,
+            Top = 2,
+            SizeMode = PictureBoxSizeMode.Zoom,
+            BackColor = Color.Transparent,
+            Image = icon,
+            Cursor = Cursors.Hand
+        };
+"@
+          if (-not $main.Contains($oldPic)) { throw "Bloco PictureBox dos atalhos nao encontrado" }
+          $main = $main.Replace($oldPic,$newPic)
+
+          $oldCaption = @"
+        var caption = new Label
+        {
+            Text = text,
+            Width = cardW,
+            Height = 52,
+            Left = 0,
+            Top = 48,
+            TextAlign = ContentAlignment.MiddleCenter,
+            ForeColor = Color.White,
+            BackColor = Color.Transparent,
+            Font = new Font("Segoe UI", 7.8f, FontStyle.Bold),
+            AutoEllipsis = false,
+            Cursor = Cursors.Hand
+        };
+"@
+          $newCaption = @"
+        var caption = new Label
+        {
+            Text = text,
+            Width = cardW,
+            Height = 28,
+            Left = 0,
+            Top = 74,
+            TextAlign = ContentAlignment.MiddleCenter,
+            ForeColor = Color.White,
+            BackColor = Color.Transparent,
+            Font = new Font("Segoe UI", 8.2f, FontStyle.Bold),
+            AutoEllipsis = false,
+            Cursor = Cursors.Hand
+        };
+"@
+          if (-not $main.Contains($oldCaption)) { throw "Bloco de legenda dos atalhos nao encontrado" }
+          $main = $main.Replace($oldCaption,$newCaption)
+
           $main = $main.Replace('int target = 42;','int target = 82;')
           $main = $main.Replace('target = on ? 52 : 42;','target = on ? 88 : 82;')
           $main = $main.Replace('pic.Top = hover ? 0 : 4;','pic.Top = hover ? 0 : 2;')
@@ -86,7 +146,6 @@ jobs:
             $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
             $g.Clear([System.Drawing.Color]::Transparent)
 
-            # Glow grande, ocupando praticamente todo o espaço do atalho.
             foreach ($r in @(154,146,138)) {
               $alpha = if ($r -eq 154) { 22 } elseif ($r -eq 146) { 40 } else { 65 }
               $b = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($alpha,$accent.R,$accent.G,$accent.B))
@@ -109,7 +168,6 @@ jobs:
             $g.FillEllipse($shine,43,25,74,25)
             $shine.Dispose()
 
-            # Mantém o símbolo original de cada função, grande e branco no centro.
             $attrs = New-Object System.Drawing.Imaging.ImageAttributes
             $matrix = New-Object System.Drawing.Imaging.ColorMatrix
             $matrix.Matrix00=0; $matrix.Matrix11=0; $matrix.Matrix22=0
