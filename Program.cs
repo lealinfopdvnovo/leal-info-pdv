@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Threading;
 using System.Windows.Forms;
 
 namespace LealInfoPDV;
@@ -55,10 +56,17 @@ internal static class Program
                         barra.Value = p;
                         percentual.Text = p < 100 ? $"{p}%  •  BAIXANDO..." : "100%  •  ABRINDO INSTALADOR...";
                         progresso.Refresh();
-                        Application.DoEvents();
                     });
 
-                    string? instalador = global::UpdateService.DownloadAsync(update, indicador).GetAwaiter().GetResult();
+                    var downloadTask = global::UpdateService.DownloadAsync(update, indicador);
+                    while (!downloadTask.IsCompleted)
+                    {
+                        Application.DoEvents();
+                        Thread.Sleep(25);
+                    }
+
+                    string? instalador = downloadTask.GetAwaiter().GetResult();
+                    Application.DoEvents();
                     progresso.Close();
 
                     if (!string.IsNullOrWhiteSpace(instalador) && System.IO.File.Exists(instalador))
