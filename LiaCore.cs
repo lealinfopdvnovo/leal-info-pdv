@@ -6,10 +6,6 @@ public enum LiaInteracaoModo { Conversa, Trabalho }
 
 public sealed record LiaDecisao(string Intencao, LiaRisco Risco, string? RespostaImediata = null, bool ExigeGerente = false);
 
-/// <summary>
-/// LIA CORE — conversa e trabalho são estados diferentes.
-/// Segurança e permissões continuam exclusivamente no Auth/local.
-/// </summary>
 public static class LiaCore
 {
     private static readonly LiaAiClient Ai = new();
@@ -35,13 +31,13 @@ public static class LiaCore
         {
             var alvo = alvos.Any(x => n.Contains(x, StringComparison.Ordinal));
             if (!alvo) return false;
-            return Tem("abre", "abrir", "abri ", "abra", "vai", "ir para", "ir pra", "entra", "entrar", "acessa", "acessar", "mostra", "mostrar", "leva", "vá para", "va para") || Exato(alvos);
+            return Tem("abre", "abrir", "abri ", "abra", "vai", "ir para", "ir pra", "entra", "entrar", "acessa", "acessar", "mostra", "mostrar", "leva", "vá para", "va para", "bota", "coloca") || Exato(alvos);
         }
         bool ComandoExplicito()
         {
             string[] verbos =
             {
-                "abre ", "abrir ", "abri ", "abra ", "fecha ", "fechar ", "feche ",
+                "abre ", "abrir ", "abri ", "abra ", "fecha ", "fechar ", "feche ", "recolhe ", "recolher ", "esconde ", "oculta ",
                 "entra ", "entrar ", "acessa ", "acessar ", "vai para ", "vai pra ", "va para ", "vá para ",
                 "mostra ", "mostrar ", "leva ", "cadastra ", "cadastrar ", "consulta ", "consultar ",
                 "faz backup", "fazer backup", "quero abrir ", "quero fechar ", "preciso abrir ", "preciso fechar "
@@ -51,7 +47,7 @@ public static class LiaCore
                 "pdv", "tela de venda", "tela de vendas", "produto", "produtos", "cliente", "clientes",
                 "fornecedor", "fornecedores", "servico", "servicos", "historico", "financeiro", "ordem", "ordens",
                 "orcamento", "orcamentos", "relatorio", "relatorios", "backup", "configuracao", "configuracoes",
-                "essa tela", "a tela", "janela", "sistema", "programa", "estoque"
+                "essa tela", "a tela", "janela", "sistema", "programa", "estoque", "botao lia", "botão lia", "lia"
             };
             if (verbos.Any(v => n.Contains(v, StringComparison.Ordinal)) && alvos.Any(a => n.Contains(a, StringComparison.Ordinal))) return true;
             if (Tem("quanto tem de", "quantos tem de", "quantas tem de", "tem no estoque", "estoque do", "estoque da", "estoque de", "quantidade de")) return true;
@@ -59,35 +55,52 @@ public static class LiaCore
             return false;
         }
 
-        // Alternância explícita: conversa é o padrão; trabalho prioriza operação do PDV.
         if (Tem("vamos trabalhar", "vamo trabalhar", "vamos trabalha", "modo trabalho", "ativa modo trabalho", "ativar modo trabalho", "hora de trabalhar", "bora trabalhar", "bora trabalha"))
         {
             modoInteracao = LiaInteracaoModo.Trabalho;
-            return new("MODO_TRABALHO", LiaRisco.Normal, "Modo trabalho ativado. Manda.");
+            return new("MODO_TRABALHO", LiaRisco.Normal, "Bora. Modo trabalho ligado.");
         }
-        if (Tem("vamos conversar", "vamo conversar", "vamos conversa", "modo conversa", "ativa modo conversa", "ativar modo conversa", "pode relaxar", "pode descansar", "sai do modo trabalho", "sair do modo trabalho", "para de trabalhar", "volta pro modo conversa", "voltar pro modo conversa"))
+        if (Tem("vamos conversar", "vamo conversar", "vamos conversa", "modo conversa", "ativa modo conversa", "ativar modo conversa", "pode relaxar", "sai do modo trabalho", "sair do modo trabalho", "para de trabalhar", "volta pro modo conversa", "voltar pro modo conversa"))
         {
             modoInteracao = LiaInteracaoModo.Conversa;
-            return new("MODO_CONVERSA", LiaRisco.Normal, "Modo conversa ativado. Fala comigo.");
+            return new("MODO_CONVERSA", LiaRisco.Normal, "Pronto. Fala comigo.");
         }
 
-        if (Exato("lia", "liá", "lea", "leah", "leia", "liah", "vagabunda", "sua vagabunda", "piranha", "sua piranha", "gostosa", "sua gostosa", "filha da puta", "o filha da puta", "ô filha da puta", "sua filha da puta", "fdp", "sua fdp") ||
-            Tem("lia ta ai", "lia esta ai", "lia voce ta ai", "lia voce esta ai", "lia responde", "lia me ouve", "lia me escuta", "ei lia", "e ai lia"))
-            return new("CHAMADO_LIA", LiaRisco.Normal, "Oi? Tô aqui.");
+        if (Exato("lia", "liá", "li", "lea", "leah", "leia", "liah", "vagabunda", "sua vagabunda", "piranha", "sua piranha", "gostosa", "sua gostosa", "filha da puta", "o filha da puta", "ô filha da puta", "sua filha da puta", "fdp", "sua fdp") ||
+            Tem("lia ta ai", "lia esta ai", "lia voce ta ai", "lia voce esta ai", "lia responde", "lia me ouve", "lia me escuta", "ei lia", "e ai lia", "fala comigo lia", "fala comigo li"))
+            return new("CHAMADO_LIA", LiaRisco.Normal, "Oi! Tô por aqui. O que vamos aprontar hoje?");
 
         if (Tem("quem e voce", "quem voce e", "qual seu nome", "qual e seu nome", "qual e o seu nome", "como voce se chama", "como se chama", "voce e a lia", "seu nome e lia", "seu nome"))
-            return new("IDENTIDADE_LIA", LiaRisco.Normal, "Eu sou a LIA, assistente do LEAL INFO PDV.");
+            return new("IDENTIDADE_LIA", LiaRisco.Normal, "Eu sou a LIA, sua assistente do LEAL INFO PDV.");
 
         if (Tem("fechei o caixa", "encerrei o caixa", "caixa fechado", "fechou o caixa", "reabrir caixa", "reabre o caixa") && !Auth.IsAdmin)
-            return new("CAIXA_ENCERRADO", LiaRisco.Critico, "Chame o gerente. Por segurança, o caixa encerrado só pode ser liberado com autorização.", true);
+            return new("CAIXA_ENCERRADO", LiaRisco.Critico, "Essa mexe no caixa fechado e precisa da autorização do gerente.", true);
 
         if (Tem("apagar", "excluir", "estornar", "cancelar", "reabrir", "alterar preco", "mudar preco") && !Auth.IsManager)
-            return new("ACAO_RESTRITA", LiaRisco.Critico, "Chame o gerente. Essa ação precisa de autorização superior.", true);
+            return new("ACAO_RESTRITA", LiaRisco.Critico, "Essa ação precisa da autorização do gerente.", true);
 
-        // No modo conversa, só entra no PDV quando o pedido for claramente operacional.
-        // Assim, mencionar produtos, vendas ou clientes em uma conversa não abre telas sozinho.
+        // Primeiro tenta entender intenção operacional semanticamente, antes de mandar a frase para conversa.
+        // Isso permite "abre o PDV", "quero ir vender", "me leva pro caixa" etc. sem palavra mágica.
+        var semanticaInicial = LiaSemanticRouter.Interpretar(n);
+        if (!string.IsNullOrWhiteSpace(semanticaInicial) &&
+            (ComandoExplicito() || modoInteracao == LiaInteracaoModo.Trabalho || semanticaInicial is "ABRIR_VENDAS" or "FECHAR_TELA"))
+            return new(semanticaInicial, semanticaInicial == "FECHAR_TELA" ? LiaRisco.Atencao : LiaRisco.Normal);
+
+        // Conversa de verdade: a IA interpreta a frase e o contexto. Antes esta rota era classificada,
+        // mas a tela não executava CONVERSA_AI; agora devolvemos a resposta pronta para a interface.
         if (modoInteracao == LiaInteracaoModo.Conversa && !ComandoExplicito())
-            return Ai.Configurada ? new("CONVERSA_AI", LiaRisco.Normal) : new("DESCONHECIDA", LiaRisco.Atencao);
+        {
+            if (Ai.Configurada)
+            {
+                try
+                {
+                    var resposta = Ai.ConversarAsync(n).GetAwaiter().GetResult();
+                    if (!string.IsNullOrWhiteSpace(resposta)) return new("CONVERSA_AI", LiaRisco.Normal, resposta);
+                }
+                catch { }
+            }
+            return new("DESCONHECIDA", LiaRisco.Atencao, "Não peguei direito. Fala de outro jeito pra mim.");
+        }
 
         if (Tem("fecha essa tela", "fechar essa tela", "fecha a tela", "fechar a tela", "fecha isso", "fechar isso", "fecha aqui", "fechar aqui", "pode fechar", "quero fechar", "volta da tela", "sair dessa tela", "sai dessa tela", "fechar janela", "fecha janela", "fecha o sistema", "fechar o sistema", "fecha o programa", "fechar o programa"))
             return new("FECHAR_TELA", LiaRisco.Atencao);
@@ -111,7 +124,17 @@ public static class LiaCore
 
         var semantica = LiaSemanticRouter.Interpretar(n);
         if (!string.IsNullOrWhiteSpace(semantica)) return new(semantica, semantica == "FECHAR_TELA" ? LiaRisco.Atencao : LiaRisco.Normal);
-        return Ai.Configurada ? new("CONVERSA_AI", LiaRisco.Normal) : new("DESCONHECIDA", LiaRisco.Atencao);
+
+        if (Ai.Configurada)
+        {
+            try
+            {
+                var resposta = Ai.ConversarAsync(n).GetAwaiter().GetResult();
+                if (!string.IsNullOrWhiteSpace(resposta)) return new("CONVERSA_AI", LiaRisco.Normal, resposta);
+            }
+            catch { }
+        }
+        return new("DESCONHECIDA", LiaRisco.Atencao, "Não peguei direito. Fala de outro jeito pra mim.");
     }
 
     private static void SincronizarOperador()
