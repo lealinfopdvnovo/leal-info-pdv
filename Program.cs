@@ -14,11 +14,7 @@ internal static class Program
         {
             Database.Initialize();
 
-            using var entry = new SplashForm();
-
-            if (entry.ShowDialog() != DialogResult.OK)
-                return;
-
+            // Verifica atualizacao antes da abertura/login para que nenhuma nova versao passe despercebida.
             var update = global::UpdateService
                 .CheckAsync()
                 .GetAwaiter()
@@ -34,15 +30,29 @@ internal static class Program
 
                 if (resposta == DialogResult.Yes)
                 {
-                    string instalador = global::UpdateService
+                    string? instalador = global::UpdateService
                         .DownloadAsync(update)
                         .GetAwaiter()
                         .GetResult();
 
-                    global::UpdateService.Install(instalador);
-                    return;
+                    if (!string.IsNullOrWhiteSpace(instalador))
+                    {
+                        global::UpdateService.Install(instalador);
+                        return;
+                    }
+
+                    MessageBox.Show(
+                        "Não foi possível baixar a atualização agora. O PDV será aberto normalmente.",
+                        "Atualização do LEAL INFO PDV",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                 }
             }
+
+            using var entry = new SplashForm();
+
+            if (entry.ShowDialog() != DialogResult.OK)
+                return;
 
             var main = new MainForm();
             main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - V{UpdateManager.CurrentVersion}";
