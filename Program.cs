@@ -1,4 +1,5 @@
 using System;
+using System.Drawing;
 using System.Windows.Forms;
 
 namespace LealInfoPDV;
@@ -14,11 +15,7 @@ internal static class Program
         {
             Database.Initialize();
 
-            // Verifica atualizacao antes da abertura/login para que nenhuma nova versao passe despercebida.
-            var update = global::UpdateService
-                .CheckAsync()
-                .GetAwaiter()
-                .GetResult();
+            var update = global::UpdateService.CheckAsync().GetAwaiter().GetResult();
 
             if (update != null)
             {
@@ -30,19 +27,48 @@ internal static class Program
 
                 if (resposta == DialogResult.Yes)
                 {
-                    string? instalador = global::UpdateService
-                        .DownloadAsync(update)
-                        .GetAwaiter()
-                        .GetResult();
+                    using var progresso = new Form
+                    {
+                        Text = "Atualizando LEAL INFO PDV",
+                        StartPosition = FormStartPosition.CenterScreen,
+                        Width = 520,
+                        Height = 210,
+                        FormBorderStyle = FormBorderStyle.FixedDialog,
+                        MaximizeBox = false,
+                        MinimizeBox = false,
+                        ControlBox = false,
+                        TopMost = true,
+                        BackColor = Color.FromArgb(7, 31, 52),
+                        Font = new Font("Segoe UI", 10)
+                    };
+                    var titulo = new Label { Text = $"BAIXANDO ATUALIZAÇÃO V{update.Version}", Dock = DockStyle.Top, Height = 65, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White, Font = new Font("Segoe UI", 16, FontStyle.Bold) };
+                    var barra = new ProgressBar { Left = 45, Top = 82, Width = 410, Height = 25, Minimum = 0, Maximum = 100, Style = ProgressBarStyle.Continuous };
+                    var percentual = new Label { Text = "0%", Left = 35, Top = 116, Width = 435, Height = 30, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(74, 215, 255), Font = new Font("Segoe UI", 12, FontStyle.Bold) };
+                    progresso.Controls.AddRange(new Control[] { titulo, barra, percentual });
+                    progresso.Show();
+                    progresso.Refresh();
+                    Application.DoEvents();
 
-                    if (!string.IsNullOrWhiteSpace(instalador))
+                    var indicador = new Progress<int>(p =>
+                    {
+                        p = Math.Clamp(p, 0, 100);
+                        barra.Value = p;
+                        percentual.Text = p < 100 ? $"{p}%  •  BAIXANDO..." : "100%  •  ABRINDO INSTALADOR...";
+                        progresso.Refresh();
+                        Application.DoEvents();
+                    });
+
+                    string? instalador = global::UpdateService.DownloadAsync(update, indicador).GetAwaiter().GetResult();
+                    progresso.Close();
+
+                    if (!string.IsNullOrWhiteSpace(instalador) && System.IO.File.Exists(instalador))
                     {
                         global::UpdateService.Install(instalador);
                         return;
                     }
 
                     MessageBox.Show(
-                        "Não foi possível baixar a atualização agora. O PDV será aberto normalmente.",
+                        "Não foi possível baixar a atualização. O PDV será aberto normalmente.",
                         "Atualização do LEAL INFO PDV",
                         MessageBoxButtons.OK,
                         MessageBoxIcon.Warning);
@@ -50,9 +76,7 @@ internal static class Program
             }
 
             using var entry = new SplashForm();
-
-            if (entry.ShowDialog() != DialogResult.OK)
-                return;
+            if (entry.ShowDialog() != DialogResult.OK) return;
 
             var main = new MainForm();
             main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - V{UpdateManager.CurrentVersion}";
