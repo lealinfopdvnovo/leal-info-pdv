@@ -1,5 +1,5 @@
-# V10.168 refina os atalhos no padrão visual da LIA
-name: Publicar atualização automática LEAL INFO PDV V10.168
+# V10.169 - atalhos grandes no padrão holográfico da LIA
+name: Publicar atualização automática LEAL INFO PDV V10.169
 
 on:
   workflow_dispatch:
@@ -18,46 +18,50 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.168"
-      UPDATE_TAG: "v10.168"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_168_LIA_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_168_UPDATE.zip"
+      UPDATE_VERSION: "10.169"
+      UPDATE_TAG: "v10.169"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_169_LIA_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_169_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
       - name: Baixar projeto
         uses: actions/checkout@v4
 
-      - name: Validar V10.168
+      - name: Preparar V10.169
         shell: powershell
         run: |
           $u = Get-Content "UpdateManager.cs" -Raw
-          $p = Get-Content "LealInfoPDV.csproj" -Raw
+          $u = $u.Replace('CurrentVersion="10.168"','CurrentVersion="10.169"')
+          $u = $u.Replace('Updater/10.168','Updater/10.169')
+          Set-Content "UpdateManager.cs" $u -Encoding UTF8
+
           $i = Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw
-          if ($u -notmatch 'CurrentVersion="10\.168"') { throw "UpdateManager.cs nao esta em V10.168" }
-          if ($p -notmatch '<Version>10\.168\.0</Version>') { throw "csproj nao esta em V10.168" }
-          if ($i -notmatch '#define MyAppVersion "10\.168"') { throw "Instalador nao esta em V10.168" }
+          $i = $i.Replace('#define MyAppVersion "10.168"','#define MyAppVersion "10.169"')
+          $i = $i.Replace('OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_168_LIA_FINAL','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_169_LIA_FINAL')
+          Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
+
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.169\.0</Version>') { throw "csproj nao esta em V10.169" }
           if (!(Test-Path "Assets\lia_abertura_pro.mp4")) { throw "Video oficial da abertura Pro nao encontrado" }
 
-      - name: Aplicar padrão visual LIA nos atalhos
+      - name: Ampliar atalhos e aplicar visual LIA
         shell: powershell
         run: |
           $main = Get-Content "MainForm.cs" -Raw
-          $main = $main.Replace('Width = 42,`r`n            Height = 42,','Width = 56,`r`n            Height = 56,')
-          $main = $main.Replace('Left = (cardW - 42) / 2,','Left = (cardW - 56) / 2,')
-          $main = $main.Replace('Top = 4,`r`n            SizeMode = PictureBoxSizeMode.Zoom,','Top = 1,`r`n            SizeMode = PictureBoxSizeMode.Zoom,')
-          $main = $main.Replace('Top = 48,','Top = 58,')
-          $main = $main.Replace('Height = 52,','Height = 42,')
-          $main = $main.Replace('int target = 42;','int target = 56;')
-          $main = $main.Replace('target = on ? 52 : 42;','target = on ? 64 : 56;')
-          $main = $main.Replace('pic.Top = hover ? 0 : 4;','pic.Top = hover ? 0 : 1;')
-          $main = $main.Replace('4-(next-42)/3','1-(next-56)/3')
+          $main = [regex]::Replace($main,'(?s)(var pic = new PictureBox\s*\{\s*Width = )42(,\s*Height = )42','$1'+'82'+'$2'+'76',1)
+          $main = $main.Replace('Left = (cardW - 42) / 2,','Left = (cardW - 82) / 2,')
+          $main = [regex]::Replace($main,'(?s)(var pic = new PictureBox.*?Top = )4,','$1'+'2,',1)
+          $main = [regex]::Replace($main,'(?s)(var caption = new Label.*?Top = )48,','$1'+'77,',1)
+          $main = [regex]::Replace($main,'(?s)(var caption = new Label.*?Height = )52,','$1'+'25,',1)
+          $main = $main.Replace('int target = 42;','int target = 82;')
+          $main = $main.Replace('target = on ? 52 : 42;','target = on ? 88 : 82;')
+          $main = $main.Replace('pic.Top = hover ? 0 : 4;','pic.Top = hover ? 0 : 2;')
           Set-Content "MainForm.cs" $main -Encoding UTF8
 
           Add-Type -AssemblyName System.Drawing
           $cores = @{
             'products.png'  = [System.Drawing.Color]::FromArgb(0,174,239)
-            'customers.png' = [System.Drawing.Color]::FromArgb(40,200,255)
+            'customers.png' = [System.Drawing.Color]::FromArgb(35,205,255)
             'suppliers.png' = [System.Drawing.Color]::FromArgb(255,145,55)
             'services.png'  = [System.Drawing.Color]::FromArgb(35,205,155)
             'history.png'   = [System.Drawing.Color]::FromArgb(145,105,255)
@@ -70,45 +74,48 @@ jobs:
             'settings.png'  = [System.Drawing.Color]::FromArgb(145,180,210)
             'exit.png'      = [System.Drawing.Color]::FromArgb(255,80,90)
           }
+
           foreach ($nome in $cores.Keys) {
             $path = Join-Path 'Assets' $nome
             if (!(Test-Path $path)) { continue }
             $accent = $cores[$nome]
             $src = [System.Drawing.Bitmap]::FromFile((Resolve-Path $path))
-            $out = New-Object System.Drawing.Bitmap 128,128
+            $out = New-Object System.Drawing.Bitmap 160,160
             $g = [System.Drawing.Graphics]::FromImage($out)
             $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
             $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
             $g.Clear([System.Drawing.Color]::Transparent)
 
-            # Halo externo elétrico inspirado no botão holográfico da LIA.
-            foreach ($r in @(112,104,96)) {
-              $alpha = if ($r -eq 112) { 24 } elseif ($r -eq 104) { 42 } else { 68 }
+            # Glow grande, ocupando praticamente todo o espaço do atalho.
+            foreach ($r in @(154,146,138)) {
+              $alpha = if ($r -eq 154) { 22 } elseif ($r -eq 146) { 40 } else { 65 }
               $b = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($alpha,$accent.R,$accent.G,$accent.B))
-              $xy=(128-$r)/2
+              $xy=(160-$r)/2
               $g.FillEllipse($b,$xy,$xy,$r,$r)
               $b.Dispose()
             }
 
-            # Núcleo tipo orb: azul profundo, aro luminoso e brilho superior.
-            $orb = New-Object System.Drawing.Rectangle 20,20,88,88
-            $grad = New-Object System.Drawing.Drawing2D.LinearGradientBrush($orb,[System.Drawing.Color]::FromArgb(255,30,180,245),[System.Drawing.Color]::FromArgb(255,2,35,78),90)
+            $orb = New-Object System.Drawing.Rectangle 12,12,136,136
+            $grad = New-Object System.Drawing.Drawing2D.LinearGradientBrush($orb,[System.Drawing.Color]::FromArgb(255,38,195,250),[System.Drawing.Color]::FromArgb(255,1,28,68),90)
             $g.FillEllipse($grad,$orb)
             $grad.Dispose()
-            $ring = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(235,$accent.R,$accent.G,$accent.B),4)
-            $g.DrawEllipse($ring,$orb)
-            $ring.Dispose()
-            $shine = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(90,255,255,255))
-            $g.FillEllipse($shine,38,28,52,18)
+            $ring1 = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(245,$accent.R,$accent.G,$accent.B),6)
+            $g.DrawEllipse($ring1,$orb)
+            $ring1.Dispose()
+            $ring2 = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(150,210,250,255),2)
+            $g.DrawEllipse($ring2,18,18,124,124)
+            $ring2.Dispose()
+            $shine = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(95,255,255,255))
+            $g.FillEllipse($shine,43,25,74,25)
             $shine.Dispose()
 
-            # Símbolo funcional branco no centro; o cartão externo permanece retangular/boleado.
+            # Mantém o símbolo original de cada função, grande e branco no centro.
             $attrs = New-Object System.Drawing.Imaging.ImageAttributes
             $matrix = New-Object System.Drawing.Imaging.ColorMatrix
             $matrix.Matrix00=0; $matrix.Matrix11=0; $matrix.Matrix22=0
             $matrix.Matrix40=1; $matrix.Matrix41=1; $matrix.Matrix42=1
             $attrs.SetColorMatrix($matrix)
-            $dest = New-Object System.Drawing.Rectangle 39,39,50,50
+            $dest = New-Object System.Drawing.Rectangle 45,45,70,70
             $g.DrawImage($src,$dest,0,0,$src.Width,$src.Height,[System.Drawing.GraphicsUnit]::Pixel,$attrs)
             $attrs.Dispose(); $src.Dispose(); $g.Dispose()
             $tmp = "$path.tmp.png"
@@ -153,7 +160,7 @@ jobs:
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          $notes = "V10.168: refina os ícones dos atalhos no padrão visual holográfico da LIA, preservando os cartões, funções e comportamento estável do PDV."
+          $notes = "V10.169: atalhos superiores ampliados para preencher praticamente todo o card, com acabamento holográfico inspirado na LIA e nomes integrados no próprio botão."
           gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes $notes
           $manifest = @{
             Version = $env:UPDATE_VERSION
@@ -171,13 +178,13 @@ jobs:
       - name: Guardar pacote de atualização
         uses: actions/upload-artifact@v4
         with:
-          name: LEAL_INFO_PDV_V10_168_UPDATE
-          path: LEAL_INFO_PDV_V10_168_UPDATE.zip
+          name: LEAL_INFO_PDV_V10_169_UPDATE
+          path: LEAL_INFO_PDV_V10_169_UPDATE.zip
           if-no-files-found: error
 
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_168_LIA_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_168_LIA_FINAL.exe
+          name: Setup_LEAL_INFO_PDV_V10_169_LIA_FINAL
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_169_LIA_FINAL.exe
           if-no-files-found: error
