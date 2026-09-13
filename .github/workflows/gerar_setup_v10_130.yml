@@ -35,12 +35,10 @@ jobs:
           $u = $u.Replace('CurrentVersion="10.168"','CurrentVersion="10.169"')
           $u = $u.Replace('Updater/10.168','Updater/10.169')
           Set-Content "UpdateManager.cs" $u -Encoding UTF8
-
           $i = Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw
           $i = $i.Replace('#define MyAppVersion "10.168"','#define MyAppVersion "10.169"')
           $i = $i.Replace('OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_168_LIA_FINAL','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_169_LIA_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-
           if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.169\.0</Version>') { throw "csproj nao esta em V10.169" }
           if (!(Test-Path "Assets\lia_abertura_pro.mp4")) { throw "Video oficial da abertura Pro nao encontrado" }
 
@@ -48,74 +46,24 @@ jobs:
         shell: powershell
         run: |
           $main = Get-Content "MainForm.cs" -Raw
-
-          $oldPic = @"
-        var pic = new PictureBox
-        {
-            Width = 42,
-            Height = 42,
-            Left = (cardW - 42) / 2,
-            Top = 4,
-            SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.Transparent,
-            Image = icon,
-            Cursor = Cursors.Hand
-        };
-"@
-          $newPic = @"
-        var pic = new PictureBox
-        {
-            Width = 82,
-            Height = 76,
-            Left = (cardW - 82) / 2,
-            Top = 2,
-            SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.Transparent,
-            Image = icon,
-            Cursor = Cursors.Hand
-        };
-"@
-          if (-not $main.Contains($oldPic)) { throw "Bloco PictureBox dos atalhos nao encontrado" }
-          $main = $main.Replace($oldPic,$newPic)
-
-          $oldCaption = @"
-        var caption = new Label
-        {
-            Text = text,
-            Width = cardW,
-            Height = 52,
-            Left = 0,
-            Top = 48,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = Color.White,
-            BackColor = Color.Transparent,
-            Font = new Font("Segoe UI", 7.8f, FontStyle.Bold),
-            AutoEllipsis = false,
-            Cursor = Cursors.Hand
-        };
-"@
-          $newCaption = @"
-        var caption = new Label
-        {
-            Text = text,
-            Width = cardW,
-            Height = 28,
-            Left = 0,
-            Top = 74,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = Color.White,
-            BackColor = Color.Transparent,
-            Font = new Font("Segoe UI", 8.2f, FontStyle.Bold),
-            AutoEllipsis = false,
-            Cursor = Cursors.Hand
-        };
-"@
-          if (-not $main.Contains($oldCaption)) { throw "Bloco de legenda dos atalhos nao encontrado" }
-          $main = $main.Replace($oldCaption,$newCaption)
-
-          $main = $main.Replace('int target = 42;','int target = 82;')
-          $main = $main.Replace('target = on ? 52 : 42;','target = on ? 88 : 82;')
-          $main = $main.Replace('pic.Top = hover ? 0 : 4;','pic.Top = hover ? 0 : 2;')
+          $start = $main.IndexOf('private void AddTool(')
+          $end = $main.IndexOf('private void ApplyFloatingTheme', $start)
+          if ($start -lt 0 -or $end -lt 0) { throw "Metodo AddTool nao localizado" }
+          $before = $main.Substring(0,$start)
+          $tool = $main.Substring($start,$end-$start)
+          $after = $main.Substring($end)
+          $tool = $tool.Replace('Width = 42,','Width = 82,')
+          $tool = $tool.Replace('Height = 42,','Height = 76,')
+          $tool = $tool.Replace('Left = (cardW - 42) / 2,','Left = (cardW - 82) / 2,')
+          $tool = $tool.Replace('Top = 4,','Top = 2,')
+          $tool = $tool.Replace('Height = 52,','Height = 28,')
+          $tool = $tool.Replace('Top = 48,','Top = 74,')
+          $tool = $tool.Replace('Font = new Font("Segoe UI", 7.8f, FontStyle.Bold),','Font = new Font("Segoe UI", 8.2f, FontStyle.Bold),')
+          $tool = $tool.Replace('int target = 42;','int target = 82;')
+          $tool = $tool.Replace('target = on ? 52 : 42;','target = on ? 88 : 82;')
+          $tool = $tool.Replace('pic.Top = hover ? 0 : 4;','pic.Top = hover ? 0 : 2;')
+          $tool = $tool.Replace('pic.Top = hover ? Math.Max(0,4-(next-42)/3) : 4;','pic.Top = hover ? Math.Max(0,2-(next-82)/3) : 2;')
+          $main = $before + $tool + $after
           Set-Content "MainForm.cs" $main -Encoding UTF8
 
           Add-Type -AssemblyName System.Drawing
@@ -134,7 +82,6 @@ jobs:
             'settings.png'  = [System.Drawing.Color]::FromArgb(145,180,210)
             'exit.png'      = [System.Drawing.Color]::FromArgb(255,80,90)
           }
-
           foreach ($nome in $cores.Keys) {
             $path = Join-Path 'Assets' $nome
             if (!(Test-Path $path)) { continue }
@@ -145,7 +92,6 @@ jobs:
             $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
             $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
             $g.Clear([System.Drawing.Color]::Transparent)
-
             foreach ($r in @(154,146,138)) {
               $alpha = if ($r -eq 154) { 22 } elseif ($r -eq 146) { 40 } else { 65 }
               $b = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb($alpha,$accent.R,$accent.G,$accent.B))
@@ -153,7 +99,6 @@ jobs:
               $g.FillEllipse($b,$xy,$xy,$r,$r)
               $b.Dispose()
             }
-
             $orb = New-Object System.Drawing.Rectangle 12,12,136,136
             $grad = New-Object System.Drawing.Drawing2D.LinearGradientBrush($orb,[System.Drawing.Color]::FromArgb(255,38,195,250),[System.Drawing.Color]::FromArgb(255,1,28,68),90)
             $g.FillEllipse($grad,$orb)
@@ -167,7 +112,6 @@ jobs:
             $shine = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(95,255,255,255))
             $g.FillEllipse($shine,43,25,74,25)
             $shine.Dispose()
-
             $attrs = New-Object System.Drawing.Imaging.ImageAttributes
             $matrix = New-Object System.Drawing.Imaging.ColorMatrix
             $matrix.Matrix00=0; $matrix.Matrix11=0; $matrix.Matrix22=0
