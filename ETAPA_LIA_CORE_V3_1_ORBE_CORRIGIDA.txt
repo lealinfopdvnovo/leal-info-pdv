@@ -1,6 +1,0 @@
-LEAL INFO PDV V10.130 - LIA CORE V3.1 ORBE CORRIGIDA
-
-Correcao pontual:
-- LiaOrbLauncher agora habilita SupportsTransparentBackColor antes de usar Color.Transparent.
-- Corrige a falha de inicializacao: "O controle nao da suporte a cores de tela de fundo transparente".
-- Demais arquivos e comportamento da V3 permanecem preservados.
