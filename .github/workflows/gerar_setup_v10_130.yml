@@ -83,10 +83,9 @@ jobs:
             PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"
             Sha256 = $packageHash
             Notes = $notes
-            version = $env:UPDATE_VERSION
-            downloadUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:SETUP_FILE"
-            mandatory = $false
-            message = $notes
+            DownloadUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:SETUP_FILE"
+            Mandatory = $false
+            Message = $notes
           } | ConvertTo-Json
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
