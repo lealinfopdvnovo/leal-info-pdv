@@ -36,7 +36,6 @@ public static class UpdateService
     {
         try
         {
-            // Evita resposta antiga em cache do feed de atualizacoes.
             var url = VersionUrl + "?t=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true, NoStore = true };
@@ -52,7 +51,7 @@ public static class UpdateService
         catch { return null; }
     }
 
-    public static async Task<string?> DownloadAsync(UpdateInfo update)
+    public static async Task<string?> DownloadAsync(UpdateInfo update, IProgress<int>? progress = null)
     {
         try
         {
@@ -61,9 +60,20 @@ public static class UpdateService
             request.Headers.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater");
             using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
+            var total = response.Content.Headers.ContentLength;
             await using var input = await response.Content.ReadAsStreamAsync();
             await using var output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true);
-            await input.CopyToAsync(output);
+            var buffer = new byte[81920];
+            long received = 0;
+            int read;
+            while ((read = await input.ReadAsync(buffer)) > 0)
+            {
+                await output.WriteAsync(buffer.AsMemory(0, read));
+                received += read;
+                if (total.HasValue && total.Value > 0)
+                    progress?.Report((int)Math.Clamp(received * 100 / total.Value, 0, 100));
+            }
+            progress?.Report(100);
             return destination;
         }
         catch { return null; }
