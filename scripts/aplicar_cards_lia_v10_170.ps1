@@ -76,6 +76,6 @@ private void AddTool(Control parent, string text, string iconFile, Action action
         parent.Controls.Add(card);
     }
 
-    '@
+'@
 Set-Content $path ($before + $tool + $after) -Encoding UTF8
 Write-Host 'Cards holograficos V10.170 aplicados: sem circulos, nomes centralizados.'
