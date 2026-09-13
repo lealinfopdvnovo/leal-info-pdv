@@ -1,4 +1,4 @@
-name: Publicar atualizacao LEAL INFO PDV V10.175
+name: Publicar atualizacao LEAL INFO PDV V10.176
 
 on:
   workflow_dispatch:
@@ -17,153 +17,75 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.175"
-      UPDATE_TAG: "v10.175"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_175_LIA_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_175_UPDATE.zip"
-      BOOTSTRAP_FILE: "LEAL_INFO_PDV_V10_175_BOOTSTRAP.exe"
+      UPDATE_VERSION: "10.176"
+      UPDATE_TAG: "v10.176"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_176_LIA_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_176_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
       - name: Baixar projeto
         uses: actions/checkout@v4
-
       - name: Preparar versao
         shell: powershell
         run: |
           $u = Get-Content "UpdateManager.cs" -Raw
-          $u = [regex]::Replace($u, 'CurrentVersion="[^"]+"', 'CurrentVersion="10.175"')
-          $u = [regex]::Replace($u, 'LEAL-INFO-PDV-Updater/[0-9.]+', 'LEAL-INFO-PDV-Updater/10.175')
+          $u = [regex]::Replace($u, 'CurrentVersion="[^"]+"', 'CurrentVersion="10.176"')
+          $u = [regex]::Replace($u, 'LEAL-INFO-PDV-Updater/[0-9.]+', 'LEAL-INFO-PDV-Updater/10.176')
           Set-Content "UpdateManager.cs" $u -Encoding UTF8
           $i = Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw
-          $i = [regex]::Replace($i, '#define MyAppVersion "[^"]+"', '#define MyAppVersion "10.175"')
-          $i = [regex]::Replace($i, 'OutputBaseFilename=.*', 'OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_175_LIA_FINAL')
+          $i = [regex]::Replace($i, '#define MyAppVersion "[^"]+"', '#define MyAppVersion="10.176"')
+          $i = [regex]::Replace($i, 'OutputBaseFilename=.*', 'OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_176_LIA_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.175\.0</Version>') { throw "csproj nao esta em V10.175" }
-          if (!(Test-Path "Assets\lia_abertura_pro.mp4")) { throw "Video oficial da abertura Pro nao encontrado" }
-
-      - name: Preservar visual aprovado V10.172
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.176\.0</Version>') { throw "csproj nao esta em V10.176" }
+      - name: Preservar visual
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_cards_lia_v10_170.ps1"
-
-      - name: Preservar inteligencia e voz LIA V10.173
+      - name: Preservar conversa e voz
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_lia_v10_173.ps1"
-
+      - name: Corrigir abrir e fechar PDV
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_lia_v10_176.ps1"
       - name: Instalar .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-
       - name: Restaurar dependencias
         run: dotnet restore LealInfoPDV.csproj
-
       - name: Publicar LEAL INFO PDV
         run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_setup
-
       - name: Criar pacote
         shell: powershell
-        run: |
-          if (Test-Path $env:UPDATE_PACKAGE) { Remove-Item $env:UPDATE_PACKAGE -Force }
-          Compress-Archive -Path "publish_setup\*" -DestinationPath $env:UPDATE_PACKAGE -CompressionLevel Optimal
-
+        run: Compress-Archive -Path "publish_setup\*" -DestinationPath $env:UPDATE_PACKAGE -CompressionLevel Optimal
       - name: Instalar Inno Setup
         shell: powershell
         run: choco install innosetup --yes --no-progress
-
       - name: Fabricar Setup
         shell: powershell
         run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "INSTALADOR_LEAL_INFO_PDV_V10_130.iss"'
-
-      - name: Fabricar bootstrap leve de recuperacao
-        shell: powershell
-        run: |
-          $setupUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:SETUP_FILE"
-          $src = @"
-          using System;
-          using System.Diagnostics;
-          using System.IO;
-          using System.Net;
-          using System.Windows.Forms;
-          internal static class Bootstrap
-          {
-              [STAThread]
-              private static void Main()
-              {
-                  try
-                  {
-                      ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                      var destino = Path.Combine(Path.GetTempPath(), "$env:SETUP_FILE");
-                      using (var web = new WebClient())
-                      {
-                          web.Headers.Add("User-Agent", "LEAL-INFO-PDV-Bootstrap/10.175");
-                          web.DownloadFile("$setupUrl", destino);
-                      }
-                      Process.Start(new ProcessStartInfo(destino) { UseShellExecute = true });
-                  }
-                  catch (Exception ex)
-                  {
-                      MessageBox.Show("Nao foi possivel baixar a atualizacao. Verifique a internet e tente novamente.\n\n" + ex.Message,
-                          "LEAL INFO PDV", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                  }
-              }
-          }
-          "@
-          Set-Content "bootstrap.cs" $src -Encoding UTF8
-          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
-          if (!(Test-Path $csc)) { $csc = "$env:WINDIR\Microsoft.NET\Framework\v4.0.30319\csc.exe" }
-          if (!(Test-Path $csc)) { throw "csc.exe nao encontrado" }
-          & $csc /nologo /target:winexe /out:$env:BOOTSTRAP_FILE /reference:System.Windows.Forms.dll bootstrap.cs
-          if (!(Test-Path $env:BOOTSTRAP_FILE)) { throw "Bootstrap nao foi gerado" }
-          $tam = (Get-Item $env:BOOTSTRAP_FILE).Length
-          Write-Host "Bootstrap gerado com $tam bytes"
-          if ($tam -gt 200000) { throw "Bootstrap ficou grande demais para escapar do timeout antigo" }
-
       - name: Publicar Release e ativar atualizacao
         shell: pwsh
         run: |
           $setup = "SETUP_PRONTO/$env:SETUP_FILE"
           $package = $env:UPDATE_PACKAGE
-          $bootstrap = $env:BOOTSTRAP_FILE
-          if (!(Test-Path $package)) { throw "Pacote nao encontrado" }
-          if (!(Test-Path $setup)) { throw "Setup nao encontrado" }
-          if (!(Test-Path $bootstrap)) { throw "Bootstrap nao encontrado" }
           $packageHash = (Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
           $ErrorActionPreference = "Continue"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
           $ErrorActionPreference = "Stop"
-          $notes = "V10.175: recuperacao definitiva do atualizador antigo. A V10.173 baixa primeiro um bootstrap muito pequeno, que entao baixa e executa o instalador completo sem o limite fatal de 15 segundos. O PDV V10.175 mantem a correcao que impede falhas de rede de derrubarem a inicializacao, alem da inteligencia, voz e visual da LIA ja aprovados."
-          gh release create $env:UPDATE_TAG $package $setup $bootstrap --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes $notes
-          $manifest = @{
-            Version = $env:UPDATE_VERSION
-            PackageUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE"
-            Sha256 = $packageHash
-            Notes = $notes
-            DownloadUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:BOOTSTRAP_FILE"
-            Mandatory = $false
-            Message = $notes
-          } | ConvertTo-Json
+          $notes = "V10.176: conversa natural preservada; abrir e fechar PDV agora usam rota local deterministica, com fechar tendo precedencia. Confirmacao curta, sem titulo nem versao da janela."
+          gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes $notes
+          $manifest = @{Version=$env:UPDATE_VERSION;PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE";Sha256=$packageHash;Notes=$notes;DownloadUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:SETUP_FILE";Mandatory=$false;Message=$notes} | ConvertTo-Json
           $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha = gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
-          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar atualizacao V$env:UPDATE_VERSION com bootstrap" -f content="$encoded" -f sha="$sha"
-
+          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.176" -f content="$encoded" -f sha="$sha"
       - name: Guardar pacote
         uses: actions/upload-artifact@v4
         with:
-          name: LEAL_INFO_PDV_V10_175_UPDATE
-          path: LEAL_INFO_PDV_V10_175_UPDATE.zip
-          if-no-files-found: error
-
+          name: LEAL_INFO_PDV_V10_176_UPDATE
+          path: LEAL_INFO_PDV_V10_176_UPDATE.zip
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_175_LIA_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_175_LIA_FINAL.exe
-          if-no-files-found: error
-
-      - name: Guardar bootstrap
-        uses: actions/upload-artifact@v4
-        with:
-          name: LEAL_INFO_PDV_V10_175_BOOTSTRAP
-          path: LEAL_INFO_PDV_V10_175_BOOTSTRAP.exe
-          if-no-files-found: error
+          name: Setup_LEAL_INFO_PDV_V10_176_LIA_FINAL
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_176_LIA_FINAL.exe
