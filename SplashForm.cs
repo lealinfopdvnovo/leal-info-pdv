@@ -13,6 +13,7 @@ public sealed class SplashForm : Form
     private int fallbackSeconds;
     private LoginForm? login;
     private bool loginLoaded;
+    private bool introStarted;
     private bool introFinished;
 
     public SplashForm()
@@ -43,6 +44,8 @@ public sealed class SplashForm : Form
 
     private async Task StartIntroAsync()
     {
+        if (introStarted) return;
+        introStarted = true;
         LayoutSplash();
         LoadRealLogin();
         if (!await StartOpeningVideoAsync()) { FinishIntro(); return; }
@@ -67,7 +70,7 @@ public sealed class SplashForm : Form
             videoView.CoreWebView2.SetVirtualHostNameToFolderMapping("pdv-splash.local", assets, CoreWebView2HostResourceAccessKind.Allow);
             videoView.CoreWebView2.WebMessageReceived += (_, e) => { if (e.TryGetWebMessageAsString() == "pdv-video-ended") FinishIntro(); };
             const string html = """
-<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}body{display:flex;align-items:center;justify-content:center}video{width:100%;height:100%;object-fit:contain;background:#000}</style></head><body><video id="pdvVideo" autoplay playsinline preload="auto"><source src="https://pdv-splash.local/abertura.mp4" type="video/mp4"></video><script>const v=document.getElementById('pdvVideo');v.addEventListener('ended',()=>chrome.webview.postMessage('pdv-video-ended'));v.addEventListener('error',()=>chrome.webview.postMessage('pdv-video-ended'));v.play().catch(()=>{});</script></body></html>
+<!doctype html><html><head><meta charset="utf-8"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}body{display:flex;align-items:center;justify-content:center}video{width:100%;height:100%;object-fit:contain;background:#000}</style></head><body><video id="pdvVideo" autoplay playsinline preload="auto"><source src="https://pdv-splash.local/abertura.mp4" type="video/mp4"></video><script>const v=document.getElementById('pdvVideo');let sent=false;const done=()=>{if(sent)return;sent=true;chrome.webview.postMessage('pdv-video-ended')};v.loop=false;v.addEventListener('ended',done,{once:true});v.addEventListener('error',done,{once:true});v.currentTime=0;v.play().catch(()=>{});</script></body></html>
 """;
             videoView.NavigateToString(html);
             return true;
@@ -81,6 +84,7 @@ public sealed class SplashForm : Form
         introFinished = true;
         fallbackTimer.Stop();
         if (!loginLoaded) LoadRealLogin();
+        try { videoView.CoreWebView2?.Stop(); } catch { }
         introLayer.Visible = false;
         login?.BringToFront();
         TopMost = false;
