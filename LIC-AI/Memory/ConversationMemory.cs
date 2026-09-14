@@ -48,6 +48,15 @@ CREATE TABLE IF NOT EXISTS long_term_memory (
         command.ExecuteNonQuery();
     }
 
+    public long CountMessages()
+    {
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM conversation_messages;";
+        return Convert.ToInt64(command.ExecuteScalar());
+    }
+
     public IReadOnlyList<ChatMessage> GetRecent(int limit = 40)
     {
         using var connection = new SqliteConnection(_connectionString);
