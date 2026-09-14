@@ -3,59 +3,28 @@ $path = 'MainForm.cs'
 $text = Get-Content $path -Raw
 
 $anchor = @'
-        body.Controls.Add(mainScreenPicture);
-        mainScreenPicture.SendToBack();
+        Controls.Add(menu);
 '@
 
 if (-not $text.Contains($anchor)) {
-    throw 'Ponto de insercao do botao LIC AI nao encontrado em MainForm.cs'
+    throw 'Ponto de insercao do acesso LIC AI nao encontrado em MainForm.cs'
 }
 
 $insert = @'
-        body.Controls.Add(mainScreenPicture);
-        mainScreenPicture.SendToBack();
-
-        // V10.187: acesso visual da LIC AI. Aplicativo continua isolado do PDV.
-        var licAiButton = new Button
+        // V10.188: LIC AI em local fixo e sempre visivel na barra superior.
+        var licAiMenu = new ToolStripMenuItem("\u2665  LIC AI  \u2665")
         {
-            Text = "\u2764  LIC AI  \u2764",
-            Width = 200,
-            Height = 64,
-            BackColor = Color.FromArgb(220, 18, 18),
+            Alignment = ToolStripItemAlignment.Right,
             ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            Cursor = Cursors.Hand,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right,
-            TabStop = false
-        };
-        licAiButton.FlatAppearance.BorderSize = 3;
-        licAiButton.FlatAppearance.BorderColor = Color.FromArgb(255, 120, 0);
-        licAiButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 35, 10);
-        licAiButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(170, 0, 0);
-
-        void PositionLicAiButton()
-        {
-            licAiButton.Left = Math.Max(12, body.ClientSize.Width - licAiButton.Width - 24);
-            licAiButton.Top = 22;
-        }
-
-        int licPulse = 0;
-        bool licPulseUp = true;
-        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 75 };
-        licPulseTimer.Tick += (_, _) =>
-        {
-            licPulse += licPulseUp ? 7 : -7;
-            if (licPulse >= 70) { licPulse = 70; licPulseUp = false; }
-            if (licPulse <= 0) { licPulse = 0; licPulseUp = true; }
-
-            int red = Math.Min(255, 185 + licPulse);
-            int green = 8 + licPulse / 3;
-            licAiButton.BackColor = Color.FromArgb(red, green, 0);
-            licAiButton.FlatAppearance.BorderColor = Color.FromArgb(255, Math.Min(190, 75 + licPulse), 0);
+            BackColor = Color.FromArgb(210, 0, 0),
+            Font = new Font("Segoe UI", 11, FontStyle.Bold),
+            AutoSize = false,
+            Width = 155,
+            Height = 30,
+            ToolTipText = "Abrir LIC AI"
         };
 
-        licAiButton.Click += (_, _) =>
+        licAiMenu.Click += (_, _) =>
         {
             try
             {
@@ -79,21 +48,30 @@ $insert = @'
             }
         };
 
-        body.Controls.Add(licAiButton);
-        licAiButton.BringToFront();
-        body.Resize += (_, _) => PositionLicAiButton();
-        Shown += (_, _) =>
+        int licPulse = 0;
+        bool licPulseUp = true;
+        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 80 };
+        licPulseTimer.Tick += (_, _) =>
         {
-            PositionLicAiButton();
-            licPulseTimer.Start();
+            licPulse += licPulseUp ? 8 : -8;
+            if (licPulse >= 72) { licPulse = 72; licPulseUp = false; }
+            if (licPulse <= 0) { licPulse = 0; licPulseUp = true; }
+
+            licAiMenu.BackColor = Color.FromArgb(180 + licPulse, 0, 0);
+            licAiMenu.ForeColor = licPulse > 35 ? Color.White : Color.FromArgb(255, 235, 235);
         };
+
+        menu.Items.Add(licAiMenu);
+        Shown += (_, _) => licPulseTimer.Start();
         FormClosed += (_, _) =>
         {
             licPulseTimer.Stop();
             licPulseTimer.Dispose();
         };
+
+        Controls.Add(menu);
 '@
 
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'Botao LIC AI com coracao, vermelho pulsante, aplicado no canto superior direito.'
+Write-Host 'LIC AI aplicada na barra superior, com coracao e vermelho pulsante.'
