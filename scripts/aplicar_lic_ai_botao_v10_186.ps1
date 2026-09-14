@@ -8,82 +8,61 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.196: botao LIC AI com a logica do antigo orbe, corrigindo a ordem da transparencia.
-        var licHeart = new Control
+        // V10.197: abandona o coracao. Botao circular futurista LIC AI inspirado na referencia aprovada.
+        var licAiButton = new Control
         {
-            Size = new Size(112, 100),
+            Size = new Size(124, 124),
             Cursor = Cursors.Hand,
             TabStop = false,
             Anchor = AnchorStyles.Bottom
         };
-        var setStyle = licHeart.GetType().GetMethod("SetStyle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        setStyle!.Invoke(licHeart, new object[] { ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true });
-        var updateStyles = licHeart.GetType().GetMethod("UpdateStyles", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-        updateStyles?.Invoke(licHeart, null);
-        licHeart.BackColor = Color.Transparent;
+        var setStyle = licAiButton.GetType().GetMethod("SetStyle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        setStyle!.Invoke(licAiButton, new object[] { ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true });
+        licAiButton.BackColor = BackColor;
 
-        void PositionLicHeart()
+        void PositionLicAiButton()
         {
-            licHeart.Location = new Point((ClientSize.Width - licHeart.Width) / 2, ClientSize.Height - licHeart.Height - 18);
-            licHeart.BringToFront();
+            licAiButton.BackColor = BackColor;
+            licAiButton.Location = new Point((ClientSize.Width - licAiButton.Width) / 2, ClientSize.Height - licAiButton.Height - 12);
+            licAiButton.BringToFront();
         }
 
-        double licHeartPhase = 0;
-        licHeart.Paint += (_, e) =>
+        double licPhase = 0;
+        licAiButton.Paint += (_, e) =>
         {
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
-            float pulse = (float)((Math.Sin(licHeartPhase) + 1.0) / 2.0);
-            float scale = 0.90f + pulse * 0.10f;
-            float w = 92f * scale;
-            float h = 82f * scale;
-            float x = (licHeart.ClientSize.Width - w) / 2f;
-            float y = (licHeart.ClientSize.Height - h) / 2f;
+            e.Graphics.Clear(licAiButton.BackColor);
 
-            using var heart = new System.Drawing.Drawing2D.GraphicsPath();
-            var p0 = new PointF(x + w * .50f, y + h * .93f);
-            heart.StartFigure();
-            heart.AddBezier(p0,
-                new PointF(x + w * .43f, y + h * .83f),
-                new PointF(x + w * .06f, y + h * .60f),
-                new PointF(x + w * .08f, y + h * .32f));
-            heart.AddBezier(
-                new PointF(x + w * .08f, y + h * .32f),
-                new PointF(x + w * .10f, y + h * .08f),
-                new PointF(x + w * .34f, y + h * .02f),
-                new PointF(x + w * .50f, y + h * .24f));
-            heart.AddBezier(
-                new PointF(x + w * .50f, y + h * .24f),
-                new PointF(x + w * .66f, y + h * .02f),
-                new PointF(x + w * .90f, y + h * .08f),
-                new PointF(x + w * .92f, y + h * .32f));
-            heart.AddBezier(
-                new PointF(x + w * .92f, y + h * .32f),
-                new PointF(x + w * .94f, y + h * .60f),
-                new PointF(x + w * .57f, y + h * .83f),
-                p0);
-            heart.CloseFigure();
+            float pulse = (float)((Math.Sin(licPhase) + 1.0) / 2.0);
+            float scale = 0.94f + pulse * 0.06f;
+            float d = 94f * scale;
+            float x = (licAiButton.ClientSize.Width - d) / 2f;
+            float y = (licAiButton.ClientSize.Height - d) / 2f;
 
-            using var halo = new Pen(Color.FromArgb(55 + (int)(pulse * 80), 255, 35, 65), 5f + pulse * 2f);
-            e.Graphics.DrawPath(halo, heart);
-            using var fill = new System.Drawing.Drawing2D.PathGradientBrush(heart)
-            {
-                CenterColor = Color.FromArgb(255, 242, 35, 64),
-                SurroundColors = new[] { Color.FromArgb(255, 165, 0, 30) }
-            };
-            fill.CenterPoint = new PointF(x + w * .38f, y + h * .32f);
-            e.Graphics.FillPath(fill, heart);
-            using var gloss = new SolidBrush(Color.FromArgb(58, 255, 255, 255));
-            e.Graphics.FillEllipse(gloss, x + w * .23f, y + h * .18f, w * .17f, h * .11f);
+            using var halo2 = new Pen(Color.FromArgb(45 + (int)(pulse * 55), 0, 225, 255), 9f + pulse * 3f);
+            e.Graphics.DrawEllipse(halo2, x - 5, y - 5, d + 10, d + 10);
+            using var halo1 = new Pen(Color.FromArgb(155 + (int)(pulse * 90), 0, 205, 255), 4.5f);
+            e.Graphics.DrawEllipse(halo1, x - 1.5f, y - 1.5f, d + 3, d + 3);
 
-            using var font = new Font("Segoe UI", 13.5f * scale, FontStyle.Bold, GraphicsUnit.Point);
+            using var outer = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(x, y, d, d), Color.FromArgb(0, 245, 255), Color.FromArgb(0, 70, 225), 55f);
+            e.Graphics.FillEllipse(outer, x, y, d, d);
+            float inset = 7f;
+            using var inner = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(x + inset, y + inset, d - inset * 2, d - inset * 2), Color.FromArgb(12, 92, 210), Color.FromArgb(1, 28, 96), 90f);
+            e.Graphics.FillEllipse(inner, x + inset, y + inset, d - inset * 2, d - inset * 2);
+
+            using var ring = new Pen(Color.FromArgb(220, 95, 235, 255), 2.2f);
+            e.Graphics.DrawEllipse(ring, x + 12, y + 12, d - 24, d - 24);
+            using var gloss = new SolidBrush(Color.FromArgb(55, 255, 255, 255));
+            e.Graphics.FillEllipse(gloss, x + d * .22f, y + d * .15f, d * .42f, d * .16f);
+
+            using var font = new Font("Segoe UI", 16.5f * scale, FontStyle.Bold, GraphicsUnit.Point);
             using var textBrush = new SolidBrush(Color.White);
             using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            var textRect = new RectangleF(x + w * .12f, y + h * .25f, w * .76f, h * .42f);
-            e.Graphics.DrawString("LIC AI", font, textBrush, textRect, sf);
+            e.Graphics.DrawString("LIC AI", font, textBrush, new RectangleF(x + 8, y + 8, d - 16, d - 16), sf);
         };
 
-        licHeart.Click += (_, _) =>
+        licAiButton.Click += (_, _) =>
         {
             try
             {
@@ -95,13 +74,13 @@ $insert = @'
         };
 
         var licPulseTimer = new System.Windows.Forms.Timer { Interval = 35 };
-        licPulseTimer.Tick += (_, _) => { licHeartPhase += 0.10; licHeart.Invalidate(); };
-        Controls.Add(licHeart);
-        PositionLicHeart();
-        Resize += (_, _) => PositionLicHeart();
-        Shown += (_, _) => { PositionLicHeart(); licPulseTimer.Start(); };
+        licPulseTimer.Tick += (_, _) => { licPhase += 0.09; licAiButton.Invalidate(); };
+        Controls.Add(licAiButton);
+        PositionLicAiButton();
+        Resize += (_, _) => PositionLicAiButton();
+        Shown += (_, _) => { PositionLicAiButton(); licPulseTimer.Start(); };
         FormClosed += (_, _) => { licPulseTimer.Stop(); licPulseTimer.Dispose(); };
 '@
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI V10.196: transparencia corrigida sem perder o coracao pulsante.'
+Write-Host 'LIC AI V10.197: botao circular futurista azul aplicado; coracao removido.'
