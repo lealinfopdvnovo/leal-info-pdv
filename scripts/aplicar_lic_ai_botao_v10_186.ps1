@@ -8,7 +8,7 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.191: coracao LIC AI organico, sem moldura, centralizado embaixo e com batimento real.
+        // V10.192: coracao LIC AI organico, sem moldura, centralizado embaixo e com batimento real.
         var licHeart = new Label
         {
             Text = "LIC AI",
@@ -36,13 +36,11 @@ $insert = @'
             using var pathHeart = new System.Drawing.Drawing2D.GraphicsPath();
             pathHeart.StartFigure();
             pathHeart.AddBezier(w*0.50f,h*0.88f, w*0.43f,h*0.78f, w*0.08f,h*0.56f, w*0.08f,h*0.31f);
-            pathHeart.AddBezier(w*0.08f,h*0.12f, w*0.30f,h*0.04f, w*0.50f,h*0.24f);
-            pathHeart.AddBezier(w*0.70f,h*0.04f, w*0.92f,h*0.12f, w*0.92f,h*0.31f);
-            pathHeart.AddBezier(w*0.92f,h*0.56f, w*0.57f,h*0.78f, w*0.50f,h*0.88f);
+            pathHeart.AddBezier(w*0.08f,h*0.31f, w*0.08f,h*0.12f, w*0.30f,h*0.04f, w*0.50f,h*0.24f);
+            pathHeart.AddBezier(w*0.50f,h*0.24f, w*0.70f,h*0.04f, w*0.92f,h*0.12f, w*0.92f,h*0.31f);
+            pathHeart.AddBezier(w*0.92f,h*0.31f, w*0.92f,h*0.56f, w*0.57f,h*0.78f, w*0.50f,h*0.88f);
             pathHeart.CloseFigure();
-            using var glow = new SolidBrush(Color.FromArgb(55,255,30,55));
             using var fill = new SolidBrush(Color.FromArgb(232,10,42));
-            e.Graphics.FillPath(glow,pathHeart);
             e.Graphics.FillPath(fill,pathHeart);
             TextRenderer.DrawText(e.Graphics,"LIC AI",licHeart.Font,r,Color.White,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.NoPadding);
         };
@@ -79,4 +77,4 @@ $insert = @'
 '@
 $text = $text.Replace($anchor,$insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI: coracao organico com nome dentro, batimento duplo, central inferior.'
+Write-Host 'LIC AI: coracao organico corrigido, com nome dentro, batimento duplo, central inferior.'
