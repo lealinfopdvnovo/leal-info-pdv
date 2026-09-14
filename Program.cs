@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -10,6 +11,15 @@ internal static class Program
     [STAThread]
     static void Main()
     {
+        // V10.198: WebView2 precisa de uma pasta gravavel pelo usuario.
+        // Evita E_ACCESSDENIED quando o PDV esta instalado em Program Files.
+        var webViewUserData = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LEAL INFO PDV",
+            "WebView2");
+        Directory.CreateDirectory(webViewUserData);
+        Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", webViewUserData);
+
         ApplicationConfiguration.Initialize();
 
         try
