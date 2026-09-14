@@ -1,5 +1,5 @@
 ﻿#define MyAppName "LEAL INFO PDV"
-#define MyAppVersion "10.168"
+#define MyAppVersion "10.185"
 #define MyAppPublisher "LEAL INFO CONECTADO"
 #define MyAppExeName "LealInfoPDV.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\LEAL INFO PDV
 DefaultGroupName={#MyAppName}
 UsePreviousAppDir=yes
 OutputDir=SETUP_PRONTO
-OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_168_LIA_FINAL
+OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_185_FINAL
 SetupIconFile=Assets\lealinfo.ico
 Compression=lzma2
 SolidCompression=yes
@@ -33,3 +33,7 @@ Type: files; Name: "{app}\*.runtimeconfig.json"
 
 [Files]
 Source: "publish_setup\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\LIC AI"; Filename: "{app}\LIC-AI\LicAi.exe"
+Name: "{autodesktop}\LIC AI"; Filename: "{app}\LIC-AI\LicAi.exe"
