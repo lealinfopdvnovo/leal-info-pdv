@@ -11,20 +11,21 @@ if (-not $text.Contains($anchor)) {
 }
 
 $insert = @'
-        // V10.188: LIC AI em local fixo e sempre visivel na barra superior.
-        var licAiMenu = new ToolStripMenuItem("\u2665  LIC AI  \u2665")
+        // V10.189: icone LIC AI em formato de coracao, pulsante, no canto superior direito.
+        var licHeart = new ToolStripMenuItem("\u2665")
         {
             Alignment = ToolStripItemAlignment.Right,
-            ForeColor = Color.White,
-            BackColor = Color.FromArgb(210, 0, 0),
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
+            ForeColor = Color.FromArgb(255, 35, 55),
+            BackColor = menu.BackColor,
+            Font = new Font("Segoe UI Symbol", 19, FontStyle.Bold),
             AutoSize = false,
-            Width = 155,
+            Width = 48,
             Height = 30,
-            ToolTipText = "Abrir LIC AI"
+            TextAlign = ContentAlignment.MiddleCenter,
+            ToolTipText = "LIC AI"
         };
 
-        licAiMenu.Click += (_, _) =>
+        licHeart.Click += (_, _) =>
         {
             try
             {
@@ -48,20 +49,24 @@ $insert = @'
             }
         };
 
-        int licPulse = 0;
-        bool licPulseUp = true;
-        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 80 };
+        int pulseStep = 0;
+        bool pulseGrowing = true;
+        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 90 };
         licPulseTimer.Tick += (_, _) =>
         {
-            licPulse += licPulseUp ? 8 : -8;
-            if (licPulse >= 72) { licPulse = 72; licPulseUp = false; }
-            if (licPulse <= 0) { licPulse = 0; licPulseUp = true; }
+            pulseStep += pulseGrowing ? 1 : -1;
+            if (pulseStep >= 6) { pulseStep = 6; pulseGrowing = false; }
+            if (pulseStep <= 0) { pulseStep = 0; pulseGrowing = true; }
 
-            licAiMenu.BackColor = Color.FromArgb(180 + licPulse, 0, 0);
-            licAiMenu.ForeColor = licPulse > 35 ? Color.White : Color.FromArgb(255, 235, 235);
+            float fontSize = 18f + (pulseStep * 0.85f);
+            licHeart.Font = new Font("Segoe UI Symbol", fontSize, FontStyle.Bold);
+            int red = 205 + (pulseStep * 8);
+            int green = 18 + (pulseStep * 3);
+            int blue = 35 + (pulseStep * 3);
+            licHeart.ForeColor = Color.FromArgb(Math.Min(255, red), green, blue);
         };
 
-        menu.Items.Add(licAiMenu);
+        menu.Items.Add(licHeart);
         Shown += (_, _) => licPulseTimer.Start();
         FormClosed += (_, _) =>
         {
@@ -74,4 +79,4 @@ $insert = @'
 
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI aplicada na barra superior, com coracao e vermelho pulsante.'
+Write-Host 'LIC AI aplicada como icone de coracao pulsante.'
