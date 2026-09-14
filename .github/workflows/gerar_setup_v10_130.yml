@@ -40,12 +40,6 @@ jobs:
           $i = [regex]::Replace($i, 'OutputBaseFilename=.*', 'OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_185_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
           if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.185\.0</Version>') { throw "csproj nao esta em V10.185" }
-      - name: Trazer LIC AI isolada
-        shell: powershell
-        run: |
-          git fetch origin lic-ai
-          git checkout origin/lic-ai -- LIC-AI
-          if (!(Test-Path "LIC-AI\LicAi.csproj")) { throw "Projeto LIC AI nao encontrado" }
       - name: Preservar visual aprovado do PDV
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_visual_estavel_v10_177.ps1"
@@ -57,6 +51,12 @@ jobs:
         run: dotnet restore LealInfoPDV.csproj
       - name: Publicar LEAL INFO PDV
         run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_setup
+      - name: Trazer LIC AI isolada
+        shell: powershell
+        run: |
+          git fetch origin lic-ai
+          git checkout origin/lic-ai -- LIC-AI
+          if (!(Test-Path "LIC-AI\LicAi.csproj")) { throw "Projeto LIC AI nao encontrado" }
       - name: Restaurar dependencias LIC AI
         run: dotnet restore LIC-AI/LicAi.csproj
       - name: Publicar LIC AI separada
