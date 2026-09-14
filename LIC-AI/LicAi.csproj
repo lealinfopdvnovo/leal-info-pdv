@@ -5,7 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>LIC AI</AssemblyName>
+    <AssemblyName>LicAi</AssemblyName>
     <RootNamespace>LicAi</RootNamespace>
     <Version>1.0.0</Version>
     <PublishSingleFile>true</PublishSingleFile>
