@@ -8,17 +8,19 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.195: botao LIC AI refeito do zero com a logica visual do antigo orbe aprovado.
+        // V10.196: botao LIC AI com a logica do antigo orbe, corrigindo a ordem da transparencia.
         var licHeart = new Control
         {
             Size = new Size(112, 100),
-            BackColor = Color.Transparent,
             Cursor = Cursors.Hand,
             TabStop = false,
             Anchor = AnchorStyles.Bottom
         };
-        licHeart.GetType().GetMethod("SetStyle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .Invoke(licHeart, new object[] { ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true });
+        var setStyle = licHeart.GetType().GetMethod("SetStyle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        setStyle!.Invoke(licHeart, new object[] { ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true });
+        var updateStyles = licHeart.GetType().GetMethod("UpdateStyles", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+        updateStyles?.Invoke(licHeart, null);
+        licHeart.BackColor = Color.Transparent;
 
         void PositionLicHeart()
         {
@@ -62,9 +64,8 @@ $insert = @'
                 p0);
             heart.CloseFigure();
 
-            using var haloPath = (System.Drawing.Drawing2D.GraphicsPath)heart.Clone();
             using var halo = new Pen(Color.FromArgb(55 + (int)(pulse * 80), 255, 35, 65), 5f + pulse * 2f);
-            e.Graphics.DrawPath(halo, haloPath);
+            e.Graphics.DrawPath(halo, heart);
             using var fill = new System.Drawing.Drawing2D.PathGradientBrush(heart)
             {
                 CenterColor = Color.FromArgb(255, 242, 35, 64),
@@ -103,4 +104,4 @@ $insert = @'
 '@
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI V10.195: botao-coracao refeito com a logica do antigo orbe pulsante.'
+Write-Host 'LIC AI V10.196: transparencia corrigida sem perder o coracao pulsante.'
