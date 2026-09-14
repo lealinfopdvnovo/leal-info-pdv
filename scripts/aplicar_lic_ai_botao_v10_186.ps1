@@ -8,51 +8,78 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.194: coracao LIC AI inspirado na referencia: cheio, organico, sem moldura e com batimento natural.
-        var licHeart = new Label
+        // V10.195: botao LIC AI refeito do zero com a logica visual do antigo orbe aprovado.
+        var licHeart = new Control
         {
-            Text = string.Empty,
-            AutoSize = false,
-            Size = new Size(126, 112),
+            Size = new Size(112, 100),
             BackColor = Color.Transparent,
             Cursor = Cursors.Hand,
+            TabStop = false,
             Anchor = AnchorStyles.Bottom
         };
+        licHeart.GetType().GetMethod("SetStyle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .Invoke(licHeart, new object[] { ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true });
 
         void PositionLicHeart()
         {
-            licHeart.Location = new Point((ClientSize.Width - licHeart.Width) / 2, ClientSize.Height - licHeart.Height - 26);
+            licHeart.Location = new Point((ClientSize.Width - licHeart.Width) / 2, ClientSize.Height - licHeart.Height - 18);
             licHeart.BringToFront();
         }
 
+        double licHeartPhase = 0;
         licHeart.Paint += (_, e) =>
         {
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
-            float w = licHeart.ClientSize.Width;
-            float h = licHeart.ClientSize.Height;
+            float pulse = (float)((Math.Sin(licHeartPhase) + 1.0) / 2.0);
+            float scale = 0.90f + pulse * 0.10f;
+            float w = 92f * scale;
+            float h = 82f * scale;
+            float x = (licHeart.ClientSize.Width - w) / 2f;
+            float y = (licHeart.ClientSize.Height - h) / 2f;
+
             using var heart = new System.Drawing.Drawing2D.GraphicsPath();
+            var p0 = new PointF(x + w * .50f, y + h * .93f);
             heart.StartFigure();
-            heart.AddBezier(w*0.50f,h*0.91f, w*0.45f,h*0.82f, w*0.10f,h*0.62f, w*0.10f,h*0.34f);
-            heart.AddBezier(w*0.10f,h*0.34f, w*0.10f,h*0.13f, w*0.27f,h*0.07f, w*0.39f,h*0.12f);
-            heart.AddBezier(w*0.39f,h*0.12f, w*0.45f,h*0.15f, w*0.49f,h*0.21f, w*0.50f,h*0.26f);
-            heart.AddBezier(w*0.50f,h*0.26f, w*0.51f,h*0.21f, w*0.55f,h*0.15f, w*0.61f,h*0.12f);
-            heart.AddBezier(w*0.61f,h*0.12f, w*0.73f,h*0.07f, w*0.90f,h*0.13f, w*0.90f,h*0.34f);
-            heart.AddBezier(w*0.90f,h*0.34f, w*0.90f,h*0.62f, w*0.55f,h*0.82f, w*0.50f,h*0.91f);
+            heart.AddBezier(p0,
+                new PointF(x + w * .43f, y + h * .83f),
+                new PointF(x + w * .06f, y + h * .60f),
+                new PointF(x + w * .08f, y + h * .32f));
+            heart.AddBezier(
+                new PointF(x + w * .08f, y + h * .32f),
+                new PointF(x + w * .10f, y + h * .08f),
+                new PointF(x + w * .34f, y + h * .02f),
+                new PointF(x + w * .50f, y + h * .24f));
+            heart.AddBezier(
+                new PointF(x + w * .50f, y + h * .24f),
+                new PointF(x + w * .66f, y + h * .02f),
+                new PointF(x + w * .90f, y + h * .08f),
+                new PointF(x + w * .92f, y + h * .32f));
+            heart.AddBezier(
+                new PointF(x + w * .92f, y + h * .32f),
+                new PointF(x + w * .94f, y + h * .60f),
+                new PointF(x + w * .57f, y + h * .83f),
+                p0);
             heart.CloseFigure();
-            using var fill = new SolidBrush(Color.FromArgb(225, 18, 52));
-            using var shadow = new SolidBrush(Color.FromArgb(28, 150, 0, 20));
-            using var highlight = new SolidBrush(Color.FromArgb(55, 255, 255, 255));
-            var state = e.Graphics.Save();
-            e.Graphics.TranslateTransform(0, 3);
-            e.Graphics.FillPath(shadow, heart);
-            e.Graphics.Restore(state);
+
+            using var haloPath = (System.Drawing.Drawing2D.GraphicsPath)heart.Clone();
+            using var halo = new Pen(Color.FromArgb(55 + (int)(pulse * 80), 255, 35, 65), 5f + pulse * 2f);
+            e.Graphics.DrawPath(halo, haloPath);
+            using var fill = new System.Drawing.Drawing2D.PathGradientBrush(heart)
+            {
+                CenterColor = Color.FromArgb(255, 242, 35, 64),
+                SurroundColors = new[] { Color.FromArgb(255, 165, 0, 30) }
+            };
+            fill.CenterPoint = new PointF(x + w * .38f, y + h * .32f);
             e.Graphics.FillPath(fill, heart);
-            e.Graphics.FillEllipse(highlight, w*0.27f, h*0.22f, w*0.12f, h*0.09f);
-            using var font = new Font("Segoe UI", Math.Max(12f, h * 0.145f), FontStyle.Bold);
-            var textRect = new Rectangle(0, (int)(h*0.27f), (int)w, (int)(h*0.42f));
-            TextRenderer.DrawText(e.Graphics, "LIC AI", font, textRect, Color.White,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
+            using var gloss = new SolidBrush(Color.FromArgb(58, 255, 255, 255));
+            e.Graphics.FillEllipse(gloss, x + w * .23f, y + h * .18f, w * .17f, h * .11f);
+
+            using var font = new Font("Segoe UI", 13.5f * scale, FontStyle.Bold, GraphicsUnit.Point);
+            using var textBrush = new SolidBrush(Color.White);
+            using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            var textRect = new RectangleF(x + w * .12f, y + h * .25f, w * .76f, h * .42f);
+            e.Graphics.DrawString("LIC AI", font, textBrush, textRect, sf);
         };
 
         licHeart.Click += (_, _) =>
@@ -66,18 +93,8 @@ $insert = @'
             catch (Exception ex) { MessageBox.Show("Nao foi possivel abrir a LIC AI.\n\n" + ex.Message, "LIC AI", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         };
 
-        int beatFrame = 0;
-        int[] beatHeights = {104,108,114,120,126,120,114,108,104,106,111,116,111,106,104,104,104,104,104,104};
-        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 62 };
-        licPulseTimer.Tick += (_, _) =>
-        {
-            int h = beatHeights[beatFrame++ % beatHeights.Length];
-            int w = (int)Math.Round(h * 1.125);
-            licHeart.Size = new Size(w, h);
-            PositionLicHeart();
-            licHeart.Invalidate();
-        };
-
+        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 35 };
+        licPulseTimer.Tick += (_, _) => { licHeartPhase += 0.10; licHeart.Invalidate(); };
         Controls.Add(licHeart);
         PositionLicHeart();
         Resize += (_, _) => PositionLicHeart();
@@ -86,4 +103,4 @@ $insert = @'
 '@
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI V10.194: coracao corrigido, LIC AI dentro e batimento cardiaco.'
+Write-Host 'LIC AI V10.195: botao-coracao refeito com a logica do antigo orbe pulsante.'
