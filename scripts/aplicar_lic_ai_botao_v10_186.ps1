@@ -8,63 +8,74 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.192: coracao LIC AI organico, sem moldura, centralizado embaixo e com batimento real.
+        // V10.193: coracao LIC AI inspirado na referencia: cheio, organico, sem moldura e com batimento natural.
         var licHeart = new Label
         {
-            Text = "LIC AI",
+            Text = string.Empty,
             AutoSize = false,
-            Size = new Size(104, 92),
+            Size = new Size(126, 112),
             BackColor = Color.Transparent,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 13, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
             Cursor = Cursors.Hand,
             Anchor = AnchorStyles.Bottom
         };
 
         void PositionLicHeart()
         {
-            licHeart.Location = new Point((ClientSize.Width - licHeart.Width) / 2, ClientSize.Height - licHeart.Height - 30);
+            licHeart.Location = new Point((ClientSize.Width - licHeart.Width) / 2, ClientSize.Height - licHeart.Height - 26);
             licHeart.BringToFront();
         }
 
         licHeart.Paint += (_, e) =>
         {
             e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            var r = licHeart.ClientRectangle;
-            float w = r.Width, h = r.Height;
-            using var pathHeart = new System.Drawing.Drawing2D.GraphicsPath();
-            pathHeart.StartFigure();
-            pathHeart.AddBezier(w*0.50f,h*0.88f, w*0.43f,h*0.78f, w*0.08f,h*0.56f, w*0.08f,h*0.31f);
-            pathHeart.AddBezier(w*0.08f,h*0.31f, w*0.08f,h*0.12f, w*0.30f,h*0.04f, w*0.50f,h*0.24f);
-            pathHeart.AddBezier(w*0.50f,h*0.24f, w*0.70f,h*0.04f, w*0.92f,h*0.12f, w*0.92f,h*0.31f);
-            pathHeart.AddBezier(w*0.92f,h*0.31f, w*0.92f,h*0.56f, w*0.57f,h*0.78f, w*0.50f,h*0.88f);
-            pathHeart.CloseFigure();
-            using var fill = new SolidBrush(Color.FromArgb(232,10,42));
-            e.Graphics.FillPath(fill,pathHeart);
-            TextRenderer.DrawText(e.Graphics,"LIC AI",licHeart.Font,r,Color.White,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.NoPadding);
+            e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
+            float w = licHeart.ClientSize.Width;
+            float h = licHeart.ClientSize.Height;
+            using var heart = new System.Drawing.Drawing2D.GraphicsPath();
+            heart.StartFigure();
+            heart.MoveTo(w * 0.50f, h * 0.91f);
+            heart.AddBezier(w * 0.47f,h * 0.84f, w * 0.10f,h * 0.62f, w * 0.10f,h * 0.34f);
+            heart.AddBezier(w * 0.10f,h * 0.13f, w * 0.27f,h * 0.07f, w * 0.39f,h * 0.12f);
+            heart.AddBezier(w * 0.45f,h * 0.15f, w * 0.49f,h * 0.21f, w * 0.50f,h * 0.26f);
+            heart.AddBezier(w * 0.51f,h * 0.21f, w * 0.55f,h * 0.15f, w * 0.61f,h * 0.12f);
+            heart.AddBezier(w * 0.73f,h * 0.07f, w * 0.90f,h * 0.13f, w * 0.90f,h * 0.34f);
+            heart.AddBezier(w * 0.90f,h * 0.62f, w * 0.53f,h * 0.84f, w * 0.50f,h * 0.91f);
+            heart.CloseFigure();
+            using var shadow = new SolidBrush(Color.FromArgb(32, 170, 0, 28));
+            using var fill = new SolidBrush(Color.FromArgb(225, 18, 52));
+            using var highlight = new SolidBrush(Color.FromArgb(52, 255, 255, 255));
+            var state = e.Graphics.Save();
+            e.Graphics.TranslateTransform(0, 3);
+            e.Graphics.FillPath(shadow, heart);
+            e.Graphics.Restore(state);
+            e.Graphics.FillPath(fill, heart);
+            e.Graphics.FillEllipse(highlight, w*0.27f, h*0.22f, w*0.12f, h*0.09f);
+            using var font = new Font("Segoe UI", Math.Max(12f, h * 0.145f), FontStyle.Bold);
+            var textRect = new Rectangle(0, (int)(h*0.27f), (int)w, (int)(h*0.42f));
+            TextRenderer.DrawText(e.Graphics, "LIC AI", font, textRect, Color.White,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
         };
 
         licHeart.Click += (_, _) =>
         {
             try
             {
-                var licExe = Path.Combine(AppContext.BaseDirectory,"LIC-AI","LicAi.exe");
-                if (!File.Exists(licExe)) { MessageBox.Show("LIC AI nao foi encontrada nesta instalacao. Atualize o PDV e tente novamente.","LIC AI",MessageBoxButtons.OK,MessageBoxIcon.Warning); return; }
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName=licExe, WorkingDirectory=Path.GetDirectoryName(licExe) ?? AppContext.BaseDirectory, UseShellExecute=true });
+                var licExe = Path.Combine(AppContext.BaseDirectory, "LIC-AI", "LicAi.exe");
+                if (!File.Exists(licExe)) { MessageBox.Show("LIC AI nao foi encontrada nesta instalacao. Atualize o PDV e tente novamente.", "LIC AI", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = licExe, WorkingDirectory = Path.GetDirectoryName(licExe) ?? AppContext.BaseDirectory, UseShellExecute = true });
             }
-            catch(Exception ex) { MessageBox.Show("Nao foi possivel abrir a LIC AI.\n\n"+ex.Message,"LIC AI",MessageBoxButtons.OK,MessageBoxIcon.Error); }
+            catch (Exception ex) { MessageBox.Show("Nao foi possivel abrir a LIC AI.\n\n" + ex.Message, "LIC AI", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         };
 
-        int beat = 0;
-        int[] beatSizes = { 92,96,102,108,102,96,92,92,92,96,103,98,92,92,92,92 };
-        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
+        int beatFrame = 0;
+        // Batimento tipo cardiaco: impulso forte, recuo, segundo impulso menor e pausa.
+        int[] beatHeights = {104,108,114,120,126,120,114,108,104,106,111,116,111,106,104,104,104,104,104,104};
+        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 62 };
         licPulseTimer.Tick += (_, _) =>
         {
-            int h = beatSizes[beat++ % beatSizes.Length];
-            int w = (int)(h * 1.13);
-            licHeart.Size = new Size(w,h);
-            licHeart.Font = new Font("Segoe UI", Math.Max(11f,h*0.14f), FontStyle.Bold);
+            int h = beatHeights[beatFrame++ % beatHeights.Length];
+            int w = (int)Math.Round(h * 1.125);
+            licHeart.Size = new Size(w, h);
             PositionLicHeart();
             licHeart.Invalidate();
         };
@@ -75,6 +86,6 @@ $insert = @'
         Shown += (_, _) => { PositionLicHeart(); licPulseTimer.Start(); };
         FormClosed += (_, _) => { licPulseTimer.Stop(); licPulseTimer.Dispose(); };
 '@
-$text = $text.Replace($anchor,$insert)
+$text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI: coracao organico corrigido, com nome dentro, batimento duplo, central inferior.'
+Write-Host 'LIC AI V10.193: coracao cheio inspirado na referencia, LIC AI dentro e batimento cardiaco.'
