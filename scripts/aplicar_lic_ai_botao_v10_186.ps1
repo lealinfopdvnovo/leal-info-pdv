@@ -8,7 +8,7 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.193: coracao LIC AI inspirado na referencia: cheio, organico, sem moldura e com batimento natural.
+        // V10.194: coracao LIC AI inspirado na referencia: cheio, organico, sem moldura e com batimento natural.
         var licHeart = new Label
         {
             Text = string.Empty,
@@ -33,17 +33,16 @@ $insert = @'
             float h = licHeart.ClientSize.Height;
             using var heart = new System.Drawing.Drawing2D.GraphicsPath();
             heart.StartFigure();
-            heart.MoveTo(w * 0.50f, h * 0.91f);
-            heart.AddBezier(w * 0.47f,h * 0.84f, w * 0.10f,h * 0.62f, w * 0.10f,h * 0.34f);
-            heart.AddBezier(w * 0.10f,h * 0.13f, w * 0.27f,h * 0.07f, w * 0.39f,h * 0.12f);
-            heart.AddBezier(w * 0.45f,h * 0.15f, w * 0.49f,h * 0.21f, w * 0.50f,h * 0.26f);
-            heart.AddBezier(w * 0.51f,h * 0.21f, w * 0.55f,h * 0.15f, w * 0.61f,h * 0.12f);
-            heart.AddBezier(w * 0.73f,h * 0.07f, w * 0.90f,h * 0.13f, w * 0.90f,h * 0.34f);
-            heart.AddBezier(w * 0.90f,h * 0.62f, w * 0.53f,h * 0.84f, w * 0.50f,h * 0.91f);
+            heart.AddBezier(w*0.50f,h*0.91f, w*0.45f,h*0.82f, w*0.10f,h*0.62f, w*0.10f,h*0.34f);
+            heart.AddBezier(w*0.10f,h*0.34f, w*0.10f,h*0.13f, w*0.27f,h*0.07f, w*0.39f,h*0.12f);
+            heart.AddBezier(w*0.39f,h*0.12f, w*0.45f,h*0.15f, w*0.49f,h*0.21f, w*0.50f,h*0.26f);
+            heart.AddBezier(w*0.50f,h*0.26f, w*0.51f,h*0.21f, w*0.55f,h*0.15f, w*0.61f,h*0.12f);
+            heart.AddBezier(w*0.61f,h*0.12f, w*0.73f,h*0.07f, w*0.90f,h*0.13f, w*0.90f,h*0.34f);
+            heart.AddBezier(w*0.90f,h*0.34f, w*0.90f,h*0.62f, w*0.55f,h*0.82f, w*0.50f,h*0.91f);
             heart.CloseFigure();
-            using var shadow = new SolidBrush(Color.FromArgb(32, 170, 0, 28));
             using var fill = new SolidBrush(Color.FromArgb(225, 18, 52));
-            using var highlight = new SolidBrush(Color.FromArgb(52, 255, 255, 255));
+            using var shadow = new SolidBrush(Color.FromArgb(28, 150, 0, 20));
+            using var highlight = new SolidBrush(Color.FromArgb(55, 255, 255, 255));
             var state = e.Graphics.Save();
             e.Graphics.TranslateTransform(0, 3);
             e.Graphics.FillPath(shadow, heart);
@@ -68,7 +67,6 @@ $insert = @'
         };
 
         int beatFrame = 0;
-        // Batimento tipo cardiaco: impulso forte, recuo, segundo impulso menor e pausa.
         int[] beatHeights = {104,108,114,120,126,120,114,108,104,106,111,116,111,106,104,104,104,104,104,104};
         var licPulseTimer = new System.Windows.Forms.Timer { Interval = 62 };
         licPulseTimer.Tick += (_, _) =>
@@ -88,4 +86,4 @@ $insert = @'
 '@
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI V10.193: coracao cheio inspirado na referencia, LIC AI dentro e batimento cardiaco.'
+Write-Host 'LIC AI V10.194: coracao corrigido, LIC AI dentro e batimento cardiaco.'
