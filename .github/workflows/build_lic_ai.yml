@@ -1,0 +1,60 @@
+name: Build LIC AI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - lic-ai
+    paths:
+      - 'LIC-AI/**'
+      - '.github/workflows/build_lic_ai.yml'
+
+concurrency:
+  group: build-lic-ai
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Baixar projeto
+        uses: actions/checkout@v4
+        with:
+          ref: lic-ai
+
+      - name: Instalar .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restaurar dependencias
+        run: dotnet restore LIC-AI/LicAi.csproj
+
+      - name: Compilar LIC AI
+        run: dotnet publish LIC-AI/LicAi.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o LIC-AI/publish
+
+      - name: Instalar Inno Setup
+        shell: powershell
+        run: choco install innosetup --yes --no-progress
+
+      - name: Criar instalador
+        shell: powershell
+        working-directory: LIC-AI
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer.iss"'
+
+      - name: Guardar LIC AI portatil
+        uses: actions/upload-artifact@v4
+        with:
+          name: LIC_AI_V1_0_0_PORTATIL
+          path: LIC-AI/publish/**
+          if-no-files-found: error
+
+      - name: Guardar Setup LIC AI
+        uses: actions/upload-artifact@v4
+        with:
+          name: Setup_LIC_AI_V1_0_0
+          path: LIC-AI/SETUP_PRONTO/Setup_LIC_AI_V1_0_0.exe
+          if-no-files-found: error
