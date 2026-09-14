@@ -15,18 +15,18 @@ $insert = @'
         body.Controls.Add(mainScreenPicture);
         mainScreenPicture.SendToBack();
 
-        // V10.186: acesso visual da LIC AI. Aplicativo continua isolado do PDV.
+        // V10.187: acesso visual da LIC AI. Aplicativo continua isolado do PDV.
         var licAiButton = new Button
         {
-            Text = "🔥  LIC AI  🔥",
-            Width = 190,
-            Height = 68,
+            Text = "\u2764  LIC AI  \u2764",
+            Width = 200,
+            Height = 64,
             BackColor = Color.FromArgb(220, 18, 18),
             ForeColor = Color.White,
             FlatStyle = FlatStyle.Flat,
             Font = new Font("Segoe UI", 15, FontStyle.Bold),
             Cursor = Cursors.Hand,
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
+            Anchor = AnchorStyles.Top | AnchorStyles.Right,
             TabStop = false
         };
         licAiButton.FlatAppearance.BorderSize = 3;
@@ -37,7 +37,7 @@ $insert = @'
         void PositionLicAiButton()
         {
             licAiButton.Left = Math.Max(12, body.ClientSize.Width - licAiButton.Width - 24);
-            licAiButton.Top = Math.Max(12, body.ClientSize.Height - licAiButton.Height - 24);
+            licAiButton.Top = 22;
         }
 
         int licPulse = 0;
@@ -96,4 +96,4 @@ $insert = @'
 
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'Botao LIC AI vermelho flamejante pulsante aplicado.'
+Write-Host 'Botao LIC AI com coracao, vermelho pulsante, aplicado no canto superior direito.'
