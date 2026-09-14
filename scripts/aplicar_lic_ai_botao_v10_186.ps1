@@ -6,25 +6,28 @@ $anchor = @'
         Controls.Add(menu);
 '@
 
-if (-not $text.Contains($anchor)) {
-    throw 'Ponto de insercao do acesso LIC AI nao encontrado em MainForm.cs'
-}
+if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontrado' }
 
 $insert = @'
-        // V10.189: icone LIC AI em formato de coracao, pulsante, no canto superior direito.
-        var licHeart = new ToolStripMenuItem("\u2665")
-        {
-            Alignment = ToolStripItemAlignment.Right,
-            ForeColor = Color.FromArgb(255, 35, 55),
-            BackColor = menu.BackColor,
-            Font = new Font("Segoe UI Symbol", 19, FontStyle.Bold),
-            AutoSize = false,
-            Width = 48,
-            Height = 30,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ToolTipText = "LIC AI"
-        };
+        Controls.Add(menu);
 
+        // V10.190: somente o coracao LIC AI, sem quadrado/moldura, no canto inferior esquerdo.
+        var licHeart = new Label
+        {
+            Text = "\u2665",
+            AutoSize = false,
+            Size = new Size(58, 58),
+            BackColor = Color.Transparent,
+            ForeColor = Color.FromArgb(235, 18, 45),
+            Font = new Font("Segoe UI Symbol", 31, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter,
+            Cursor = Cursors.Hand,
+            Anchor = AnchorStyles.Left | AnchorStyles.Bottom
+        };
+        licHeart.Location = new Point(12, ClientSize.Height - licHeart.Height - 34);
+        licHeart.BringToFront();
+        licHeart.MouseEnter += (_, _) => licHeart.ForeColor = Color.FromArgb(255, 35, 60);
+        licHeart.MouseLeave += (_, _) => licHeart.ForeColor = Color.FromArgb(235, 18, 45);
         licHeart.Click += (_, _) =>
         {
             try
@@ -35,7 +38,6 @@ $insert = @'
                     MessageBox.Show("LIC AI nao foi encontrada nesta instalacao. Atualize o PDV e tente novamente.", "LIC AI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = licExe,
@@ -51,32 +53,23 @@ $insert = @'
 
         int pulseStep = 0;
         bool pulseGrowing = true;
-        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 90 };
+        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 85 };
         licPulseTimer.Tick += (_, _) =>
         {
             pulseStep += pulseGrowing ? 1 : -1;
-            if (pulseStep >= 6) { pulseStep = 6; pulseGrowing = false; }
+            if (pulseStep >= 7) { pulseStep = 7; pulseGrowing = false; }
             if (pulseStep <= 0) { pulseStep = 0; pulseGrowing = true; }
-
-            float fontSize = 18f + (pulseStep * 0.85f);
-            licHeart.Font = new Font("Segoe UI Symbol", fontSize, FontStyle.Bold);
-            int red = 205 + (pulseStep * 8);
-            int green = 18 + (pulseStep * 3);
-            int blue = 35 + (pulseStep * 3);
-            licHeart.ForeColor = Color.FromArgb(Math.Min(255, red), green, blue);
+            float size = 28f + pulseStep * 1.05f;
+            licHeart.Font = new Font("Segoe UI Symbol", size, FontStyle.Bold);
+            licHeart.ForeColor = pulseStep >= 4 ? Color.FromArgb(255, 25, 52) : Color.FromArgb(220, 10, 35);
         };
 
-        menu.Items.Add(licHeart);
-        Shown += (_, _) => licPulseTimer.Start();
-        FormClosed += (_, _) =>
-        {
-            licPulseTimer.Stop();
-            licPulseTimer.Dispose();
-        };
-
-        Controls.Add(menu);
+        Controls.Add(licHeart);
+        licHeart.BringToFront();
+        Shown += (_, _) => { licHeart.BringToFront(); licPulseTimer.Start(); };
+        FormClosed += (_, _) => { licPulseTimer.Stop(); licPulseTimer.Dispose(); };
 '@
 
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI aplicada como icone de coracao pulsante.'
+Write-Host 'LIC AI: coracao puro, sem moldura, inferior esquerdo.'
