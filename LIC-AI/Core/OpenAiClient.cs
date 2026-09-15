@@ -22,7 +22,7 @@ public sealed class OpenAiClient
 
     public async Task<string> RespondAsync(string systemPrompt, IReadOnlyList<ChatMessage> messages, CancellationToken cancellationToken = default)
     {
-        var key = _apiKeyProvider();
+        var key = (_apiKeyProvider() ?? string.Empty).Replace("\r", string.Empty).Replace("\n", string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(key))
             throw new InvalidOperationException("A chave da OpenAI ainda nao foi configurada.");
 
