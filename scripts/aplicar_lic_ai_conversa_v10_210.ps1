@@ -4,8 +4,21 @@ $t=Get-Content $p -Raw
 $t=$t.Replace('using Vosk;','')
 $t=$t.Replace('    private Model? _voiceModel;','')
 $t=$t.Replace('    private VoskRecognizer? _voiceRecognizer;','')
-$t=$t.Replace('    private WaveInEvent? _microphone;','    private WaveInEvent? _microphone;`r`n    private WaveFileWriter? _waveWriter;`r`n    private MemoryStream? _audioBuffer;`r`n    private DateTime _lastVoiceUtc;`r`n    private bool _speechDetected;`r`n    private readonly System.Windows.Forms.Timer _pulseTimer = new() { Interval = 70 };`r`n    private double _pulsePhase;')
-$t=$t.Replace('        BuildUi();','        BuildUi();`r`n        _pulseTimer.Tick += (_, _) => { if (_processingVoice) { _pulsePhase += .28; var v = 125 + (int)(Math.Sin(_pulsePhase) * 65); _voiceButton.BackColor = Color.FromArgb(Math.Clamp(v,60,230), 25, 25); } };')
+$fields=@'
+    private WaveInEvent? _microphone;
+    private WaveFileWriter? _waveWriter;
+    private MemoryStream? _audioBuffer;
+    private DateTime _lastVoiceUtc;
+    private bool _speechDetected;
+    private readonly System.Windows.Forms.Timer _pulseTimer = new() { Interval = 70 };
+    private double _pulsePhase;
+'@
+$t=$t.Replace('    private WaveInEvent? _microphone;',$fields.TrimEnd())
+$build=@'
+        BuildUi();
+        _pulseTimer.Tick += (_, _) => { if (_processingVoice) { _pulsePhase += .28; var v = 125 + (int)(Math.Sin(_pulsePhase) * 65); _voiceButton.BackColor = Color.FromArgb(Math.Clamp(v,60,230), 25, 25); } };
+'@
+$t=$t.Replace('        BuildUi();',$build.TrimEnd())
 $start=$t.IndexOf('    private async Task EnsureVoiceModelAsync()')
 $end=$t.IndexOf('    private static async Task SendNavigationCommandAsync(', $start)
 if($start -lt 0 -or $end -lt 0){throw 'Bloco de voz nao localizado'}
@@ -56,6 +69,7 @@ $new=@'
     private async Task ProcessCapturedSpeechAsync()
     {
         StopRecognition(false);
+        await SendStatusAsync("SPEAKING");
         try
         {
             _waveWriter?.Dispose(); _waveWriter=null;
