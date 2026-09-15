@@ -1,6 +1,7 @@
 $ErrorActionPreference='Stop'
 $p='MainForm.cs'; $t=Get-Content $p -Raw
-$t=$t.Replace('double licPhase = 0;','double licPhase = 0;`r`n        string licAiState = "IDLE";')
+$replacement = "double licPhase = 0;`r`n        string licAiState = `"IDLE`";"
+$t=$t.Replace('double licPhase = 0;',$replacement)
 $t=$t.Replace('Color.FromArgb(70 + (int)(pulse * 75), 0, 245, 255)','licAiState == "SPEAKING" ? Color.FromArgb(80 + (int)(pulse * 120), 255, 30, 30) : Color.FromArgb(70 + (int)(pulse * 75), 0, 245, 255)')
 $t=$t.Replace('new System.Drawing.Drawing2D.LinearGradientBrush(core, Color.FromArgb(8, 105, 210), Color.FromArgb(1, 22, 74), 90f)','new System.Drawing.Drawing2D.LinearGradientBrush(core, licAiState == "SPEAKING" ? Color.FromArgb(210, 35, 35) : Color.FromArgb(8, 105, 210), licAiState == "SPEAKING" ? Color.FromArgb(75, 5, 5) : Color.FromArgb(1, 22, 74), 90f)')
 $anchor='        var licPulseTimer = new System.Windows.Forms.Timer { Interval = 35 };'
