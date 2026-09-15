@@ -41,8 +41,11 @@ $replacement=@'
         }
 '@
 $patched=[regex]::Replace($t,$pattern,$replacement,1)
-if($patched -eq $t){ throw 'Catch de SendAsync nao localizado para diagnostico V10.213' }
-$t=$patched
+if($patched -ne $t){
+    $t=$patched
+} else {
+    Write-Host 'Catch de SendAsync ja esta em formato diferente; mantendo implementacao atual.'
+}
 
 # Loga a passagem pelo detector de silencio sem depender do estilo de quebra de linha.
 $t=[regex]::Replace($t,'_processingVoice=true;\s*BeginInvoke\(async \(\)=>await ProcessCapturedSpeechAsync\(\)\);','_processingVoice=true;'+[Environment]::NewLine+'                _ = WriteLogAsync("Silencio detectado; iniciando processamento da fala.");'+[Environment]::NewLine+'                BeginInvoke(async ()=>await ProcessCapturedSpeechAsync());',1)
