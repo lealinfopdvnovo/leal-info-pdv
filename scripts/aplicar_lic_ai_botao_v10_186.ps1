@@ -8,10 +8,10 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.202: botao LIC AI HUD centralizado, elevado e recortado sem fundo.
+        // V10.203: botao LIC AI circular holografico com aneis tecnologicos.
         var licAiButton = new Control
         {
-            Size = new Size(220, 90),
+            Size = new Size(210, 210),
             Cursor = Cursors.Hand,
             TabStop = false,
             Anchor = AnchorStyles.Bottom
@@ -28,13 +28,7 @@ $insert = @'
             licAiButton.Location = new Point(centeredX, safeY);
 
             using var hitPath = new System.Drawing.Drawing2D.GraphicsPath();
-            float hitCut = 22f;
-            hitPath.AddPolygon(new PointF[] {
-                new(hitCut, 0), new(licAiButton.Width - hitCut, 0),
-                new(licAiButton.Width - 1, licAiButton.Height / 2f),
-                new(licAiButton.Width - hitCut, licAiButton.Height - 1),
-                new(hitCut, licAiButton.Height - 1), new(0, licAiButton.Height / 2f)
-            });
+            hitPath.AddEllipse(1, 1, licAiButton.Width - 3, licAiButton.Height - 3);
             licAiButton.Region?.Dispose();
             licAiButton.Region = new Region(hitPath);
             licAiButton.BringToFront();
@@ -47,40 +41,56 @@ $insert = @'
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
             float pulse = (float)((Math.Sin(licPhase) + 1.0) / 2.0);
-            var body = new RectangleF(3, 3, licAiButton.Width - 7, licAiButton.Height - 7);
+            float spin = (float)((licPhase * 28) % 360);
+            float cx = licAiButton.Width / 2f;
+            float cy = licAiButton.Height / 2f;
 
-            using var pathHud = new System.Drawing.Drawing2D.GraphicsPath();
-            float cut = 18f;
-            pathHud.AddPolygon(new PointF[] {
-                new(body.Left + cut, body.Top), new(body.Right - cut, body.Top),
-                new(body.Right, body.Top + body.Height / 2f),
-                new(body.Right - cut, body.Bottom), new(body.Left + cut, body.Bottom),
-                new(body.Left, body.Top + body.Height / 2f)
-            });
+            using var outerFill = new System.Drawing.Drawing2D.LinearGradientBrush(
+                new RectangleF(0, 0, licAiButton.Width, licAiButton.Height),
+                Color.FromArgb(2, 13, 36), Color.FromArgb(0, 55, 105), 45f);
+            g.FillEllipse(outerFill, 1, 1, licAiButton.Width - 3, licAiButton.Height - 3);
 
-            using var glowWide = new Pen(Color.FromArgb(35 + (int)(pulse * 25), 0, 210, 255), 14f);
-            g.DrawPath(glowWide, pathHud);
-            using var glow = new Pen(Color.FromArgb(125 + (int)(pulse * 80), 0, 235, 255), 5f);
-            g.DrawPath(glow, pathHud);
-            using var fill = new System.Drawing.Drawing2D.LinearGradientBrush(body, Color.FromArgb(8, 44, 82), Color.FromArgb(2, 12, 30), 90f);
-            g.FillPath(fill, pathHud);
-            using var edge = new Pen(Color.FromArgb(240, 55, 238, 255), 2.2f);
-            g.DrawPath(edge, pathHud);
+            using var halo = new Pen(Color.FromArgb(35 + (int)(pulse * 35), 0, 225, 255), 18f);
+            g.DrawEllipse(halo, 14, 14, licAiButton.Width - 29, licAiButton.Height - 29);
+            using var outerRing = new Pen(Color.FromArgb(210, 20, 165, 255), 2.2f);
+            g.DrawEllipse(outerRing, 9, 9, licAiButton.Width - 19, licAiButton.Height - 19);
+            using var dotted = new Pen(Color.FromArgb(150, 45, 205, 255), 1.3f) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dot };
+            g.DrawEllipse(dotted, 18, 18, licAiButton.Width - 37, licAiButton.Height - 37);
 
-            float scanX = body.Left + 20 + (float)((Math.Sin(licPhase * .7) + 1) / 2) * (body.Width - 40);
-            using var scan = new Pen(Color.FromArgb(80, 120, 250, 255), 2f);
-            g.DrawLine(scan, scanX, body.Top + 8, scanX, body.Bottom - 8);
+            for (int i = 0; i < 36; i++)
+            {
+                double a = (i * 10 + spin) * Math.PI / 180.0;
+                float r1 = 78f, r2 = i % 3 == 0 ? 91f : 86f;
+                var p1 = new PointF(cx + (float)Math.Cos(a) * r1, cy + (float)Math.Sin(a) * r1);
+                var p2 = new PointF(cx + (float)Math.Cos(a) * r2, cy + (float)Math.Sin(a) * r2);
+                using var tick = new Pen(Color.FromArgb(i % 3 == 0 ? 210 : 105, 30, 205, 255), i % 3 == 0 ? 2f : 1f);
+                g.DrawLine(tick, p1, p2);
+            }
 
-            using var dot = new SolidBrush(Color.FromArgb(80, 255, 185));
-            g.FillEllipse(dot, body.Left + 18, body.Top + body.Height / 2f - 4, 8, 8);
-            using var font = new Font("Segoe UI", 17f, FontStyle.Bold, GraphicsUnit.Point);
+            var arcRect = new RectangleF(27, 27, licAiButton.Width - 55, licAiButton.Height - 55);
+            using var arc = new Pen(Color.FromArgb(235, 0, 238, 255), 5f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round };
+            g.DrawArc(arc, arcRect, spin, 82);
+            g.DrawArc(arc, arcRect, spin + 180, 82);
+
+            var core = new RectangleF(47, 47, licAiButton.Width - 95, licAiButton.Height - 95);
+            using var coreGlow = new Pen(Color.FromArgb(70 + (int)(pulse * 75), 0, 245, 255), 15f);
+            g.DrawEllipse(coreGlow, core);
+            using var coreFill = new System.Drawing.Drawing2D.LinearGradientBrush(core, Color.FromArgb(8, 105, 210), Color.FromArgb(1, 22, 74), 90f);
+            g.FillEllipse(coreFill, core);
+            using var coreEdge = new Pen(Color.FromArgb(245, 40, 245, 255), 3f);
+            g.DrawEllipse(coreEdge, core);
+
+            using var font = new Font("Segoe UI", 23f, FontStyle.Bold, GraphicsUnit.Point);
             using var textBrush = new SolidBrush(Color.White);
             using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            g.DrawString("LIC  AI", font, textBrush, body, sf);
+            g.DrawString("LIC\nAI", font, textBrush, new RectangleF(core.Left, core.Top - 5, core.Width, core.Height), sf);
+            using var subFont = new Font("Segoe UI", 6.5f, FontStyle.Bold, GraphicsUnit.Point);
+            using var subBrush = new SolidBrush(Color.FromArgb(120, 235, 255));
+            g.DrawString("ASSISTENTE", subFont, subBrush, new RectangleF(core.Left, core.Bottom - 25, core.Width, 14), sf);
 
-            using var subFont = new Font("Segoe UI", 6.8f, FontStyle.Regular, GraphicsUnit.Point);
-            using var subBrush = new SolidBrush(Color.FromArgb(145, 220, 245));
-            g.DrawString("ASSISTENTE INTELIGENTE", subFont, subBrush, new RectangleF(body.Left, body.Bottom - 17, body.Width, 12), sf);
+            using var star = new SolidBrush(Color.FromArgb(225, 230, 255, 255));
+            g.FillEllipse(star, cx + 20, cy - 42, 7, 7);
+            g.FillEllipse(star, cx + 31, cy - 30, 4, 4);
         };
 
         licAiButton.Click += (_, _) =>
@@ -104,4 +114,4 @@ $insert = @'
 '@
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI V10.202: botao HUD centralizado, elevado e sem fundo retangular aplicado.'
+Write-Host 'LIC AI V10.203: botao circular holografico com aneis tecnologicos aplicado.'
