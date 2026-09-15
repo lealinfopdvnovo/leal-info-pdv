@@ -18,3 +18,7 @@ Projeto independente de conversacao, separado funcionalmente do PDV.
 
 ## Regra central
 A LIC AI conversa. Ela nao controla o PDV.
+
+## Modo de voz
+- Ao abrir com `--voice`, a LIC AI conversa em segundo plano, sem janela de chat.
+- Diga `encerrar conversa` para finalizar.
