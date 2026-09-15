@@ -98,13 +98,23 @@ $insert = @'
                 };
                 var process = System.Diagnostics.Process.Start(psi);
                 if (process == null) throw new InvalidOperationException("O Windows nao iniciou o processo LicAi.exe.");
-                await Task.Delay(150);
+                process.EnableRaisingEvents = true;
+                process.Exited += (_, _) =>
+                {
+                    try
+                    {
+                        if (!IsDisposed) BeginInvoke(() => { licAiButton.Enabled = true; licAiButton.Focus(); });
+                    }
+                    catch { }
+                    finally { process.Dispose(); }
+                };
+                await Task.Yield();
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Nao foi possivel abrir a LIC AI.\n\n" + ex.Message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            finally { licAiButton.Enabled = true; licAiButton.Focus(); }
+            finally { if (licAiButton.Enabled) licAiButton.Focus(); }
         }
 
         // Vinculacao explicita do EventHandler; nao depende de MainForm.Designer.cs.

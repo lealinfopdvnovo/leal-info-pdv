@@ -63,18 +63,40 @@ $new=@'
             throw new InvalidOperationException($"OpenAI TTS HTTP {(int)response.StatusCode}: {Encoding.UTF8.GetString(audioBytes)}");
         if(audioBytes.Length<2) throw new InvalidDataException("A OpenAI não retornou um áudio válido.");
 
-        using var audioStream=new MemoryStream(audioBytes,false);
-        using var reader=new RawSourceWaveStream(audioStream,new WaveFormat(24000,16,1));
-        using var output=new WaveOutEvent { DesiredLatency=120 };
-        var finished=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        Exception? playbackError=null;
-        output.PlaybackStopped += (_,e) => { playbackError=e.Exception; finished.TrySetResult(true); };
-        output.Init(reader);
-        output.Play();
-        using var registration=cancellationToken.Register(() => { try { output.Stop(); } catch { } });
-        var completed=await Task.WhenAny(finished.Task,Task.Delay(TimeSpan.FromMinutes(2),cancellationToken));
-        if(completed!=finished.Task) throw new TimeoutException("Tempo limite da reprodução de voz excedido.");
-        if(playbackError!=null) throw new InvalidOperationException("Falha no dispositivo de áudio.",playbackError);
+        await Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using var waveStream=BuildPcmWave(audioBytes,24000,1,16);
+            using var player=new System.Media.SoundPlayer(waveStream);
+            player.Load();
+            player.PlaySync();
+        },cancellationToken);
+    }
+
+    private static MemoryStream BuildPcmWave(byte[] pcm,int sampleRate,short channels,short bitsPerSample)
+    {
+        var stream=new MemoryStream(44+pcm.Length);
+        using(var writer=new BinaryWriter(stream,Encoding.ASCII,true))
+        {
+            int byteRate=sampleRate*channels*bitsPerSample/8;
+            short blockAlign=(short)(channels*bitsPerSample/8);
+            writer.Write(Encoding.ASCII.GetBytes("RIFF"));
+            writer.Write(36+pcm.Length);
+            writer.Write(Encoding.ASCII.GetBytes("WAVE"));
+            writer.Write(Encoding.ASCII.GetBytes("fmt "));
+            writer.Write(16);
+            writer.Write((short)1);
+            writer.Write(channels);
+            writer.Write(sampleRate);
+            writer.Write(byteRate);
+            writer.Write(blockAlign);
+            writer.Write(bitsPerSample);
+            writer.Write(Encoding.ASCII.GetBytes("data"));
+            writer.Write(pcm.Length);
+            writer.Write(pcm);
+        }
+        stream.Position=0;
+        return stream;
     }
 
 '@
