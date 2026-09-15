@@ -8,7 +8,7 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.204: textos LIC, ASSISTENTE e AI separados e centralizados.
+        // V10.205: botao inteiro reposicionado abaixo do nome.
         var licAiButton = new Control
         {
             Size = new Size(210, 210),
@@ -24,7 +24,7 @@ $insert = @'
         {
             licAiButton.BackColor = Color.Transparent;
             int centeredX = Math.Max(0, (ClientSize.Width - licAiButton.Width) / 2);
-            int safeY = Math.Max(menu.Bottom + 24, ClientSize.Height - licAiButton.Height - status.Height - 70);
+            int safeY = Math.Max(menu.Bottom + 24, ClientSize.Height - licAiButton.Height - status.Height - 32);
             licAiButton.Location = new Point(centeredX, safeY);
 
             using var hitPath = new System.Drawing.Drawing2D.GraphicsPath();
@@ -115,4 +115,4 @@ $insert = @'
 '@
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI V10.204: textos organizados e centralizados sem sobreposicao.'
+Write-Host 'LIC AI V10.205: botao deslocado para baixo e centralizado entre o nome e a borda.'
