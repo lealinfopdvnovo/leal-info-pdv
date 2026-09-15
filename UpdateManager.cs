@@ -45,3 +45,4 @@ try {
 """;await File.WriteAllTextAsync(ps,script);Atualizar(100,"PRONTO. REINICIANDO O SISTEMA...");await Task.Delay(600);Process.Start(new ProcessStartInfo("powershell.exe",$"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{ps}\""){UseShellExecute=true,WorkingDirectory=work});progresso.Close();Application.Exit();}
  private static string EscapePs(string value)=>value.Replace("'","''");
 }
+
