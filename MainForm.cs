@@ -136,7 +136,8 @@ public sealed class MainForm : Form
             ["TELA_VENDAS"] = new[] { "LEAL INFO CONECTADO - TELA DE VENDAS" },
             ["USUARIOS"] = new[] { "Usuários e Níveis de Acesso" },
             ["CADASTROS"] = new[] { "Cadastros" },
-            ["AJUDA_CADASTRO"] = new[] { "Central de Ajuda • Cadastro" }
+            ["AJUDA_CADASTRO"] = new[] { "Central de Ajuda • Cadastro" },
+            ["CONFIGURACOES"] = new[] { "Configurações do Sistema" }
         };
 
         if (screenTitles.TryGetValue(command, out var titles))
@@ -602,20 +603,9 @@ public sealed class MainForm : Form
             }
             else if (title == "Utilitários")
             {
-                AddMenu("Alterar tela principal...", () => { if(mainScreenPicture != null) ChangeMainScreenImage(mainScreenPicture); });
-                AddMenu("Dados da empresa...", () => ShowCompanyRegistration(false));
                 AddMenu("Fazer Backup", () => _ = BackupAsync());
                 AddMenu("Restaurar Backup", () => _ = RestoreBackupAsync());
                 AddMenu("Configurações", OpenSettings);
-                AddMenu("Usuários e acessos...", () => {
-                    if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode gerenciar usuários.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-                    OpenUsers();
-                });
-                AddMenu("Recuperação por e-mail...", () => { if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode configurar o envio de e-mail."); return; } OpenEmailSettings(); });
-                AddMenu("Códigos de emergência...", () => {
-                    if (!Auth.IsAdmin || Auth.Current == null) { MessageBox.Show("Somente ADMINISTRADOR pode gerar códigos de emergência."); return; }
-                    ShowEmergencyCodes(Auth.Current.Id, false);
-                });
             }
             else if (title == "Relatórios")
             {
@@ -2506,8 +2496,107 @@ private void ApplyFloatingTheme(Form f)
 
     private void OpenSettings()
     {
-        MessageBox.Show($"Empresa: LEAL INFO CONECTADO\nSistema: LEAL INFO PDV\nWindows 11 64 bits\n\nSerial exclusivo:\n{Database.DeviceSerial()}\n\nBanco local:\n{Database.DbPath}",
-            "Configurações",MessageBoxButtons.OK,MessageBoxIcon.Information);
+        var alreadyOpen = Application.OpenForms.Cast<Form>()
+            .FirstOrDefault(x => x.Text == "Configurações do Sistema");
+        if (alreadyOpen != null)
+        {
+            alreadyOpen.BringToFront();
+            alreadyOpen.Activate();
+            alreadyOpen.Focus();
+            return;
+        }
+
+        var f = new Form
+        {
+            Text = "Configurações do Sistema",
+            StartPosition = FormStartPosition.CenterParent,
+            Width = 900,
+            Height = 760,
+            MinimumSize = new Size(820, 680),
+            BackColor = Color.FromArgb(224,239,248),
+            Font = new Font("Segoe UI",10)
+        };
+
+        var header = new Label
+        {
+            Text = "CENTRAL DE CONFIGURAÇÕES",
+            Dock = DockStyle.Top,
+            Height = 78,
+            BackColor = DarkBlue,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI",20,FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        f.Controls.Add(header);
+
+        var tabs = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI",11,FontStyle.Bold), Padding = new Point(18,8) };
+        var companyTab = new TabPage("DADOS DA EMPRESA") { BackColor = Color.FromArgb(224,239,248), Padding = new Padding(26) };
+        var systemTab = new TabPage("SISTEMA E SEGURANÇA") { BackColor = Color.FromArgb(224,239,248), Padding = new Padding(26) };
+        tabs.TabPages.Add(companyTab);
+        tabs.TabPages.Add(systemTab);
+        f.Controls.Add(tabs);
+        tabs.BringToFront();
+
+        var company = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 8, Padding = new Padding(12) };
+        company.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,230));
+        company.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        for (int i=0;i<7;i++) company.RowStyles.Add(new RowStyle(SizeType.Percent,12.5f));
+        company.RowStyles.Add(new RowStyle(SizeType.Percent,12.5f));
+        companyTab.Controls.Add(company);
+
+        TextBox SettingBox(string value) => new() { Text=value, Dock=DockStyle.Fill, Font=new Font("Segoe UI",11,FontStyle.Bold), Margin=new Padding(4,8,4,8) };
+        Label SettingLabel(string value) => new() { Text=value, Dock=DockStyle.Fill, ForeColor=DarkBlue, Font=new Font("Segoe UI",10,FontStyle.Bold), TextAlign=ContentAlignment.MiddleLeft };
+
+        var companyName = SettingBox(GetSetting("company_name"));
+        var tradeName = SettingBox(GetSetting("company_trade_name"));
+        var document = SettingBox(GetSetting("company_document"));
+        var phone = SettingBox(GetSetting("company_phone"));
+        var address = SettingBox(GetSetting("company_address"));
+        var cityState = SettingBox(GetSetting("company_city_state"));
+        var receiptFooter = SettingBox(GetSetting("company_footer","Obrigado pela preferência!"));
+        var fields = new (string label, TextBox box)[]
+        {
+            ("Razão Social / Nome da Empresa",companyName), ("Nome Fantasia",tradeName),
+            ("CNPJ / CPF",document), ("Telefone / WhatsApp",phone), ("Endereço",address),
+            ("Cidade / UF",cityState), ("Mensagem no rodapé do cupom",receiptFooter)
+        };
+        for(int i=0;i<fields.Length;i++) { company.Controls.Add(SettingLabel(fields[i].label),0,i); company.Controls.Add(fields[i].box,1,i); }
+
+        var saveCompany = new Button { Text="SALVAR DADOS DA EMPRESA",Dock=DockStyle.Right,Width=260,Height=46,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold),Margin=new Padding(4,10,4,4) };
+        saveCompany.FlatAppearance.BorderSize=0;
+        company.SetColumnSpan(saveCompany,2); company.Controls.Add(saveCompany,0,7);
+        saveCompany.Click += (_,_) =>
+        {
+            if(string.IsNullOrWhiteSpace(companyName.Text)) { Info("Informe o nome da empresa."); companyName.Focus(); return; }
+            SetSetting("company_name",companyName.Text.Trim()); SetSetting("company_trade_name",tradeName.Text.Trim());
+            SetSetting("company_document",document.Text.Trim()); SetSetting("company_phone",phone.Text.Trim());
+            SetSetting("company_address",address.Text.Trim()); SetSetting("company_city_state",cityState.Text.Trim());
+            SetSetting("company_footer",receiptFooter.Text.Trim()); SetSetting("company_registered","1");
+            Info("Dados da empresa salvos com sucesso.");
+        };
+
+        var system = new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=2,RowCount=5,Padding=new Padding(14) };
+        system.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50)); system.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
+        for(int i=0;i<4;i++) system.RowStyles.Add(new RowStyle(SizeType.Percent,20));
+        system.RowStyles.Add(new RowStyle(SizeType.Percent,20)); systemTab.Controls.Add(system);
+        Button ConfigButton(string text, Action action)
+        {
+            var b=new Button{Text=text,Dock=DockStyle.Fill,Margin=new Padding(10),BackColor=Color.FromArgb(4,70,112),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold)};
+            b.FlatAppearance.BorderSize=0;b.Click+=(_,_)=>action();return b;
+        }
+        system.Controls.Add(ConfigButton("ALTERAR IMAGEM DA TELA PRINCIPAL",()=>{if(mainScreenPicture!=null)ChangeMainScreenImage(mainScreenPicture);}),0,0);
+        system.Controls.Add(ConfigButton("RECUPERAÇÃO POR E-MAIL",()=>{if(Auth.IsAdmin)OpenEmailSettings();else Info("Somente ADMINISTRADOR pode configurar o e-mail.");}),1,0);
+        system.Controls.Add(ConfigButton("USUÁRIOS E ACESSOS",()=>{if(Auth.IsAdmin)OpenUsers();else Info("Somente ADMINISTRADOR pode gerenciar usuários.");}),0,1);
+        system.Controls.Add(ConfigButton("CÓDIGOS DE EMERGÊNCIA",()=>{if(Auth.IsAdmin&&Auth.Current!=null)ShowEmergencyCodes(Auth.Current.Id,false);else Info("Somente ADMINISTRADOR pode gerar códigos de emergência.");}),1,1);
+        system.Controls.Add(ConfigButton("FAZER BACKUP",()=>_ = BackupAsync()),0,2);
+        system.Controls.Add(ConfigButton("RESTAURAR BACKUP",()=>_ = RestoreBackupAsync()),1,2);
+        system.Controls.Add(ConfigButton("ATUALIZAÇÕES DO SISTEMA",()=>UpdateManager.ShowUpdateCenter(f)),0,3);
+        system.Controls.Add(ConfigButton("TUTORIAL DE PRIMEIRO ACESSO",()=>OpenFirstAccessTutorial(false)),1,3);
+        var systemInfo=new Label{Text=$"Sistema: LEAL INFO PDV   •   Versão: V{UpdateManager.CurrentVersion}\nSerial: {Database.DeviceSerial()}\nBanco local: {Database.DbPath}",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",9.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter};
+        system.SetColumnSpan(systemInfo,2);system.Controls.Add(systemInfo,0,4);
+
+        ApplyFloatingTheme(f);
+        f.Show(this);
     }
 
     private async Task BackupAsync()
