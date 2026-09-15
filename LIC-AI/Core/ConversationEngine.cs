@@ -8,15 +8,35 @@ public sealed class ConversationEngine
 {
     private readonly ConversationMemory _memory;
     private readonly OpenAiClient _client;
+    private readonly NavigationAssistantClient _navigationClient;
     private readonly MemoryConsolidator _consolidator = new();
 
-    public ConversationEngine(ConversationMemory memory, OpenAiClient client)
+    public ConversationEngine(
+        ConversationMemory memory,
+        OpenAiClient client,
+        NavigationAssistantClient navigationClient)
     {
         _memory = memory;
         _client = client;
+        _navigationClient = navigationClient;
     }
 
     public IReadOnlyList<ChatMessage> Recent() => _memory.GetRecent(60);
+
+    public async Task<NavigationAssistantReply> SendNavigationAsync(
+        string userText,
+        CancellationToken cancellationToken = default)
+    {
+        userText = (userText ?? string.Empty).Trim();
+        if (userText.Length == 0)
+            return new NavigationAssistantReply(string.Empty, null);
+
+        _memory.Add("user", userText);
+        var recent = _memory.GetRecent(24);
+        var reply = await _navigationClient.AskAsync(recent, cancellationToken).ConfigureAwait(false);
+        _memory.Add("assistant", reply.Mensagem);
+        return reply;
+    }
 
     public async Task<string> SendAsync(string userText, CancellationToken cancellationToken = default)
     {
