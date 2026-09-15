@@ -8,10 +8,10 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.201: botao LIC AI HUD futurista, formato horizontal.
+        // V10.202: botao LIC AI HUD centralizado, elevado e recortado sem fundo.
         var licAiButton = new Control
         {
-            Size = new Size(210, 86),
+            Size = new Size(220, 90),
             Cursor = Cursors.Hand,
             TabStop = false,
             Anchor = AnchorStyles.Bottom
@@ -23,7 +23,20 @@ $insert = @'
         void PositionLicAiButton()
         {
             licAiButton.BackColor = Color.Transparent;
-            licAiButton.Location = new Point((ClientSize.Width - licAiButton.Width) / 2, ClientSize.Height - licAiButton.Height - 18);
+            int centeredX = Math.Max(0, (ClientSize.Width - licAiButton.Width) / 2);
+            int safeY = Math.Max(menu.Bottom + 24, ClientSize.Height - licAiButton.Height - status.Height - 70);
+            licAiButton.Location = new Point(centeredX, safeY);
+
+            using var hitPath = new System.Drawing.Drawing2D.GraphicsPath();
+            float hitCut = 22f;
+            hitPath.AddPolygon(new PointF[] {
+                new(hitCut, 0), new(licAiButton.Width - hitCut, 0),
+                new(licAiButton.Width - 1, licAiButton.Height / 2f),
+                new(licAiButton.Width - hitCut, licAiButton.Height - 1),
+                new(hitCut, licAiButton.Height - 1), new(0, licAiButton.Height / 2f)
+            });
+            licAiButton.Region?.Dispose();
+            licAiButton.Region = new Region(hitPath);
             licAiButton.BringToFront();
         }
 
@@ -34,7 +47,7 @@ $insert = @'
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
             float pulse = (float)((Math.Sin(licPhase) + 1.0) / 2.0);
-            var body = new RectangleF(12, 13, licAiButton.Width - 24, licAiButton.Height - 26);
+            var body = new RectangleF(3, 3, licAiButton.Width - 7, licAiButton.Height - 7);
 
             using var pathHud = new System.Drawing.Drawing2D.GraphicsPath();
             float cut = 18f;
@@ -91,4 +104,4 @@ $insert = @'
 '@
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI V10.201: botao HUD futurista horizontal aplicado.'
+Write-Host 'LIC AI V10.202: botao HUD centralizado, elevado e sem fundo retangular aplicado.'
