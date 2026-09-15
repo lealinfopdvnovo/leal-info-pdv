@@ -54,17 +54,17 @@ $new=@'
             voice="coral",
             input=text,
             instructions="Fale em português do Brasil, com voz feminina natural, acolhedora, clara e profissional.",
-            response_format="wav"
+            response_format="pcm"
         });
         using var content=new StringContent(requestBody,Encoding.UTF8,"application/json");
         using var response=await http.PostAsync("https://api.openai.com/v1/audio/speech",content,cancellationToken);
         var audioBytes=await response.Content.ReadAsByteArrayAsync(cancellationToken);
         if(!response.IsSuccessStatusCode)
             throw new InvalidOperationException($"OpenAI TTS HTTP {(int)response.StatusCode}: {Encoding.UTF8.GetString(audioBytes)}");
-        if(audioBytes.Length<44) throw new InvalidDataException("A OpenAI não retornou um áudio válido.");
+        if(audioBytes.Length<2) throw new InvalidDataException("A OpenAI não retornou um áudio válido.");
 
         using var audioStream=new MemoryStream(audioBytes,false);
-        using var reader=new WaveFileReader(audioStream);
+        using var reader=new RawSourceWaveStream(audioStream,new WaveFormat(24000,16,1));
         using var output=new WaveOutEvent { DesiredLatency=120 };
         var finished=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         Exception? playbackError=null;
