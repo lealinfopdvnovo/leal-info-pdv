@@ -27,7 +27,7 @@ jobs:
         run: |
           $u=Get-Content "UpdateManager.cs" -Raw; $u=[regex]::Replace($u,'CurrentVersion="[^"]+"','CurrentVersion="10.200"'); $u=[regex]::Replace($u,'LEAL-INFO-PDV-Updater/[0-9.]+','LEAL-INFO-PDV-Updater/10.200'); Set-Content "UpdateManager.cs" $u -Encoding UTF8
           $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw; $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.200"'); $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_200_FINAL'); Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.199\.0</Version>') { throw "csproj nao esta em V10.200" }
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.200\.0</Version>') { throw "csproj nao esta em V10.200" }
       - name: Preservar visual aprovado do PDV
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_visual_estavel_v10_177.ps1"
