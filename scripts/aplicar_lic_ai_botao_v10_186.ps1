@@ -8,7 +8,7 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.203: botao LIC AI circular holografico com aneis tecnologicos.
+        // V10.204: textos LIC, ASSISTENTE e AI separados e centralizados.
         var licAiButton = new Control
         {
             Size = new Size(210, 210),
@@ -80,17 +80,18 @@ $insert = @'
             using var coreEdge = new Pen(Color.FromArgb(245, 40, 245, 255), 3f);
             g.DrawEllipse(coreEdge, core);
 
-            using var font = new Font("Segoe UI", 23f, FontStyle.Bold, GraphicsUnit.Point);
             using var textBrush = new SolidBrush(Color.White);
+            using var subBrush = new SolidBrush(Color.FromArgb(135, 240, 255));
             using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            g.DrawString("LIC\nAI", font, textBrush, new RectangleF(core.Left, core.Top - 5, core.Width, core.Height), sf);
-            using var subFont = new Font("Segoe UI", 6.5f, FontStyle.Bold, GraphicsUnit.Point);
-            using var subBrush = new SolidBrush(Color.FromArgb(120, 235, 255));
-            g.DrawString("ASSISTENTE", subFont, subBrush, new RectangleF(core.Left, core.Bottom - 25, core.Width, 14), sf);
 
-            using var star = new SolidBrush(Color.FromArgb(225, 230, 255, 255));
-            g.FillEllipse(star, cx + 20, cy - 42, 7, 7);
-            g.FillEllipse(star, cx + 31, cy - 30, 4, 4);
+            using var licFont = new Font("Segoe UI", 20f, FontStyle.Bold, GraphicsUnit.Point);
+            g.DrawString("LIC", licFont, textBrush, new RectangleF(core.Left, core.Top + 9, core.Width, 34), sf);
+
+            using var subFont = new Font("Segoe UI", 7.2f, FontStyle.Bold, GraphicsUnit.Point);
+            g.DrawString("ASSISTENTE", subFont, subBrush, new RectangleF(core.Left, core.Top + 46, core.Width, 15), sf);
+
+            using var aiFont = new Font("Segoe UI", 20f, FontStyle.Bold, GraphicsUnit.Point);
+            g.DrawString("AI", aiFont, textBrush, new RectangleF(core.Left, core.Top + 65, core.Width, 34), sf);
         };
 
         licAiButton.Click += (_, _) =>
@@ -114,4 +115,4 @@ $insert = @'
 '@
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI V10.203: botao circular holografico com aneis tecnologicos aplicado.'
+Write-Host 'LIC AI V10.204: textos organizados e centralizados sem sobreposicao.'
