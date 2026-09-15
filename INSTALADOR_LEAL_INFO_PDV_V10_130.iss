@@ -1,5 +1,5 @@
 ﻿#define MyAppName "LEAL INFO PDV"
-#define MyAppVersion "10.185"
+#define MyAppVersion "10.200"
 #define MyAppPublisher "LEAL INFO CONECTADO"
 #define MyAppExeName "LealInfoPDV.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\LEAL INFO PDV
 DefaultGroupName={#MyAppName}
 UsePreviousAppDir=yes
 OutputDir=SETUP_PRONTO
-OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_185_FINAL
+OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_200_FINAL
 SetupIconFile=Assets\lealinfo.ico
 Compression=lzma2
 SolidCompression=yes
