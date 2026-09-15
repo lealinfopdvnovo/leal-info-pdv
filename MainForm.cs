@@ -7,6 +7,7 @@ using Microsoft.Web.WebView2.WinForms;
 using Microsoft.Web.WebView2.Core;
 using System.Net.Http;
 using System.Text.Json;
+using System.IO.Pipes;
 
 namespace LealInfoPDV;
 
@@ -18,6 +19,8 @@ public sealed class MainForm : Form
     private readonly Color DarkBlue = Color.FromArgb(4, 70, 112);
     private readonly StatusStrip status = new();
     private readonly Label lowStockLabel = new();
+    private readonly CancellationTokenSource navigationListenerCts = new();
+    private bool navigationListenerStarted;
 
     public MainForm()
     {
@@ -31,6 +34,8 @@ public sealed class MainForm : Form
 
         Shown += (_, _) =>
         {
+            StartNavigationListener();
+
             if (GetSetting("company_registered", "0") != "1")
             {
                 if (!ShowCompanyRegistration(true))
@@ -46,6 +51,89 @@ public sealed class MainForm : Form
             OpenFirstAccessTutorial(true);
             _ = UpdateManager.CheckForUpdatesAsync(this, true);
         };
+
+        FormClosed += (_, _) =>
+        {
+            navigationListenerCts.Cancel();
+            navigationListenerCts.Dispose();
+        };
+    }
+
+    private void StartNavigationListener()
+    {
+        if (navigationListenerStarted) return;
+        navigationListenerStarted = true;
+        _ = ListenForNavigationCommandsAsync(navigationListenerCts.Token);
+    }
+
+    private async Task ListenForNavigationCommandsAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await using var pipe = new NamedPipeServerStream(
+                    "LealInfoPDV.Navigation",
+                    PipeDirection.In,
+                    1,
+                    PipeTransmissionMode.Byte,
+                    PipeOptions.Asynchronous);
+
+                await pipe.WaitForConnectionAsync(cancellationToken);
+                using var reader = new StreamReader(pipe);
+                var command = await reader.ReadLineAsync(cancellationToken);
+                if (!string.IsNullOrWhiteSpace(command) && !IsDisposed)
+                    BeginInvoke(() => OpenScreenFromAi(command));
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch
+            {
+                if (!cancellationToken.IsCancellationRequested)
+                    await Task.Delay(400, cancellationToken);
+            }
+        }
+    }
+
+    private void OpenScreenFromAi(string command)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => OpenScreenFromAi(command));
+            return;
+        }
+
+        command = (command ?? string.Empty).Trim().ToUpperInvariant();
+        WindowState = FormWindowState.Maximized;
+        Show();
+        Activate();
+        BringToFront();
+
+        switch (command)
+        {
+            case "PRODUTOS": OpenProducts(); break;
+            case "CLIENTES": OpenCustomers(); break;
+            case "FORNECEDORES": OpenSuppliers(); break;
+            case "SERVICOS": OpenServices(); break;
+            case "ORDENS_SERVICO": OpenOrders(); break;
+            case "ORCAMENTOS": OpenQuotes(); break;
+            case "FLUXO_CAIXA":
+                if (Auth.IsManager) OpenFinance();
+                else Info("Seu nível de acesso não permite abrir o Fluxo de Caixa.");
+                break;
+            case "HISTORICO_VENDAS": OpenHistory(); break;
+            case "TELA_VENDAS": OpenSales(); break;
+            case "RELATORIOS": OpenReports(); break;
+            case "USUARIOS":
+                if (Auth.IsAdmin) OpenUsers();
+                else Info("Somente administradores podem abrir Usuários.");
+                break;
+            case "CONFIGURACOES": OpenSettings(); break;
+            case "CADASTROS": OpenCadastroCentral(); break;
+            case "AJUDA_CADASTRO": ShowCadastroHelp(); break;
+        }
     }
 
     private Form? firstAccessTutorial;
