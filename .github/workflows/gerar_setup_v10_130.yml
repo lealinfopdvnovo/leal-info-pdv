@@ -1,4 +1,4 @@
-name: Publicar atualizacao LEAL INFO PDV V10.213
+name: Publicar atualizacao LEAL INFO PDV V10.214
 
 on:
   workflow_dispatch:
@@ -19,10 +19,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.213"
-      UPDATE_TAG: "v10.213"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_213_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_213_UPDATE.zip"
+      UPDATE_VERSION: "10.214"
+      UPDATE_TAG: "v10.214"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_214_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_214_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -34,9 +34,9 @@ jobs:
       - name: Preparar versao
         shell: powershell
         run: |
-          $u=Get-Content "UpdateManager.cs" -Raw; $u=[regex]::Replace($u,'CurrentVersion="[^"]+"','CurrentVersion="10.213"'); $u=[regex]::Replace($u,'LEAL-INFO-PDV-Updater/[0-9.]+','LEAL-INFO-PDV-Updater/10.213'); Set-Content "UpdateManager.cs" $u -Encoding UTF8
-          $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw; $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.213"'); $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_213_FINAL'); Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.213\.0</Version>') { throw "csproj nao esta em V10.213" }
+          $u=Get-Content "UpdateManager.cs" -Raw; $u=[regex]::Replace($u,'CurrentVersion="[^"]+"','CurrentVersion="10.214"'); $u=[regex]::Replace($u,'LEAL-INFO-PDV-Updater/[0-9.]+','LEAL-INFO-PDV-Updater/10.214'); Set-Content "UpdateManager.cs" $u -Encoding UTF8
+          $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw; $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.214"'); $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_214_FINAL'); Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.214\.0</Version>') { throw "csproj nao esta em V10.214" }
 
       - name: Preservar visual aprovado do PDV
         shell: powershell
@@ -72,6 +72,10 @@ jobs:
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_lic_ai_conversa_v10_210.ps1"
 
+      - name: Corrigir captura e resposta do microfone
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\corrigir_lic_ai_resposta_v10_213.ps1"
+
       - name: Restaurar dependencias LIC AI
         run: dotnet restore LIC-AI/LicAi.csproj
 
@@ -101,21 +105,21 @@ jobs:
           if (!(Test-Path $setup)) { throw "Setup nao encontrado" }; if (!(Test-Path $package)) { throw "Pacote nao encontrado" }
           $packageHash=(Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
           $ErrorActionPreference="Continue"; gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null; $ErrorActionPreference="Stop"
-          $notes="V10.213: correcao do ciclo de resposta da LIC AI, voz continua e UTF-8."
+          $notes="V10.214: microfone da LIC AI corrigido, captura de voz ativada e aviso de teste removido."
           gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes $notes
           $manifest=@{Version=$env:UPDATE_VERSION;PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE";Sha256=$packageHash;Notes=$notes;DownloadUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:SETUP_FILE";Mandatory=$false;Message=$notes}|ConvertTo-Json
-          $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest)); $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"; gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.213" -f content="$encoded" -f sha="$sha"
+          $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest)); $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"; gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.214" -f content="$encoded" -f sha="$sha"
 
       - name: Guardar pacote
         uses: actions/upload-artifact@v4
         with:
-          name: LEAL_INFO_PDV_V10_213_UPDATE
-          path: LEAL_INFO_PDV_V10_213_UPDATE.zip
+          name: LEAL_INFO_PDV_V10_214_UPDATE
+          path: LEAL_INFO_PDV_V10_214_UPDATE.zip
           if-no-files-found: error
 
       - name: Guardar Setup
         uses: actions/upload-artifact@v4
         with:
-          name: Setup_LEAL_INFO_PDV_V10_213_FINAL
-          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_213_FINAL.exe
+          name: Setup_LEAL_INFO_PDV_V10_214_FINAL
+          path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_214_FINAL.exe
           if-no-files-found: error

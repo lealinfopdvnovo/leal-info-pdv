@@ -79,7 +79,6 @@ $insert = @'
 
         async void btnAssistenteAI_Click(object? sender, EventArgs e)
         {
-            MessageBox.Show("Botão Clicado! Iniciando Microfone...", "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Information);
             try
             {
                 licAiButton.Enabled = false;
