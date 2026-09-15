@@ -1,5 +1,8 @@
 using LicAi.Core;
 using LicAi.Security;
+using System.Globalization;
+using System.Speech.Recognition;
+using System.Speech.Synthesis;
 
 namespace LicAi;
 
@@ -11,8 +14,13 @@ public sealed class MainForm : Form
     private readonly TextBox _input = new();
     private readonly Button _send = new();
     private readonly Button _keyButton = new();
+    private readonly Button _voiceButton = new();
     private readonly Label _status = new();
     private CancellationTokenSource? _cts;
+    private SpeechRecognitionEngine? _recognizer;
+    private SpeechSynthesizer? _speaker;
+    private bool _voiceMode;
+    private bool _recognizing;
 
     public MainForm(ConversationEngine engine, LocalSecretStore secrets)
     {
@@ -29,7 +37,8 @@ public sealed class MainForm : Form
 
         BuildUi();
         LoadHistory();
-        Shown += (_, _) => EnsureApiKey();
+        Shown += (_, _) => { EnsureApiKey(); InitializeVoice(); };
+        FormClosed += (_, _) => DisposeVoice();
     }
 
     private void BuildUi()
@@ -74,6 +83,16 @@ public sealed class MainForm : Form
         _send.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
         _send.Click += async (_, _) => await SendAsync();
 
+        _voiceButton.Text = "🎙 FALAR";
+        _voiceButton.Dock = DockStyle.Right;
+        _voiceButton.Width = 125;
+        _voiceButton.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        _voiceButton.BackColor = Color.FromArgb(0, 125, 190);
+        _voiceButton.ForeColor = Color.White;
+        _voiceButton.FlatStyle = FlatStyle.Flat;
+        _voiceButton.FlatAppearance.BorderSize = 0;
+        _voiceButton.Click += (_, _) => ToggleVoice();
+
         _input.Multiline = true;
         _input.AcceptsReturn = true;
         _input.ScrollBars = ScrollBars.Vertical;
@@ -92,6 +111,7 @@ public sealed class MainForm : Form
         };
 
         bottom.Controls.Add(_input);
+        bottom.Controls.Add(_voiceButton);
         bottom.Controls.Add(_send);
         Controls.Add(_chat);
         Controls.Add(bottom);
@@ -112,7 +132,7 @@ public sealed class MainForm : Form
             Append(item.Role == "assistant" ? "LIC" : "Você", item.Content);
     }
 
-    private async Task SendAsync()
+    private async Task SendAsync(bool speakReply = false)
     {
         if (!_send.Enabled) return;
         var text = _input.Text.Trim();
@@ -133,6 +153,7 @@ public sealed class MainForm : Form
         {
             var reply = await _engine.SendAsync(text, _cts.Token);
             Append("LIC", reply);
+            if (speakReply) await SpeakAndContinueAsync(reply);
         }
         catch (OperationCanceledException)
         {
@@ -149,6 +170,112 @@ public sealed class MainForm : Form
             SetBusy(false);
             _input.Focus();
         }
+    }
+
+    private void InitializeVoice()
+    {
+        try
+        {
+            _speaker = new SpeechSynthesizer();
+            var preferred = _speaker.GetInstalledVoices()
+                .FirstOrDefault(v => v.Enabled &&
+                    (v.VoiceInfo.Culture.Name.Equals("pt-BR", StringComparison.OrdinalIgnoreCase) ||
+                     v.VoiceInfo.Name.Contains("Francisca", StringComparison.OrdinalIgnoreCase) ||
+                     v.VoiceInfo.Name.Contains("Maria", StringComparison.OrdinalIgnoreCase)));
+            if (preferred != null) _speaker.SelectVoice(preferred.VoiceInfo.Name);
+            _speaker.Rate = -1;
+            _speaker.Volume = 100;
+
+            try { _recognizer = new SpeechRecognitionEngine(CultureInfo.GetCultureInfo("pt-BR")); }
+            catch { _recognizer = new SpeechRecognitionEngine(); }
+
+            _recognizer.LoadGrammar(new DictationGrammar());
+            _recognizer.SetInputToDefaultAudioDevice();
+            _recognizer.SpeechRecognized += (_, e) =>
+            {
+                if (!_voiceMode || e.Result.Confidence < 0.45 || string.IsNullOrWhiteSpace(e.Result.Text)) return;
+                var heard = e.Result.Text.Trim();
+                BeginInvoke(async () =>
+                {
+                    StopRecognition(false);
+                    _input.Text = heard;
+                    _status.Text = "Você disse: " + heard;
+                    await SendAsync(true);
+                });
+            };
+            _recognizer.RecognizeCompleted += (_, _) => _recognizing = false;
+            _voiceButton.Enabled = true;
+            _status.Text = "Pronta para conversar por texto ou voz";
+        }
+        catch
+        {
+            _voiceButton.Enabled = false;
+            _voiceButton.Text = "VOZ INDISPONÍVEL";
+            _status.Text = "Instale o idioma Português (Brasil) no Windows para usar voz";
+        }
+    }
+
+    private void ToggleVoice()
+    {
+        if (_recognizer == null || _speaker == null) return;
+        _voiceMode = !_voiceMode;
+        if (_voiceMode) StartRecognition();
+        else StopRecognition(true);
+    }
+
+    private void StartRecognition()
+    {
+        if (!_voiceMode || _recognizer == null || _recognizing) return;
+        try
+        {
+            _recognizing = true;
+            _voiceButton.Text = "⏹ PARAR";
+            _voiceButton.BackColor = Color.FromArgb(0, 175, 150);
+            _status.Text = "LIA está ouvindo...";
+            _recognizer.RecognizeAsync(RecognizeMode.Multiple);
+        }
+        catch
+        {
+            _recognizing = false;
+            _voiceMode = false;
+            _voiceButton.Text = "🎙 FALAR";
+            _status.Text = "Não foi possível abrir o microfone";
+        }
+    }
+
+    private void StopRecognition(bool turnOff)
+    {
+        if (turnOff) _voiceMode = false;
+        if (_recognizer != null && _recognizing)
+        {
+            try { _recognizer.RecognizeAsyncCancel(); } catch { }
+        }
+        _recognizing = false;
+        _voiceButton.Text = _voiceMode ? "⏳ RESPONDENDO" : "🎙 FALAR";
+        _voiceButton.BackColor = _voiceMode ? Color.FromArgb(90, 80, 180) : Color.FromArgb(0, 125, 190);
+        if (!_voiceMode) _status.Text = "Pronta para conversar por texto ou voz";
+    }
+
+    private async Task SpeakAndContinueAsync(string text)
+    {
+        if (_speaker == null) return;
+        _status.Text = "LIA está falando...";
+        _voiceButton.Text = "🔊 FALANDO";
+        try { await Task.Run(() => _speaker.Speak(text)); }
+        catch { }
+        if (_voiceMode)
+        {
+            await Task.Delay(250);
+            StartRecognition();
+        }
+    }
+
+    private void DisposeVoice()
+    {
+        _voiceMode = false;
+        try { _recognizer?.RecognizeAsyncCancel(); } catch { }
+        _recognizer?.Dispose();
+        _speaker?.Dispose();
     }
 
     private void SetBusy(bool busy)
