@@ -33,7 +33,7 @@ $new=@'
             if (WaveInEvent.DeviceCount < 1) throw new InvalidOperationException("O Windows não encontrou nenhum microfone conectado.");
             _audioBuffer?.Dispose();
             _audioBuffer = new MemoryStream();
-            _waveWriter = new WaveFileWriter(new IgnoreDisposeStream(_audioBuffer), new WaveFormat(16000, 16, 1));
+            _waveWriter = new WaveFileWriter(_audioBuffer, new WaveFormat(16000, 16, 1));
             _microphone?.Dispose();
             _microphone = new WaveInEvent { DeviceNumber = 0, WaveFormat = new WaveFormat(16000,16,1), BufferMilliseconds = 100 };
             _microphone.DataAvailable += MicrophoneDataAvailable;
@@ -72,8 +72,10 @@ $new=@'
         await SendStatusAsync("SPEAKING");
         try
         {
-            _waveWriter?.Dispose(); _waveWriter=null;
-            var bytes=_audioBuffer?.ToArray() ?? Array.Empty<byte>();
+            _waveWriter?.Flush();
+            if(_audioBuffer == null){_processingVoice=false;StartRecognition();return;}
+            var bytes=_audioBuffer.ToArray();
+            _waveWriter?.Dispose(); _waveWriter=null; _audioBuffer=null;
             if(bytes.Length<2000){_processingVoice=false;StartRecognition();return;}
             _status.Text="Transcrevendo...";
             var heard=await TranscribeAsync(bytes, CancellationToken.None);
