@@ -2,23 +2,13 @@ $ErrorActionPreference='Stop'
 $p='LIC-AI/MainForm.cs'
 $t=Get-Content $p -Raw -Encoding UTF8
 
-# Microfones comuns de notebook/USB podem entregar RMS bem abaixo de 0.018.
+# Microfones comuns de notebook/USB podem entregar RMS baixo.
 $t=$t.Replace('if(rms>0.018){_speechDetected=true;_lastVoiceUtc=DateTime.UtcNow;}','if(rms>0.006){_speechDetected=true;_lastVoiceUtc=DateTime.UtcNow;}')
 $t=$t.Replace('TimeSpan.FromMilliseconds(950)','TimeSpan.FromMilliseconds(800)')
 
-# Em modo --voice a janela fica oculta. Antes, falhas do GPT eram apenas escritas no chat invisivel
-# e o microfone nunca era reaberto. Agora o erro fica visivel, vai para o log e a conversa continua.
-$old=@'
-        catch (OperationCanceledException)
-        {
-            Append("LIC", "Resposta cancelada.");
-        }
-        catch (Exception ex)
-        {
-            Append("LIC", "Não consegui responder agora. " + ex.Message);
-        }
-'@
-$new=@'
+# Patch robusto do catch de SendAsync, independente de CRLF/LF e pequenos espacos.
+$pattern='(?s)        catch \(OperationCanceledException\)\s*\{\s*Append\("LIC", "Resposta cancelada\."\);\s*\}\s*catch \(Exception ex\)\s*\{\s*Append\("LIC", "Não consegui responder agora\. " \+ ex\.Message\);\s*\}'
+$replacement=@'
         catch (OperationCanceledException)
         {
             Append("LIC", "Resposta cancelada.");
@@ -50,10 +40,11 @@ $new=@'
             }
         }
 '@
-if(-not $t.Contains($old)){ throw 'Bloco SendAsync nao localizado para diagnostico V10.213' }
-$t=$t.Replace($old,$new)
+$patched=[regex]::Replace($t,$pattern,$replacement,1)
+if($patched -eq $t){ throw 'Catch de SendAsync nao localizado para diagnostico V10.213' }
+$t=$patched
 
-# Registra explicitamente que o audio ultrapassou o detector e entrou no processamento.
-$t=$t.Replace('_processingVoice=true;'+[Environment]::NewLine+'                BeginInvoke(async ()=>await ProcessCapturedSpeechAsync());', '_processingVoice=true;'+[Environment]::NewLine+'                _ = WriteLogAsync("Silencio detectado; iniciando processamento da fala.");'+[Environment]::NewLine+'                BeginInvoke(async ()=>await ProcessCapturedSpeechAsync());')
+# Loga a passagem pelo detector de silencio sem depender do estilo de quebra de linha.
+$t=[regex]::Replace($t,'_processingVoice=true;\s*BeginInvoke\(async \(\)=>await ProcessCapturedSpeechAsync\(\)\);','_processingVoice=true;'+[Environment]::NewLine+'                _ = WriteLogAsync("Silencio detectado; iniciando processamento da fala.");'+[Environment]::NewLine+'                BeginInvoke(async ()=>await ProcessCapturedSpeechAsync());',1)
 
 Set-Content $p $t -Encoding UTF8
