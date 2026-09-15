@@ -78,6 +78,7 @@ $insert = @'
         };
 
         System.Diagnostics.Process? licAiProcess = null;
+        bool licAiLaunching = false;
 
         async Task RequestLicAiCloseAsync()
         {
@@ -100,33 +101,35 @@ $insert = @'
         {
             try
             {
+                if (licAiLaunching) return;
                 if (licAiProcess is { HasExited: false })
                 {
                     await RequestLicAiCloseAsync();
                     return;
                 }
-                await Task.Yield();
+                licAiLaunching = true;
                 var licExe = Path.Combine(AppContext.BaseDirectory, "LIC-AI", "LicAi.exe");
                 if (!File.Exists(licExe))
                 {
                     MessageBox.Show("LIC AI nao foi encontrada nesta instalacao. Atualize o PDV e tente novamente.\n\nCaminho esperado:\n" + licExe, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                // Encerra somente instancias antigas da propria LIA que ficaram invisiveis/travadas.
-                foreach (var stale in System.Diagnostics.Process.GetProcessesByName("LicAi"))
+                // Toda a limpeza ocorre fora da thread visual. O PDV permanece responsivo
+                // mesmo se o Windows/antivirus demorar para liberar uma instancia antiga.
+                await Task.Run(() =>
                 {
-                    try
+                    foreach (var stale in System.Diagnostics.Process.GetProcessesByName("LicAi"))
                     {
-                        var runningPath = stale.MainModule?.FileName;
-                        if (string.Equals(runningPath, licExe, StringComparison.OrdinalIgnoreCase))
+                        try
                         {
-                            stale.Kill(true);
-                            stale.WaitForExit(2500);
+                            var runningPath = stale.MainModule?.FileName;
+                            if (string.Equals(runningPath, licExe, StringComparison.OrdinalIgnoreCase))
+                                stale.Kill(true);
                         }
+                        catch { }
+                        finally { stale.Dispose(); }
                     }
-                    catch { }
-                    finally { stale.Dispose(); }
-                }
+                });
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = licExe,
@@ -134,7 +137,7 @@ $insert = @'
                     WorkingDirectory = Path.GetDirectoryName(licExe) ?? AppContext.BaseDirectory,
                     UseShellExecute = true
                 };
-                var launchedProcess = System.Diagnostics.Process.Start(psi);
+                var launchedProcess = await Task.Run(() => System.Diagnostics.Process.Start(psi));
                 if (launchedProcess == null) throw new InvalidOperationException("O Windows nao iniciou o processo LicAi.exe.");
                 licAiProcess = launchedProcess;
                 launchedProcess.EnableRaisingEvents = true;
@@ -153,7 +156,7 @@ $insert = @'
             {
                 MessageBox.Show("Nao foi possivel abrir a LIC AI.\n\n" + ex.Message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            finally { licAiButton.Focus(); }
+            finally { licAiLaunching = false; licAiButton.Focus(); }
         }
 
         // Vinculacao explicita do EventHandler; nao depende de MainForm.Designer.cs.

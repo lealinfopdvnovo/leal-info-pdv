@@ -883,7 +883,9 @@ public sealed class MainForm : Form
         radioControlButton.BackColor = radioDesiredPlaying && !radioPausedByLia ? Color.FromArgb(0, 135, 105) : Color.FromArgb(4, 70, 112);
     }
 
-    private void StartRadioControlListener() => _ = ListenForRadioCommandsAsync(radioListenerCts.Token);
+    // O listener fica fora da thread da interface: uma conexão lenta da LIA
+    // nunca pode bloquear cliques, vendas ou o fechamento do PDV.
+    private void StartRadioControlListener() => _ = Task.Run(() => ListenForRadioCommandsAsync(radioListenerCts.Token));
 
     private async Task ListenForRadioCommandsAsync(CancellationToken cancellationToken)
     {
