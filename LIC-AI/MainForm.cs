@@ -1,6 +1,7 @@
 using LicAi.Core;
 using LicAi.Security;
 using System.IO.Compression;
+using System.IO.Pipes;
 using System.Speech.Synthesis;
 using System.Text.Json;
 using NAudio.Wave;
@@ -175,9 +176,11 @@ public sealed class MainForm : Form
 
         try
         {
-            var reply = await _engine.SendAsync(text, _cts.Token);
-            Append("LIC", reply);
-            if (speakReply) await SpeakAndContinueAsync(reply);
+            var reply = await _engine.SendNavigationAsync(text, _cts.Token);
+            Append("LIC", reply.Mensagem);
+            if (!string.IsNullOrWhiteSpace(reply.ComandoAbrirTela))
+                await SendNavigationCommandAsync(reply.ComandoAbrirTela, _cts.Token);
+            if (speakReply) await SpeakAndContinueAsync(reply.Mensagem);
         }
         catch (OperationCanceledException)
         {
@@ -366,6 +369,35 @@ public sealed class MainForm : Form
         _voiceRecognizer?.Dispose();
         _voiceModel?.Dispose();
         _speaker?.Dispose();
+    }
+
+    private static async Task SendNavigationCommandAsync(
+        string command,
+        CancellationToken cancellationToken)
+    {
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "PRODUTOS", "CLIENTES", "FORNECEDORES", "SERVICOS",
+            "ORDENS_SERVICO", "ORCAMENTOS", "FLUXO_CAIXA",
+            "HISTORICO_VENDAS", "TELA_VENDAS", "RELATORIOS",
+            "USUARIOS", "CONFIGURACOES", "CADASTROS", "AJUDA_CADASTRO"
+        };
+
+        command = command.Trim().ToUpperInvariant();
+        if (!allowed.Contains(command)) return;
+
+        try
+        {
+            using var pipe = new NamedPipeClientStream(
+                ".", "LealInfoPDV.Navigation", PipeDirection.Out, PipeOptions.Asynchronous);
+            await pipe.ConnectAsync(1500, cancellationToken);
+            await using var writer = new StreamWriter(pipe) { AutoFlush = true };
+            await writer.WriteLineAsync(command.AsMemory(), cancellationToken);
+        }
+        catch
+        {
+            // A resposta continua visível/audível mesmo se o PDV não estiver aberto.
+        }
     }
 
     private void SetBusy(bool busy)
