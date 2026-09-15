@@ -12,7 +12,7 @@ $insert = @'
         var licAiButton = new Control
         {
             Name = "btnAssistenteAI",
-            Size = new Size(210, 210),
+            Size = new Size(190, 190),
             Cursor = Cursors.Hand,
             TabStop = true,
             Anchor = AnchorStyles.Bottom,
@@ -57,7 +57,7 @@ $insert = @'
             for (int i = 0; i < 36; i++)
             {
                 double a = (i * 10 + spin) * Math.PI / 180.0;
-                float r1 = 78f, r2 = i % 3 == 0 ? 91f : 86f;
+                float r1 = 70f, r2 = i % 3 == 0 ? 82f : 78f;
                 var p1 = new PointF(cx + (float)Math.Cos(a) * r1, cy + (float)Math.Sin(a) * r1);
                 var p2 = new PointF(cx + (float)Math.Cos(a) * r2, cy + (float)Math.Sin(a) * r2);
                 using var tick = new Pen(Color.FromArgb(i % 3 == 0 ? 210 : 105, 30, 205, 255), i % 3 == 0 ? 2f : 1f);
@@ -77,11 +77,34 @@ $insert = @'
             using var aiFont = new Font("Segoe UI", 20f, FontStyle.Bold, GraphicsUnit.Point); g.DrawString("AI", aiFont, textBrush, new RectangleF(core.Left, core.Top + 65, core.Width, 34), sf);
         };
 
+        System.Diagnostics.Process? licAiProcess = null;
+
+        async Task RequestLicAiCloseAsync()
+        {
+            try
+            {
+                using var pipe = new NamedPipeClientStream(".", "LealInfoPDV.LicAiControl", PipeDirection.Out, PipeOptions.Asynchronous);
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                await pipe.ConnectAsync(timeout.Token);
+                using var writer = new StreamWriter(pipe) { AutoFlush = true };
+                await writer.WriteLineAsync("REQUEST_CLOSE");
+            }
+            catch
+            {
+                try { if (licAiProcess is { HasExited: false }) licAiProcess.Kill(true); } catch { }
+                await ResumeRadioAfterLiaAsync();
+            }
+        }
+
         async void btnAssistenteAI_Click(object? sender, EventArgs e)
         {
             try
             {
-                licAiButton.Enabled = false;
+                if (licAiProcess is { HasExited: false })
+                {
+                    await RequestLicAiCloseAsync();
+                    return;
+                }
                 await Task.Yield();
                 var licExe = Path.Combine(AppContext.BaseDirectory, "LIC-AI", "LicAi.exe");
                 if (!File.Exists(licExe))
@@ -111,17 +134,18 @@ $insert = @'
                     WorkingDirectory = Path.GetDirectoryName(licExe) ?? AppContext.BaseDirectory,
                     UseShellExecute = true
                 };
-                var process = System.Diagnostics.Process.Start(psi);
-                if (process == null) throw new InvalidOperationException("O Windows nao iniciou o processo LicAi.exe.");
-                process.EnableRaisingEvents = true;
-                process.Exited += (_, _) =>
+                var launchedProcess = System.Diagnostics.Process.Start(psi);
+                if (launchedProcess == null) throw new InvalidOperationException("O Windows nao iniciou o processo LicAi.exe.");
+                licAiProcess = launchedProcess;
+                launchedProcess.EnableRaisingEvents = true;
+                launchedProcess.Exited += (_, _) =>
                 {
                     try
                     {
-                        if (!IsDisposed) BeginInvoke(() => { licAiButton.Enabled = true; licAiButton.Focus(); });
+                        if (!IsDisposed) BeginInvoke(async () => { licAiProcess = null; await ResumeRadioAfterLiaAsync(); licAiButton.Focus(); });
                     }
                     catch { }
-                    finally { process.Dispose(); }
+                    finally { launchedProcess.Dispose(); }
                 };
                 await Task.Yield();
             }
@@ -129,7 +153,7 @@ $insert = @'
             {
                 MessageBox.Show("Nao foi possivel abrir a LIC AI.\n\n" + ex.Message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            finally { if (licAiButton.Enabled) licAiButton.Focus(); }
+            finally { licAiButton.Focus(); }
         }
 
         // Vinculacao explicita do EventHandler; nao depende de MainForm.Designer.cs.

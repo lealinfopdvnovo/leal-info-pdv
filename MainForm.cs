@@ -1,5626 +1,2124 @@
-Ôªøusing Microsoft.Data.Sqlite;
-using System.Data;
-using System.Drawing;
-using System.Drawing.Printing;
-using System.Globalization;
-using Microsoft.Web.WebView2.WinForms;
-using Microsoft.Web.WebView2.Core;
-using System.Net.Http;
-using System.Text.Json;
-using System.IO.Pipes;
-
-namespace LealInfoPDV;
-
-public sealed class MainForm : Form
-{
-    private PictureBox? mainScreenPicture;
-
-    private readonly Color Blue = Color.FromArgb(10, 104, 157);
-    private readonly Color DarkBlue = Color.FromArgb(4, 70, 112);
-    private readonly StatusStrip status = new();
-    private readonly Label lowStockLabel = new();
-    private readonly CancellationTokenSource navigationListenerCts = new();
-    private bool navigationListenerStarted;
-    private string lastAiNavigationCommand = "";
-    private DateTime lastAiNavigationUtc = DateTime.MinValue;
-    private bool automaticBackupCompleted;
-    private bool automaticBackupRunning;
-
-    public MainForm()
-    {
-        Text = "LEAL INFO CONECTADO - SISTEMA PDV - V10.134";
-        WindowState = FormWindowState.Maximized;
-        MinimumSize = new Size(1200, 720);
-        BackColor = Color.White;
-        Font = new Font("Segoe UI", 10);
-        BuildUi();
-        RefreshDashboard();
-        FormClosing += MainForm_FormClosing;
-
-        Shown += (_, _) =>
-        {
-            StartNavigationListener();
-
-            if (GetSetting("company_registered", "0") != "1")
-            {
-                if (!ShowCompanyRegistration(true))
-                {
-                    Close();
-                    return;
-                }
-            }
-
-            if (Auth.IsAdmin && GetSetting("security_setup_completed", "0") != "1")
-                ShowInitialSecuritySetup();
-
-            OpenFirstAccessTutorial(true);
-            _ = UpdateManager.CheckForUpdatesAsync(this, true);
-        };
-
-        FormClosed += (_, _) =>
-        {
-            navigationListenerCts.Cancel();
-            navigationListenerCts.Dispose();
-        };
-    }
-
-    private void StartNavigationListener()
-    {
-        if (navigationListenerStarted) return;
-        navigationListenerStarted = true;
-        _ = ListenForNavigationCommandsAsync(navigationListenerCts.Token);
-    }
-
-    private async Task ListenForNavigationCommandsAsync(CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            try
-            {
-                await using var pipe = new NamedPipeServerStream(
-                    "LealInfoPDV.Navigation",
-                    PipeDirection.In,
-                    1,
-                    PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
-
-                await pipe.WaitForConnectionAsync(cancellationToken);
-                using var reader = new StreamReader(pipe);
-                var command = await reader.ReadLineAsync(cancellationToken);
-                if (!string.IsNullOrWhiteSpace(command) && !IsDisposed)
-                    BeginInvoke(() => OpenScreenFromAi(command));
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-            catch
-            {
-                if (!cancellationToken.IsCancellationRequested)
-                    await Task.Delay(400, cancellationToken);
-            }
-        }
-    }
-
-    private void OpenScreenFromAi(string command)
-    {
-        if (InvokeRequired)
-        {
-            BeginInvoke(() => OpenScreenFromAi(command));
-            return;
-        }
-
-        command = (command ?? string.Empty).Trim().ToUpperInvariant();
-
-        // Descarta comandos repetidos enviados em sequ√™ncia pela mesma resposta/conversa.
-        if (command == lastAiNavigationCommand && DateTime.UtcNow - lastAiNavigationUtc < TimeSpan.FromSeconds(2))
-            return;
-        lastAiNavigationCommand = command;
-        lastAiNavigationUtc = DateTime.UtcNow;
-
-        WindowState = FormWindowState.Maximized;
-        Show();
-        Activate();
-        BringToFront();
-
-        var screenTitles = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["PRODUTOS"] = new[] { "PRODUTOS" },
-            ["CLIENTES"] = new[] { "CLIENTES" },
-            ["FORNECEDORES"] = new[] { "FORNECEDORES" },
-            ["SERVICOS"] = new[] { "SERVI√áOS" },
-            ["ORDENS_SERVICO"] = new[] { "ORDENS DE SERVI√áO" },
-            ["ORCAMENTOS"] = new[] { "OR√áAMENTOS" },
-            ["FLUXO_CAIXA"] = new[] { "FLUXO DE CAIXA" },
-            ["HISTORICO_VENDAS"] = new[] { "HIST√ìRICO DE VENDAS" },
-            ["TELA_VENDAS"] = new[] { "LEAL INFO CONECTADO - TELA DE VENDAS" },
-            ["USUARIOS"] = new[] { "Usu√°rios e N√≠veis de Acesso" },
-            ["CADASTROS"] = new[] { "Cadastros" },
-            ["AJUDA_CADASTRO"] = new[] { "Central de Ajuda ‚Ä¢ Cadastro" },
-            ["CONFIGURACOES"] = new[] { "Configura√ß√µes do Sistema" }
-        };
-
-        if (screenTitles.TryGetValue(command, out var titles))
-        {
-            var open = Application.OpenForms.Cast<Form>().FirstOrDefault(form =>
-                !ReferenceEquals(form, this) && titles.Any(title =>
-                    form.Text.Equals(title, StringComparison.OrdinalIgnoreCase) ||
-                    form.Text.StartsWith(title, StringComparison.OrdinalIgnoreCase)));
-            if (open != null)
-            {
-                if (open.WindowState == FormWindowState.Minimized) open.WindowState = FormWindowState.Normal;
-                open.BringToFront();
-                open.Activate();
-                open.Focus();
-                return;
-            }
-        }
-
-        switch (command)
-        {
-            case "PRODUTOS": OpenProducts(); break;
-            case "CLIENTES": OpenCustomers(); break;
-            case "FORNECEDORES": OpenSuppliers(); break;
-            case "SERVICOS": OpenServices(); break;
-            case "ORDENS_SERVICO": OpenOrders(); break;
-            case "ORCAMENTOS": OpenQuotes(); break;
-            case "FLUXO_CAIXA":
-                if (Auth.IsManager) OpenFinance();
-                else Info("Seu n√≠vel de acesso n√£o permite abrir o Fluxo de Caixa.");
-                break;
-            case "HISTORICO_VENDAS": OpenHistory(); break;
-            case "TELA_VENDAS": OpenSales(); break;
-            case "RELATORIOS": OpenReports(); break;
-            case "USUARIOS":
-                if (Auth.IsAdmin) OpenUsers();
-                else Info("Somente administradores podem abrir Usu√°rios.");
-                break;
-            case "CONFIGURACOES": OpenSettings(); break;
-            case "CADASTROS": OpenCadastroCentral(); break;
-            case "AJUDA_CADASTRO": ShowCadastroHelp(); break;
-        }
-    }
-
-    private Form? firstAccessTutorial;
-
-    private void OpenFirstAccessTutorial(bool automatic = false)
-    {
-        // V10.130: guia lateral de primeiro acesso. √â modeless: o PDV continua clic√°vel.
-        // Fechar antes do fim n√£o conclui o tutorial. O bot√£o de Produtos s√≥ libera ao fim do v√≠deo.
-        if (automatic && GetSetting("first_access_tutorial_completed", "0") == "1") return;
-        if (firstAccessTutorial != null && !firstAccessTutorial.IsDisposed)
-        {
-            firstAccessTutorial.Activate();
-            return;
-        }
-
-        var videoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "tutorial_primeiro_acesso.mp4");
-        if (!File.Exists(videoPath))
-        {
-            if (!automatic) MessageBox.Show("V√≠deo do tutorial n√£o encontrado.", "Tutorial de Primeiro Acesso");
-            return;
-        }
-
-        var f = new Form
-        {
-            Text = "LEAL INFO ‚Ä¢ Tutorial de Primeiro Acesso",
-            StartPosition = FormStartPosition.Manual,
-            Width = 520,
-            Height = 700,
-            MinimumSize = new Size(430, 560),
-            FormBorderStyle = FormBorderStyle.SizableToolWindow,
-            BackColor = Color.FromArgb(3, 18, 36),
-            TopMost = true,
-            ShowInTaskbar = false,
-            Font = new Font("Segoe UI", 10)
-        };
-        firstAccessTutorial = f;
-
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1, Padding = new Padding(14), BackColor = f.BackColor };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 50));
-        f.Controls.Add(root);
-
-        root.Controls.Add(new Label
-        {
-            Text = "CONHE√áA SEU LEAL INFO PDV\nAssista, pause e fa√ßa cada etapa no sistema.",
-            Dock = DockStyle.Fill,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 12, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        }, 0, 0);
-
-        var web = new WebView2 { Dock = DockStyle.Fill, BackColor = Color.Black };
-        root.Controls.Add(web, 0, 1);
-
-        var action = new Button
-        {
-            Text = "‚ñ∂ TERMINE O V√çDEO PARA LIBERAR ESTA ETAPA",
-            Dock = DockStyle.Fill,
-            Enabled = false,
-            BackColor = Color.FromArgb(4, 70, 112),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10.5f, FontStyle.Bold)
-        };
-        action.FlatAppearance.BorderSize = 0;
-        root.Controls.Add(action, 0, 2);
-
-        root.Controls.Add(new Label
-        {
-            Text = "Fechou sem querer? AJUDA ‚Üí Tutorial de Primeiro Acesso",
-            Dock = DockStyle.Fill,
-            ForeColor = Color.FromArgb(120, 200, 235),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Segoe UI", 9, FontStyle.Bold)
-        }, 0, 3);
-
-        action.Click += (_, _) =>
-        {
-            SetSetting("first_access_tutorial_completed", "1");
-            f.Close();
-            OpenProducts();
-        };
-
-        f.FormClosed += (_, _) => firstAccessTutorial = null;
-
-        void PlaceAtRight()
-        {
-            var area = Screen.FromControl(this).WorkingArea;
-            f.Height = Math.Min(720, Math.Max(560, area.Height - 80));
-            f.Left = area.Right - f.Width - 18;
-            f.Top = area.Top + Math.Max(18, (area.Height - f.Height) / 2);
-        }
-        PlaceAtRight();
-        f.Shown += async (_, _) =>
-        {
-            try
-            {
-                await web.EnsureCoreWebView2Async();
-                web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-                web.CoreWebView2.Settings.AreDevToolsEnabled = false;
-                web.CoreWebView2.WebMessageReceived += (_, e) =>
-                {
-                    if (e.TryGetWebMessageAsString() == "video-ended")
-                    {
-                        action.Enabled = true;
-                        action.Text = "CADASTRAR MEU PRIMEIRO PRODUTO";
-                        action.BackColor = Color.FromArgb(0, 163, 224);
-                    }
-                };
-                web.CoreWebView2.SetVirtualHostNameToFolderMapping("appassets.local", Path.Combine(AppContext.BaseDirectory, "Assets"), CoreWebView2HostResourceAccessKind.Allow);
-                var uri = "https://appassets.local/tutorial_primeiro_acesso.mp4";
-                var html = $@"<!doctype html><html><body style='margin:0;background:#020a16;display:flex;height:100vh;align-items:center;justify-content:center;overflow:hidden'><video id='v' controls autoplay style='width:100%;height:100%;object-fit:contain;background:black'><source src='{uri}' type='video/mp4'></video><script>document.getElementById('v').addEventListener('ended',()=>chrome.webview.postMessage('video-ended'));</script></body></html>";
-                web.NavigateToString(html);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("N√£o foi poss√≠vel iniciar o v√≠deo do tutorial.\n\n" + ex.Message, "Tutorial");
-            }
-        };
-        f.Show(this);
-    }
-
-
-    private static string GetSetting(string key, string fallback = "")
-    {
-        try
-        {
-            using var cn = Database.Open();
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = "SELECT value FROM settings WHERE key=$k";
-            cmd.Parameters.AddWithValue("$k", key);
-            return Convert.ToString(cmd.ExecuteScalar()) ?? fallback;
-        }
-        catch
-        {
-            return fallback;
-        }
-    }
-
-    private static void SetSetting(string key, string value)
-    {
-        using var cn = Database.Open();
-        using var cmd = cn.CreateCommand();
-        cmd.CommandText = """
-            INSERT INTO settings(key,value) VALUES($k,$v)
-            ON CONFLICT(key) DO UPDATE SET value=excluded.value
-            """;
-        cmd.Parameters.AddWithValue("$k", key);
-        cmd.Parameters.AddWithValue("$v", value ?? "");
-        cmd.ExecuteNonQuery();
-    }
-
-    private bool ShowCompanyRegistration(bool firstRun)
-    {
-        using var f = new Form
-        {
-            Text = firstRun ? "Cadastro Inicial da Empresa" : "Dados da Empresa",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 780,
-            Height = 760,
-            MinimumSize = new Size(760, 720),
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            BackColor = Color.FromArgb(224, 239, 248),
-            Font = new Font("Segoe UI", 10),
-            KeyPreview = true
-        };
-
-        var page = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            BackColor = Color.FromArgb(224, 239, 248),
-            Padding = new Padding(0)
-        };
-        page.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
-        page.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        page.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-        f.Controls.Add(page);
-
-        var header = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = DarkBlue,
-            Margin = new Padding(0)
-        };
-        header.Controls.Add(new Label
-        {
-            Text = firstRun ? "CADASTRO DA EMPRESA" : "EDITAR DADOS DA EMPRESA",
-            Dock = DockStyle.Fill,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 20, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        });
-        page.Controls.Add(header, 0, 0);
-
-        var body = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 14,
-            Padding = new Padding(34, 18, 34, 12),
-            Margin = new Padding(0),
-            BackColor = Color.FromArgb(224, 239, 248)
-        };
-
-        Label L(string text) => new()
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            ForeColor = Color.FromArgb(4, 55, 94),
-            Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-            TextAlign = ContentAlignment.BottomLeft,
-            Margin = new Padding(0)
-        };
-
-        TextBox T(string value = "") => new()
-        {
-            Text = value,
-            Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 12, FontStyle.Bold),
-            BackColor = Color.White,
-            ForeColor = Color.FromArgb(8, 38, 68),
-            BorderStyle = BorderStyle.FixedSingle,
-            Margin = new Padding(0, 2, 0, 7)
-        };
-
-        var companyName = T(GetSetting("company_name"));
-        var tradeName = T(GetSetting("company_trade_name"));
-        var document = T(GetSetting("company_document"));
-        var phone = T(GetSetting("company_phone"));
-        var address = T(GetSetting("company_address"));
-        var cityState = T(GetSetting("company_city_state"));
-        var footer = T(GetSetting("company_footer", "Obrigado pela prefer√™ncia!"));
-
-        var fields = new (string, TextBox)[]
-        {
-            ("Raz√£o Social / Nome da Empresa", companyName),
-            ("Nome Fantasia", tradeName),
-            ("CNPJ / CPF", document),
-            ("Telefone / WhatsApp", phone),
-            ("Endere√ßo", address),
-            ("Cidade / UF", cityState),
-            ("Mensagem no rodap√© do cupom", footer)
-        };
-
-        int row = 0;
-        foreach (var item in fields)
-        {
-            body.RowStyles.Add(new RowStyle(SizeType.Percent, 7.142857f));
-            body.Controls.Add(L(item.Item1), 0, row++);
-            body.RowStyles.Add(new RowStyle(SizeType.Percent, 7.142857f));
-            body.Controls.Add(item.Item2, 0, row++);
-        }
-        page.Controls.Add(body, 0, 1);
-
-        var actions = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(28, 12, 28, 10),
-            Margin = new Padding(0),
-            BackColor = Color.FromArgb(224, 239, 248)
-        };
-
-        var save = new Button
-        {
-            Text = "SALVAR",
-            Width = 150,
-            Height = 44,
-            BackColor = Color.FromArgb(0, 163, 224),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold)
-        };
-        save.FlatAppearance.BorderSize = 0;
-
-        var cancel = new Button
-        {
-            Text = firstRun ? "FECHAR PROGRAMA" : "CANCELAR",
-            Width = 160,
-            Height = 44,
-            BackColor = Color.FromArgb(55, 88, 115),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10, FontStyle.Bold)
-        };
-        cancel.FlatAppearance.BorderSize = 0;
-
-        actions.Controls.Add(save);
-        actions.Controls.Add(cancel);
-        page.Controls.Add(actions, 0, 2);
-
-        save.Click += (_, _) =>
-        {
-            if (string.IsNullOrWhiteSpace(companyName.Text))
-            {
-                MessageBox.Show(
-                    "Informe o nome da empresa.",
-                    "LEAL INFO PDV",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-                companyName.Focus();
-                return;
-            }
-
-            SetSetting("company_name", companyName.Text.Trim());
-            SetSetting("company_trade_name", tradeName.Text.Trim());
-            SetSetting("company_document", document.Text.Trim());
-            SetSetting("company_phone", phone.Text.Trim());
-            SetSetting("company_address", address.Text.Trim());
-            SetSetting("company_city_state", cityState.Text.Trim());
-            SetSetting("company_footer", footer.Text.Trim());
-            SetSetting("company_registered", "1");
-
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        cancel.Click += (_, _) =>
-        {
-            f.DialogResult = DialogResult.Cancel;
-            f.Close();
-        };
-
-        ApplyFloatingTheme(f);
-        f.AcceptButton = save;
-        f.CancelButton = cancel;
-
-        return f.ShowDialog(this) == DialogResult.OK;
-    }
-
-    private sealed class LealMenuColors : ProfessionalColorTable
-    {
-        public override Color MenuItemSelected => Color.FromArgb(0, 118, 178);
-        public override Color MenuItemBorder => Color.FromArgb(65, 205, 255);
-        public override Color MenuItemSelectedGradientBegin => Color.FromArgb(0, 118, 178);
-        public override Color MenuItemSelectedGradientEnd => Color.FromArgb(0, 118, 178);
-        public override Color MenuItemPressedGradientBegin => Color.FromArgb(0, 95, 150);
-        public override Color MenuItemPressedGradientMiddle => Color.FromArgb(0, 105, 165);
-        public override Color MenuItemPressedGradientEnd => Color.FromArgb(0, 95, 150);
-        public override Color ToolStripDropDownBackground => Color.White;
-        public override Color ImageMarginGradientBegin => Color.White;
-        public override Color ImageMarginGradientMiddle => Color.White;
-        public override Color ImageMarginGradientEnd => Color.White;
-    }
-
-    private void BuildUi()
-    {
-        var menu = new MenuStrip
-        {
-            BackColor = Blue,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 10, FontStyle.Bold),
-            Renderer = new ToolStripProfessionalRenderer(new LealMenuColors())
-        };
-        foreach (var title in new[] { "Cadastro", "Consulta", "Movimenta√ß√£o", "Financeiro", "Tela de Vendas", "Utilit√°rios", "Relat√≥rios", "Ajuda", "Sair" })
-        {
-            var item = new ToolStripMenuItem(title)
-            {
-                ForeColor = Color.White,
-                BackColor = Blue
-            };
-            item.DropDownOpening += (_, _) =>
-            {
-                item.ForeColor = Color.White;
-                item.BackColor = Color.FromArgb(0, 95, 150);
-                item.Invalidate();
-            };
-            item.DropDownClosed += (_, _) =>
-            {
-                item.ForeColor = Color.White;
-                item.BackColor = Blue;
-                item.Invalidate();
-            };
-
-            void AddMenu(string text, Action action)
-            {
-                var sub = new ToolStripMenuItem(text)
-                {
-                    AutoSize = false,
-                    Width = 245,
-                    Height = 34,
-                    ForeColor = Color.FromArgb(4,55,94)
-                };
-                sub.Click += (_,_) => action();
-                item.DropDownItems.Add(sub);
-            }
-
-            if (title == "Cadastro")
-            {
-                AddMenu("Produtos", OpenProducts);
-                AddMenu("Clientes", OpenCustomers);
-                AddMenu("Fornecedores", OpenSuppliers);
-                AddMenu("Servi√ßos", OpenServices);
-            }
-            else if (title == "Consulta")
-            {
-                AddMenu("Produtos", OpenProducts);
-                AddMenu("Clientes", OpenCustomers);
-                AddMenu("Hist√≥rico de vendas", OpenHistory);
-                AddMenu("Ordens / OS", OpenOrders);
-                AddMenu("Or√ßamentos", OpenQuotes);
-            }
-            else if (title == "Movimenta√ß√£o")
-            {
-                AddMenu("Tela de Vendas", OpenSales);
-                AddMenu("Hist√≥rico de vendas", OpenHistory);
-                AddMenu("Ordens / OS", OpenOrders);
-            }
-            else if (title == "Financeiro")
-            {
-                AddMenu("Fluxo de Caixa", () => { if (Auth.IsManager) OpenFinance(); else MessageBox.Show("Seu n√≠vel de acesso n√£o permite abrir o Financeiro."); });
-            }
-            else if (title == "Tela de Vendas")
-            {
-                AddMenu("Abrir Tela de Vendas", OpenSales);
-            }
-            else if (title == "Utilit√°rios")
-            {
-                AddMenu("Fazer Backup", () => _ = BackupAsync());
-                AddMenu("Restaurar Backup", () => _ = RestoreBackupAsync());
-                AddMenu("Configura√ß√µes", OpenSettings);
-            }
-            else if (title == "Relat√≥rios")
-            {
-                AddMenu("Abrir Relat√≥rios", () => { if (Auth.IsManager) OpenReports(); else MessageBox.Show("Seu n√≠vel de acesso n√£o permite abrir Relat√≥rios."); });
-            }
-            else if (title == "Ajuda")
-            {
-                AddMenu("Conhe√ßa o menu Cadastro", ShowCadastroHelp);
-                AddMenu("Tutorial de Primeiro Acesso", () => OpenFirstAccessTutorial(false));
-                AddMenu("Atalhos do PDV", () => MessageBox.Show("F2  Finalizar venda\nF5  C√≥digo do produto\nF7  Remover item\nESC  Fechar janela", "Atalhos do LEAL INFO PDV"));
-                AddMenu("Atualiza√ß√µes do sistema", () => UpdateManager.ShowUpdateCenter(this));
-                AddMenu("Sobre o sistema", () => MessageBox.Show($"LEAL INFO PDV PRO\nVers√£o V{UpdateManager.CurrentVersion}\nTecnologia que conecta.", "Sobre"));
-            }
-            else if (title == "Sair")
-            {
-                AddMenu("Sair do sistema", ConfirmExit);
-            }
-
-            menu.Items.Add(item);
-        }
-        Controls.Add(menu);
-
-        var bar = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Top,
-            Height = 112,
-            BackColor = Color.FromArgb(4, 55, 94),
-            Padding = new Padding(3, 3, 3, 2),
-            WrapContents = false,
-            AutoScroll = false
-        };
-        Controls.Add(bar);
-        bar.BringToFront();
-
-        AddTool(bar, "PRODUTOS", "products.png", OpenProducts);
-        AddTool(bar, "CLIENTES", "customers.png", OpenCustomers);
-        AddTool(bar, "FORNECEDORES", "suppliers.png", OpenSuppliers);
-        AddTool(bar, "SERVI√áOS", "services.png", OpenServices);
-        AddTool(bar, "HIST√ìRICO\nVENDAS", "history.png", OpenHistory);
-        AddTool(bar, "FLUXO DE\nCAIXA", "finance.png", OpenFinance);
-        AddTool(bar, "ORDENS /\nOS", "orders.png", OpenOrders);
-        AddTool(bar, "OR√áAMENTOS", "quotes.png", OpenQuotes);
-        AddTool(bar, "TELA DE\nVENDAS", "sales.png", OpenSales);
-        AddTool(bar, "RELAT√ìRIOS", "reports.png", OpenReports);
-        AddTool(bar, "FAZER\nBACKUP", "backup.png", () => _ = BackupAsync());
-        AddTool(bar, "RESTAURAR\nBACKUP", "backup.png", () => _ = RestoreBackupAsync());
-        AddTool(bar, "CONFIGURA√á√ïES", "settings.png", OpenSettings);
-        AddTool(bar, "SAIR", "exit.png", ConfirmExit);
-
-        // Distribui todos os atalhos pela largura dispon√≠vel.
-        // Assim n√£o existe barra de rolagem horizontal, independentemente
-        // da resolu√ß√£o da tela.
-        void ResizeShortcutBar()
-        {
-            if (bar.Controls.Count == 0) return;
-
-            int usable = Math.Max(980, bar.ClientSize.Width - bar.Padding.Horizontal - 4);
-            int each = Math.Max(88, usable / bar.Controls.Count);
-
-            foreach (Control shortcut in bar.Controls)
-            {
-                shortcut.Width = Math.Max(86, each - shortcut.Margin.Horizontal);
-
-                // Recentraliza √≠cone e texto conforme a largura real do card.
-                if (shortcut.Controls.Count >= 2)
-                {
-                    var pic = shortcut.Controls.OfType<PictureBox>().FirstOrDefault();
-                    var cap = shortcut.Controls.OfType<Label>().FirstOrDefault();
-                    if (pic != null) pic.Left = (shortcut.Width - pic.Width) / 2;
-                    if (cap != null)
-                    {
-                        cap.Width = shortcut.Width;
-                        cap.Left = 0;
-                    }
-                }
-            }
-        }
-
-        bar.SizeChanged += (_, _) => ResizeShortcutBar();
-        Shown += (_, _) => ResizeShortcutBar();
-
-        var body = new Panel { Dock = DockStyle.Fill, BackColor = Color.White };
-        Controls.Add(body);
-
-        mainScreenPicture = new PictureBox
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.Black,
-            SizeMode = PictureBoxSizeMode.Zoom,
-            Margin = new Padding(0),
-            TabStop = false
-        };
-
-        var homeImage = LoadMainScreenImage();
-        if (homeImage == null)
-        {
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
-            if (File.Exists(logoPath))
-            {
-                using var fallback = Image.FromFile(logoPath);
-                homeImage = new Bitmap(fallback);
-            }
-        }
-
-        mainScreenPicture.Image = homeImage;
-        body.Controls.Add(mainScreenPicture);
-        mainScreenPicture.SendToBack();
-
-        var monitor = new Panel
-        {
-            Width = 275,
-            Height = 185,
-            BackColor = Blue,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-        var mt = new Label
-        {
-            Text = "MONITOR DE ESTOQUE",
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            AutoSize = true,
-            Left = 16,
-            Top = 15
-        };
-        lowStockLabel.ForeColor = Color.White;
-        lowStockLabel.Font = new Font("Segoe UI", 10);
-        lowStockLabel.Left = 16;
-        lowStockLabel.Top = 55;
-        lowStockLabel.Width = 265;
-        lowStockLabel.Height = 130;
-        monitor.Controls.Add(mt);
-        monitor.Controls.Add(lowStockLabel);
-        // Monitor antigo removido da tela principal.
-        // Monitor antigo nao e mais exibido.
-        body.Resize += (_, _) =>
-        {
-            monitor.Left = Math.Max(10, body.ClientSize.Width - monitor.Width - 20);
-            monitor.Top = 18;
-        };
-
-        status.BackColor = Blue;
-        status.ForeColor = Color.White;
-        status.Items.Add(new ToolStripStatusLabel("LEAL INFO CONECTADO"));
-        status.Items.Add(new ToolStripStatusLabel { Spring = true, Text = $"Operador: {Auth.OperatorName} ‚Ä¢ {Auth.Current?.Role}" });
-        status.Items.Add(new ToolStripStatusLabel($"Data: {DateTime.Now:dd/MM/yyyy}"));
-        status.Items.Add(new ToolStripStatusLabel($"Serial: {Database.DeviceSerial()}"));
-        status.Items.Add(new ToolStripStatusLabel($"V{UpdateManager.CurrentVersion}"));
-        Controls.Add(status);
-    }
-
-    private void ShowCadastroHelp()
-    {
-        void RoundHelp(Control c, int radius)
-        {
-            void ApplyRoundHelp()
-            {
-                if (c.Width < 4 || c.Height < 4) return;
-
-                var rect = new Rectangle(0, 0, c.Width - 1, c.Height - 1);
-                int d = Math.Max(6, radius * 2);
-                var gp = new System.Drawing.Drawing2D.GraphicsPath();
-
-                gp.AddArc(rect.X, rect.Y, d, d, 180, 90);
-                gp.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
-                gp.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
-                gp.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
-                gp.CloseFigure();
-
-                c.Region?.Dispose();
-                c.Region = new Region(gp);
-                gp.Dispose();
-            }
-
-            c.HandleCreated += (_, _) => ApplyRoundHelp();
-            c.Resize += (_, _) => ApplyRoundHelp();
-            if (c.IsHandleCreated) ApplyRoundHelp();
-        }
-
-        using var f = new Form
-        {
-            Text = "Central de Ajuda ‚Ä¢ Cadastro",
-            StartPosition = FormStartPosition.CenterScreen,
-            Width = 1100,
-            Height = 760,
-            BackColor = Color.FromArgb(7,31,54),
-            FormBorderStyle = FormBorderStyle.Sizable,
-            MaximizeBox = true,
-            MinimizeBox = false,
-            AutoScaleMode = AutoScaleMode.None,
-            KeyPreview = true
-        };
-
-        var header = new Label
-        {
-            Text = "GUIA VISUAL ‚Ä¢ CADASTRO",
-            Left = 0,
-            Top = 0,
-            Width = 964,
-            Height = 70,
-            BackColor = Color.FromArgb(4,55,94),
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI",20,FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-        };
-        f.Controls.Add(header);
-
-        var stepTitle = new Label
-        {
-            Left = 30,
-            Top = 86,
-            Width = 904,
-            Height = 48,
-            BackColor = Color.Transparent,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI",18,FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
-        };
-        f.Controls.Add(stepTitle);
-
-        var mock = new Panel
-        {
-            Left = 48,
-            Top = 145,
-            Width = 868,
-            Height = 330,
-            BackColor = Color.FromArgb(238,248,255),
-            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
-        };
-        f.Controls.Add(mock);
-        RoundHelp(mock,22);
-
-        var instruction = new Label
-        {
-            Left = 48,
-            Top = 490,
-            Width = 868,
-            Height = 72,
-            BackColor = Color.Transparent,
-            ForeColor = Color.FromArgb(205,235,250),
-            Font = new Font("Segoe UI",11.5f,FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
-        };
-        f.Controls.Add(instruction);
-
-        var prev = new Button
-        {
-            Text = "‚óÄ  ANTERIOR",
-            Left = 48,
-            Top = 585,
-            Width = 180,
-            Height = 48,
-            BackColor = Color.FromArgb(55,88,115),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI",10.5f,FontStyle.Bold),
-            Cursor = Cursors.Hand,
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Left
-        };
-        prev.FlatAppearance.BorderSize=0;
-        RoundHelp(prev,14);
-        f.Controls.Add(prev);
-
-        var counter = new Label
-        {
-            Left = 392,
-            Top = 585,
-            Width = 180,
-            Height = 48,
-            ForeColor = Color.FromArgb(185,230,250),
-            Font = new Font("Segoe UI",11,FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Anchor = AnchorStyles.Bottom
-        };
-        f.Controls.Add(counter);
-
-        var next = new Button
-        {
-            Text = "PR√ìXIMO  ‚ñ∂",
-            Left = 736,
-            Top = 585,
-            Width = 180,
-            Height = 48,
-            BackColor = Color.FromArgb(0,163,224),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI",10.5f,FontStyle.Bold),
-            Cursor = Cursors.Hand,
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Right
-        };
-        next.FlatAppearance.BorderSize=0;
-        RoundHelp(next,14);
-        f.Controls.Add(next);
-
-        Label BoxLabel(string text,int x,int y,int w,int h,Color bg,Color fg,float size=10)
-        {
-            var c=new Label
-            {
-                Text=text,
-                Left=x,
-                Top=y,
-                Width=w,
-                Height=h,
-                BackColor=bg,
-                ForeColor=fg,
-                Font=new Font("Segoe UI",size,FontStyle.Bold),
-                TextAlign=ContentAlignment.MiddleCenter
-            };
-            mock.Controls.Add(c);
-            RoundHelp(c,12);
-            return c;
-        }
-
-        void Glow(Control c)
-        {
-            var glow=new Panel
-            {
-                Left=c.Left-5,
-                Top=c.Top-5,
-                Width=c.Width+10,
-                Height=c.Height+10,
-                BackColor=Color.FromArgb(0,210,255)
-            };
-            mock.Controls.Add(glow);
-            glow.SendToBack();
-            RoundHelp(glow,15);
-        }
-
-        int step=0;
-        const int totalSteps = 7;
-
-        Label InfoCard(string title, string body, int x, int y, int w, int h, Color accent)
-        {
-            var card = new Label
-            {
-                Text = title + "\n\n" + body,
-                Left = x,
-                Top = y,
-                Width = w,
-                Height = h,
-                BackColor = Color.White,
-                ForeColor = Color.FromArgb(4,55,94),
-                Font = new Font("Segoe UI",9.8f,FontStyle.Regular),
-                TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(18,12,18,12)
-            };
-            mock.Controls.Add(card);
-            RoundHelp(card,14);
-
-            var stripe = new Panel
-            {
-                Left = x,
-                Top = y,
-                Width = 7,
-                Height = h,
-                BackColor = accent
-            };
-            mock.Controls.Add(stripe);
-            stripe.BringToFront();
-            return card;
-        }
-
-        void AddProgress()
-        {
-            int dot = 24;
-            int gap = 12;
-            int total = totalSteps * dot + (totalSteps - 1) * gap;
-            int x = Math.Max(20, (mock.Width - total) / 2);
-            int y = Math.Max(8, mock.Height - 40);
-            for (int i = 0; i < totalSteps; i++)
-            {
-                var d = new Label
-                {
-                    Text = (i + 1).ToString(),
-                    Left = x + i * (dot + gap),
-                    Top = y,
-                    Width = dot,
-                    Height = dot,
-                    BackColor = i == step ? Color.FromArgb(0,163,224) : Color.FromArgb(196,216,230),
-                    ForeColor = i == step ? Color.White : Color.FromArgb(4,55,94),
-                    Font = new Font("Segoe UI",8.5f,FontStyle.Bold),
-                    TextAlign = ContentAlignment.MiddleCenter
-                };
-                mock.Controls.Add(d);
-                RoundHelp(d,12);
-            }
-        }
-
-        void Render()
-        {
-            mock.Controls.Clear();
-            counter.Text=$"{step+1} de {totalSteps}";
-            prev.Enabled=step>0;
-            prev.BackColor = step>0 ? Color.FromArgb(55,88,115) : Color.FromArgb(42,65,84);
-            next.Text=step==totalSteps-1 ? "CONCLUIR  ‚úì" : "PR√ìXIMO  ‚ñ∂";
-
-            if(step==0)
-            {
-                stepTitle.Text="PASSO 1 ‚Ä¢ CONHE√áA O MENU CADASTRO";
-                instruction.Text="O menu CADASTRO re√∫ne quatro √°reas: Produtos, Clientes, Fornecedores e Servi√ßos.";
-
-                BoxLabel("CADASTRO",30,28,180,42,Color.FromArgb(0,118,178),Color.White,12);
-                BoxLabel("1",42,92,34,34,Color.FromArgb(0,163,224),Color.White,10);
-                BoxLabel("PRODUTOS",88,88,220,42,Color.FromArgb(8,59,98),Color.White,11);
-                BoxLabel("2",42,143,34,34,Color.FromArgb(0,163,224),Color.White,10);
-                BoxLabel("CLIENTES",88,139,220,42,Color.FromArgb(8,59,98),Color.White,11);
-                BoxLabel("3",42,194,34,34,Color.FromArgb(0,163,224),Color.White,10);
-                BoxLabel("FORNECEDORES",88,190,220,42,Color.FromArgb(8,59,98),Color.White,11);
-                BoxLabel("4",42,245,34,34,Color.FromArgb(0,163,224),Color.White,10);
-                BoxLabel("SERVI√áOS",88,241,220,42,Color.FromArgb(8,59,98),Color.White,11);
-
-                InfoCard("PARA QUE SERVE?",
-                    "Use este menu para criar e manter os cadastros que ser√£o usados nas vendas, consultas e ordens de servi√ßo.",
-                    365,68,450,170,Color.FromArgb(0,163,224));
-                BoxLabel("Nas pr√≥ximas telas, cada op√ß√£o ser√° explicada separadamente.",365,252,450,44,
-                    Color.FromArgb(225,242,252),Color.FromArgb(4,55,94),9.5f);
-            }
-            else if(step==1)
-            {
-                stepTitle.Text="PASSO 2 ‚Ä¢ CADASTRO > PRODUTOS";
-                instruction.Text="Cadastre os itens vendidos e controle pre√ßo, estoque m√≠nimo e foto do produto.";
-
-                BoxLabel("PRODUTOS / ESTOQUE",28,20,500,42,Color.FromArgb(4,55,94),Color.White,13);
-                BoxLabel("C√≥digo de barras",35,72,180,26,Color.Transparent,Color.FromArgb(4,55,94),9);
-                BoxLabel("7890000000000",35,100,250,36,Color.White,Color.FromArgb(4,55,94),9.5f);
-                BoxLabel("Nome do produto",310,72,180,26,Color.Transparent,Color.FromArgb(4,55,94),9);
-                BoxLabel("PRODUTO EXEMPLO",310,100,250,36,Color.White,Color.FromArgb(4,55,94),9.5f);
-                BoxLabel("Categoria",35,146,120,26,Color.Transparent,Color.FromArgb(4,55,94),9);
-                BoxLabel("INFORM√ÅTICA",35,174,180,36,Color.White,Color.FromArgb(4,55,94),9.5f);
-                BoxLabel("Custo",235,146,100,26,Color.Transparent,Color.FromArgb(4,55,94),9);
-                BoxLabel("R$ 7,00",235,174,135,36,Color.White,Color.FromArgb(4,55,94),9.5f);
-                BoxLabel("Venda",390,146,100,26,Color.Transparent,Color.FromArgb(4,55,94),9);
-                BoxLabel("R$ 10,00",390,174,135,36,Color.White,Color.FromArgb(4,55,94),9.5f);
-                BoxLabel("Estoque",35,220,100,26,Color.Transparent,Color.FromArgb(4,55,94),9);
-                BoxLabel("25,000",35,248,135,36,Color.White,Color.FromArgb(4,55,94),9.5f);
-                BoxLabel("Estoque m√≠nimo",190,220,150,26,Color.Transparent,Color.FromArgb(4,55,94),9);
-                BoxLabel("5,000",190,248,135,36,Color.White,Color.FromArgb(4,55,94),9.5f);
-                var photo=BoxLabel("üì∑  FOTO",390,226,135,58,Color.FromArgb(0,118,178),Color.White,10); Glow(photo);
-
-                InfoCard("O QUE VOC√ä FAZ AQUI",
-                    "‚Ä¢ C√≥digo de barras identifica o item.\n‚Ä¢ Nome e categoria organizam a busca.\n‚Ä¢ Custo e venda registram os valores.\n‚Ä¢ Estoque e m√≠nimo ajudam no controle.\n‚Ä¢ Foto facilita reconhecer o produto.",
-                    555,48,290,238,Color.FromArgb(0,163,224));
-            }
-            else if(step==2)
-            {
-                stepTitle.Text="PASSO 3 ‚Ä¢ CADASTRO > CLIENTES";
-                instruction.Text="Guarde os dados dos clientes para consultas, vendas e ordens de servi√ßo.";
-
-                BoxLabel("CADASTRO DE CLIENTE",28,20,500,42,Color.FromArgb(4,55,94),Color.White,13);
-                string[] labs={"Nome","CPF/CNPJ","Telefone","E-mail","Endere√ßo"};
-                string[] vals={"CLIENTE EXEMPLO","000.000.000-00","(24) 99999-9999","cliente@email.com","Rua / Bairro / Cidade"};
-                int y=78;
-                for(int i=0;i<labs.Length;i++)
-                {
-                    BoxLabel(labs[i],38,y,115,34,Color.Transparent,Color.FromArgb(4,55,94),9);
-                    var fld=BoxLabel(vals[i],165,y,355,36,Color.White,Color.FromArgb(4,55,94),9.5f);
-                    if(i==0) Glow(fld);
-                    y+=47;
-                }
-                InfoCard("QUANDO USAR",
-                    "Cadastre o cliente quando quiser manter nome e contato dispon√≠veis no sistema. O NOME √© obrigat√≥rio; os demais dados podem ser preenchidos conforme a necessidade.",
-                    570,70,260,205,Color.FromArgb(0,163,224));
-            }
-            else if(step==3)
-            {
-                stepTitle.Text="PASSO 4 ‚Ä¢ CADASTRO > FORNECEDORES";
-                instruction.Text="Cadastre empresas e parceiros que fornecem produtos ou servi√ßos para sua loja.";
-
-                BoxLabel("CADASTRO DE FORNECEDOR",28,20,500,42,Color.FromArgb(4,55,94),Color.White,13);
-                string[] labs={"Nome / Empresa","CPF/CNPJ","Telefone","E-mail","Endere√ßo"};
-                string[] vals={"FORNECEDOR EXEMPLO","00.000.000/0001-00","(24) 99999-9999","contato@empresa.com","Rua / Bairro / Cidade"};
-                int y=78;
-                for(int i=0;i<labs.Length;i++)
-                {
-                    BoxLabel(labs[i],38,y,125,34,Color.Transparent,Color.FromArgb(4,55,94),9);
-                    var fld=BoxLabel(vals[i],175,y,345,36,Color.White,Color.FromArgb(4,55,94),9.3f);
-                    if(i==0) Glow(fld);
-                    y+=47;
-                }
-                InfoCard("PARA QUE SERVE",
-                    "Use este cadastro para registrar fornecedores e deixar os contatos centralizados. Isso facilita localizar rapidamente empresa, documento, telefone, e-mail e endere√ßo.",
-                    570,70,260,205,Color.FromArgb(0,163,224));
-            }
-            else if(step==4)
-            {
-                stepTitle.Text="PASSO 5 ‚Ä¢ CADASTRO > SERVI√áOS";
-                instruction.Text="Cadastre os servi√ßos prestados e deixe o valor pronto para reutilizar no atendimento.";
-
-                BoxLabel("CADASTRO DE SERVI√áO",28,20,500,42,Color.FromArgb(4,55,94),Color.White,13);
-                BoxLabel("Servi√ßo",40,88,110,30,Color.Transparent,Color.FromArgb(4,55,94),9);
-                var serv=BoxLabel("FORMATA√á√ÉO DE COMPUTADOR",40,120,490,42,Color.White,Color.FromArgb(4,55,94),9.5f); Glow(serv);
-                BoxLabel("Valor",40,180,110,30,Color.Transparent,Color.FromArgb(4,55,94),9);
-                BoxLabel("R$ 120,00",40,212,190,42,Color.White,Color.FromArgb(4,55,94),9.5f);
-                BoxLabel("Descri√ß√£o",260,180,120,30,Color.Transparent,Color.FromArgb(4,55,94),9);
-                BoxLabel("Descri√ß√£o do servi√ßo executado",260,212,270,74,Color.White,Color.FromArgb(4,55,94),9.2f);
-                InfoCard("COMO FUNCIONA",
-                    "Informe o nome do servi√ßo, o valor cobrado e uma descri√ß√£o. Depois ele fica dispon√≠vel no cadastro para consulta e reutiliza√ß√£o.",
-                    570,82,260,180,Color.FromArgb(0,163,224));
-            }
-            else if(step==5)
-            {
-                stepTitle.Text="PASSO 6 ‚Ä¢ NOVO, EDITAR E EXCLUIR";
-                instruction.Text="Nas listas de cadastro, use os bot√µes de a√ß√£o para manter seus registros atualizados.";
-
-                BoxLabel("A√á√ïES DO CADASTRO",28,25,802,42,Color.FromArgb(4,55,94),Color.White,13);
-                var novo=BoxLabel("Ôºã  NOVO",45,95,215,62,Color.FromArgb(0,163,224),Color.White,12); Glow(novo);
-                var editar=BoxLabel("‚úé  EDITAR",325,95,215,62,Color.FromArgb(4,105,160),Color.White,12); Glow(editar);
-                var excluir=BoxLabel("üóë  EXCLUIR",605,95,190,62,Color.FromArgb(180,66,66),Color.White,12); Glow(excluir);
-                InfoCard("NOVO","Cria um novo registro e abre os campos para preenchimento.",45,190,215,105,Color.FromArgb(0,163,224));
-                InfoCard("EDITAR","Selecione um registro da lista e altere os dados j√° cadastrados.",325,190,215,105,Color.FromArgb(4,105,160));
-                InfoCard("EXCLUIR","Remove o cadastro selecionado. Confirme somente quando tiver certeza.",605,190,190,105,Color.FromArgb(180,66,66));
-            }
-            else
-            {
-                stepTitle.Text="CADASTRO ‚Ä¢ GUIA CONCLU√çDO";
-                instruction.Text="Voc√™ j√° conhece as quatro √°reas do Cadastro e as principais a√ß√µes. Clique em CONCLUIR para voltar ao PDV.";
-                BoxLabel("‚úì",330,38,210,118,Color.FromArgb(0,170,105),Color.White,42);
-                BoxLabel("PRODUTOS  ‚Ä¢  CLIENTES  ‚Ä¢  FORNECEDORES  ‚Ä¢  SERVI√áOS",105,180,660,52,Color.FromArgb(9,52,88),Color.White,11.5f);
-                InfoCard("PRONTO PARA USAR",
-                    "Entre em CADASTRO, escolha a √°rea desejada e use NOVO para come√ßar. Revise os dados antes de salvar.",
-                    205,238,460,54,Color.FromArgb(0,170,105));
-            }
-
-            AddProgress();
-        }
-
-        prev.Click += (_,_) => { if(step>0){step--;Render();} };
-        next.Click += (_,_) => { if(step<totalSteps-1){step++;Render();} else f.Close(); };
-
-        f.KeyDown += (_,e) =>
-        {
-            if(e.KeyCode==Keys.Right && step<totalSteps-1){step++;Render();}
-            else if(e.KeyCode==Keys.Left && step>0){step--;Render();}
-            else if(e.KeyCode==Keys.Escape) f.Close();
-        };
-
-        f.Load += (_,_) =>
-        {
-            var area = Screen.FromControl(this).WorkingArea;
-
-            // Abre grande de verdade, respeitando apenas a √°rea √∫til do monitor.
-            int w = Math.Min(1100, area.Width - 40);
-            int h = Math.Min(760, area.Height - 40);
-            f.Bounds = new Rectangle(
-                area.Left + (area.Width - w) / 2,
-                area.Top + (area.Height - h) / 2,
-                w,
-                h);
-
-            // Reposiciona a estrutura principal com base no tamanho REAL da janela.
-            header.Width = f.ClientSize.Width;
-            stepTitle.Width = f.ClientSize.Width - 60;
-            mock.Width = f.ClientSize.Width - 96;
-            mock.Height = Math.Max(340, f.ClientSize.Height - 330);
-
-            instruction.Top = f.ClientSize.Height - 180;
-            instruction.Width = f.ClientSize.Width - 96;
-
-            prev.Top = f.ClientSize.Height - 75;
-            next.Top = f.ClientSize.Height - 75;
-            next.Left = f.ClientSize.Width - next.Width - 48;
-            counter.Top = f.ClientSize.Height - 75;
-            counter.Left = (f.ClientSize.Width - counter.Width) / 2;
-
-            // Renderiza somente depois que o tamanho real da janela estiver definido.
-            // Evita cart√µes/progresso calculados com a altura inicial e textos cortados.
-            Render();
-        };
-
-        f.Resize += (_,_) =>
-        {
-            if (!f.IsHandleCreated) return;
-            header.Width = f.ClientSize.Width;
-            stepTitle.Width = Math.Max(300, f.ClientSize.Width - 60);
-            mock.Width = Math.Max(500, f.ClientSize.Width - 96);
-            mock.Height = Math.Max(340, f.ClientSize.Height - 330);
-            instruction.Top = f.ClientSize.Height - 180;
-            instruction.Width = Math.Max(500, f.ClientSize.Width - 96);
-            prev.Top = f.ClientSize.Height - 75;
-            next.Top = f.ClientSize.Height - 75;
-            next.Left = f.ClientSize.Width - next.Width - 48;
-            counter.Top = f.ClientSize.Height - 75;
-            counter.Left = (f.ClientSize.Width - counter.Width) / 2;
-
-            // Recalcula os elementos internos para nenhuma etapa ficar cortada ao redimensionar.
-            Render();
-        };
-
-        f.ShowDialog(this);
-    }
-
-
-    private void ConfirmExit()
-    {
-        var r = MessageBox.Show(
-            "Deseja realmente sair do LEAL INFO PDV?",
-            "Confirmar sa√≠da",
-            MessageBoxButtons.YesNo,
-            MessageBoxIcon.Question,
-            MessageBoxDefaultButton.Button2);
-        if (r == DialogResult.Yes)
-            Close();
-    }
-
-    private void AddTool(Control parent, string text, string iconFile, Action action)
-    {
-        const int cardW = 92;
-        const int cardH = 104;
-        var card = new Panel
-        {
-            Width = cardW,
-            Height = cardH,
-            Margin = new Padding(1),
-            BackColor = Color.Transparent,
-            Cursor = Cursors.Hand
-        };
-
-        bool hover = false;
-        int pulse = 0;
-        bool pulseUp = true;
-        string normalizedText = text.Replace("\n", " ").Trim();
-        bool shouldPulse = normalizedText.Equals("PRODUTOS", StringComparison.OrdinalIgnoreCase)
-            || normalizedText.Equals("TELA DE VENDAS", StringComparison.OrdinalIgnoreCase);
-        var pulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
-
-        card.Paint += (_, e) =>
-        {
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            int visualPulse = shouldPulse ? pulse : 0;
-            int inset = Math.Max(1, 3 - visualPulse / 4);
-            var rect = new Rectangle(inset, inset, card.Width - inset * 2 - 1, card.Height - inset * 2 - 1);
-            const int radius = 20;
-            using var gp = new System.Drawing.Drawing2D.GraphicsPath();
-            gp.AddArc(rect.X, rect.Y, radius, radius, 180, 90);
-            gp.AddArc(rect.Right-radius, rect.Y, radius, radius, 270, 90);
-            gp.AddArc(rect.Right-radius, rect.Bottom-radius, radius, radius, 0, 90);
-            gp.AddArc(rect.X, rect.Bottom-radius, radius, radius, 90, 90);
-            gp.CloseFigure();
-
-            int lift = visualPulse * 5;
-            using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect,
-                hover ? Color.FromArgb(22, 170, 235) : Color.FromArgb(8, 115 + lift, 180 + lift),
-                Color.FromArgb(2, 28, 66), 90f);
-            e.Graphics.FillPath(bg, gp);
-
-            int alpha = Math.Min(255, 105 + visualPulse * 18 + (hover ? 45 : 0));
-            using var glow = new Pen(Color.FromArgb(alpha, 80, 225, 255), hover ? 4.5f : 3.2f + visualPulse * 0.12f);
-            e.Graphics.DrawPath(glow, gp);
-
-            var innerRect = Rectangle.Inflate(rect, -4, -4);
-            using var innerPath = new System.Drawing.Drawing2D.GraphicsPath();
-            innerPath.AddArc(innerRect.X, innerRect.Y, radius - 4, radius - 4, 180, 90);
-            innerPath.AddArc(innerRect.Right-(radius-4), innerRect.Y, radius - 4, radius - 4, 270, 90);
-            innerPath.AddArc(innerRect.Right-(radius-4), innerRect.Bottom-(radius-4), radius - 4, radius - 4, 0, 90);
-            innerPath.AddArc(innerRect.X, innerRect.Bottom-(radius-4), radius - 4, radius - 4, 90, 90);
-            innerPath.CloseFigure();
-            using var innerGlow = new Pen(Color.FromArgb(70 + visualPulse * 10, 210, 250, 255), 1.2f);
-            e.Graphics.DrawPath(innerGlow, innerPath);
-        };
-
-        var caption = new Label
-        {
-            Text = normalizedText,
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = Color.White,
-            BackColor = Color.Transparent,
-            Font = new Font("Segoe UI", 9.2f, FontStyle.Bold),
-            AutoEllipsis = false,
-            Cursor = Cursors.Hand,
-            Padding = new Padding(3)
-        };
-        card.Controls.Add(caption);
-
-        if (shouldPulse)
-        {
-            pulseTimer.Tick += (_, _) =>
-            {
-                pulse += pulseUp ? 1 : -1;
-                if (pulse >= 7) { pulse = 7; pulseUp = false; }
-                if (pulse <= 0) { pulse = 0; pulseUp = true; }
-                card.Invalidate();
-            };
-            pulseTimer.Start();
-        }
-
-        void SetHover(bool on)
-        {
-            hover = on;
-            caption.Font = new Font("Segoe UI", on ? 9.7f : 9.2f, FontStyle.Bold);
-            card.Invalidate();
-        }
-        void Enter(object? s, EventArgs e) => SetHover(true);
-        void Leave(object? s, EventArgs e)
-        {
-            var pt = card.PointToClient(Cursor.Position);
-            if (!card.ClientRectangle.Contains(pt)) SetHover(false);
-        }
-        card.MouseEnter += Enter;
-        card.MouseLeave += Leave;
-        caption.MouseEnter += Enter;
-        caption.MouseLeave += Leave;
-        void Run(object? s, EventArgs e) => action();
-        card.Click += Run;
-        caption.Click += Run;
-        card.Disposed += (_, _) => pulseTimer.Dispose();
-        parent.Controls.Add(card);
-    }
-private void ApplyFloatingTheme(Form f)
-    {
-        f.BackColor = Color.FromArgb(224, 239, 248);
-        f.Font = new Font("Segoe UI", 10);
-
-        void RoundControl(Control c, int radius)
-        {
-            void Apply()
-            {
-                if (c.Width < 4 || c.Height < 4) return;
-                var rect = new Rectangle(0, 0, c.Width, c.Height);
-                var gp = new System.Drawing.Drawing2D.GraphicsPath();
-                int d = Math.Max(6, radius * 2);
-                gp.AddArc(rect.X, rect.Y, d, d, 180, 90);
-                gp.AddArc(rect.Right - d - 1, rect.Y, d, d, 270, 90);
-                gp.AddArc(rect.Right - d - 1, rect.Bottom - d - 1, d, d, 0, 90);
-                gp.AddArc(rect.X, rect.Bottom - d - 1, d, d, 90, 90);
-                gp.CloseFigure();
-                c.Region?.Dispose();
-                c.Region = new Region(gp);
-                gp.Dispose();
-            }
-            c.HandleCreated += (_, _) => Apply();
-            c.Resize += (_, _) => Apply();
-            if (c.IsHandleCreated) Apply();
-        }
-
-        void StyleRecursive(Control parent)
-        {
-            foreach (Control c in parent.Controls)
-            {
-                if (c is TextBox tb)
-                {
-                    tb.BackColor = Color.White;
-                    tb.ForeColor = Color.FromArgb(8, 38, 68);
-                    tb.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
-                    tb.BorderStyle = BorderStyle.FixedSingle;
-                    RoundControl(tb, 10);
-                }
-                else if (c is ComboBox cb)
-                {
-                    cb.BackColor = Color.White;
-                    cb.ForeColor = Color.FromArgb(8, 38, 68);
-                    cb.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-                    RoundControl(cb, 10);
-                }
-                else if (c is NumericUpDown nud)
-                {
-                    nud.BackColor = Color.White;
-                    nud.ForeColor = Color.FromArgb(8, 38, 68);
-                    nud.Font = new Font("Segoe UI", 11.5f, FontStyle.Bold);
-                    RoundControl(nud, 10);
-                }
-                else if (c is Button b)
-                {
-                    b.FlatStyle = FlatStyle.Flat;
-                    b.FlatAppearance.BorderSize = 0;
-                    b.Cursor = Cursors.Hand;
-                    if (b.BackColor == SystemColors.Control || b.BackColor == Color.Empty)
-                        b.BackColor = Color.FromArgb(0, 145, 210);
-                    if (b.ForeColor == SystemColors.ControlText || b.ForeColor == Color.Empty)
-                        b.ForeColor = Color.White;
-                    b.Font = new Font("Segoe UI", Math.Max(9f, b.Font.Size), FontStyle.Bold);
-                    RoundControl(b, 12);
-                }
-                else if (c is DataGridView dg)
-                {
-                    dg.BorderStyle = BorderStyle.None;
-                    dg.BackgroundColor = Color.White;
-                    dg.EnableHeadersVisualStyles = false;
-                    dg.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(205, 232, 247);
-                    dg.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(4, 55, 94);
-                    dg.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-                    dg.DefaultCellStyle.SelectionBackColor = Color.FromArgb(190, 232, 250);
-                    dg.DefaultCellStyle.SelectionForeColor = Color.FromArgb(4, 45, 82);
-                    RoundControl(dg, 12);
-                }
-                else if (c is Label lbl)
-                {
-                    if (lbl.BackColor == Color.Transparent || lbl.BackColor == SystemColors.Control)
-                        lbl.ForeColor = Color.FromArgb(4, 55, 94);
-                }
-                else if (c is Panel pnl && pnl.BackColor == Color.White)
-                {
-                    RoundControl(pnl, 18);
-                }
-
-                if (c.HasChildren)
-                    StyleRecursive(c);
-            }
-        }
-
-        StyleRecursive(f);
-    }
-
-    private void RefreshDashboard()
-    {
-        using var cn = Database.Open();
-        using var cmd = cn.CreateCommand();
-        cmd.CommandText = """
-        SELECT
-          (SELECT COUNT(*) FROM products WHERE active=1),
-          (SELECT COUNT(*) FROM products WHERE active=1 AND stock <= min_stock),
-          (SELECT COUNT(*) FROM sales);
-        """;
-        using var rd = cmd.ExecuteReader();
-        if (rd.Read())
-        {
-            lowStockLabel.Text =
-                $"Produtos abaixo do m√≠nimo\n{rd.GetInt32(1)} produto(s)\n\n" +
-                $"Produtos cadastrados\n{rd.GetInt32(0)} produto(s)\n\n" +
-                $"Vendas realizadas\n{rd.GetInt32(2)} venda(s)";
-        }
-    }
-
-    private void OpenProducts() => ShowCrud(
-        "PRODUTOS / ESTOQUE",
-        "SELECT id AS ID, barcode AS C√≥digo, name AS Produto, category AS Categoria, printf('R$ %.2f',price) AS Venda, stock AS Estoque, min_stock AS M√≠nimo FROM products WHERE active=1 ORDER BY name",
-        () => EditProduct(null),
-        id => EditProduct(id),
-        id =>
-        {
-            if (Confirm("Excluir este produto?"))
-            {
-                Exec("UPDATE products SET active=0 WHERE id=$id", ("$id", id));
-                RefreshDashboard();
-            }
-        });
-
-    private void EditProduct(long? id)
-    {
-        using var f = new Form
-        {
-            Text = id.HasValue ? "Editar Produto" : "Novo Produto",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 900,
-            Height = 650,
-            MinimumSize = new Size(860, 620),
-            BackColor = Color.FromArgb(238, 246, 252),
-            Font = new Font("Segoe UI", 10)
-        };
-
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 1,
-            Padding = new Padding(18),
-            BackColor = Color.FromArgb(238, 246, 252)
-        };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 42));
-        f.Controls.Add(root);
-
-        void RoundProductControl(Control c, int radius)
-        {
-            void Apply()
-            {
-                if (c.Width <= 1 || c.Height <= 1) return;
-                var r = new Rectangle(0, 0, c.Width, c.Height);
-                var gp = new System.Drawing.Drawing2D.GraphicsPath();
-                int d = Math.Max(4, radius * 2);
-                gp.AddArc(r.X, r.Y, d, d, 180, 90);
-                gp.AddArc(r.Right - d - 1, r.Y, d, d, 270, 90);
-                gp.AddArc(r.Right - d - 1, r.Bottom - d - 1, d, d, 0, 90);
-                gp.AddArc(r.X, r.Bottom - d - 1, d, d, 90, 90);
-                gp.CloseFigure();
-                c.Region?.Dispose();
-                c.Region = new Region(gp);
-                gp.Dispose();
-            }
-            c.Resize += (_, _) => Apply();
-            c.HandleCreated += (_, _) => Apply();
-        }
-
-        var fieldsPanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(224, 239, 248),
-            Padding = new Padding(22)
-        };
-        root.Controls.Add(fieldsPanel, 0, 0);
-        RoundProductControl(fieldsPanel, 24);
-
-        var fields = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 15,
-            BackColor = Color.FromArgb(224, 239, 248)
-        };
-        fieldsPanel.Controls.Add(fields);
-
-        TextBox Field(string placeholder = "")
-        {
-            var box = new TextBox
-            {
-                Dock = DockStyle.Fill,
-                Font = new Font("Segoe UI", 19, FontStyle.Bold),
-                BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.White,
-                ForeColor = Color.FromArgb(8, 38, 68),
-                PlaceholderText = placeholder,
-                Margin = new Padding(0, 3, 0, 7),
-                Padding = new Padding(10, 8, 10, 8)
-            };
-            RoundProductControl(box, 12);
-            return box;
-        }
-
-        Label Lbl(string s) => new()
-        {
-            Text = s,
-            Dock = DockStyle.Fill,
-            ForeColor = Color.FromArgb(4, 55, 94),
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            TextAlign = ContentAlignment.BottomLeft
-        };
-
-        var barcode = Field();
-        var name = Field();
-        var category = Field();
-        var cost = Field("0,00");
-        var price = Field("0,00");
-        var stock = Field("0");
-        var minStock = Field("0");
-
-        // Cadastro inteligente refinado: confirma√ß√£o discreta e foco em Custo.
-        // Primeiro consulta Open Food Facts; se n√£o houver produto, consulta Open Products Facts.
-        // Funciona com leitores que enviam ENTER e com leitores que apenas digitam o EAN/GTIN.
-        var barcodeLookupTimer = new System.Windows.Forms.Timer { Interval = 650 };
-        var barcodeLookupRunning = false;
-        string lastBarcodeLookup = "";
-        var lookupStatus = new Label
-        {
-            Text = "Aguardando leitura do c√≥digo de barras...",
-            Dock = DockStyle.Fill,
-            AutoEllipsis = true,
-            ForeColor = Color.FromArgb(4, 105, 165),
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(4, 0, 4, 0)
-        };
-
-        void SetLookupStatus(string text, bool error = false)
-        {
-            if (f.IsDisposed) return;
-            lookupStatus.Text = text;
-            lookupStatus.ForeColor = error ? Color.FromArgb(190, 45, 45) : Color.FromArgb(4, 105, 165);
-        }
-
-        bool IsBarcodeLengthValid(string code) => code.Length is 8 or 12 or 13 or 14;
-
-        async Task<JsonElement?> TryFindProductAsync(HttpClient http, string baseUrl, string code)
-        {
-            var url = $"{baseUrl}/api/v2/product/{Uri.EscapeDataString(code)}.json?fields=product_name,product_name_pt,brands,categories_tags";
-            using var response = await http.GetAsync(url);
-
-            // Produto ausente nesta base: n√£o √© erro; apenas tenta a pr√≥xima.
-            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-                return null;
-
-            response.EnsureSuccessStatusCode();
-            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            var rootJson = doc.RootElement;
-
-            if (rootJson.TryGetProperty("status", out var statusJson) && statusJson.ValueKind == JsonValueKind.Number && statusJson.GetInt32() == 0)
-                return null;
-
-            if (!rootJson.TryGetProperty("product", out var product) || product.ValueKind != JsonValueKind.Object)
-                return null;
-
-            return product.Clone();
-        }
-
-        async Task LookupBarcodeOnlineAsync()
-        {
-            var code = new string(barcode.Text.Where(char.IsDigit).ToArray());
-            if (!IsBarcodeLengthValid(code))
-            {
-                SetLookupStatus($"C√≥digo com {code.Length} d√≠gitos ‚Äî aguardando 8, 12, 13 ou 14.");
-                return;
-            }
-            if (barcodeLookupRunning)
-            {
-                SetLookupStatus("Consulta j√° est√° em andamento...");
-                return;
-            }
-            if (code == lastBarcodeLookup)
-            {
-                SetLookupStatus($"C√≥digo {code} j√° consultado nesta tentativa.");
-                return;
-            }
-
-            // Primeiro respeita o cadastro local: nunca sobrescreve produto existente no PDV.
-            using (var local = Database.Open())
-            using (var cmd = local.CreateCommand())
-            {
-                cmd.CommandText = "SELECT name FROM products WHERE barcode=$b AND active=1 LIMIT 1";
-                cmd.Parameters.AddWithValue("$b", code);
-                var existing = cmd.ExecuteScalar()?.ToString();
-                if (!string.IsNullOrWhiteSpace(existing))
-                {
-                    SetLookupStatus($"C√≥digo j√° cadastrado: {existing}");
-                    MessageBox.Show(f, $"Este c√≥digo j√° est√° cadastrado como:\n\n{existing}", "Produto j√° cadastrado", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
-            }
-
-            barcodeLookupRunning = true;
-            lastBarcodeLookup = code;
-            var oldCursor = f.Cursor;
-            f.Cursor = Cursors.WaitCursor;
-            barcode.Enabled = false;
-
-            try
-            {
-                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV/10.130 (cadastro-inteligente)");
-
-                SetLookupStatus($"Consultando {code} em Open Food Facts...");
-                var product = await TryFindProductAsync(http, "https://world.openfoodfacts.org", code);
-                var source = "Open Food Facts";
-
-                if (product is null)
-                {
-                    SetLookupStatus($"N√£o encontrado em alimentos. Consultando produtos gerais...");
-                    product = await TryFindProductAsync(http, "https://world.openproductsfacts.org", code);
-                    source = "Open Products Facts";
-                }
-
-                if (product is null)
-                {
-                    SetLookupStatus($"Produto {code} n√£o encontrado online. Preencha manualmente.", true);
-                    name.Focus();
-                    return;
-                }
-
-                var pjson = product.Value;
-                string ReadString(string prop) => pjson.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? (v.GetString() ?? "").Trim() : "";
-                var productName = ReadString("product_name_pt");
-                if (string.IsNullOrWhiteSpace(productName)) productName = ReadString("product_name");
-                var brand = ReadString("brands");
-
-                if (!string.IsNullOrWhiteSpace(productName))
-                    name.Text = string.IsNullOrWhiteSpace(brand) || productName.Contains(brand, StringComparison.OrdinalIgnoreCase)
-                        ? productName
-                        : $"{productName} - {brand}";
-
-                if (string.IsNullOrWhiteSpace(category.Text) && pjson.TryGetProperty("categories_tags", out var cats) && cats.ValueKind == JsonValueKind.Array)
-                {
-                    string fallbackCategory = "";
-                    foreach (var c in cats.EnumerateArray())
-                    {
-                        var raw = c.GetString() ?? "";
-                        if (string.IsNullOrWhiteSpace(raw)) continue;
-                        if (raw.StartsWith("pt:", StringComparison.OrdinalIgnoreCase))
-                        {
-                            fallbackCategory = raw[3..].Replace('-', ' ');
-                            break;
-                        }
-                        if (string.IsNullOrWhiteSpace(fallbackCategory))
-                            fallbackCategory = raw.Contains(':') ? raw[(raw.IndexOf(':') + 1)..].Replace('-', ' ') : raw.Replace('-', ' ');
-                    }
-                    if (!string.IsNullOrWhiteSpace(fallbackCategory))
-                        category.Text = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(fallbackCategory);
-                }
-
-                if (!string.IsNullOrWhiteSpace(name.Text))
-                {
-                    SetLookupStatus($"ENCONTRADO em {source}: {name.Text}");
-                    SetLookupStatus($"‚úì Produto encontrado online ‚Äî {name.Text}");
-                    cost.Focus();
-                }
-                else
-                {
-                    SetLookupStatus($"C√≥digo encontrado em {source}, por√©m sem nome. Preencha manualmente.", true);
-                    name.Focus();
-                }
-            }
-            catch (HttpRequestException ex)
-            {
-                SetLookupStatus($"Falha de comunica√ß√£o: {ex.Message}", true);
-                MessageBox.Show(f, $"N√£o foi poss√≠vel consultar as bases online agora.\n\n{ex.Message}\n\nO cadastro manual continua dispon√≠vel.", "Cadastro inteligente", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                name.Focus();
-            }
-            catch (TaskCanceledException)
-            {
-                SetLookupStatus("Consulta online excedeu o tempo limite. Preencha manualmente.", true);
-                name.Focus();
-            }
-            catch (Exception ex)
-            {
-                SetLookupStatus($"Erro na consulta: {ex.Message}", true);
-                MessageBox.Show(f, $"Ocorreu um erro durante a consulta online.\n\n{ex.Message}\n\nO cadastro manual continua dispon√≠vel.", "Cadastro inteligente", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                name.Focus();
-            }
-            finally
-            {
-                barcode.Enabled = true;
-                f.Cursor = oldCursor;
-                barcodeLookupRunning = false;
-            }
-        }
-
-        barcode.TextChanged += (_, _) =>
-        {
-            barcodeLookupTimer.Stop();
-            var code = new string(barcode.Text.Where(char.IsDigit).ToArray());
-            if (code != lastBarcodeLookup) lastBarcodeLookup = "";
-
-            if (IsBarcodeLengthValid(code))
-            {
-                SetLookupStatus($"C√≥digo detectado: {code}. Consultando automaticamente...");
-                barcodeLookupTimer.Start();
-            }
-            else if (code.Length > 0)
-            {
-                SetLookupStatus($"Lendo c√≥digo... {code.Length} d√≠gitos recebidos.");
-            }
-        };
-
-        barcodeLookupTimer.Tick += async (_, _) =>
-        {
-            barcodeLookupTimer.Stop();
-            await LookupBarcodeOnlineAsync();
-        };
-
-        barcode.KeyDown += async (_, e) =>
-        {
-            if (e.KeyCode != Keys.Enter) return;
-            e.SuppressKeyPress = true;
-            barcodeLookupTimer.Stop();
-            await LookupBarcodeOnlineAsync();
-        };
-
-        var controls = new (string label, Control input)[]
-        {
-            ("C√≥digo de barras", barcode),
-            ("Nome", name),
-            ("Categoria", category),
-            ("Custo", cost),
-            ("Pre√ßo de venda", price),
-            ("Estoque", stock),
-            ("Estoque m√≠nimo", minStock)
-        };
-
-        int row = 0;
-        foreach (var x in controls)
-        {
-            fields.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            fields.Controls.Add(Lbl(x.label), 0, row++);
-            fields.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-            fields.Controls.Add(x.input, 0, row++);
-
-            if (ReferenceEquals(x.input, barcode))
-            {
-                fields.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-                fields.Controls.Add(lookupStatus, 0, row++);
-            }
-        }
-        fields.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-        var photoSide = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(8, 59, 98),
-            Padding = new Padding(20)
-        };
-        root.Controls.Add(photoSide, 1, 0);
-        RoundProductControl(photoSide, 24);
-
-        var photoLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 7,
-            BackColor = Color.Transparent
-        };
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 45));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-        photoSide.Controls.Add(photoLayout);
-
-        photoLayout.Controls.Add(new Label
-        {
-            Text = "FOTO DO PRODUTO",
-            Dock = DockStyle.Fill,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        }, 0, 0);
-
-        var preview = new PictureBox
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.White,
-            SizeMode = PictureBoxSizeMode.Zoom,
-            Margin = new Padding(8)
-        };
-        photoLayout.Controls.Add(preview, 0, 1);
-        RoundProductControl(preview, 18);
-
-        string? selectedPhoto = null;
-
-        void LoadPreview(string? path)
-        {
-            preview.Image?.Dispose();
-            preview.Image = null;
-
-            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
-            {
-                using var img = Image.FromFile(path);
-                preview.Image = new Bitmap(img);
-                return;
-            }
-
-            var logo = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
-            if (File.Exists(logo))
-            {
-                using var img = Image.FromFile(logo);
-                preview.Image = new Bitmap(img);
-            }
-        }
-
-        var chooseLocal = new Button
-        {
-            Text = "SELECIONAR FOTO DO COMPUTADOR",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(8, 4, 8, 4),
-            BackColor = Color.FromArgb(0, 145, 210),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold)
-        };
-        chooseLocal.FlatAppearance.BorderSize = 0;
-        RoundProductControl(chooseLocal, 14);
-        photoLayout.Controls.Add(chooseLocal, 0, 2);
-
-        var webCheck = new CheckBox
-        {
-            Text = "Buscar foto na Web",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(12, 4, 8, 4),
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 10, FontStyle.Bold),
-            Checked = false
-        };
-        var webCheckHost = new Panel
-        {
-            Dock = DockStyle.Fill,
-            Margin = new Padding(8, 3, 8, 3),
-            BackColor = Color.FromArgb(18, 82, 128),
-            Padding = new Padding(10, 0, 0, 0)
-        };
-        webCheck.Dock = DockStyle.Fill;
-        webCheck.Margin = new Padding(0);
-        webCheckHost.Controls.Add(webCheck);
-        photoLayout.Controls.Add(webCheckHost, 0, 3);
-        RoundProductControl(webCheckHost, 13);
-
-        var webButton = new Button
-        {
-            Text = "PESQUISAR IMAGENS NA WEB",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(8, 4, 8, 4),
-            BackColor = Color.FromArgb(28, 96, 135),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-            Enabled = false
-        };
-        webButton.FlatAppearance.BorderSize = 0;
-        RoundProductControl(webButton, 14);
-        photoLayout.Controls.Add(webButton, 0, 4);
-
-        var useDownloaded = new Button
-        {
-            Text = "USAR IMAGEM BAIXADA",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(8, 4, 8, 4),
-            BackColor = Color.FromArgb(28, 96, 135),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-            Enabled = false
-        };
-        useDownloaded.FlatAppearance.BorderSize = 0;
-        RoundProductControl(useDownloaded, 14);
-        photoLayout.Controls.Add(useDownloaded, 0, 5);
-
-        var buttons = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(6)
-        };
-        var save = new Button
-        {
-            Text = "SALVAR",
-            Width = 115,
-            Height = 40,
-            BackColor = Color.FromArgb(0, 170, 220),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10, FontStyle.Bold)
-        };
-        var cancel = new Button
-        {
-            Text = "CANCELAR",
-            Width = 115,
-            Height = 40,
-            BackColor = Color.FromArgb(55, 88, 115),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10, FontStyle.Bold)
-        };
-        save.FlatAppearance.BorderSize = 0;
-        RoundProductControl(save, 14);
-        cancel.FlatAppearance.BorderSize = 0;
-        RoundProductControl(cancel, 14);
-        buttons.Controls.Add(save);
-        buttons.Controls.Add(cancel);
-        photoLayout.Controls.Add(buttons, 0, 6);
-
-        chooseLocal.Click += (_, _) =>
-        {
-            using var dlg = new OpenFileDialog
-            {
-                Title = "Selecionar foto do produto",
-                Filter = "Imagens|*.jpg;*.jpeg;*.png;*.webp;*.bmp"
-            };
-            if (dlg.ShowDialog(f) == DialogResult.OK)
-            {
-                selectedPhoto = dlg.FileName;
-                LoadPreview(selectedPhoto);
-            }
-        };
-
-        webCheck.CheckedChanged += (_, _) =>
-        {
-            webButton.Enabled = webCheck.Checked;
-            useDownloaded.Enabled = webCheck.Checked;
-        };
-
-        webButton.Click += (_, _) =>
-        {
-            var term = string.IsNullOrWhiteSpace(name.Text)
-                ? "produto"
-                : name.Text.Trim();
-
-            var url = "https://www.bing.com/images/search?q=" +
-                      Uri.EscapeDataString(term + " produto");
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = url,
-                    UseShellExecute = true
-                });
-                MessageBox.Show(
-                    "Escolha uma imagem no navegador e salve no computador.\n\nDepois volte ao cadastro e clique em \"USAR IMAGEM BAIXADA\".",
-                    "Buscar foto na Web",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show("N√£o foi poss√≠vel abrir a busca na Web.\n\n" + ex.Message);
-            }
-        };
-
-        useDownloaded.Click += (_, _) =>
-        {
-            using var dlg = new OpenFileDialog
-            {
-                Title = "Selecionar a imagem baixada da Web",
-                Filter = "Imagens|*.jpg;*.jpeg;*.png;*.webp;*.bmp"
-            };
-            if (dlg.ShowDialog(f) == DialogResult.OK)
-            {
-                selectedPhoto = dlg.FileName;
-                LoadPreview(selectedPhoto);
-            }
-        };
-
-        if (id.HasValue)
-        {
-            using var cn = Database.Open();
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = """
-                SELECT COALESCE(barcode,''), name, COALESCE(category,''),
-                       cost, price, stock, min_stock, COALESCE(photo_path,'')
-                FROM products WHERE id=$id
-                """;
-            cmd.Parameters.AddWithValue("$id", id.Value);
-            using var rd = cmd.ExecuteReader();
-            if (rd.Read())
-            {
-                barcode.Text = rd.GetString(0);
-                name.Text = rd.GetString(1);
-                category.Text = rd.GetString(2);
-                cost.Text = rd.GetDouble(3).ToString("N2", CultureInfo.GetCultureInfo("pt-BR"));
-                price.Text = rd.GetDouble(4).ToString("N2", CultureInfo.GetCultureInfo("pt-BR"));
-                stock.Text = rd.GetDouble(5).ToString("N3", CultureInfo.GetCultureInfo("pt-BR"));
-                minStock.Text = rd.GetDouble(6).ToString("N3", CultureInfo.GetCultureInfo("pt-BR"));
-                selectedPhoto = rd.GetString(7);
-            }
-        }
-
-        LoadPreview(selectedPhoto);
-
-        cancel.Click += (_, _) => f.Close();
-
-        save.Click += (_, _) =>
-        {
-            if (string.IsNullOrWhiteSpace(name.Text))
-            {
-                Info("Informe o nome do produto.");
-                name.Focus();
-                return;
-            }
-
-            string? finalPhotoPath = selectedPhoto;
-            if (!string.IsNullOrWhiteSpace(selectedPhoto) && File.Exists(selectedPhoto))
-            {
-                var productPhotos = Path.Combine(Database.AppFolder, "ProductImages");
-                Directory.CreateDirectory(productPhotos);
-
-                var ext = Path.GetExtension(selectedPhoto);
-                if (string.IsNullOrWhiteSpace(ext)) ext = ".jpg";
-
-                var dest = Path.Combine(
-                    productPhotos,
-                    $"produto_{(id?.ToString() ?? Guid.NewGuid().ToString("N"))}{ext.ToLowerInvariant()}");
-
-                if (!Path.GetFullPath(selectedPhoto).Equals(Path.GetFullPath(dest), StringComparison.OrdinalIgnoreCase))
-                    File.Copy(selectedPhoto, dest, true);
-
-                finalPhotoPath = dest;
-            }
-
-            using var cn = Database.Open();
-            using var cmd = cn.CreateCommand();
-
-            if (id.HasValue)
-            {
-                cmd.CommandText = """
-                    UPDATE products
-                    SET barcode=$b,name=$n,category=$c,cost=$co,price=$p,
-                        stock=$s,min_stock=$m,photo_path=$photo
-                    WHERE id=$id
-                    """;
-                cmd.Parameters.AddWithValue("$id", id.Value);
-            }
-            else
-            {
-                cmd.CommandText = """
-                    INSERT INTO products(barcode,name,category,cost,price,stock,min_stock,photo_path)
-                    VALUES($b,$n,$c,$co,$p,$s,$m,$photo)
-                    """;
-            }
-
-            cmd.Parameters.AddWithValue("$b", barcode.Text.Trim());
-            cmd.Parameters.AddWithValue("$n", name.Text.Trim());
-            cmd.Parameters.AddWithValue("$c", category.Text.Trim());
-            cmd.Parameters.AddWithValue("$co", Num(cost.Text));
-            cmd.Parameters.AddWithValue("$p", Num(price.Text));
-            cmd.Parameters.AddWithValue("$s", Num(stock.Text));
-            cmd.Parameters.AddWithValue("$m", Num(minStock.Text));
-            cmd.Parameters.AddWithValue("$photo", (object?)finalPhotoPath ?? DBNull.Value);
-            cmd.ExecuteNonQuery();
-
-            RefreshDashboard();
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        ApplyFloatingTheme(f);
-
-
-        f.ShowDialog(this);
-    }
-
-    private void OpenCustomers() => ShowPersonCrud("CLIENTES", "customers");
-    private void OpenSuppliers() => ShowPersonCrud("FORNECEDORES", "suppliers");
-
-    private void ShowPersonCrud(string title, string table)
-    {
-        ShowCrud(title,
-            $"SELECT id AS ID,name AS Nome,document AS Documento,phone AS Telefone,email AS Email,address AS Endere√ßo FROM {table} ORDER BY name",
-            () => EditPerson(table, null, title[..^1]),
-            id => EditPerson(table, id, title[..^1]),
-            id => { if (Confirm("Excluir este cadastro?")) Exec($"DELETE FROM {table} WHERE id=$id", ("$id",id)); });
-    }
-
-    private void EditPerson(string table, long? id, string title)
-    {
-        var f = Editor(title, new[] { "Nome", "CPF/CNPJ", "Telefone", "E-mail", "Endere√ßo" });
-        if (id.HasValue)
-        {
-            using var cn = Database.Open();
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = $"SELECT name,document,phone,email,address FROM {table} WHERE id=$id";
-            cmd.Parameters.AddWithValue("$id",id.Value);
-            using var rd=cmd.ExecuteReader();
-            if(rd.Read()) FillEditor(f, rd.GetString(0),rd.GetString(1),rd.GetString(2),rd.GetString(3),rd.GetString(4));
-        }
-        ApplyFloatingTheme(f);
-
-        if(f.ShowDialog(this)==DialogResult.OK)
-        {
-            var v=EditorValues(f);
-            if(string.IsNullOrWhiteSpace(v[0])) { Info("Informe o nome."); return; }
-            if(id.HasValue)
-                Exec($"UPDATE {table} SET name=$n,document=$d,phone=$p,email=$e,address=$a WHERE id=$id",
-                    ("$n",v[0]),("$d",v[1]),("$p",v[2]),("$e",v[3]),("$a",v[4]),("$id",id.Value));
-            else
-                Exec($"INSERT INTO {table}(name,document,phone,email,address) VALUES($n,$d,$p,$e,$a)",
-                    ("$n",v[0]),("$d",v[1]),("$p",v[2]),("$e",v[3]),("$a",v[4]));
-        }
-    }
-
-    private void OpenServices() => ShowCrud("SERVI√áOS",
-        "SELECT id AS ID,name AS Servi√ßo,printf('R$ %.2f',price) AS Valor,description AS Descri√ß√£o FROM services ORDER BY name",
-        () => EditService(null),
-        id => EditService(id),
-        id => { if(Confirm("Excluir este servi√ßo?")) Exec("DELETE FROM services WHERE id=$id",("$id",id)); });
-
-    private void EditService(long? id)
-    {
-        var f=Editor("Servi√ßo",new[]{"Servi√ßo","Valor","Descri√ß√£o"});
-        if(id.HasValue)
-        {
-            using var cn=Database.Open(); using var cmd=cn.CreateCommand();
-            cmd.CommandText="SELECT name,price,description FROM services WHERE id=$id"; cmd.Parameters.AddWithValue("$id",id.Value);
-            using var rd=cmd.ExecuteReader(); if(rd.Read()) FillEditor(f,rd.GetString(0),rd.GetDouble(1),rd.GetString(2));
-        }
-        ApplyFloatingTheme(f);
-
-        if(f.ShowDialog(this)==DialogResult.OK)
-        {
-            var v=EditorValues(f);
-            if(id.HasValue) Exec("UPDATE services SET name=$n,price=$p,description=$d WHERE id=$id",("$n",v[0]),("$p",Num(v[1])),("$d",v[2]),("$id",id.Value));
-            else Exec("INSERT INTO services(name,price,description) VALUES($n,$p,$d)",("$n",v[0]),("$p",Num(v[1])),("$d",v[2]));
-        }
-    }
-
-    private void OpenOrders() => ShowCrud("ORDENS DE SERVI√áO",
-        "SELECT id AS ID,opened_at AS Data,customer_name AS Cliente,equipment AS Equipamento,defect AS Defeito,status AS Status,printf('R$ %.2f',amount) AS Valor FROM service_orders ORDER BY id DESC",
-        () => EditOrder(null),
-        id => EditOrder(id),
-        id => { if(Confirm("Excluir esta OS?")) Exec("DELETE FROM service_orders WHERE id=$id",("$id",id)); });
-
-    private void EditOrder(long? id)
-    {
-        var f=Editor("Ordem de Servi√ßo",new[]{"Cliente","Equipamento","Defeito / Reclama√ß√£o","Servi√ßo realizado","Status","Valor","Observa√ß√µes"});
-        if(id.HasValue)
-        {
-            using var cn=Database.Open(); using var cmd=cn.CreateCommand();
-            cmd.CommandText="SELECT customer_name,equipment,defect,service_done,status,amount,notes FROM service_orders WHERE id=$id"; cmd.Parameters.AddWithValue("$id",id.Value);
-            using var rd=cmd.ExecuteReader(); if(rd.Read()) FillEditor(f,rd.GetString(0),rd.GetString(1),rd.GetString(2),rd.GetString(3),rd.GetString(4),rd.GetDouble(5),rd.GetString(6));
-        }
-        ApplyFloatingTheme(f);
-
-        if(f.ShowDialog(this)==DialogResult.OK)
-        {
-            var v=EditorValues(f);
-            if(id.HasValue) Exec("""UPDATE service_orders SET customer_name=$c,equipment=$e,defect=$d,service_done=$s,status=$st,amount=$a,notes=$n WHERE id=$id""",
-                ("$c",v[0]),("$e",v[1]),("$d",v[2]),("$s",v[3]),("$st",v[4]),("$a",Num(v[5])),("$n",v[6]),("$id",id.Value));
-            else Exec("""INSERT INTO service_orders(opened_at,customer_name,equipment,defect,service_done,status,amount,notes) VALUES($dt,$c,$e,$d,$s,$st,$a,$n)""",
-                ("$dt",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),("$c",v[0]),("$e",v[1]),("$d",v[2]),("$s",v[3]),("$st",string.IsNullOrWhiteSpace(v[4])?"ABERTA":v[4]),("$a",Num(v[5])),("$n",v[6]));
-        }
-    }
-
-    private void OpenQuotes() => ShowCrud("OR√áAMENTOS",
-        "SELECT id AS ID,created_at AS Data,customer_name AS Cliente,description AS Descri√ß√£o,printf('R$ %.2f',amount) AS Valor,status AS Status FROM quotes ORDER BY id DESC",
-        () => EditQuote(null),
-        id => EditQuote(id),
-        id => { if(Confirm("Excluir este or√ßamento?")) Exec("DELETE FROM quotes WHERE id=$id",("$id",id)); });
-
-    private void EditQuote(long? id)
-    {
-        var f=Editor("Or√ßamento",new[]{"Cliente","Descri√ß√£o","Valor","Status"});
-        if(id.HasValue)
-        {
-            using var cn=Database.Open(); using var cmd=cn.CreateCommand();
-            cmd.CommandText="SELECT customer_name,description,amount,status FROM quotes WHERE id=$id";cmd.Parameters.AddWithValue("$id",id.Value);
-            using var rd=cmd.ExecuteReader();if(rd.Read())FillEditor(f,rd.GetString(0),rd.GetString(1),rd.GetDouble(2),rd.GetString(3));
-        }
-        ApplyFloatingTheme(f);
-
-        if(f.ShowDialog(this)==DialogResult.OK)
-        {
-            var v=EditorValues(f);
-            if(id.HasValue) Exec("UPDATE quotes SET customer_name=$c,description=$d,amount=$a,status=$s WHERE id=$id",("$c",v[0]),("$d",v[1]),("$a",Num(v[2])),("$s",v[3]),("$id",id.Value));
-            else Exec("INSERT INTO quotes(created_at,customer_name,description,amount,status) VALUES($dt,$c,$d,$a,$s)",("$dt",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),("$c",v[0]),("$d",v[1]),("$a",Num(v[2])),("$s",string.IsNullOrWhiteSpace(v[3])?"PENDENTE":v[3]));
-        }
-    }
-
-    private void OpenFinance() => ShowCrud("FLUXO DE CAIXA",
-        "SELECT id AS ID,occurred_at AS Data,type AS Tipo,description AS Descri√ß√£o,printf('R$ %.2f',amount) AS Valor FROM cash_movements ORDER BY id DESC",
-        () =>
-        {
-            var f=Editor("Lan√ßamento Financeiro",new[]{"Tipo (ENTRADA/SA√çDA)","Descri√ß√£o","Valor"});
-            if(f.ShowDialog(this)==DialogResult.OK){var v=EditorValues(f);Exec("INSERT INTO cash_movements(occurred_at,type,description,amount) VALUES($d,$t,$x,$a)",("$d",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),("$t",v[0]),("$x",v[1]),("$a",Num(v[2])));}
-        }, null,
-        id=>{if(Confirm("Excluir este lan√ßamento?"))Exec("DELETE FROM cash_movements WHERE id=$id",("$id",id));});
-
-    private void OpenHistory() => ShowReadOnly("HIST√ìRICO DE VENDAS",
-        "SELECT id AS Venda,sold_at AS Data,payment AS Pagamento,printf('R$ %.2f',subtotal) AS Subtotal,printf('R$ %.2f',discount) AS Desconto,printf('R$ %.2f',total) AS Total,operator AS Operador FROM sales ORDER BY id DESC");
-
-    private void OpenReports()
-    {
-        using var cn=Database.Open();
-        long products=ScalarLong(cn,"SELECT COUNT(*) FROM products WHERE active=1");
-        long clients=ScalarLong(cn,"SELECT COUNT(*) FROM customers");
-        long sales=ScalarLong(cn,"SELECT COUNT(*) FROM sales");
-        double total=ScalarDouble(cn,"SELECT COALESCE(SUM(total),0) FROM sales");
-        double entries=ScalarDouble(cn,"SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE upper(type) NOT LIKE '%SA√çDA%'");
-        double exits=ScalarDouble(cn,"SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE upper(type) LIKE '%SA√çDA%'");
-        long low=ScalarLong(cn,"SELECT COUNT(*) FROM products WHERE active=1 AND stock<=min_stock");
-        MessageBox.Show(
-            $"RELAT√ìRIO GERAL\n\nProdutos: {products}\nClientes: {clients}\nVendas: {sales}\nTotal vendido: {Money(total)}\n\nEntradas: {Money(entries)}\nSa√≠das: {Money(exits)}\nSaldo: {Money(entries-exits)}\n\nEstoque baixo: {low} produto(s)",
-            "LEAL INFO PDV - Relat√≥rios",MessageBoxButtons.OK,MessageBoxIcon.Information);
-    }
-
-    private void OpenUsers()
-    {
-        using var f=new Form{Text="Usu√°rios e N√≠veis de Acesso",StartPosition=FormStartPosition.CenterParent,
-            Width=980,Height=650,BackColor=Color.FromArgb(224,239,248),Font=new Font("Segoe UI",10)};
-        var grid=new DataGridView{Dock=DockStyle.Fill,ReadOnly=true,AllowUserToAddRows=false,RowHeadersVisible=false,
-            AutoSizeColumnsMode=DataGridViewAutoSizeColumnsMode.Fill,SelectionMode=DataGridViewSelectionMode.FullRowSelect};
-        var bar=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=64,Padding=new Padding(10),FlowDirection=FlowDirection.LeftToRight};
-        var add=new Button{Text="NOVO USU√ÅRIO",Width=150,Height=42};
-        var reset=new Button{Text="REDEFINIR SENHA",Width=160,Height=42};
-        var toggle=new Button{Text="ATIVAR / INATIVAR",Width=160,Height=42};
-        bar.Controls.Add(add);bar.Controls.Add(reset);bar.Controls.Add(toggle);
-        f.Controls.Add(grid);f.Controls.Add(bar);
-
-        void LoadUsers()
-        {
-            using var cn=Database.Open();
-            using var cmd=cn.CreateCommand();
-            cmd.CommandText="SELECT id AS ID,full_name AS Nome,username AS Usuario,role AS Nivel,email AS Email,phone AS Telefone,CASE active WHEN 1 THEN 'ATIVO' ELSE 'INATIVO' END AS Status,CASE can_discount WHEN 1 THEN 'SIM' ELSE 'N√ÉO' END AS Desconto FROM users ORDER BY full_name";
-            using var rd=cmd.ExecuteReader();
-            var dt=new System.Data.DataTable();
-            dt.Load(rd);
-            grid.DataSource=dt;
-        }
-
-        add.Click+=(_,_)=>{
-            using var uf=new Form{Text="Novo usu√°rio",StartPosition=FormStartPosition.CenterParent,Width=560,Height=570,
-                FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false,BackColor=Color.FromArgb(224,239,248)};
-            var p=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,Padding=new Padding(30)};
-            uf.Controls.Add(p);
-            TextBox B(bool pw=false)=>new(){Dock=DockStyle.Top,Height=38,UseSystemPasswordChar=pw,Font=new Font("Segoe UI",11)};
-            Label L(string s)=>new(){Text=s,Dock=DockStyle.Top,Height=26,Font=new Font("Segoe UI",10,FontStyle.Bold)};
-            var n=B();var u=B();var e=B();var ph=B();var pw=B(true);
-            var role=new ComboBox{Dock=DockStyle.Top,DropDownStyle=ComboBoxStyle.DropDownList,Height=38};
-            role.Items.AddRange(new[]{"ADMINISTRADOR","GERENTE","OPERADOR"});role.SelectedIndex=2;
-            var discount=new CheckBox{Text="Pode conceder desconto",Dock=DockStyle.Top,Height=35};
-            foreach(var x in new (string,Control)[]{("Nome completo",n),("Usu√°rio",u),("E-mail",e),("Telefone",ph),("Senha inicial",pw),("N√≠vel de acesso",role)})
-            {p.Controls.Add(L(x.Item1));p.Controls.Add(x.Item2);}
-            p.Controls.Add(discount);
-            var save=new Button{Text="SALVAR USU√ÅRIO",Dock=DockStyle.Top,Height=46,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,FlatStyle=FlatStyle.Flat};
-            p.Controls.Add(save);
-            save.Click+=(_,_)=>{
-                if(string.IsNullOrWhiteSpace(n.Text)||string.IsNullOrWhiteSpace(u.Text)||pw.Text.Length<6){MessageBox.Show("Nome, usu√°rio e senha de no m√≠nimo 6 caracteres s√£o obrigat√≥rios.");return;}
-                try{Auth.CreateUser(n.Text,u.Text,pw.Text,role.Text,e.Text,ph.Text,discount.Checked);uf.DialogResult=DialogResult.OK;uf.Close();}
-                catch(Exception ex){MessageBox.Show("Erro ao salvar usu√°rio:\\n"+ex.Message);}
-            };
-            if(uf.ShowDialog(f)==DialogResult.OK)LoadUsers();
-        };
-
-        reset.Click+=(_,_)=>{
-            if(grid.CurrentRow==null)return;
-            long id=Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value);
-            string name=Convert.ToString(grid.CurrentRow.Cells["Nome"].Value)??"";
-            using var rf=new Form{Text="Redefinir senha",StartPosition=FormStartPosition.CenterParent,Width=480,Height=240,FormBorderStyle=FormBorderStyle.FixedDialog};
-            var tb=new TextBox{Left=35,Top=70,Width=390,UseSystemPasswordChar=true,Font=new Font("Segoe UI",12)};
-            var lab=new Label{Left=35,Top=25,Width=390,Text="Nova senha para "+name+" (m√≠nimo 6 caracteres):"};
-            var ok=new Button{Left=275,Top=125,Width=150,Height=38,Text="REDEFINIR"};
-            rf.Controls.AddRange(new Control[]{lab,tb,ok});
-            ok.Click+=(_,_)=>{if(tb.Text.Length<6){MessageBox.Show("Use pelo menos 6 caracteres.");return;}Auth.ResetPassword(id,tb.Text);rf.DialogResult=DialogResult.OK;rf.Close();};
-            if(rf.ShowDialog(f)==DialogResult.OK)MessageBox.Show("Senha redefinida com sucesso.");
-        };
-
-        toggle.Click+=(_,_)=>{
-            if(grid.CurrentRow==null)return;
-            long id=Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value);
-            if(Auth.Current?.Id==id){MessageBox.Show("Voc√™ n√£o pode inativar seu pr√≥prio usu√°rio durante a sess√£o.");return;}
-            using var cn=Database.Open();using var cmd=cn.CreateCommand();
-            cmd.CommandText="UPDATE users SET active=CASE active WHEN 1 THEN 0 ELSE 1 END WHERE id=$id";
-            cmd.Parameters.AddWithValue("$id",id);cmd.ExecuteNonQuery();LoadUsers();
-        };
-        LoadUsers();
-        ApplyFloatingTheme(f);
-        f.ShowDialog(this);
-    }
-
-    private void ShowInitialSecuritySetup()
-    {
-        if (Auth.Current == null) return;
-
-        using var f = new Form
-        {
-            Text = "Proteja sua conta de Administrador",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 650,
-            Height = 430,
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            BackColor = Color.FromArgb(224,239,248),
-            Font = new Font("Segoe UI",10)
-        };
-
-        var root = new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,Padding=new Padding(28)};
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute,80));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute,58));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute,58));
-        f.Controls.Add(root);
-
-        root.Controls.Add(new Label
-        {
-            Text="PROTE√á√ÉO DA CONTA",
-            Dock=DockStyle.Fill,
-            ForeColor=DarkBlue,
-            Font=new Font("Segoe UI",20,FontStyle.Bold),
-            TextAlign=ContentAlignment.MiddleCenter
-        },0,0);
-
-        root.Controls.Add(new Label
-        {
-            Text="Antes de continuar, gere c√≥digos de recupera√ß√£o de emerg√™ncia.\\n\\nEles permitem recuperar a senha mesmo se o e-mail ainda n√£o estiver configurado.\\n\\nGuarde esses c√≥digos em local seguro. Cada c√≥digo funciona apenas uma vez.",
-            Dock=DockStyle.Fill,
-            ForeColor=Color.FromArgb(4,55,94),
-            Font=new Font("Segoe UI",11,FontStyle.Bold),
-            TextAlign=ContentAlignment.MiddleCenter
-        },0,1);
-
-        var generate = new Button
-        {
-            Text="GERAR C√ìDIGOS DE EMERG√äNCIA",
-            Dock=DockStyle.Fill,
-            BackColor=Color.FromArgb(185,22,38),
-            ForeColor=Color.White,
-            FlatStyle=FlatStyle.Flat,
-            Font=new Font("Segoe UI",11,FontStyle.Bold)
-        };
-        generate.FlatAppearance.BorderSize=0;
-        root.Controls.Add(generate,0,2);
-
-        var later = new Button
-        {
-            Text="CONTINUAR",
-            Dock=DockStyle.Fill,
-            BackColor=Color.FromArgb(0,163,224),
-            ForeColor=Color.White,
-            FlatStyle=FlatStyle.Flat,
-            Font=new Font("Segoe UI",11,FontStyle.Bold),
-            Enabled=false
-        };
-        later.FlatAppearance.BorderSize=0;
-        root.Controls.Add(later,0,3);
-
-        generate.Click += (_,_) =>
-        {
-            ShowEmergencyCodes(Auth.Current.Id, true);
-            if (Auth.RemainingEmergencyCodes(Auth.Current.Id) > 0)
-                later.Enabled = true;
-        };
-
-        later.Click += (_,_) =>
-        {
-            SetSetting("security_setup_completed","1");
-            f.Close();
-        };
-
-        f.ShowDialog(this);
-    }
-
-    private void ShowEmergencyCodes(long userId, bool initialSetup)
-    {
-        var codes = Auth.GenerateEmergencyCodes(userId, 8);
-        string recoveryIdentity = Auth.Current?.Username ?? "";
-        if (Auth.Current != null && !string.IsNullOrWhiteSpace(Auth.Current.Email))
-            recoveryIdentity = Auth.Current.Email;
-        Auth.SaveLocalRecoveryKey(userId, recoveryIdentity, codes);
-
-        using var f = new Form
-        {
-            Text = "C√≥digos de Recupera√ß√£o de Emerg√™ncia",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 620,
-            Height = 620,
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            BackColor = Color.FromArgb(224,239,248),
-            Font = new Font("Segoe UI",10)
-        };
-
-        var tb = new TextBox
-        {
-            Multiline = true,
-            ReadOnly = true,
-            Dock = DockStyle.Fill,
-            Font = new Font("Consolas",16,FontStyle.Bold),
-            TextAlign = HorizontalAlignment.Center,
-            BackColor = Color.White,
-            ForeColor = Color.FromArgb(8,38,68),
-            Text = string.Join(Environment.NewLine + Environment.NewLine, codes)
-        };
-
-        var info = new Label
-        {
-            Dock = DockStyle.Top,
-            Height = 85,
-            Text = "GUARDE ESTES C√ìDIGOS EM LOCAL SEGURO\\nCada c√≥digo funciona somente uma vez.",
-            ForeColor = Color.FromArgb(185,22,38),
-            Font = new Font("Segoe UI",11,FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-
-        var bottom = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 70,
-            FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(12)
-        };
-
-        var copy = new Button{Text="COPIAR C√ìDIGOS",Width=160,Height=42};
-        var close = new Button{Text="J√Å GUARDEI",Width=150,Height=42};
-
-        copy.Click += (_,_) =>
-        {
-            Clipboard.SetText(tb.Text);
-            MessageBox.Show("C√≥digos copiados.");
-        };
-        close.Click += (_,_) => f.Close();
-
-        bottom.Controls.Add(close);
-        bottom.Controls.Add(copy);
-
-        f.Controls.Add(tb);
-        f.Controls.Add(info);
-        f.Controls.Add(bottom);
-
-        ApplyFloatingTheme(f);
-        f.ShowDialog(this);
-    }
-
-    private void OpenEmailSettings()
-    {
-        var s=EmailRecovery.GetSmtp();
-        using var f=new Form{Text="Configura√ß√£o de Recupera√ß√£o por E-mail",StartPosition=FormStartPosition.CenterParent,Width=680,Height=600,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false,BackColor=Color.FromArgb(224,239,248),Font=new Font("Segoe UI",10)};
-        var p=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=13,Padding=new Padding(34,20,34,20)};f.Controls.Add(p);
-        Label L(string x)=>new(){Text=x,Dock=DockStyle.Fill,ForeColor=Color.FromArgb(4,55,94),Font=new Font("Segoe UI",10,FontStyle.Bold),TextAlign=ContentAlignment.BottomLeft};
-        TextBox B(string x="",bool pw=false)=>new(){Text=x,Dock=DockStyle.Fill,Font=new Font("Segoe UI",11,FontStyle.Bold),UseSystemPasswordChar=pw};
-        var host=B(s.host);var port=B(s.port.ToString());var user=B(s.user);var password=B("",true);var from=B(s.fromName);
-        var ssl=new CheckBox{Text="Usar SSL/TLS",Checked=s.ssl,Dock=DockStyle.Fill,Font=new Font("Segoe UI",10,FontStyle.Bold)};
-        var hint=new Label{Text=s.hasPassword?"Senha SMTP j√° cadastrada. Deixe em branco para manter.":"Informe a senha SMTP.",Dock=DockStyle.Fill,ForeColor=Color.FromArgb(90,90,90)};
-        var fields=new (string,Control)[]{("Servidor SMTP",host),("Porta",port),("E-mail/Usu√°rio SMTP",user),("Senha SMTP",password),("Nome do remetente",from)};
-        int r=0;foreach(var x in fields){p.RowStyles.Add(new RowStyle(SizeType.Absolute,28));p.Controls.Add(L(x.Item1),0,r++);p.RowStyles.Add(new RowStyle(SizeType.Absolute,45));p.Controls.Add(x.Item2,0,r++);}
-        p.RowStyles.Add(new RowStyle(SizeType.Absolute,36));p.Controls.Add(ssl,0,r++);p.RowStyles.Add(new RowStyle(SizeType.Absolute,34));p.Controls.Add(hint,0,r++);
-        var save=new Button{Text="SALVAR CONFIGURA√á√ÉO",Dock=DockStyle.Fill,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",11,FontStyle.Bold)};save.FlatAppearance.BorderSize=0;p.RowStyles.Add(new RowStyle(SizeType.Percent,100));p.Controls.Add(save,0,r++);
-        save.Click+=(_,_)=>{if(string.IsNullOrWhiteSpace(host.Text)||string.IsNullOrWhiteSpace(user.Text)){MessageBox.Show("Servidor SMTP e usu√°rio/e-mail s√£o obrigat√≥rios.");return;}if(!int.TryParse(port.Text,out var po)){MessageBox.Show("Porta inv√°lida.");return;}EmailRecovery.SaveSmtp(host.Text,po,user.Text,password.Text,ssl.Checked,from.Text);MessageBox.Show("Configura√ß√£o de e-mail salva.");f.DialogResult=DialogResult.OK;f.Close();};
-        ApplyFloatingTheme(f);f.ShowDialog(this);
-    }
-
-    private void OpenSettings()
-    {
-        var alreadyOpen = Application.OpenForms.Cast<Form>()
-            .FirstOrDefault(x => x.Text == "Configura√ß√µes do Sistema");
-        if (alreadyOpen != null)
-        {
-            alreadyOpen.BringToFront();
-            alreadyOpen.Activate();
-            alreadyOpen.Focus();
-            return;
-        }
-
-        var f = new Form
-        {
-            Text = "Configura√ß√µes do Sistema",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 900,
-            Height = 760,
-            MinimumSize = new Size(820, 680),
-            BackColor = Color.FromArgb(224,239,248),
-            Font = new Font("Segoe UI",10)
-        };
-
-        var header = new Label
-        {
-            Text = "CENTRAL DE CONFIGURA√á√ïES",
-            Dock = DockStyle.Top,
-            Height = 78,
-            BackColor = DarkBlue,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI",20,FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        f.Controls.Add(header);
-
-        var tabs = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI",11,FontStyle.Bold), Padding = new Point(18,8) };
-        var companyTab = new TabPage("DADOS DA EMPRESA") { BackColor = Color.FromArgb(224,239,248), Padding = new Padding(26) };
-        var systemTab = new TabPage("SISTEMA E SEGURAN√áA") { BackColor = Color.FromArgb(224,239,248), Padding = new Padding(26) };
-        tabs.TabPages.Add(companyTab);
-        tabs.TabPages.Add(systemTab);
-        f.Controls.Add(tabs);
-        tabs.BringToFront();
-
-        var company = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 8, Padding = new Padding(12) };
-        company.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,230));
-        company.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        for (int i=0;i<7;i++) company.RowStyles.Add(new RowStyle(SizeType.Percent,12.5f));
-        company.RowStyles.Add(new RowStyle(SizeType.Percent,12.5f));
-        companyTab.Controls.Add(company);
-
-        TextBox SettingBox(string value) => new() { Text=value, Dock=DockStyle.Fill, Font=new Font("Segoe UI",11,FontStyle.Bold), Margin=new Padding(4,8,4,8) };
-        Label SettingLabel(string value) => new() { Text=value, Dock=DockStyle.Fill, ForeColor=DarkBlue, Font=new Font("Segoe UI",10,FontStyle.Bold), TextAlign=ContentAlignment.MiddleLeft };
-
-        var companyName = SettingBox(GetSetting("company_name"));
-        var tradeName = SettingBox(GetSetting("company_trade_name"));
-        var document = SettingBox(GetSetting("company_document"));
-        var phone = SettingBox(GetSetting("company_phone"));
-        var address = SettingBox(GetSetting("company_address"));
-        var cityState = SettingBox(GetSetting("company_city_state"));
-        var receiptFooter = SettingBox(GetSetting("company_footer","Obrigado pela prefer√™ncia!"));
-        var fields = new (string label, TextBox box)[]
-        {
-            ("Raz√£o Social / Nome da Empresa",companyName), ("Nome Fantasia",tradeName),
-            ("CNPJ / CPF",document), ("Telefone / WhatsApp",phone), ("Endere√ßo",address),
-            ("Cidade / UF",cityState), ("Mensagem no rodap√© do cupom",receiptFooter)
-        };
-        for(int i=0;i<fields.Length;i++) { company.Controls.Add(SettingLabel(fields[i].label),0,i); company.Controls.Add(fields[i].box,1,i); }
-
-        var saveCompany = new Button { Text="SALVAR DADOS DA EMPRESA",Dock=DockStyle.Right,Width=260,Height=46,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold),Margin=new Padding(4,10,4,4) };
-        saveCompany.FlatAppearance.BorderSize=0;
-        company.SetColumnSpan(saveCompany,2); company.Controls.Add(saveCompany,0,7);
-        saveCompany.Click += (_,_) =>
-        {
-            if(string.IsNullOrWhiteSpace(companyName.Text)) { Info("Informe o nome da empresa."); companyName.Focus(); return; }
-            SetSetting("company_name",companyName.Text.Trim()); SetSetting("company_trade_name",tradeName.Text.Trim());
-            SetSetting("company_document",document.Text.Trim()); SetSetting("company_phone",phone.Text.Trim());
-            SetSetting("company_address",address.Text.Trim()); SetSetting("company_city_state",cityState.Text.Trim());
-            SetSetting("company_footer",receiptFooter.Text.Trim()); SetSetting("company_registered","1");
-            Info("Dados da empresa salvos com sucesso.");
-        };
-
-        var system = new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=2,RowCount=5,Padding=new Padding(14) };
-        system.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50)); system.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
-        for(int i=0;i<4;i++) system.RowStyles.Add(new RowStyle(SizeType.Percent,20));
-        system.RowStyles.Add(new RowStyle(SizeType.Percent,20)); systemTab.Controls.Add(system);
-        Button ConfigButton(string text, Action action)
-        {
-            var b=new Button{Text=text,Dock=DockStyle.Fill,Margin=new Padding(10),BackColor=Color.FromArgb(4,70,112),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold)};
-            b.FlatAppearance.BorderSize=0;b.Click+=(_,_)=>action();return b;
-        }
-        system.Controls.Add(ConfigButton("ALTERAR IMAGEM DA TELA PRINCIPAL",()=>{if(mainScreenPicture!=null)ChangeMainScreenImage(mainScreenPicture);}),0,0);
-        system.Controls.Add(ConfigButton("RECUPERA√á√ÉO POR E-MAIL",()=>{if(Auth.IsAdmin)OpenEmailSettings();else Info("Somente ADMINISTRADOR pode configurar o e-mail.");}),1,0);
-        system.Controls.Add(ConfigButton("USU√ÅRIOS E ACESSOS",()=>{if(Auth.IsAdmin)OpenUsers();else Info("Somente ADMINISTRADOR pode gerenciar usu√°rios.");}),0,1);
-        system.Controls.Add(ConfigButton("C√ìDIGOS DE EMERG√äNCIA",()=>{if(Auth.IsAdmin&&Auth.Current!=null)ShowEmergencyCodes(Auth.Current.Id,false);else Info("Somente ADMINISTRADOR pode gerar c√≥digos de emerg√™ncia.");}),1,1);
-        system.Controls.Add(ConfigButton("FAZER BACKUP",()=>_ = BackupAsync()),0,2);
-        system.Controls.Add(ConfigButton("RESTAURAR BACKUP",()=>_ = RestoreBackupAsync()),1,2);
-        system.Controls.Add(ConfigButton("ATUALIZA√á√ïES DO SISTEMA",()=>UpdateManager.ShowUpdateCenter(f)),0,3);
-        system.Controls.Add(ConfigButton("TUTORIAL DE PRIMEIRO ACESSO",()=>OpenFirstAccessTutorial(false)),1,3);
-        var systemInfo=new Label{Text=$"Sistema: LEAL INFO PDV   ‚Ä¢   Vers√£o: V{UpdateManager.CurrentVersion}\nSerial: {Database.DeviceSerial()}\nBanco local: {Database.DbPath}",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",9.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter};
-        system.SetColumnSpan(systemInfo,2);system.Controls.Add(systemInfo,0,4);
-
-        ApplyFloatingTheme(f);
-        f.Show(this);
-    }
-
-    private async Task BackupAsync()
-    {
-        if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode enviar backups.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-        try
-        {
-            UseWaitCursor = true;
-            var zip = await DatabaseBackupService.CreateAndSendAsync();
-            MessageBox.Show("Backup enviado com sucesso para o e-mail configurado.\n\nC√≥pia local:\n" + zip,
-                "Backup conclu√≠do", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        }
-        catch(Exception ex)
-        {
-            MessageBox.Show("N√£o foi poss√≠vel enviar o backup.\n\n" + ex.Message,
-                "Erro no backup", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-        finally { UseWaitCursor = false; }
-    }
-
-    private async Task RestoreBackupAsync()
-    {
-        if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode restaurar backups.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-        using var dialog = new OpenFileDialog
-        {
-            Title = "Selecionar backup do LEAL INFO PDV",
-            Filter = "Backup do PDV (*.zip;*.db;*.sqlite)|*.zip;*.db;*.sqlite|Todos os arquivos (*.*)|*.*",
-            CheckFileExists = true,
-            Multiselect = false
-        };
-        if (dialog.ShowDialog(this) != DialogResult.OK) return;
-        if (MessageBox.Show("A restaura√ß√£o substituir√° os dados atuais pelos dados do backup selecionado.\n\nUma c√≥pia de seguran√ßa do banco atual ser√° guardada antes da troca. Deseja continuar?",
-            "Confirmar restaura√ß√£o", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
-
-        try
-        {
-            UseWaitCursor = true;
-            await DatabaseBackupService.RestoreAsync(dialog.FileName);
-            automaticBackupCompleted = true;
-            MessageBox.Show("Backup restaurado e validado com sucesso.\n\nO PDV ser√° reiniciado agora para carregar os dados recuperados.",
-                "Restaura√ß√£o conclu√≠da", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            Application.Restart();
-        }
-        catch(Exception ex)
-        {
-            MessageBox.Show("O banco atual n√£o foi substitu√≠do.\n\n" + ex.Message,
-                "Falha na restaura√ß√£o", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-        finally { UseWaitCursor = false; }
-    }
-
-    private async void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
-    {
-        if (automaticBackupCompleted || automaticBackupRunning) return;
-        automaticBackupRunning = true;
-        e.Cancel = true;
-        try
-        {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            await DatabaseBackupService.CreateAndSendAsync(timeout.Token);
-        }
-        catch(Exception ex)
-        {
-            try
-            {
-                Directory.CreateDirectory(Database.BackupFolder);
-                await File.AppendAllTextAsync(Path.Combine(Database.BackupFolder, "backup-errors.log"),
-                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}\n");
-            }
-            catch { }
-        }
-        finally
-        {
-            automaticBackupCompleted = true;
-            automaticBackupRunning = false;
-            BeginInvoke(Close);
-        }
-    }
-
-
-
-
-    private string MainScreenImagePath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                     "LEAL INFO CONECTADO", "PDV", "tela_principal.png");
-
-    private string DefaultMainScreenImagePath =>
-        Path.Combine(AppContext.BaseDirectory, "Assets", "tela_principal.png");
-
-    private Image? LoadMainScreenImage()
-    {
-        try
-        {
-            var custom = MainScreenImagePath;
-            var source = File.Exists(custom) ? custom : DefaultMainScreenImagePath;
-            if (!File.Exists(source)) return null;
-
-            using var temp = Image.FromFile(source);
-            return new Bitmap(temp);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private void ChangeMainScreenImage(PictureBox picture)
-    {
-        using var dlg = new OpenFileDialog
-        {
-            Title = "Escolher imagem da tela principal",
-            Filter = "Imagens (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp",
-            Multiselect = false
-        };
-
-        if (dlg.ShowDialog(this) != DialogResult.OK) return;
-
-        try
-        {
-            var folder = Path.GetDirectoryName(MainScreenImagePath)!;
-            Directory.CreateDirectory(folder);
-
-            using var original = Image.FromFile(dlg.FileName);
-            using var bmp = new Bitmap(original);
-
-            // Salva sempre em PNG para o sistema usar um formato previs√≠vel.
-            bmp.Save(MainScreenImagePath, System.Drawing.Imaging.ImageFormat.Png);
-
-            picture.Image?.Dispose();
-            picture.Image = new Bitmap(bmp);
-            picture.SizeMode = PictureBoxSizeMode.Zoom;
-            picture.Refresh();
-            picture.Invalidate();
-            picture.Update();
-            Application.DoEvents();
-
-            MessageBox.Show(
-                "Tela principal alterada com sucesso.\n\n" +
-                "Dica: para preencher melhor a tela, use uma imagem horizontal 16:9, " +
-                "por exemplo 1920 x 1080.",
-                "LEAL INFO CONECTADO",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show("N√£o foi poss√≠vel trocar a imagem.\n\n" + ex.Message,
-                "LEAL INFO CONECTADO", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
-
-
-    private void OpenCadastroCentral()
-    {
-        using var f = new Form
-        {
-            Text = "Cadastros",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 600,
-            Height = 730,
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            BackColor = Color.FromArgb(5, 24, 43),
-            Font = new Font("Segoe UI", 10),
-            KeyPreview = true
-        };
-
-        // Layout estrutural: cabe√ßalho / conte√∫do / rodap√©.
-        // Evita qualquer sobreposi√ß√£o ou corte.
-        var root = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 2,
-            BackColor = Color.FromArgb(5, 24, 43),
-            Margin = new Padding(0),
-            Padding = new Padding(0)
-        };
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        f.Controls.Add(root);
-
-        var list = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            FlowDirection = FlowDirection.TopDown,
-            WrapContents = false,
-            AutoScroll = false,
-            Padding = new Padding(18, 14, 18, 8),
-            Margin = new Padding(0),
-            BackColor = Color.FromArgb(5, 24, 43)
-        };
-        root.Controls.Add(list, 0, 0);
-
-        void CentralizarCadastro()
-        {
-            int larguraItem = 500;
-            int margem = Math.Max(0, (list.ClientSize.Width - larguraItem) / 2);
-            list.Padding = new Padding(margem, 8, margem, 0);
-        }
-        list.SizeChanged += (_, _) => CentralizarCadastro();
-        f.Shown += (_, _) => CentralizarCadastro();
-
-
-
-
-
-
-        Control MakeCadastroButton(string text, string description, string iconFile, Action action)
-        {
-            const int hostW = 500;
-            const int hostH = 104;
-            const int normalW = 468;
-            const int normalH = 88;
-            const int hoverW = 486;
-            const int hoverH = 102;
-
-            var host = new Panel
-            {
-                Width = hostW,
-                Height = hostH,
-                Margin = new Padding(0),
-                BackColor = Color.Transparent
-            };
-
-            var b = new Button
-            {
-                Width = normalW,
-                Height = normalH,
-                Left = (hostW - normalW) / 2,
-                Top = (hostH - normalH) / 2,
-                FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(8, 59, 98),
-                ForeColor = Color.White,
-                TextAlign = ContentAlignment.MiddleLeft,
-                ImageAlign = ContentAlignment.MiddleLeft,
-                Font = new Font("Segoe UI", 13, FontStyle.Bold),
-                Padding = new Padding(22, 8, 16, 8),
-                Cursor = Cursors.Hand,
-                TabStop = true,
-                UseVisualStyleBackColor = false,
-                Text = "        " + text + "\n        " + description
-            };
-
-            b.FlatAppearance.BorderSize = 1;
-            b.FlatAppearance.BorderColor = Color.FromArgb(0, 150, 210);
-            b.FlatAppearance.MouseOverBackColor = Color.FromArgb(0, 118, 178);
-            b.FlatAppearance.MouseDownBackColor = Color.FromArgb(0, 98, 155);
-
-            host.Controls.Add(b);
-
-            var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", iconFile);
-            Image? baseIcon = null;
-
-            if (File.Exists(iconPath))
-            {
-                using var srcIcon = Image.FromFile(iconPath);
-                baseIcon = new Bitmap(srcIcon);
-                b.Image = new Bitmap(baseIcon, new Size(52, 52));
-            }
-
-            var hover = false;
-            var timer = new System.Windows.Forms.Timer { Interval = 15 };
-
-            void ApplyState()
-            {
-                if (hover)
-                {
-                    b.BackColor = Color.FromArgb(0, 118, 178);
-                    b.FlatAppearance.BorderSize = 3;
-                    b.FlatAppearance.BorderColor = Color.FromArgb(90, 225, 255);
-                    b.Font = new Font("Segoe UI", 14, FontStyle.Bold);
-                    b.Padding = new Padding(18, 8, 14, 8);
-
-                    if (baseIcon != null)
-                    {
-                        b.Image?.Dispose();
-                        b.Image = new Bitmap(baseIcon, new Size(70, 70));
-                    }
-                }
-                else
-                {
-                    b.BackColor = Color.FromArgb(8, 59, 98);
-                    b.FlatAppearance.BorderSize = 1;
-                    b.FlatAppearance.BorderColor = Color.FromArgb(0, 150, 210);
-                    b.Font = new Font("Segoe UI", 13, FontStyle.Bold);
-                    b.Padding = new Padding(22, 8, 16, 8);
-
-                    if (baseIcon != null)
-                    {
-                        b.Image?.Dispose();
-                        b.Image = new Bitmap(baseIcon, new Size(52, 52));
-                    }
-                }
-
-                b.Invalidate();
-                b.Update();
-            }
-
-            timer.Tick += (_, _) =>
-            {
-                var targetW = hover ? hoverW : normalW;
-                var targetH = hover ? hoverH : normalH;
-
-                var dw = targetW - b.Width;
-                var dh = targetH - b.Height;
-
-                if (Math.Abs(dw) <= 2 && Math.Abs(dh) <= 2)
-                {
-                    b.Width = targetW;
-                    b.Height = targetH;
-                    b.Left = (hostW - b.Width) / 2;
-                    b.Top = (hostH - b.Height) / 2;
-                    timer.Stop();
-                    return;
-                }
-
-                b.Width += Math.Sign(dw) * Math.Max(2, Math.Abs(dw) / 4);
-                b.Height += Math.Sign(dh) * Math.Max(2, Math.Abs(dh) / 4);
-
-                // O host fica fixo. S√≥ o bot√£o cresce dentro dele.
-                b.Left = (hostW - b.Width) / 2;
-                b.Top = (hostH - b.Height) / 2;
-                b.BringToFront();
-            };
-
-            b.MouseEnter += (_, _) =>
-            {
-                hover = true;
-                ApplyState();
-                timer.Start();
-            };
-
-            b.MouseLeave += (_, _) =>
-            {
-                var local = b.PointToClient(Cursor.Position);
-                if (b.ClientRectangle.Contains(local))
-                    return;
-
-                hover = false;
-                ApplyState();
-                timer.Start();
-            };
-
-            b.Click += (_, _) =>
-            {
-                f.Hide();
-                action();
-                f.Show();
-                f.Activate();
-            };
-
-            b.Disposed += (_, _) =>
-            {
-                timer.Stop();
-                timer.Dispose();
-                b.Image?.Dispose();
-                baseIcon?.Dispose();
-            };
-
-            return host;
-        }
-
-        list.Controls.Add(MakeCadastroButton(
-            "PRODUTOS",
-            "Cadastro, pre√ßos e controle de estoque",
-            "products.png",
-            OpenProducts));
-
-        list.Controls.Add(MakeCadastroButton(
-            "CLIENTES",
-            "Dados, contato e hist√≥rico do cliente",
-            "customers.png",
-            OpenCustomers));
-
-        list.Controls.Add(MakeCadastroButton(
-            "FORNECEDORES",
-            "Cadastro e dados de fornecedores",
-            "suppliers.png",
-            OpenSuppliers));
-
-        list.Controls.Add(MakeCadastroButton(
-            "SERVI√áOS",
-            "Servi√ßos, valores e descri√ß√µes",
-            "services.png",
-            OpenServices));
-
-
-        var escolhaLabel = new Label
-        {
-            Text = "ESCOLHA UMA DAS OP√á√ïES ACIMA",
-            Width = 500,
-            Height = 32,
-            Margin = new Padding(0, 2, 0, 0),
-            BackColor = Color.Transparent,
-            ForeColor = Color.FromArgb(120, 220, 255),
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        list.Controls.Add(escolhaLabel);
-
-
-
-
-
-        var footer = new Label
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(4, 70, 112),
-            ForeColor = Color.FromArgb(185, 230, 250),
-            Text = "Passe o mouse sobre uma op√ß√£o para ampliar ‚Ä¢ ESC fecha",
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Segoe UI", 9),
-            Margin = new Padding(0)
-        };
-        root.Controls.Add(footer, 0, 1);
-
-        f.KeyDown += (_, e) =>
-        {
-            if (e.KeyCode == Keys.Escape)
-            {
-                f.Close();
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-            }
-        };
-
-        ApplyFloatingTheme(f);
-
-
-        f.ShowDialog(this);
-    }
-
-    private sealed class RemoveConfirmForm : Form
-    {
-        public Button YesButton { get; }
-        public Button NoButton { get; }
-
-        private bool yesSelected = true;
-        private readonly Color darkBlue;
-
-        public RemoveConfirmForm(string productName, double qty, string totalText, Color darkBlue)
-        {
-            this.darkBlue = darkBlue;
-
-            Text = "Remover item da venda";
-            StartPosition = FormStartPosition.CenterParent;
-            Width = 520;
-            Height = 265;
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
-            BackColor = Color.FromArgb(245, 249, 252);
-            Font = new Font("Segoe UI", 10);
-            KeyPreview = true;
-
-            var top = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 58,
-                BackColor = darkBlue
-            };
-            top.Controls.Add(new Label
-            {
-                Text = "CONFIRMAR REMO√á√ÉO",
-                Dock = DockStyle.Fill,
-                TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 15, FontStyle.Bold)
-            });
-            Controls.Add(top);
-
-            var msg = new Label
-            {
-                Text = $"Deseja realmente remover este item da venda?\n\n{productName}\nQtd.: {qty:N3}   ‚Ä¢   {totalText}",
-                Left = 30,
-                Top = 78,
-                Width = 445,
-                Height = 82,
-                TextAlign = ContentAlignment.MiddleCenter,
-                ForeColor = Color.FromArgb(40, 55, 70),
-                Font = new Font("Segoe UI", 11, FontStyle.Bold)
-            };
-            Controls.Add(msg);
-
-            YesButton = new Button
-            {
-                Text = "SIM, REMOVER",
-                Left = 95,
-                Top = 175,
-                Width = 150,
-                Height = 40,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                DialogResult = DialogResult.Yes,
-                TabStop = false
-            };
-            YesButton.FlatAppearance.BorderSize = 0;
-
-            NoButton = new Button
-            {
-                Text = "CANCELAR",
-                Left = 265,
-                Top = 175,
-                Width = 150,
-                Height = 40,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                DialogResult = DialogResult.No,
-                TabStop = false
-            };
-            NoButton.FlatAppearance.BorderSize = 0;
-
-            Controls.Add(YesButton);
-            Controls.Add(NoButton);
-
-            UpdateSelectionVisual();
-
-            YesButton.Click += (_, _) =>
-            {
-                yesSelected = true;
-                DialogResult = DialogResult.Yes;
-                Close();
-            };
-
-            NoButton.Click += (_, _) =>
-            {
-                yesSelected = false;
-                DialogResult = DialogResult.No;
-                Close();
-            };
-        }
-
-        private void UpdateSelectionVisual()
-        {
-            if (yesSelected)
-            {
-                YesButton.BackColor = Color.FromArgb(190, 45, 45);
-                YesButton.ForeColor = Color.White;
-                YesButton.FlatAppearance.BorderSize = 3;
-                YesButton.FlatAppearance.BorderColor = Color.FromArgb(255, 215, 70);
-
-                NoButton.BackColor = darkBlue;
-                NoButton.ForeColor = Color.White;
-                NoButton.FlatAppearance.BorderSize = 0;
-            }
-            else
-            {
-                YesButton.BackColor = Color.FromArgb(125, 125, 125);
-                YesButton.ForeColor = Color.White;
-                YesButton.FlatAppearance.BorderSize = 0;
-
-                NoButton.BackColor = Color.FromArgb(0, 150, 210);
-                NoButton.ForeColor = Color.White;
-                NoButton.FlatAppearance.BorderSize = 3;
-                NoButton.FlatAppearance.BorderColor = Color.FromArgb(255, 215, 70);
-            }
-
-            Invalidate();
-            Update();
-        }
-
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-        {
-            var key = keyData & Keys.KeyCode;
-
-            if (key == Keys.Left || key == Keys.Right || key == Keys.Tab)
-            {
-                yesSelected = !yesSelected;
-                UpdateSelectionVisual();
-                return true;
-            }
-
-            if (key == Keys.Enter)
-            {
-                DialogResult = yesSelected ? DialogResult.Yes : DialogResult.No;
-                Close();
-                return true;
-            }
-
-            if (key == Keys.Escape)
-            {
-                DialogResult = DialogResult.No;
-                Close();
-                return true;
-            }
-
-            return base.ProcessCmdKey(ref msg, keyData);
-        }
-    }
-
-    private sealed class CartItem
-    {
-        public long ProductId { get; set; }
-        public string Code { get; set; } = "";
-        public string Description { get; set; } = "";
-        public double Qty { get; set; }
-        public double UnitPrice { get; set; }
-        public double Total => Qty * UnitPrice;
-    }
-
-
-    private sealed class PaymentPart
-    {
-        public string Method { get; set; } = "";
-        public double Amount { get; set; }
-    }
-
-
-    private (long id, string code, string name, double price, double stock)? SelectProductFromCatalog()
-    {
-        using var f = new Form
-        {
-            Text = "Consultar Produto - F5",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 980,
-            Height = 650,
-            BackColor = Color.FromArgb(245, 249, 252),
-            Font = new Font("Segoe UI", 10)
-        };
-
-        var header = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = 64,
-            BackColor = DarkBlue
-        };
-        header.Controls.Add(new Label
-        {
-            Text = "CONSULTA DE PRODUTOS",
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 18, FontStyle.Bold),
-            AutoSize = true,
-            Left = 22,
-            Top = 16
-        });
-        f.Controls.Add(header);
-
-        var search = new TextBox
-        {
-            Dock = DockStyle.Top,
-            Height = 36,
-            Font = new Font("Segoe UI", 12),
-            PlaceholderText = "Digite c√≥digo, c√≥digo de barras ou nome do produto..."
-        };
-        f.Controls.Add(search);
-        search.BringToFront();
-
-        var grid = new DataGridView
-        {
-            Dock = DockStyle.Fill,
-            ReadOnly = true,
-            AllowUserToAddRows = false,
-            AllowUserToDeleteRows = false,
-            RowHeadersVisible = false,
-            AutoGenerateColumns = false,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            MultiSelect = false,
-            BackgroundColor = Color.White,
-            BorderStyle = BorderStyle.None,
-            ColumnHeadersHeight = 40
-        };
-        grid.EnableHeadersVisualStyles = false;
-        grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(218, 239, 251);
-        grid.ColumnHeadersDefaultCellStyle.ForeColor = DarkBlue;
-        grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-        grid.DataError += (_, e) => { e.ThrowException = false; e.Cancel = true; };
-
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID", HeaderText = "ID", Width = 70 });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "C√≥digo", HeaderText = "C√≥digo", Width = 140 });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Produto", HeaderText = "Produto", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Pre√ßo", HeaderText = "Pre√ßo", Width = 120 });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Estoque", HeaderText = "Estoque", Width = 120 });
-
-        f.Controls.Add(grid);
-        grid.BringToFront();
-
-        var bottom = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 62,
-            FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(10)
-        };
-        var choose = ActionButton("SELECIONAR", () => { f.DialogResult = DialogResult.OK; f.Close(); });
-        var cancel = ActionButton("CANCELAR", f.Close);
-        bottom.Controls.Add(choose);
-        bottom.Controls.Add(cancel);
-        f.Controls.Add(bottom);
-
-        void LoadProducts(string term)
-        {
-            grid.Rows.Clear();
-            using var cn = Database.Open();
-            using var cmd = cn.CreateCommand();
-
-            if (string.IsNullOrWhiteSpace(term))
-            {
-                cmd.CommandText = """
-                    SELECT id, COALESCE(barcode,''), name, price, stock
-                    FROM products
-                    WHERE active=1
-                    ORDER BY name
-                    """;
-            }
-            else
-            {
-                cmd.CommandText = """
-                    SELECT id, COALESCE(barcode,''), name, price, stock
-                    FROM products
-                    WHERE active=1
-                      AND (
-                          CAST(id AS TEXT) LIKE $term
-                          OR barcode LIKE $term
-                          OR lower(name) LIKE lower($term)
-                      )
-                    ORDER BY name
-                    """;
-                cmd.Parameters.AddWithValue("$term", "%" + term.Trim() + "%");
-            }
-
-            using var rd = cmd.ExecuteReader();
-            while (rd.Read())
-            {
-                grid.Rows.Add(
-                    rd.GetInt64(0),
-                    rd.GetString(1),
-                    rd.GetString(2),
-                    Money(rd.GetDouble(3)),
-                    rd.GetDouble(4).ToString("N3", CultureInfo.GetCultureInfo("pt-BR"))
-                );
-            }
-        }
-
-        search.TextChanged += (_, _) => LoadProducts(search.Text);
-        grid.CellDoubleClick += (_, e) =>
-        {
-            if (e.RowIndex >= 0)
-            {
-                f.DialogResult = DialogResult.OK;
-                f.Close();
-            }
-        };
-        search.KeyDown += (_, e) =>
-        {
-            if (e.KeyCode == Keys.Enter && grid.Rows.Count > 0)
-            {
-                grid.Rows[0].Selected = true;
-                grid.CurrentCell = grid.Rows[0].Cells[0];
-                f.DialogResult = DialogResult.OK;
-                f.Close();
-                e.SuppressKeyPress = true;
-            }
-        };
-
-        LoadProducts("");
-        f.Shown += (_, _) => search.Focus();
-
-        ApplyFloatingTheme(f);
-
-
-        if (f.ShowDialog(this) != DialogResult.OK || grid.CurrentRow == null)
-            return null;
-
-        var id = Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value);
-
-        using var cn2 = Database.Open();
-        using var cmd2 = cn2.CreateCommand();
-        cmd2.CommandText = """
-            SELECT id, COALESCE(barcode,''), name, price, stock
-            FROM products
-            WHERE id=$id AND active=1
-            """;
-        cmd2.Parameters.AddWithValue("$id", id);
-        using var rd2 = cmd2.ExecuteReader();
-        if (!rd2.Read())
-            return null;
-
-        return (
-            rd2.GetInt64(0),
-            rd2.GetString(1),
-            rd2.GetString(2),
-            rd2.GetDouble(3),
-            rd2.GetDouble(4)
-        );
-    }
-
-
-
-    private List<PaymentPart>? SelectPayment(double total)
-    {
-        using var f = new Form
-        {
-            Text = "Finalizar Venda",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 760,
-            Height = 610,
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            BackColor = Color.FromArgb(240, 246, 251),
-            Font = new Font("Segoe UI", 10),
-            KeyPreview = true
-        };
-
-        var header = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = 82,
-            BackColor = DarkBlue
-        };
-
-        var title = new Label
-        {
-            Text = "FINALIZAR VENDA",
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 20, FontStyle.Bold),
-            AutoSize = true,
-            Left = 24,
-            Top = 14
-        };
-
-        var totalLabel = new Label
-        {
-            Text = "TOTAL: " + Money(total),
-            ForeColor = Color.FromArgb(115, 220, 255),
-            Font = new Font("Segoe UI", 18, FontStyle.Bold),
-            AutoSize = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-
-        header.Controls.Add(title);
-        header.Controls.Add(totalLabel);
-        header.Resize += (_, _) =>
-        {
-            totalLabel.Left = Math.Max(350, header.ClientSize.Width - totalLabel.Width - 24);
-            totalLabel.Top = 22;
-        };
-        f.Controls.Add(header);
-
-        var tabs = new TabControl
-        {
-            Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            Padding = new Point(24, 10)
-        };
-        f.Controls.Add(tabs);
-        tabs.BringToFront();
-
-        var tabCash = new TabPage("DINHEIRO") { BackColor = Color.White };
-        var tabPix = new TabPage("PIX") { BackColor = Color.White };
-        var tabCard = new TabPage("CART√ÉO") { BackColor = Color.White };
-        var tabMulti = new TabPage("M√öLTIPLO") { BackColor = Color.White };
-        tabs.TabPages.Add(tabCash);
-        tabs.TabPages.Add(tabPix);
-        tabs.TabPages.Add(tabCard);
-        tabs.TabPages.Add(tabMulti);
-
-        Button BigConfirm(string text)
-        {
-            var b = new Button
-            {
-                Text = text,
-                Width = 300,
-                Height = 58,
-                BackColor = Color.FromArgb(0, 163, 224),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 12, FontStyle.Bold)
-            };
-            b.FlatAppearance.BorderSize = 0;
-            return b;
-        }
-
-        Label CenterInfo(string text, int top, int size = 13)
-        {
-            return new Label
-            {
-                Text = text,
-                Left = 40,
-                Top = top,
-                Width = 640,
-                Height = 52,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Font = new Font("Segoe UI", size, FontStyle.Bold),
-                ForeColor = DarkBlue
-            };
-        }
-
-        // DINHEIRO
-        tabCash.Controls.Add(CenterInfo("PAGAMENTO EM DINHEIRO", 45, 16));
-        tabCash.Controls.Add(CenterInfo("Valor da venda: " + Money(total), 115, 14));
-
-        var receivedLabel = new Label
-        {
-            Text = "Valor recebido:",
-            Left = 135,
-            Top = 200,
-            Width = 180,
-            Height = 32,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            ForeColor = DarkBlue
-        };
-        var received = new NumericUpDown
-        {
-            Left = 320,
-            Top = 195,
-            Width = 230,
-            Height = 38,
-            DecimalPlaces = 2,
-            Maximum = 9999999,
-            Minimum = 0,
-            Value = (decimal)total,
-            ThousandsSeparator = true,
-            TextAlign = HorizontalAlignment.Right,
-            Font = new Font("Segoe UI", 14, FontStyle.Bold)
-        };
-        var change = CenterInfo("TROCO: R$ 0,00", 250, 16);
-        change.ForeColor = Color.FromArgb(0, 130, 78);
-        received.ValueChanged += (_, _) =>
-        {
-            var troco = Math.Max(0, (double)received.Value - total);
-            change.Text = "TROCO: " + Money(troco);
-        };
-
-        var cashConfirm = BigConfirm("CONFIRMAR DINHEIRO");
-        cashConfirm.Left = 210;
-        cashConfirm.Top = 340;
-
-        tabCash.Controls.Add(receivedLabel);
-        tabCash.Controls.Add(received);
-        tabCash.Controls.Add(change);
-        tabCash.Controls.Add(cashConfirm);
-
-        // PIX
-        tabPix.Controls.Add(CenterInfo("PAGAMENTO VIA PIX", 55, 16));
-        tabPix.Controls.Add(CenterInfo("Valor a receber: " + Money(total), 125, 15));
-        var pixInfo = CenterInfo("Confirme o recebimento do PIX antes de concluir a venda.", 205, 12);
-        pixInfo.Font = new Font("Segoe UI", 11);
-        tabPix.Controls.Add(pixInfo);
-
-        var pixConfirm = BigConfirm("PIX RECEBIDO ‚Ä¢ CONFIRMAR");
-        pixConfirm.Left = 210;
-        pixConfirm.Top = 320;
-        tabPix.Controls.Add(pixConfirm);
-
-        // CART√ÉO
-        tabCard.Controls.Add(CenterInfo("PAGAMENTO NO CART√ÉO", 45, 16));
-        tabCard.Controls.Add(CenterInfo("Valor: " + Money(total), 110, 14));
-
-        var cardTypeLabel = new Label
-        {
-            Text = "Tipo:",
-            Left = 190,
-            Top = 205,
-            Width = 100,
-            Height = 32,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            ForeColor = DarkBlue
-        };
-        var cardType = new ComboBox
-        {
-            Left = 290,
-            Top = 200,
-            Width = 250,
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Font = new Font("Segoe UI", 11)
-        };
-        cardType.Items.AddRange(new[] { "D√©bito", "Cr√©dito" });
-        cardType.SelectedIndex = 0;
-
-        var cardConfirm = BigConfirm("CONFIRMAR CART√ÉO");
-        cardConfirm.Left = 210;
-        cardConfirm.Top = 320;
-        tabCard.Controls.Add(cardTypeLabel);
-        tabCard.Controls.Add(cardType);
-        tabCard.Controls.Add(cardConfirm);
-
-        // M√öLTIPLO
-        tabMulti.Controls.Add(CenterInfo("DIVIDIR PAGAMENTO", 20, 16));
-        var multiInfo = CenterInfo("Informe os valores de cada forma. Use duas ou tr√™s formas.", 70, 11);
-        multiInfo.Font = new Font("Segoe UI", 10);
-        tabMulti.Controls.Add(multiInfo);
-
-        NumericUpDown PayBox(int top)
-        {
-            return new NumericUpDown
-            {
-                Left = 325,
-                Top = top,
-                Width = 230,
-                Height = 35,
-                DecimalPlaces = 2,
-                Maximum = 9999999,
-                Minimum = 0,
-                ThousandsSeparator = true,
-                TextAlign = HorizontalAlignment.Right,
-                Font = new Font("Segoe UI", 12, FontStyle.Bold)
-            };
-        }
-
-        void PayLabel(Control parent, string txt, int top)
-        {
-            parent.Controls.Add(new Label
-            {
-                Text = txt,
-                Left = 150,
-                Top = top + 4,
-                Width = 160,
-                Height = 30,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = DarkBlue
-            });
-        }
-
-        PayLabel(tabMulti, "Dinheiro", 130);
-        PayLabel(tabMulti, "PIX", 180);
-        PayLabel(tabMulti, "Cart√£o", 230);
-
-        var multiCash = PayBox(126);
-        var multiPix = PayBox(176);
-        var multiCard = PayBox(226);
-
-        tabMulti.Controls.Add(multiCash);
-        tabMulti.Controls.Add(multiPix);
-        tabMulti.Controls.Add(multiCard);
-
-        var multiStatus = CenterInfo("", 285, 13);
-        tabMulti.Controls.Add(multiStatus);
-
-        void UpdateMulti()
-        {
-            var sum = (double)multiCash.Value + (double)multiPix.Value + (double)multiCard.Value;
-            var diff = total - sum;
-
-            if (Math.Abs(diff) <= 0.01)
-            {
-                multiStatus.Text = "VALORES CONFEREM ‚Ä¢ " + Money(sum);
-                multiStatus.ForeColor = Color.FromArgb(0, 130, 78);
-            }
-            else if (diff > 0)
-            {
-                multiStatus.Text = "FALTA: " + Money(diff);
-                multiStatus.ForeColor = Color.FromArgb(190, 45, 45);
-            }
-            else
-            {
-                multiStatus.Text = "EXCEDE: " + Money(Math.Abs(diff));
-                multiStatus.ForeColor = Color.FromArgb(190, 45, 45);
-            }
-        }
-
-        multiCash.ValueChanged += (_, _) => UpdateMulti();
-        multiPix.ValueChanged += (_, _) => UpdateMulti();
-        multiCard.ValueChanged += (_, _) => UpdateMulti();
-
-        var multiConfirm = BigConfirm("CONFIRMAR M√öLTIPLO");
-        multiConfirm.Left = 210;
-        multiConfirm.Top = 355;
-        tabMulti.Controls.Add(multiConfirm);
-
-        // Footer
-        var footer = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 58,
-            BackColor = Color.FromArgb(225, 236, 245)
-        };
-        var cancel = new Button
-        {
-            Text = "CANCELAR",
-            Width = 150,
-            Height = 38,
-            Left = 565,
-            Top = 10,
-            BackColor = Color.FromArgb(90, 100, 110),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-        cancel.FlatAppearance.BorderSize = 0;
-        cancel.Click += (_, _) => f.Close();
-        footer.Controls.Add(cancel);
-        f.Controls.Add(footer);
-        footer.BringToFront();
-
-        var result = new List<PaymentPart>();
-
-        cashConfirm.Click += (_, _) =>
-        {
-            if ((double)received.Value + 0.01 < total)
-            {
-                Info("O valor recebido √© menor que o total da venda.");
-                return;
-            }
-
-            result.Add(new PaymentPart { Method = "Dinheiro", Amount = total });
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        pixConfirm.Click += (_, _) =>
-        {
-            result.Add(new PaymentPart { Method = "PIX", Amount = total });
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        cardConfirm.Click += (_, _) =>
-        {
-            result.Add(new PaymentPart
-            {
-                Method = "Cart√£o - " + (cardType.SelectedItem?.ToString() ?? "D√©bito"),
-                Amount = total
-            });
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        multiConfirm.Click += (_, _) =>
-        {
-            result.Clear();
-
-            if ((double)multiCash.Value > 0.004)
-                result.Add(new PaymentPart { Method = "Dinheiro", Amount = (double)multiCash.Value });
-            if ((double)multiPix.Value > 0.004)
-                result.Add(new PaymentPart { Method = "PIX", Amount = (double)multiPix.Value });
-            if ((double)multiCard.Value > 0.004)
-                result.Add(new PaymentPart { Method = "Cart√£o", Amount = (double)multiCard.Value });
-
-            if (result.Count < 2)
-            {
-                Info("No pagamento m√∫ltiplo, informe pelo menos duas formas.");
-                return;
-            }
-
-            var sum = result.Sum(x => x.Amount);
-            if (Math.Abs(sum - total) > 0.01)
-            {
-                Info($"A soma precisa fechar o total da venda.\n\nTotal: {Money(total)}\nInformado: {Money(sum)}");
-                return;
-            }
-
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        f.KeyDown += (_, e) =>
-        {
-            if (e.KeyCode == Keys.Escape)
-                f.Close();
-        };
-
-        UpdateMulti();
-
-        ApplyFloatingTheme(f);
-        return f.ShowDialog(this) == DialogResult.OK ? result : null;
-    }
-
-    private string BuildReceipt(long saleId, DateTime soldAt, IEnumerable<CartItem> items, IEnumerable<PaymentPart> payments, double total)
-    {
-        var sb = new System.Text.StringBuilder();
-        var companyName = GetSetting("company_name", "LEAL INFO CONECTADO");
-        var tradeName = GetSetting("company_trade_name");
-        var document = GetSetting("company_document");
-        var phone = GetSetting("company_phone");
-        var address = GetSetting("company_address");
-        var cityState = GetSetting("company_city_state");
-        var footer = GetSetting("company_footer", "Obrigado pela prefer√™ncia!");
-
-        sb.AppendLine(string.IsNullOrWhiteSpace(tradeName) ? companyName : tradeName);
-        if (!string.IsNullOrWhiteSpace(companyName) && companyName != tradeName)
-            sb.AppendLine(companyName);
-        if (!string.IsNullOrWhiteSpace(document))
-            sb.AppendLine("CNPJ/CPF: " + document);
-        if (!string.IsNullOrWhiteSpace(phone))
-            sb.AppendLine("Telefone: " + phone);
-        if (!string.IsNullOrWhiteSpace(address))
-            sb.AppendLine(address);
-        if (!string.IsNullOrWhiteSpace(cityState))
-            sb.AppendLine(cityState);
-
-        sb.AppendLine("COMPROVANTE DE VENDA - N√ÉO FISCAL");
-        sb.AppendLine(new string('-', 46));
-        sb.AppendLine($"Venda: #{saleId}");
-        sb.AppendLine($"Data: {soldAt:dd/MM/yyyy HH:mm:ss}");
-        sb.AppendLine($"Atendente: {Auth.OperatorName}");
-        sb.AppendLine(new string('-', 46));
-
-        foreach (var item in items)
-        {
-            sb.AppendLine(item.Description);
-            sb.AppendLine($"{item.Qty:N3} x {Money(item.UnitPrice)}   =   {Money(item.Total)}");
-        }
-
-        sb.AppendLine(new string('-', 46));
-        sb.AppendLine($"TOTAL: {Money(total)}");
-        sb.AppendLine();
-        sb.AppendLine("PAGAMENTO:");
-
-        foreach (var p in payments)
-            sb.AppendLine($"{p.Method}: {Money(p.Amount)}");
-
-        sb.AppendLine(new string('-', 46));
-        sb.AppendLine(string.IsNullOrWhiteSpace(footer) ? "Obrigado pela prefer√™ncia!" : footer);
-        sb.AppendLine(string.IsNullOrWhiteSpace(tradeName) ? companyName : tradeName);
-        return sb.ToString();
-    }
-
-    private void ShowReceipt(string receipt)
-    {
-        using var f = new Form
-        {
-            Text = "Comprovante da Venda",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 650,
-            Height = 720,
-            BackColor = Color.FromArgb(245, 249, 252)
-        };
-
-        var title = new Label
-        {
-            Text = "VENDA FINALIZADA COM SUCESSO",
-            Dock = DockStyle.Top,
-            Height = 58,
-            BackColor = DarkBlue,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        f.Controls.Add(title);
-
-        var box = new TextBox
-        {
-            Multiline = true,
-            ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical,
-            Font = new Font("Consolas", 11),
-            BackColor = Color.White,
-            Text = receipt,
-            Dock = DockStyle.Fill
-        };
-        f.Controls.Add(box);
-
-        var buttons = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 66,
-            FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(10)
-        };
-
-        var close = ActionButton("FECHAR", f.Close);
-        var print = ActionButton("IMPRIMIR", () => PrintReceipt(receipt));
-        var save = ActionButton("SALVAR TXT", () =>
-        {
-            using var dlg = new SaveFileDialog
-            {
-                Filter = "Arquivo de texto (*.txt)|*.txt",
-                FileName = $"Comprovante_LEAL_INFO_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
-            };
-            if (dlg.ShowDialog(f) == DialogResult.OK)
-            {
-                File.WriteAllText(dlg.FileName, receipt, System.Text.Encoding.UTF8);
-                Info("Comprovante salvo com sucesso.");
-            }
-        });
-
-        buttons.Controls.Add(close);
-        buttons.Controls.Add(print);
-        buttons.Controls.Add(save);
-        f.Controls.Add(buttons);
-        buttons.BringToFront();
-
-        ApplyFloatingTheme(f);
-
-
-        f.ShowDialog(this);
-    }
-
-    private void PrintReceipt(string receipt)
-    {
-        using var doc = new PrintDocument();
-        doc.DocumentName = "LEAL INFO CONECTADO - Comprovante de Venda";
-
-        doc.PrintPage += (_, e) =>
-        {
-            using var font = new Font("Consolas", 9);
-            e.Graphics.DrawString(
-                receipt,
-                font,
-                Brushes.Black,
-                e.MarginBounds.Left,
-                e.MarginBounds.Top);
-        };
-
-        using var dlg = new PrintDialog
-        {
-            Document = doc,
-            UseEXDialog = true
-        };
-
-        if (dlg.ShowDialog(this) == DialogResult.OK)
-        {
-            try { doc.Print(); }
-            catch (Exception ex) { Info("N√£o foi poss√≠vel imprimir:\n" + ex.Message); }
-        }
-    }
-
-    private void OpenSales()
-    {
-        var f = new Form
-        {
-            Text = "LEAL INFO CONECTADO - TELA DE VENDAS ‚Ä¢ V10.130",
-            WindowState = FormWindowState.Maximized,
-            MinimumSize = new Size(1180, 720),
-            BackColor = Color.FromArgb(7, 24, 43),
-            Font = new Font("Segoe UI", 10),
-            KeyPreview = true
-        };
-
-        var cartItems = new List<CartItem>();
-        var cartSource = new BindingSource { DataSource = cartItems };
-
-        // Visual V10.130: cantos arredondados, temas e acabamento moderno,
-        // sem alterar a l√≥gica de venda.
-        void Round(Control c, int radius)
-        {
-            void Apply()
-            {
-                if (c.Width <= 1 || c.Height <= 1) return;
-                var r = new Rectangle(0, 0, c.Width, c.Height);
-                var gp = new System.Drawing.Drawing2D.GraphicsPath();
-                int d = Math.Max(4, radius * 2);
-                gp.AddArc(r.X, r.Y, d, d, 180, 90);
-                gp.AddArc(r.Right - d - 1, r.Y, d, d, 270, 90);
-                gp.AddArc(r.Right - d - 1, r.Bottom - d - 1, d, d, 0, 90);
-                gp.AddArc(r.X, r.Bottom - d - 1, d, d, 90, 90);
-                gp.CloseFigure();
-                c.Region?.Dispose();
-                c.Region = new Region(gp);
-                gp.Dispose();
-            }
-            c.Resize += (_, _) => Apply();
-            c.HandleCreated += (_, _) => Apply();
-        }
-
-        void ModernButton(Button b, Color normal, Color hover)
-        {
-            b.BackColor = normal;
-            b.FlatStyle = FlatStyle.Flat;
-            b.FlatAppearance.BorderSize = 0;
-            b.Cursor = Cursors.Hand;
-            Round(b, 14);
-            b.MouseEnter += (_, _) =>
-            {
-                b.BackColor = hover;
-                b.Font = new Font(b.Font.FontFamily, b.Font.Size + 0.6f, FontStyle.Bold);
-            };
-            b.MouseLeave += (_, _) =>
-            {
-                b.BackColor = normal;
-                b.Font = new Font(b.Font.FontFamily, Math.Max(8f, b.Font.Size - 0.6f), FontStyle.Bold);
-            };
-        }
-
-        // ===== CABE√áALHO =====
-        var header = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = 92,
-            BackColor = Color.FromArgb(4, 45, 82)
-        };
-
-        var headerTitle = new Label
-        {
-            Text = "LEAL INFO CONECTADO  ‚Ä¢  CAIXA / PDV",
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 24, FontStyle.Bold),
-            AutoSize = true,
-            Left = 26,
-            Top = 18
-        };
-
-        var headerInfo = new Label
-        {
-            Text = $"TECNOLOGIA QUE CONECTA  ‚Ä¢  Atendente: ADMIN  ‚Ä¢  {DateTime.Now:dd/MM/yyyy HH:mm}",
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            AutoSize = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-
-        header.Controls.Add(headerTitle);
-        header.Controls.Add(headerInfo);
-
-        var headerLine = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 4,
-            BackColor = Color.FromArgb(0, 183, 255)
-        };
-        header.Controls.Add(headerLine);
-        header.Resize += (_, _) =>
-        {
-            headerInfo.Left = Math.Max(20, header.ClientSize.Width - headerInfo.Width - 28);
-            headerInfo.Top = 32;
-        };
-        f.Controls.Add(header);
-
-        // ===== CONTE√öDO RESPONSIVO =====
-        var body = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            RowCount = 1,
-            Padding = new Padding(18),
-            BackColor = Color.FromArgb(7, 24, 43)
-        };
-        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
-        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
-        f.Controls.Add(body);
-        body.BringToFront();
-
-        // ===== VITRINE GRANDE DO PRODUTO =====
-        var photoShowcase = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(9, 52, 88),
-            Padding = new Padding(16),
-            Margin = new Padding(0, 0, 12, 0)
-        };
-        body.Controls.Add(photoShowcase, 0, 0);
-        Round(photoShowcase, 24);
-
-        var photoLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            BackColor = Color.Transparent
-        };
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 55));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
-        photoShowcase.Controls.Add(photoLayout);
-
-        var photoTitle = new Label
-        {
-            Text = "PRODUTO",
-            Dock = DockStyle.Fill,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 16, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        photoLayout.Controls.Add(photoTitle, 0, 0);
-
-        var brandPanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(238, 248, 255),
-            Padding = new Padding(10),
-            Margin = new Padding(0, 4, 0, 10)
-        };
-
-        var productPicture = new PictureBox
-        {
-            Dock = DockStyle.Fill,
-            SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.FromArgb(248, 250, 252)
-        };
-        brandPanel.Controls.Add(productPicture);
-        photoLayout.Controls.Add(brandPanel, 0, 1);
-        Round(brandPanel, 22);
-
-        var photoProductName = new Label
-        {
-            Text = "Selecione um produto",
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(4, 45, 82),
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 13, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Padding = new Padding(8),
-            Margin = new Padding(0)
-        };
-        photoLayout.Controls.Add(photoProductName, 0, 2);
-        Round(photoProductName, 16);
-
-        void ShowProductPhoto(long? productId)
-        {
-            productPicture.Image?.Dispose();
-            productPicture.Image = null;
-            photoProductName.Text = "Selecione um produto";
-
-            string? path = null;
-            string? productName = null;
-            if (productId.HasValue)
-            {
-                using var cn = Database.Open();
-                using var cmd = cn.CreateCommand();
-                cmd.CommandText = "SELECT COALESCE(photo_path,''), name FROM products WHERE id=$id";
-                cmd.Parameters.AddWithValue("$id", productId.Value);
-                using var rd = cmd.ExecuteReader();
-                if (rd.Read())
-                {
-                    path = rd.GetString(0);
-                    productName = rd.GetString(1);
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(productName))
-                photoProductName.Text = productName;
-
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                string resolved = path;
-
-                if (!Path.IsPathRooted(resolved))
-                {
-                    var appRelative = Path.Combine(AppContext.BaseDirectory, resolved);
-                    var assetsRelative = Path.Combine(AppContext.BaseDirectory, "Assets", resolved);
-
-                    if (File.Exists(appRelative))
-                        resolved = appRelative;
-                    else if (File.Exists(assetsRelative))
-                        resolved = assetsRelative;
-                }
-
-                if (File.Exists(resolved))
-                {
-                    using var img = Image.FromFile(resolved);
-                    productPicture.Image = new Bitmap(img);
-                    productPicture.Refresh();
-                    return;
-                }
-            }
-
-            // Estado vazio: mant√©m a logomarca na vitrine.
-            // Produto selecionado sem foto: n√£o confundir a logo com a foto do produto.
-            if (!productId.HasValue)
-            {
-                var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
-                if (File.Exists(logoPath))
-                {
-                    using var img = Image.FromFile(logoPath);
-                    productPicture.Image = new Bitmap(img);
-                }
-                photoProductName.Text = "Selecione um produto";
-            }
-            else
-            {
-                productPicture.Image = null;
-                photoProductName.Text = string.IsNullOrWhiteSpace(productName)
-                    ? "SEM FOTO CADASTRADA"
-                    : productName + " ‚Ä¢ SEM FOTO CADASTRADA";
-            }
-        }
-
-        ShowProductPhoto(null);
-
-        // ===== COLUNA CENTRAL / LAN√áAMENTO =====
-        var left = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(9, 52, 88),
-            Padding = new Padding(24)
-        };
-        body.Controls.Add(left, 1, 0);
-        Round(left, 24);
-
-        var leftLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 11,
-            Padding = new Padding(24, 14, 24, 14),
-            BackColor = Color.Transparent
-        };
-        // Reserva espa√ßo REAL para o status no rodap√©. Antes as 10 primeiras linhas
-        // consumiam praticamente toda a altura √∫til e o "CAIXA LIVRE" era cortado.
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        left.Controls.Add(leftLayout);
-
-        Label SaleLabel(string text) => new()
-        {
-            Text = text,
-            Dock = DockStyle.Fill,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            TextAlign = ContentAlignment.BottomLeft
-        };
-
-        var searchLabel = SaleLabel("C√≥digo de barras / Produto  [F5]");
-        searchLabel.Cursor = Cursors.Hand;
-        var search = new TextBox
-        {
-            Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            BackColor = Color.White,
-            ForeColor = Color.FromArgb(8, 38, 68),
-            BorderStyle = BorderStyle.FixedSingle
-        };
-        var qty = new NumericUpDown
-        {
-            Dock = DockStyle.Fill,
-            DecimalPlaces = 3,
-            Minimum = 0.001M,
-            Maximum = 999999,
-            Value = 1,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            TextAlign = HorizontalAlignment.Right,
-            BackColor = Color.White,
-            ForeColor = Color.FromArgb(8, 38, 68)
-        };
-        var unit = new TextBox
-        {
-            Dock = DockStyle.Fill, ReadOnly = true,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            TextAlign = HorizontalAlignment.Right,
-            BackColor = Color.White, ForeColor = Color.FromArgb(8, 38, 68),
-            BorderStyle = BorderStyle.FixedSingle, Text = "R$ 0,00"
-        };
-        var itemTotal = new TextBox
-        {
-            Dock = DockStyle.Fill, ReadOnly = true,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            TextAlign = HorizontalAlignment.Right,
-            BackColor = Color.White, ForeColor = Color.FromArgb(8, 38, 68),
-            BorderStyle = BorderStyle.FixedSingle, Text = "R$ 0,00"
-        };
-        var add = new Button
-        {
-            Text = "ADICIONAR ITEM  [ENTER]",
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(0, 183, 255), ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 12, FontStyle.Bold),
-            Cursor = Cursors.Hand, Margin = new Padding(0, 4, 0, 2)
-        };
-        add.FlatAppearance.BorderSize = 0;
-        ModernButton(add, Color.FromArgb(0, 183, 255), Color.FromArgb(35, 205, 255));
-
-        var clear = new Button
-        {
-            Text = "LIMPAR",
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(28, 96, 135),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10, FontStyle.Bold),
-            Cursor = Cursors.Hand,
-            Margin = new Padding(0, 4, 0, 2)
-        };
-        clear.FlatAppearance.BorderSize = 0;
-        ModernButton(clear, Color.FromArgb(28, 96, 135), Color.FromArgb(45, 130, 175));
-
-        // Moldura cinematogr√°fica do status: o Label continua sendo o mesmo componente
-        // usado pela l√≥gica da venda. A moldura √© apenas visual, evitando regress√µes.
-        var statusFrame = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(0, 190, 245),
-            Margin = new Padding(0, 6, 0, 0),
-            Padding = new Padding(2)
-        };
-        var statusInner = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = DarkBlue,
-            Margin = Padding.Empty,
-            Padding = Padding.Empty
-        };
-        var statusBox = new Label
-        {
-            Text = "CAIXA LIVRE",
-            Dock = DockStyle.Fill,
-            BackColor = Color.Transparent,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 18, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            AutoSize = false,
-            Padding = Padding.Empty,
-            Margin = Padding.Empty,
-            UseCompatibleTextRendering = false
-        };
-        statusInner.Controls.Add(statusBox);
-        statusFrame.Controls.Add(statusInner);
-
-        Round(search, 12);
-        Round(qty, 12);
-        Round(unit, 12);
-        Round(itemTotal, 12);
-        Round(statusFrame, 18);
-        Round(statusInner, 16);
-
-        // Pulso cinematogr√°fico est√°vel: geometria e fonte nunca mudam.
-        // Somente a luz da moldura e o fundo variam suavemente.
-        bool pulseUp = true;
-        int pulseStep = 0;
-        var freePulse = new System.Windows.Forms.Timer { Interval = 90 };
-        freePulse.Tick += (_,_) =>
-        {
-            if(statusBox.Text != "CAIXA LIVRE")
-            {
-                statusFrame.BackColor = Color.FromArgb(0, 150, 205);
-                statusInner.BackColor = DarkBlue;
-                statusBox.ForeColor = Color.White;
-                return;
-            }
-
-            pulseStep += pulseUp ? 1 : -1;
-            if(pulseStep >= 6) { pulseStep = 6; pulseUp = false; }
-            if(pulseStep <= 0) { pulseStep = 0; pulseUp = true; }
-
-            statusFrame.BackColor = Color.FromArgb(
-                0,
-                165 + pulseStep * 8,
-                215 + pulseStep * 6);
-            statusInner.BackColor = Color.FromArgb(
-                0,
-                92 + pulseStep * 5,
-                142 + pulseStep * 7);
-            statusBox.ForeColor = Color.White;
-        };
-        freePulse.Start();
-        f.FormClosed += (_,_) => freePulse.Dispose();
-
-        leftLayout.Controls.Add(searchLabel, 0, 0);
-        leftLayout.Controls.Add(search, 0, 1);
-        leftLayout.Controls.Add(SaleLabel("Quantidade"), 0, 2);
-        leftLayout.Controls.Add(qty, 0, 3);
-        leftLayout.Controls.Add(SaleLabel("Valor Unit√°rio"), 0, 4);
-        leftLayout.Controls.Add(unit, 0, 5);
-        leftLayout.Controls.Add(SaleLabel("Valor Total do Item"), 0, 6);
-        leftLayout.Controls.Add(itemTotal, 0, 7);
-        leftLayout.Controls.Add(add, 0, 8);
-        leftLayout.Controls.Add(clear, 0, 9);
-        leftLayout.Controls.Add(statusFrame, 0, 10);
-
-        // ===== COLUNA DIREITA / CUPOM =====
-        var right = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(240, 247, 252),
-            Padding = new Padding(14)
-        };
-        body.Controls.Add(right, 2, 0);
-        Round(right, 24);
-
-        // Estrutura profissional:
-        // 1) Total compacto e totalmente vis√≠vel
-        // 2) Dica F2 logo abaixo
-        // 3) T√≠tulo + tabela ocupando o maior espa√ßo
-        // 4) Cliente
-        // 5) A√ß√µes no rodap√©
-        var rightLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 6,
-            Padding = new Padding(0),
-            Margin = new Padding(0),
-            BackColor = Color.Transparent
-        };
-        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 126)); // total
-        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));  // F2
-        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));  // t√≠tulo itens
-        rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // tabela
-        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));  // cliente
-        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 68));  // bot√µes
-        right.Controls.Add(rightLayout);
-
-        // ===== TOTAL DA VENDA =====
-        var subtotalPanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = DarkBlue,
-            Padding = new Padding(18, 10, 18, 10),
-            Margin = new Padding(0, 0, 0, 7)
-        };
-        Round(subtotalPanel, 18);
-
-        var subtotalCaption = new Label
-        {
-            Text = "TOTAL DA VENDA",
-            Dock = DockStyle.Top,
-            Height = 28,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 11.5f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft
-        };
-
-        var subtotalValue = new Label
-        {
-            Text = "R$ 0,00",
-            Dock = DockStyle.Fill,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 24, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleRight,
-            Padding = new Padding(0, 0, 4, 0)
-        };
-
-        subtotalPanel.Controls.Add(subtotalValue);
-        subtotalPanel.Controls.Add(subtotalCaption);
-        rightLayout.Controls.Add(subtotalPanel, 0, 0);
-
-        // ===== DICA F2 =====
-        var paymentPanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.Transparent,
-            Margin = new Padding(0)
-        };
-
-        var paymentText = new Label
-        {
-            Text = "Pressione F2 para escolher a forma de pagamento",
-            Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-            ForeColor = DarkBlue,
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(5, 0, 0, 0)
-        };
-        paymentPanel.Controls.Add(paymentText);
-        rightLayout.Controls.Add(paymentPanel, 0, 1);
-
-        // Mantido por compatibilidade com a l√≥gica existente.
-        var payment = new ComboBox
-        {
-            Width = 180,
-            Height = 36,
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Font = new Font("Segoe UI", 11),
-            Visible = false
-        };
-        payment.Items.AddRange(new[] { "Dinheiro", "PIX", "Cart√£o", "M√∫ltiplo" });
-        payment.SelectedIndex = 0;
-        paymentPanel.Controls.Add(payment);
-
-        // ===== T√çTULO DOS ITENS =====
-        var cupomTitle = new Label
-        {
-            Text = "LEAL INFO ‚Ä¢ ITENS DA VENDA",
-            Dock = DockStyle.Fill,
-            BackColor = DarkBlue,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 17, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Margin = new Padding(0, 4, 0, 5)
-        };
-        rightLayout.Controls.Add(cupomTitle, 0, 2);
-        Round(cupomTitle, 16);
-
-        // ===== TABELA GRANDE =====
-        var grid = new DataGridView
-        {
-            Dock = DockStyle.Fill,
-            BackgroundColor = Color.White,
-            BorderStyle = BorderStyle.None,
-            ReadOnly = true,
-            AllowUserToAddRows = false,
-            AllowUserToDeleteRows = false,
-            RowHeadersVisible = false,
-            AutoGenerateColumns = false,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            MultiSelect = false,
-            ColumnHeadersHeight = 40,
-            Margin = new Padding(0, 0, 0, 5)
-        };
-        grid.EnableHeadersVisualStyles = false;
-        grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(215, 239, 252);
-        grid.ColumnHeadersDefaultCellStyle.ForeColor = DarkBlue;
-        grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-        grid.DefaultCellStyle.Font = new Font("Segoe UI", 10);
-        grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(20, 135, 210);
-        grid.DefaultCellStyle.SelectionForeColor = Color.White;
-        grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(245, 251, 255);
-        grid.DataError += (_, e) => { e.ThrowException = false; e.Cancel = true; };
-
-        grid.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            HeaderText = "C√≥digo",
-            DataPropertyName = nameof(CartItem.Code),
-            Width = 95
-        });
-        grid.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            HeaderText = "Descri√ß√£o",
-            DataPropertyName = nameof(CartItem.Description),
-            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
-        });
-        grid.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            HeaderText = "Qtd.",
-            DataPropertyName = nameof(CartItem.Qty),
-            Width = 68,
-            DefaultCellStyle = new DataGridViewCellStyle { Format = "N3" }
-        });
-        grid.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            HeaderText = "Vlr Unit.",
-            DataPropertyName = nameof(CartItem.UnitPrice),
-            Width = 95,
-            DefaultCellStyle = new DataGridViewCellStyle { Format = "C2" }
-        });
-        grid.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            HeaderText = "Total",
-            DataPropertyName = nameof(CartItem.Total),
-            Width = 105,
-            DefaultCellStyle = new DataGridViewCellStyle { Format = "C2" }
-        });
-        grid.DataSource = cartSource;
-        rightLayout.Controls.Add(grid, 0, 3);
-        Round(grid, 12);
-
-        // ===== CLIENTE =====
-        var clientLabel = new Label
-        {
-            Text = "CLIENTE: CONSUMIDOR FINAL",
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(222, 239, 250),
-            ForeColor = DarkBlue,
-            Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleLeft,
-            Padding = new Padding(12, 0, 0, 0),
-            Margin = new Padding(0, 0, 0, 5)
-        };
-        rightLayout.Controls.Add(clientLabel, 0, 4);
-        Round(clientLabel, 12);
-
-        // ===== A√á√ïES NO RODAP√â =====
-        var actionPanel = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 4,
-            RowCount = 1,
-            Margin = new Padding(0),
-            Padding = new Padding(0, 5, 0, 0)
-        };
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 18));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
-        actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22));
-
-        var remove = new Button
-        {
-            Text = "REMOVER ITEM [F7]",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0, 0, 5, 0),
-            BackColor = Color.FromArgb(165, 48, 62),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-            Cursor = Cursors.Hand
-        };
-        remove.FlatAppearance.BorderSize = 0;
-        ModernButton(remove, Color.FromArgb(165,48,62), Color.FromArgb(215,65,82));
-        Round(remove, 12);
-
-        var styleButton = new Button
-        {
-            Text = "üé® ESTILO",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(5, 0, 5, 0),
-            BackColor = Color.FromArgb(0, 145, 210),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-            Cursor = Cursors.Hand
-        };
-        styleButton.FlatAppearance.BorderSize = 0;
-        ModernButton(styleButton, Color.FromArgb(112,72,190), Color.FromArgb(155,105,235));
-        Round(styleButton, 12);
-
-        var finish = new Button
-        {
-            Text = "FINALIZAR VENDA  [F2]",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(5, 0, 5, 0),
-            BackColor = Color.FromArgb(0, 163, 224),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold)
-        };
-        finish.FlatAppearance.BorderSize = 0;
-        finish.Cursor = Cursors.Hand;
-        ModernButton(finish, Color.FromArgb(0,170,105), Color.FromArgb(25,220,145));
-        Round(finish, 12);
-
-        var close = new Button
-        {
-            Text = "FECHAR",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(5, 0, 0, 0),
-            BackColor = DarkBlue,
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold)
-        };
-        close.FlatAppearance.BorderSize = 0;
-        close.Cursor = Cursors.Hand;
-        ModernButton(close, Color.FromArgb(55,68,82), Color.FromArgb(88,105,122));
-        Round(close, 12);
-
-        actionPanel.Controls.Add(remove, 0, 0);
-        actionPanel.Controls.Add(styleButton, 1, 0);
-        actionPanel.Controls.Add(finish, 2, 0);
-        actionPanel.Controls.Add(close, 3, 0);
-        rightLayout.Controls.Add(actionPanel, 0, 5);
-
-        Bitmap CreatePdvTexture(int width, int height, Color c1, Color c2, Color glow, bool light, int seed)
-        {
-            width = Math.Max(96, width);
-            height = Math.Max(96, height);
-            var bmp = new Bitmap(width, height);
-            using var g = Graphics.FromImage(bmp);
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-
-            using (var baseBrush = new System.Drawing.Drawing2D.LinearGradientBrush(
-                new Point(0, 0), new Point(width, height), c1, c2))
-            {
-                g.FillRectangle(baseBrush, 0, 0, width, height);
-            }
-
-            // Luz perolada difusa: d√° volume sem virar um fundo chamativo demais.
-            using (var glowPath = new System.Drawing.Drawing2D.GraphicsPath())
-            {
-                glowPath.AddEllipse(-width / 5, -height / 3, width, height);
-                using var pgb = new System.Drawing.Drawing2D.PathGradientBrush(glowPath);
-                pgb.CenterColor = Color.FromArgb(light ? 72 : 54, glow);
-                pgb.SurroundColors = new[] { Color.FromArgb(0, glow) };
-                g.FillPath(pgb, glowPath);
-            }
-
-            // Faixas acetinadas diagonais, quase transparentes.
-            using (var satin = new Pen(Color.FromArgb(light ? 22 : 18, Color.White), 1.2f))
-            {
-                for (int x = -height; x < width + height; x += 26)
-                    g.DrawLine(satin, x, 0, x + height, height);
-            }
-
-            // Microtextura determin√≠stica para quebrar qualquer sensa√ß√£o de cor chapada.
-            var rnd = new Random(seed);
-            int dots = Math.Max(800, width * height / 550);
-            for (int i = 0; i < dots; i++)
-            {
-                int x = rnd.Next(width);
-                int y = rnd.Next(height);
-                int a = rnd.Next(light ? 4 : 5, light ? 15 : 17);
-                int v = rnd.Next(170, 256);
-                using var dot = new SolidBrush(Color.FromArgb(a, v, v, v));
-                g.FillRectangle(dot, x, y, 1, 1);
-            }
-
-            // Veios suaves ros√©/met√°licos.
-            using (var vein = new Pen(Color.FromArgb(light ? 18 : 22, glow), 1.0f))
-            {
-                for (int y = 18; y < height; y += 42)
-                    g.DrawBezier(vein, 0, y, width / 3, y - 14, width * 2 / 3, y + 16, width, y - 4);
-            }
-
-            return bmp;
-        }
-
-        void ClearTexture(Control c)
-        {
-            var old = c.BackgroundImage;
-            c.BackgroundImage = null;
-            old?.Dispose();
-        }
-
-        void SetTexture(Control c, Color c1, Color c2, Color glow, bool light, int seed)
-        {
-            ClearTexture(c);
-            c.BackgroundImage = CreatePdvTexture(720, 520, c1, c2, glow, light, seed);
-            c.BackgroundImageLayout = ImageLayout.Stretch;
-        }
-
-        void ApplySalesTheme(string theme)
-        {
-            Color bg, headerBg, accent, accentHover, leftBg, rightBg, fieldBg, textDark, soft, secondary;
-
-            switch (theme)
-            {
-                case "Dark Premium":
-                    bg = Color.FromArgb(10, 12, 18);
-                    headerBg = Color.FromArgb(18, 21, 29);
-                    accent = Color.FromArgb(0, 170, 235);
-                    accentHover = Color.FromArgb(40, 210, 255);
-                    leftBg = Color.FromArgb(24, 28, 38);
-                    rightBg = Color.FromArgb(30, 34, 44);
-                    fieldBg = Color.FromArgb(245, 247, 250);
-                    textDark = Color.FromArgb(20, 28, 38);
-                    soft = Color.FromArgb(210, 220, 230);
-                    secondary = Color.FromArgb(52, 61, 75);
-                    break;
-
-                case "Clean Pro":
-                    bg = Color.FromArgb(225, 235, 242);
-                    headerBg = Color.FromArgb(35, 68, 92);
-                    accent = Color.FromArgb(45, 135, 180);
-                    accentHover = Color.FromArgb(70, 165, 205);
-                    leftBg = Color.FromArgb(245, 249, 252);
-                    rightBg = Color.White;
-                    fieldBg = Color.White;
-                    textDark = Color.FromArgb(35, 58, 72);
-                    soft = Color.FromArgb(224, 235, 242);
-                    secondary = Color.FromArgb(90, 115, 130);
-                    break;
-
-                case "Blue Red Racing":
-                    bg = Color.FromArgb(8, 22, 42);
-                    headerBg = Color.FromArgb(185, 22, 38);
-                    accent = Color.FromArgb(235, 30, 48);
-                    accentHover = Color.FromArgb(255, 65, 78);
-                    leftBg = Color.FromArgb(18, 54, 92);
-                    rightBg = Color.FromArgb(245, 246, 248);
-                    fieldBg = Color.White;
-                    textDark = Color.FromArgb(12, 38, 68);
-                    soft = Color.FromArgb(238, 218, 222);
-                    secondary = Color.FromArgb(25, 72, 125);
-                    break;
-
-                case "Verde Texturizado":
-                    bg = Color.FromArgb(8, 45, 34);
-                    headerBg = Color.FromArgb(10, 92, 63);
-                    accent = Color.FromArgb(32, 190, 118);
-                    accentHover = Color.FromArgb(72, 225, 150);
-                    leftBg = Color.FromArgb(18, 105, 72);
-                    rightBg = Color.FromArgb(232, 248, 239);
-                    fieldBg = Color.FromArgb(250, 255, 252);
-                    textDark = Color.FromArgb(12, 65, 45);
-                    soft = Color.FromArgb(205, 238, 220);
-                    secondary = Color.FromArgb(38, 125, 86);
-                    break;
-                case "PDV Rosa":
-                    // Rosa Elegance: ros√©, framboesa e vinho com acabamento acetinado/perolado.
-                    bg = Color.FromArgb(65, 10, 43);
-                    headerBg = Color.FromArgb(118, 13, 78);
-                    accent = Color.FromArgb(244, 67, 151);
-                    accentHover = Color.FromArgb(255, 126, 190);
-                    leftBg = Color.FromArgb(92, 18, 67);
-                    rightBg = Color.FromArgb(255, 242, 249);
-                    fieldBg = Color.FromArgb(255, 252, 254);
-                    textDark = Color.FromArgb(91, 20, 66);
-                    soft = Color.FromArgb(255, 220, 238);
-                    secondary = Color.FromArgb(176, 53, 120);
-                    break;
-
-                default:
-                    theme = "Futurista Azul";
-                    bg = Color.FromArgb(7, 24, 43);
-                    headerBg = Color.FromArgb(4, 45, 82);
-                    accent = Color.FromArgb(0, 183, 255);
-                    accentHover = Color.FromArgb(25, 205, 255);
-                    leftBg = Color.FromArgb(9, 52, 88);
-                    rightBg = Color.FromArgb(240, 247, 252);
-                    fieldBg = Color.White;
-                    textDark = Color.FromArgb(4, 55, 94);
-                    soft = Color.FromArgb(222, 239, 250);
-                    secondary = Color.FromArgb(28, 96, 135);
-                    break;
-            }
-
-            // Remove qualquer textura do tema anterior antes de aplicar a pr√≥xima.
-            foreach (var c in new Control[] { f, body, header, left, right, photoShowcase })
-                ClearTexture(c);
-
-            f.BackColor = bg;
-            body.BackColor = bg;
-            header.BackColor = headerBg;
-
-            if (theme == "Verde Texturizado")
-            {
-                SetTexture(f, Color.FromArgb(8, 58, 42), Color.FromArgb(18, 118, 78), Color.FromArgb(70, 235, 155), false, 1711);
-                SetTexture(body, Color.FromArgb(10, 62, 44), Color.FromArgb(20, 112, 76), Color.FromArgb(70, 235, 155), false, 1712);
-                SetTexture(left, Color.FromArgb(16, 92, 62), Color.FromArgb(9, 58, 42), Color.FromArgb(90, 245, 170), false, 1713);
-            }
-            if (theme == "PDV Rosa")
-            {
-                // Aquarela rosa clara escolhida pelo usu√°rio para o tema PDV Rosa.
-                const string rosaAquarelaBase64 = "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";
-                using var rosaBytes = new MemoryStream(Convert.FromBase64String(rosaAquarelaBase64));
-                using var rosaOriginal = Image.FromStream(rosaBytes);
-                foreach (var c in new Control[] { f, body, header, photoShowcase, left, right })
-                {
-                    c.BackgroundImage?.Dispose();
-                    c.BackgroundImage = new Bitmap(rosaOriginal);
-                    c.BackgroundImageLayout = ImageLayout.Stretch;
-                }
-            }
-            headerLine.BackColor = theme == "Blue Red Racing"
-                ? Color.FromArgb(35, 125, 210)
-                : accent;
-
-            left.BackColor = leftBg;
-            right.BackColor = rightBg;
-            photoShowcase.BackColor = leftBg;
-            photoTitle.ForeColor = theme == "Clean Pro" ? textDark : Color.White;
-            photoProductName.BackColor = theme == "Blue Red Racing" ? accent : headerBg;
-            brandPanel.BackColor = soft;
-            productPicture.BackColor = fieldBg;
-
-            search.BackColor = fieldBg;
-            search.ForeColor = textDark;
-            qty.BackColor = fieldBg;
-            qty.ForeColor = textDark;
-            unit.BackColor = fieldBg;
-            unit.ForeColor = textDark;
-            itemTotal.BackColor = fieldBg;
-            itemTotal.ForeColor = textDark;
-
-            statusFrame.BackColor = (theme == "Blue Red Racing" || theme == "PDV Rosa") ? accent : Color.FromArgb(0, 150, 205);
-            statusInner.BackColor = headerBg;
-            statusBox.BackColor = Color.Transparent;
-            cupomTitle.BackColor = (theme == "Blue Red Racing" || theme == "PDV Rosa") ? accent : headerBg;
-            subtotalPanel.BackColor = (theme == "Blue Red Racing" || theme == "PDV Rosa") ? accent : headerBg;
-            clientLabel.BackColor = soft;
-            clientLabel.ForeColor = textDark;
-            paymentText.ForeColor = theme == "Dark Premium" ? Color.White : textDark;
-
-            grid.BackgroundColor = fieldBg;
-            grid.ColumnHeadersDefaultCellStyle.BackColor = soft;
-            grid.ColumnHeadersDefaultCellStyle.ForeColor = textDark;
-            grid.AlternatingRowsDefaultCellStyle.BackColor =
-                theme == "Dark Premium" ? Color.FromArgb(235, 240, 245) : Color.FromArgb(246, 250, 252);
-
-            add.BackColor = accent;
-            clear.BackColor = secondary;
-            styleButton.BackColor = Color.FromArgb(112,72,190);
-            finish.BackColor = Color.FromArgb(0,170,105);
-            remove.BackColor = Color.FromArgb(165,48,62);
-            close.BackColor = Color.FromArgb(55,68,82);
-
-            foreach (Control c in leftLayout.Controls)
-            {
-                if (c is Label lbl && lbl != statusBox)
-                    lbl.ForeColor = (theme == "Clean Pro" || theme == "PDV Rosa") ? (theme == "PDV Rosa" ? Color.Black : textDark) : Color.White;
-            }
-
-            SetSetting("sales_theme", theme);
-            f.Invalidate(true);
-        }
-
-        void ShowThemeChooser()
-        {
-            using var tf = new Form
-            {
-                Text = "Estilo da Tela de Vendas",
-                StartPosition = FormStartPosition.CenterParent,
-                Width = 690,
-                Height = 610,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox = false,
-                MinimizeBox = false,
-                BackColor = Color.FromArgb(224, 239, 248),
-                Font = new Font("Segoe UI", 10)
-            };
-
-            var title = new Label
-            {
-                Text = "ESCOLHA O ESTILO DO SEU PDV",
-                Dock = DockStyle.Top,
-                Height = 70,
-                BackColor = DarkBlue,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 18, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleCenter
-            };
-            tf.Controls.Add(title);
-
-            var options = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 2,
-                RowCount = 3,
-                Padding = new Padding(18),
-                BackColor = Color.FromArgb(224, 239, 248)
-            };
-            options.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            options.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            options.RowStyles.Add(new RowStyle(SizeType.Percent, 33.34f));
-            options.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33f));
-            options.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33f));
-            tf.Controls.Add(options);
-            options.BringToFront();
-
-            Button ThemeCard(string name, string description, Color c1, Color c2)
-            {
-                var b = new Button
-                {
-                    Text = name.ToUpperInvariant() + "\n\n" + description,
-                    Dock = DockStyle.Fill,
-                    Margin = new Padding(10),
-                    BackColor = c1,
-                    ForeColor = Color.White,
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                    Cursor = Cursors.Hand,
-                    Tag = name
-                };
-                b.FlatAppearance.BorderColor = c2;
-                b.FlatAppearance.BorderSize = 3;
-                Round(b, 18);
-                b.Click += (_, _) =>
-                {
-                    ApplySalesTheme(name);
-                    tf.Close();
-                };
-                return b;
-            }
-
-            options.Controls.Add(ThemeCard("Futurista Azul", "Azul + ciano tecnol√≥gico", Color.FromArgb(7, 55, 95), Color.FromArgb(0, 183, 255)), 0, 0);
-            options.Controls.Add(ThemeCard("Dark Premium", "Grafite + azul el√©trico", Color.FromArgb(25, 28, 38), Color.FromArgb(0, 180, 240)), 1, 0);
-            options.Controls.Add(ThemeCard("Clean Pro", "Claro + elegante", Color.FromArgb(75, 115, 140), Color.White), 0, 1);
-            options.Controls.Add(ThemeCard("Blue Red Racing", "Azul + vermelho em destaque", Color.FromArgb(185, 22, 38), Color.FromArgb(25, 100, 180)), 1, 1);
-            options.Controls.Add(ThemeCard("PDV Rosa", "Ros√© texturizado + vinho acetinado", Color.FromArgb(125, 20, 86), Color.FromArgb(255, 72, 165)), 0, 2);
-
-            tf.ShowDialog(f);
-        }
-
-        styleButton.Click += (_, _) => ShowThemeChooser();
-        ApplySalesTheme(GetSetting("sales_theme", "Futurista Azul"));
-
-        void OpenCatalogF5()
-        {
-            var selected = SelectProductFromCatalog();
-            if (selected == null)
-                return;
-
-            // Prefer barcode as the key; if product has no barcode, use its exact name.
-            search.Text = !string.IsNullOrWhiteSpace(selected.Value.code)
-                ? selected.Value.code
-                : selected.Value.name;
-
-            unit.Text = Money(selected.Value.price);
-            itemTotal.Text = Money(selected.Value.price * (double)qty.Value);
-            statusBox.Text = $"{selected.Value.name}\nESTOQUE: {selected.Value.stock:N3}";
-            ShowProductPhoto(selected.Value.id);
-            search.Focus();
-            search.SelectAll();
-            AddCurrent();
-        }
-
-        searchLabel.Click += (_, _) => OpenCatalogF5();
-
-        void RefreshCart()
-        {
-            cartSource.ResetBindings(false);
-            subtotalValue.Text = Money(cartItems.Sum(x => x.Total));
-        }
-
-        CartItem? LoadProduct(string key)
-        {
-            var term = key.Trim();
-            if (string.IsNullOrWhiteSpace(term))
-                return null;
-
-            using var cn = Database.Open();
-            using var cmd = cn.CreateCommand();
-            cmd.CommandText = """
-                SELECT id, COALESCE(barcode,''), name, price, stock
-                FROM products
-                WHERE active=1
-                  AND (barcode=$exact OR lower(name) LIKE lower($name))
-                ORDER BY CASE WHEN barcode=$exact THEN 0 ELSE 1 END, name
-                LIMIT 1
-                """;
-            cmd.Parameters.AddWithValue("$exact", term);
-            cmd.Parameters.AddWithValue("$name", "%" + term + "%");
-
-            using var rd = cmd.ExecuteReader();
-            if (!rd.Read())
-                return null;
-
-            var requestedQty = (double)qty.Value;
-            var stock = rd.GetDouble(4);
-            if (stock < requestedQty)
-            {
-                Info($"Estoque insuficiente.\nDispon√≠vel: {stock:N3}");
-                return null;
-            }
-
-            return new CartItem
-            {
-                ProductId = rd.GetInt64(0),
-                Code = rd.GetString(1),
-                Description = rd.GetString(2),
-                Qty = requestedQty,
-                UnitPrice = rd.GetDouble(3)
-            };
-        }
-
-
-        decimal? SelectQuantity(CartItem product)
-        {
-            using var qf = new Form
-            {
-                Text = "Quantidade do Produto",
-                StartPosition = FormStartPosition.CenterParent,
-                Width = 520,
-                Height = 430,
-                FormBorderStyle = FormBorderStyle.FixedDialog,
-                MaximizeBox = false,
-                MinimizeBox = false,
-                BackColor = Color.FromArgb(224, 239, 248),
-                Font = new Font("Segoe UI", 10),
-                KeyPreview = true
-            };
-
-            var top = new Panel
-            {
-                Dock = DockStyle.Top,
-                Height = 70,
-                BackColor = DarkBlue
-            };
-            top.Controls.Add(new Label
-            {
-                Text = "QUANTIDADE DO PRODUTO",
-                Dock = DockStyle.Fill,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 18, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleCenter
-            });
-            qf.Controls.Add(top);
-
-            var bodyQ = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 1,
-                RowCount = 6,
-                Padding = new Padding(24),
-                BackColor = Color.FromArgb(224, 239, 248)
-            };
-            bodyQ.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
-            bodyQ.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
-            bodyQ.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
-            bodyQ.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
-            bodyQ.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));
-            bodyQ.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            qf.Controls.Add(bodyQ);
-
-            bodyQ.Controls.Add(new Label
-            {
-                Text = product.Description,
-                Dock = DockStyle.Fill,
-                ForeColor = DarkBlue,
-                Font = new Font("Segoe UI", 15, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleCenter
-            }, 0, 0);
-
-            double stockAvailable = 0;
-            using (var cn = Database.Open())
-            using (var cmd = cn.CreateCommand())
-            {
-                cmd.CommandText = "SELECT stock FROM products WHERE id=$id";
-                cmd.Parameters.AddWithValue("$id", product.ProductId);
-                stockAvailable = Convert.ToDouble(cmd.ExecuteScalar() ?? 0);
-            }
-
-            bodyQ.Controls.Add(new Label
-            {
-                Text = $"Estoque dispon√≠vel: {stockAvailable:N3}",
-                Dock = DockStyle.Fill,
-                ForeColor = Color.FromArgb(4, 70, 112),
-                Font = new Font("Segoe UI", 10, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleCenter
-            }, 0, 0);
-
-            var qInput = new NumericUpDown
-            {
-                Dock = DockStyle.Fill,
-                DecimalPlaces = 3,
-                Minimum = 0.001M,
-                Maximum = (decimal)Math.Max(stockAvailable, 0.001),
-                Value = 1,
-                TextAlign = HorizontalAlignment.Center,
-                Font = new Font("Segoe UI", 24, FontStyle.Bold),
-                BackColor = Color.White,
-                ForeColor = Color.FromArgb(8, 38, 68),
-                Margin = new Padding(18, 5, 18, 5)
-            };
-            bodyQ.Controls.Add(qInput, 0, 0);
-
-            bodyQ.Controls.Add(new Label
-            {
-                Text = $"Valor unit√°rio: {Money(product.UnitPrice)}",
-                Dock = DockStyle.Fill,
-                ForeColor = DarkBlue,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleCenter
-            }, 0, 0);
-
-            var totalPreview = new Label
-            {
-                Text = $"Total: {Money(product.UnitPrice)}",
-                Dock = DockStyle.Fill,
-                BackColor = DarkBlue,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI", 15, FontStyle.Bold),
-                TextAlign = ContentAlignment.MiddleCenter,
-                Margin = new Padding(18, 2, 18, 2)
-            };
-            bodyQ.Controls.Add(totalPreview, 0, 0);
-
-            qInput.ValueChanged += (_, _) =>
-                totalPreview.Text = $"Total: {Money(product.UnitPrice * (double)qInput.Value)}";
-
-            var actions = new TableLayoutPanel
-            {
-                Dock = DockStyle.Fill,
-                ColumnCount = 2,
-                RowCount = 1,
-                Padding = new Padding(18, 8, 18, 0)
-            };
-            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-
-            var cancelQ = new Button
-            {
-                Text = "CANCELAR",
-                Dock = DockStyle.Fill,
-                Margin = new Padding(0, 0, 8, 0),
-                BackColor = Color.FromArgb(55, 88, 115),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                DialogResult = DialogResult.Cancel
-            };
-            cancelQ.FlatAppearance.BorderSize = 0;
-
-            var addQ = new Button
-            {
-                Text = "ADICIONAR",
-                Dock = DockStyle.Fill,
-                Margin = new Padding(8, 0, 0, 0),
-                BackColor = Color.FromArgb(0, 163, 224),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                DialogResult = DialogResult.OK
-            };
-            addQ.FlatAppearance.BorderSize = 0;
-
-            actions.Controls.Add(cancelQ, 0, 0);
-            actions.Controls.Add(addQ, 1, 0);
-            bodyQ.Controls.Add(actions, 0, 0);
-
-            qf.AcceptButton = addQ;
-            qf.CancelButton = cancelQ;
-            ApplyFloatingTheme(qf);
-
-            qf.Shown += (_, _) =>
-            {
-                qInput.Focus();
-                qInput.Select(0, qInput.Text.Length);
-            };
-
-            return qf.ShowDialog(f) == DialogResult.OK ? qInput.Value : null;
-        }
-
-        void AddCurrent()
-        {
-            if (string.IsNullOrWhiteSpace(search.Text))
-            {
-                Info("Digite o c√≥digo de barras ou parte do nome do produto.");
-                search.Focus();
-                return;
-            }
-
-            var oldQty = qty.Value;
-            qty.Value = 1;
-            var product = LoadProduct(search.Text);
-            qty.Value = oldQty;
-
-            if (product == null)
-            {
-                Info("Produto n√£o encontrado.");
-                search.SelectAll();
-                search.Focus();
-                return;
-            }
-
-            var selectedQty = SelectQuantity(product);
-            if (selectedQty == null)
-            {
-                search.SelectAll();
-                search.Focus();
-                return;
-            }
-
-            product.Qty = (double)selectedQty.Value;
-
-            var existing = cartItems.FirstOrDefault(x => x.ProductId == product.ProductId);
-            if (existing != null)
-            {
-                // Revalidar estoque considerando o que j√° est√° no carrinho.
-                using var cn = Database.Open();
-                using var cmd = cn.CreateCommand();
-                cmd.CommandText = "SELECT stock FROM products WHERE id=$id";
-                cmd.Parameters.AddWithValue("$id", product.ProductId);
-                var stock = Convert.ToDouble(cmd.ExecuteScalar() ?? 0);
-                if (existing.Qty + product.Qty > stock)
-                {
-                    Info($"Estoque insuficiente.\nDispon√≠vel: {stock:N3}");
-                    return;
-                }
-                existing.Qty += product.Qty;
-            }
-            else
-            {
-                cartItems.Add(product);
-            }
-
-            unit.Text = Money(product.UnitPrice);
-            itemTotal.Text = Money(product.Total);
-            statusBox.Text = $"{product.Description}\nADICIONADO √Ä VENDA";
-            ShowProductPhoto(product.ProductId);
-            productPicture.BringToFront();
-            productPicture.Refresh();
-            search.Clear();
-            qty.Value = 1;
-            RefreshCart();
-            search.Focus();
-        }
-
-        void ClearEntry()
-        {
-            search.Clear();
-            qty.Value = 1;
-            unit.Text = "R$ 0,00";
-            itemTotal.Text = "R$ 0,00";
-            statusBox.Text = "CAIXA LIVRE";
-            ShowProductPhoto(null);
-            search.Focus();
-        }
-
-        add.Click += (_, _) => AddCurrent();
-        clear.Click += (_, _) => ClearEntry();
-
-        search.KeyDown += (_, e) =>
-        {
-            if (e.KeyCode == Keys.Enter)
-            {
-                AddCurrent();
-                e.SuppressKeyPress = true;
-            }
-        };
-
-        void RemoveSelectedItem()
-        {
-            if (grid.CurrentRow?.DataBoundItem is not CartItem item)
-            {
-                Info("Selecione um item da venda para remover.");
-                return;
-            }
-
-            using var confirm = new RemoveConfirmForm(
-                item.Description,
-                item.Qty,
-                Money(item.Total),
-                DarkBlue);
-
-            if (confirm.ShowDialog(f) != DialogResult.Yes)
-                return;
-
-            cartItems.Remove(item);
-            RefreshCart();
-            statusBox.Text = $"{item.Description}\nREMOVIDO DA VENDA";
-            search.Focus();
-        }
-
-        remove.Click += (_, _) => RemoveSelectedItem();
-
-        close.Click += (_, _) => f.Close();
-
-        void FinalizeSale()
-        {
-            if (cartItems.Count == 0)
-            {
-                Info("A venda n√£o possui produtos.");
-                search.Focus();
-                return;
-            }
-
-            var subtotal = cartItems.Sum(x => x.Total);
-
-            // F2 sempre abre a janela flutuante de fechamento.
-            var payments = SelectPayment(subtotal);
-            if (payments == null || payments.Count == 0)
-                return;
-
-            var soldAt = DateTime.Now;
-
-            using var cn = Database.Open();
-            using var tx = cn.BeginTransaction();
-
-            try
-            {
-                foreach (var item in cartItems)
-                {
-                    using var chk = cn.CreateCommand();
-                    chk.Transaction = tx;
-                    chk.CommandText = "SELECT stock FROM products WHERE id=$id";
-                    chk.Parameters.AddWithValue("$id", item.ProductId);
-                    var stock = Convert.ToDouble(chk.ExecuteScalar() ?? 0);
-                    if (stock < item.Qty)
-                        throw new Exception($"Estoque insuficiente para {item.Description}. Dispon√≠vel: {stock:N3}");
-                }
-
-                var paymentDescription = payments.Count == 1
-                    ? payments[0].Method
-                    : "M√∫ltiplo: " + string.Join(" + ", payments.Select(x => x.Method));
-
-                using var sale = cn.CreateCommand();
-                sale.Transaction = tx;
-                sale.CommandText = """
-                    INSERT INTO sales(sold_at,payment,subtotal,discount,total,operator)
-                    VALUES($date,$payment,$subtotal,0,$total,$operator);
-                    SELECT last_insert_rowid();
-                    """;
-                sale.Parameters.AddWithValue("$date", soldAt.ToString("yyyy-MM-dd HH:mm:ss"));
-                sale.Parameters.AddWithValue("$payment", paymentDescription);
-                sale.Parameters.AddWithValue("$operator", Auth.OperatorName);
-                sale.Parameters.AddWithValue("$subtotal", subtotal);
-                sale.Parameters.AddWithValue("$total", subtotal);
-                var saleId = Convert.ToInt64(sale.ExecuteScalar());
-
-                foreach (var item in cartItems)
-                {
-                    using var itemCmd = cn.CreateCommand();
-                    itemCmd.Transaction = tx;
-                    itemCmd.CommandText = """
-                        INSERT INTO sale_items(sale_id,product_id,description,qty,unit_price,total)
-                        VALUES($sale,$product,$description,$qty,$unit,$total);
-                        UPDATE products SET stock=stock-$qty WHERE id=$product;
-                        """;
-                    itemCmd.Parameters.AddWithValue("$sale", saleId);
-                    itemCmd.Parameters.AddWithValue("$product", item.ProductId);
-                    itemCmd.Parameters.AddWithValue("$description", item.Description);
-                    itemCmd.Parameters.AddWithValue("$qty", item.Qty);
-                    itemCmd.Parameters.AddWithValue("$unit", item.UnitPrice);
-                    itemCmd.Parameters.AddWithValue("$total", item.Total);
-                    itemCmd.ExecuteNonQuery();
-                }
-
-                foreach (var part in payments)
-                {
-                    using var payCmd = cn.CreateCommand();
-                    payCmd.Transaction = tx;
-                    payCmd.CommandText = """
-                        INSERT INTO sale_payments(sale_id,method,amount)
-                        VALUES($sale,$method,$amount);
-                        """;
-                    payCmd.Parameters.AddWithValue("$sale", saleId);
-                    payCmd.Parameters.AddWithValue("$method", part.Method);
-                    payCmd.Parameters.AddWithValue("$amount", part.Amount);
-                    payCmd.ExecuteNonQuery();
-
-                    using var movement = cn.CreateCommand();
-                    movement.Transaction = tx;
-                    movement.CommandText = """
-                        INSERT INTO cash_movements(occurred_at,type,description,amount,sale_id)
-                        VALUES($date,'ENTRADA',$description,$amount,$sale)
-                        """;
-                    movement.Parameters.AddWithValue("$date", soldAt.ToString("yyyy-MM-dd HH:mm:ss"));
-                    movement.Parameters.AddWithValue("$description", $"Venda #{saleId} - {part.Method}");
-                    movement.Parameters.AddWithValue("$amount", part.Amount);
-                    movement.Parameters.AddWithValue("$sale", saleId);
-                    movement.ExecuteNonQuery();
-                }
-
-                tx.Commit();
-
-                var receipt = BuildReceipt(saleId, soldAt, cartItems.ToList(), payments, subtotal);
-
-                cartItems.Clear();
-                RefreshCart();
-                ClearEntry();
-                RefreshDashboard();
-
-                ShowReceipt(receipt);
-            }
-            catch (Exception ex)
-            {
-                try { tx.Rollback(); } catch { }
-                MessageBox.Show(
-                    "N√£o foi poss√≠vel finalizar a venda:\n\n" + ex.Message,
-                    "LEAL INFO PDV",
-                    MessageBoxButtons.OK,
-                    MessageBoxIcon.Error);
-            }
-        }
-
-        finish.Click += (_, _) => FinalizeSale();
-
-        f.KeyDown += (_, e) =>
-        {
-            if (e.KeyCode == Keys.F2)
-            {
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-                FinalizeSale();
-                return;
-            }
-            if (e.KeyCode == Keys.F5)
-            {
-                OpenCatalogF5();
-                e.SuppressKeyPress = true;
-            }
-            else if (e.KeyCode == Keys.F2)
-            {
-                return;
-            }
-            else if (e.KeyCode == Keys.F7)
-            {
-                e.Handled = true;
-                e.SuppressKeyPress = true;
-                RemoveSelectedItem();
-            }
-            else if (e.KeyCode == Keys.Escape)
-            {
-                f.Close();
-            }
-        };
-
-
-        var footer = new StatusStrip
-        {
-            BackColor = Color.FromArgb(4, 70, 112),
-            ForeColor = Color.White,
-            SizingGrip = false
-        };
-        footer.Items.Add(new ToolStripStatusLabel("LEAL INFO CONECTADO"));
-        footer.Items.Add(new ToolStripStatusLabel { Spring = true, Text = "PDV Desktop ‚Ä¢ Windows 11 ‚Ä¢ V5.1" });
-        footer.Items.Add(new ToolStripStatusLabel("Serial: " + Database.DeviceSerial()));
-        f.Controls.Add(footer);
-
-        f.Shown += (_, _) => search.Focus();
-        f.ShowDialog(this);
-    }
-
-    private void AddSaleLabel(Control c,string text,int x,int y)
-    {
-        c.Controls.Add(new Label{Text=text,Left=x,Top=y,AutoSize=true,ForeColor=Color.White,Font=new Font("Segoe UI",18,FontStyle.Bold)});
-    }
-
-    private void ShowCrud(string title,string sql,Action add,Action<long>? edit,Action<long>? delete)
-    {
-        var f=GridForm(title,sql,out var grid);
-        var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};
-        var b1=ActionButton("NOVO",()=>{add();ReloadGrid(grid,sql);});
-        p.Controls.Add(b1);
-        if(edit!=null)p.Controls.Add(ActionButton("EDITAR",()=>{var id=SelectedId(grid);if(id.HasValue){edit(id.Value);ReloadGrid(grid,sql);}}));
-        if(delete!=null)p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue){delete(id.Value);ReloadGrid(grid,sql);}}));
-        p.Controls.Add(ActionButton("FECHAR",f.Close));
-        f.Controls.Add(p);
-        ApplyFloatingTheme(f);
-
-        f.ShowDialog(this);
-    }
-
-    private void ShowReadOnly(string title,string sql)
-    {
-        var f=GridForm(title,sql,out _);ApplyFloatingTheme(f);
-f.ShowDialog(this);
-    }
-
-    private Form GridForm(string title,string sql,out DataGridView grid)
-    {
-        var f=new Form
-        {
-            Text=title,
-            StartPosition=FormStartPosition.CenterParent,
-            Width=1180,
-            Height=720,
-            BackColor=Color.FromArgb(245,248,252),
-            Font=new Font("Segoe UI",10)
-        };
-
-        var header=new Panel{Dock=DockStyle.Top,Height=62,BackColor=DarkBlue};
-        var titleLabel=new Label
-        {
-            Text=title,
-            ForeColor=Color.White,
-            Font=new Font("Segoe UI",18,FontStyle.Bold),
-            AutoSize=true,
-            Left=22,
-            Top=16
-        };
-        header.Controls.Add(titleLabel);
-        f.Controls.Add(header);
-
-        grid=new DataGridView
-        {
-            Dock=DockStyle.Fill,
-            ReadOnly=true,
-            AllowUserToAddRows=false,
-            AllowUserToDeleteRows=false,
-            RowHeadersVisible=false,
-            BackgroundColor=Color.White,
-            BorderStyle=BorderStyle.None,
-            SelectionMode=DataGridViewSelectionMode.FullRowSelect,
-            MultiSelect=false,
-            AutoGenerateColumns=false,
-            ColumnHeadersHeight=42,
-            RowTemplate={Height=34}
-        };
-        grid.ColumnHeadersDefaultCellStyle.BackColor=Color.FromArgb(225,235,245);
-        grid.ColumnHeadersDefaultCellStyle.ForeColor=DarkBlue;
-        grid.ColumnHeadersDefaultCellStyle.Font=new Font("Segoe UI",10,FontStyle.Bold);
-        grid.EnableHeadersVisualStyles=false;
-        grid.AlternatingRowsDefaultCellStyle.BackColor=Color.FromArgb(248,250,253);
-        grid.DataError += (_, e) => { e.ThrowException = false; e.Cancel = true; };
-
-        f.Controls.Add(grid);
-        grid.BringToFront();
-        ReloadGrid(grid,sql);
-        return f;
-    }
-
-    private void ReloadGrid(DataGridView grid,string sql)
-    {
-        using var cn=Database.Open();
-        using var cmd=cn.CreateCommand();
-        cmd.CommandText=sql;
-        using var rd=cmd.ExecuteReader();
-
-        grid.DataSource = null;
-        grid.Rows.Clear();
-        grid.Columns.Clear();
-        grid.AutoGenerateColumns = false;
-
-        for (int i = 0; i < rd.FieldCount; i++)
-        {
-            grid.Columns.Add(new DataGridViewTextBoxColumn
-            {
-                Name = rd.GetName(i),
-                HeaderText = rd.GetName(i),
-                AutoSizeMode = i == 0 ? DataGridViewAutoSizeColumnMode.AllCells : DataGridViewAutoSizeColumnMode.Fill,
-                SortMode = DataGridViewColumnSortMode.Automatic
-            });
-        }
-
-        while (rd.Read())
-        {
-            var values = new object[rd.FieldCount];
-            for (int i = 0; i < rd.FieldCount; i++)
-            {
-                var v = rd.IsDBNull(i) ? "" : Convert.ToString(rd.GetValue(i), CultureInfo.GetCultureInfo("pt-BR")) ?? "";
-                values[i] = v;
-            }
-            grid.Rows.Add(values);
-        }
-    }
-
-    private Button ActionButton(string text,Action action)
-    {
-        var b=new Button{Text=text,Width=160,Height=42,BackColor=DarkBlue,ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold),Margin=new Padding(6)};
-        b.Click+=(_,_)=>action();return b;
-    }
-
-    private static long? SelectedId(DataGridView grid)
-    {
-        if(grid.CurrentRow==null||grid.Columns["ID"]==null)return null;
-        return Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value);
-    }
-
-    private Form Editor(string title,string[] labels)
-    {
-        var f=new Form{Text=title,StartPosition=FormStartPosition.CenterParent,Width=620,Height=145+labels.Length*62,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,BackColor=Color.White,Tag=new List<TextBox>()};
-        var list=(List<TextBox>)f.Tag;
-        for(int i=0;i<labels.Length;i++){
-            f.Controls.Add(new Label{Text=labels[i],Left=25,Top=25+i*55,Width=160,Height=25});
-            var tb=new TextBox{Left=195,Top=22+i*55,Width=370,Height=28};list.Add(tb);f.Controls.Add(tb);
-        }
-        var save=ActionButton("SALVAR",()=>{f.DialogResult=DialogResult.OK;f.Close();});save.Left=245;save.Top=40+labels.Length*55;f.Controls.Add(save);
-        var cancel=ActionButton("CANCELAR",()=>f.Close());cancel.Left=415;cancel.Top=40+labels.Length*55;f.Controls.Add(cancel);
-        ApplyFloatingTheme(f);return f;
-    }
-
-    private static string[] EditorValues(Form f)=>((List<TextBox>)f.Tag!).Select(x=>x.Text.Trim()).ToArray();
-    private static void FillEditor(Form f,params object[] values){var t=(List<TextBox>)f.Tag!;for(int i=0;i<Math.Min(t.Count,values.Length);i++)t[i].Text=Convert.ToString(values[i],CultureInfo.InvariantCulture)??"";}
-
-    private static double Num(string s)
-    {
-        s=s.Trim().Replace("R$","").Replace(" ","");
-        if(double.TryParse(s,NumberStyles.Any,CultureInfo.GetCultureInfo("pt-BR"),out var br))return br;
-        if(double.TryParse(s.Replace(",","."),NumberStyles.Any,CultureInfo.InvariantCulture,out var inv))return inv;
-        return 0;
-    }
-    private static string Money(double n)=>n.ToString("C2",CultureInfo.GetCultureInfo("pt-BR"));
-    private static bool Confirm(string text)=>MessageBox.Show(text,"Confirmar",MessageBoxButtons.YesNo,MessageBoxIcon.Question)==DialogResult.Yes;
-    private static void Info(string text)=>MessageBox.Show(text,"LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Information);
-
-    private static void Exec(string sql,params (string name,object value)[] pars)
-    {
-        using var cn=Database.Open();using var cmd=cn.CreateCommand();cmd.CommandText=sql;
-        foreach(var p in pars)cmd.Parameters.AddWithValue(p.name,p.value??DBNull.Value);cmd.ExecuteNonQuery();
-    }
-
-    private static long ScalarLong(SqliteConnection cn,string sql){using var c=cn.CreateCommand();c.CommandText=sql;return Convert.ToInt64(c.ExecuteScalar()??0);}
-    private static double ScalarDouble(SqliteConnection cn,string sql){using var c=cn.CreateCommand();c.CommandText=sql;return Convert.ToDouble(c.ExecuteScalar()??0);}
-
-    private static string? PromptChoice(string title,string[] values)
-    {
-        using var f=new Form{Text=title,Width=420,Height=220,StartPosition=FormStartPosition.CenterParent,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false,BackColor=Color.FromArgb(224,239,248),Font=new Font("Segoe UI",10)};
-        var cb=new ComboBox{Left=35,Top=45,Width=330,DropDownStyle=ComboBoxStyle.DropDownList,BackColor=Color.White,ForeColor=Color.FromArgb(8,38,68),Font=new Font("Segoe UI",11,FontStyle.Bold)};cb.Items.AddRange(values);cb.SelectedIndex=0;
-        var ok=new Button{Text="CONFIRMAR",Left=205,Top=100,Width=160,Height=40,DialogResult=DialogResult.OK,BackColor=Color.FromArgb(0,145,210),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold)};ok.FlatAppearance.BorderSize=0;
-        f.Controls.Add(cb);f.Controls.Add(ok);f.AcceptButton=ok;
-        return f.ShowDialog()==DialogResult.OK?cb.SelectedItem?.ToString():null;
-    }
-}
+Y™Áäx-ÆÈ‹j◊ù¢Îi∫⁄+äßj[hëÈ‹¢ÈÌ◊Nw˜îËµ©h∫⁄n∂XßzÕ{ÓÔ›\⁄[ô»ZX‹õ‹€Ÿùë]Kî‹[]N¬ù\⁄[ô»ﬁ\›[Kë]N¬ù\⁄[ô»ﬁ\›[Këò]⁄[ôŒ¬ù\⁄[ô»ﬁ\›[Këò]⁄[ôÀîö[ù[ôŒ¬ù\⁄[ô»ﬁ\›[Kë€ÿò[^ò][€é¬ù\⁄[ô»ZX‹õ‹€ŸùïŸXãïŸXïöY]Ããï⁄[ëõ‹õ\Œ¬ù\⁄[ô»ZX‹õ‹€ŸùïŸXãïŸXïöY]Ããê€‹ôN¬ù\⁄[ô»ﬁ\›[Kìô]í¬ù\⁄[ô»ﬁ\›[Kï^íú€€é¬ù\⁄[ô»ﬁ\›[KíSÀî\\Œ¬Çõò[Y\‹XŸHX[[ôõ‘é¬ÇúXõX»ŸX[Y€\‹»XZ[ëõ‹õHàõ‹õBû¬àö]ò]HX›\ôPõﬁ»XZ[îÿ‹ôY[îX›\ôN¬Çàö]ò]HôXY€õH€€‹àõYHH€€‹ãëúõ€P\ôÿäLLMM N¬àö]ò]HôXY€õH€€‹à\ö–õYHH€€‹ãëúõ€P\ôÿäÃLLäN¬àö]ò]HôXY€õH›]\‘›ö\›]\»Hô] 
+N¬àö]ò]HôXY€õHXô[›‘›ÿ⁄”Xô[Hô] 
+N¬àö]ò]HôXY€õHÿ[òŸ[][€ï⁄Ÿ[î€›\òŸHò]öYÿ][€ì\›[ô\ê›»Hô] 
+N¬àö]ò]HôXY€õHÿ[òŸ[][€ï⁄Ÿ[î€›\òŸHòY[”\›[ô\ê›»Hô] 
+N¬àö]ò]HŸXïöY]Ãè»òY[‘^Y\é¬àö]ò]Hù]€è»òY[–€€ùõ€ù]€é¬àö]ò]Hõ€€òY[—\⁄\ôY^Z[ôŒ¬àö]ò]Hõ€€òY[‘]\ŸYûSXN¬àö]ò]Hõ€€òY[“[ö]X[^ôY¬àö]ò]Hõ€€ò]öYÿ][€ì\›[ô\î›\ùY¬àö]ò]H›ö[ô»\›ZSò]öYÿ][€ê€€[X[ôHàé¬àö]ò]H]U[YH\›ZSò]öYÿ][€ï]»H]U[YKìZ[ïò[YN¬àö]ò]Hõ€€]]€X]X–òX⁄›\€€\]Y¬àö]ò]Hõ€€]]€X]X–òX⁄›\ù[õö[ôŒ¬ÇàXõX»XZ[ëõ‹õJ
+Bà¬à^HìPSSëì»””ëP’Q»H“T’SPHàHåLåLÕé¬à⁄[ô›‘›]HHõ‹õU⁄[ô›‘›]KìX^[Z^ôY¬àZ[ö[][T⁄^ôHHô]»⁄^ôJLåÃå
+N¬àòX⁄–€€‹àH€€‹ãï⁄]N¬àõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+N¬àùZ[ZJ
+N¬àôYúô\⁄\⁄õÿ\ô
+
+N¬àõ‹õP€‹⁄[ô»
+œHXZ[ëõ‹õW—õ‹õP€‹⁄[ôŒ¬Çà⁄›€à
+œH
+À HOÇà¬à›\ùò]öYÿ][€ì\›[ô\ä
+N¬à›\ùòY[–€€ùõ€\›[ô\ä
+N¬ÇàYà
+Ÿ]Ÿ][ô ò€€\[ûW‹ôY⁄\›\ôYãåäHOHåHäBà¬àYà
+T⁄›–€€\[ûTôY⁄\›ò][€äùYJJBà¬à€‹ŸJ
+N¬àô]\õé¬àBàBÇàYà
+]]í\–YZ[à	âàŸ]Ÿ][ô úŸX›\ö]W‹Ÿ]\ÿ€€\]YãåäHOHåHäBà⁄›“[ö]X[ŸX›\ö]TŸ]\
+
+N¬Çà‹[ëö\ú›XÿŸ\‹’]‹öX[
+ùYJN¬à»H\]SX[òYŸ\ãê⁄X⁄—õ‹ï\]\–\ﬁ[ò \ÀùYJN¬àN¬Çàõ‹õP€‹ŸY
+œH
+À HOÇà¬àò]öYÿ][€ì\›[ô\ê›Àêÿ[òŸ[
+
+N¬àò]öYÿ][€ì\›[ô\ê›Àë\‹‹ŸJ
+N¬àòY[”\›[ô\ê›Àêÿ[òŸ[
+
+N¬àòY[”\›[ô\ê›Àë\‹‹ŸJ
+N¬àòY[‘^Y\èÀë\‹‹ŸJ
+N¬àN¬àBÇàö]ò]Hõ⁄Y›\ùò]öYÿ][€ì\›[ô\ä
+Bà¬àYà
+ò]öYÿ][€ì\›[ô\î›\ùY
+Hô]\õé¬àò]öYÿ][€ì\›[ô\î›\ùYHùYN¬à»H\›[ëõ‹ìò]öYÿ][€ê€€[X[ô–\ﬁ[ò ò]öYÿ][€ì\›[ô\ê›Àï⁄Ÿ[äN¬àBÇàö]ò]H\ﬁ[ò»\⁄»\›[ëõ‹ìò]öYÿ][€ê€€[X[ô–\ﬁ[ò ÿ[òŸ[][€ï⁄Ÿ[àÿ[òŸ[][€ï⁄Ÿ[äBà¬à⁄[H
+Xÿ[òŸ[][€ï⁄Ÿ[ãí\–ÿ[òŸ[][€îô\]Y\›Y
+Bà¬àûBà¬à]ÿZ]\⁄[ô»ò\à\HHô]»ò[YY\TŸ\ùô\î›ôX[JàìX[[ôõ‘ãìò]öYÿ][€àãà\Q\ôX›[€ãí[ãàKà\Uò[ú€Z\‹⁄[€ì[ŸKêû]Kà\S‹[€úÀê\ﬁ[ò⁄õ€õ›\ N¬Çà]ÿZ]\KïÿZ]õ‹ê€€õôX›[€ê\ﬁ[ò ÿ[òŸ[][€ï⁄Ÿ[äN¬à\⁄[ô»ò\àôXY\àHô]»›ôX[TôXY\ä\JN¬àò\à€€[X[ôH]ÿZ]ôXY\ãîôXY[ôP\ﬁ[ò ÿ[òŸ[][€ï⁄Ÿ[äN¬àYà
+\›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ€€[X[ô
+H	âàR\—\‹‹ŸY
+BàôY⁄[í[ùõ⁄ŸJ
+
+HOà‹[îÿ‹ôY[ëúõ€PZJ€€[X[ô
+JN¬àBàÿ]⁄
+‹\ò][€êÿ[òŸ[Y^Ÿ\[€äBà¬àúôXZŒ¬àBàÿ]⁄à¬àYà
+Xÿ[òŸ[][€ï⁄Ÿ[ãí\–ÿ[òŸ[][€îô\]Y\›Y
+Bà]ÿZ]\⁄Àë[^Jÿ[òŸ[][€ï⁄Ÿ[äN¬àBàBàBÇàö]ò]Hõ⁄Y‹[îÿ‹ôY[ëúõ€PZJ›ö[ô»€€[X[ô
+Bà¬àYà
+[ùõ⁄ŸTô\]Z\ôY
+Bà¬àôY⁄[í[ùõ⁄ŸJ
+
+HOà‹[îÿ‹ôY[ëúõ€PZJ€€[X[ô
+JN¬àô]\õé¬àBÇà€€[X[ôH
+€€[X[ôœ»›ö[ôÀë[\JKïö[J
+Kï’\\í[ùò\öX[ù
+
+N¬ÇàÀ»\ÿÿ\ùH€€X[ô‹»ô\]Y‹»[ùöXY‹»[HŸ\]pÍõò⁄XH[HY\€XHô\‹‹›Kÿ€€ùô\úÿKÇàYà
+€€[X[ôOH\›ZSò]öYÿ][€ê€€[X[ô	âà]U[YKï]”õ›»H\›ZSò]öYÿ][€ï]»[YT‹[ãëúõ€TŸX€€ô äJBàô]\õé¬à\›ZSò]öYÿ][€ê€€[X[ôH€€[X[ô¬à\›ZSò]öYÿ][€ï]»H]U[YKï]”õ›Œ¬Çà⁄[ô›‘›]HHõ‹õU⁄[ô›‘›]KìX^[Z^ôY¬à⁄› 
+N¬àX›]ò]J
+N¬àúö[ô’—úõ€ù
+
+N¬Çàò\àÿ‹ôY[ï]\»Hô]»X›[€ò\ûO›ö[ôÀ›ö[ô÷◊Oä›ö[ô–€€\\ô\ãì‹ô[ò[Y€õ‹ôPÿ\ŸJBà¬à»îì—U‘»óHHô]÷◊H»îì—U‘»àKà»ê”QSïT»óHHô]÷◊H»ê”QSïT»àKà»ëì‘ìëP—Q‘ëT»óHHô]÷◊H»ëì‘ìëP—Q‘ëT»àKà»î—TïíP”‘»óHHô]÷◊H»î—Tïíp·”‘»àKà»ì‘ëSî◊‘—TïíP”»óHHô]÷◊H»ì‘ëSî»H—Tïíp·”»àKà»ì‘ê–SQSï‘»óHHô]÷◊H»ì‘∞·–SQSï‘»àKà»ëìV◊––RVHóHHô]÷◊H»ëìV»H–RVHàKà»íT’‘íP”◊’ëSëT»óHHô]÷◊H»íT’0‰‘íP”»HëSëT»àKà»ïSW’ëSëT»óHHô]÷◊H»ìPSSëì»””ëP’Q»HSHHëSëT»àKà»ïT’PTíS‘»óHHô]÷◊H»ï\›pË\ö[‹»H∞Î]ôZ\»HXŸ\‹€»àKà»ê–QT’ì‘»óHHô]÷◊H»êÿY\›õ‹»àKà»êRïQW––QT’ì»óHHô]÷◊H»êŸ[ùò[HZùYH8†(àÿY\›õ»àKà»ê””ëíQ’TêP”—T»óHHô]÷◊H»ê€€ôöY›\òpÈÌY\»»⁄\›[XHàBàN¬ÇàYà
+ÿ‹ôY[ï]\ÀïûQŸ]ò[YJ€€[X[ô›]ò\à]\ JBà¬àò\à‹[àH\Xÿ][€ãì‹[ëõ‹õ\Àêÿ\›õ‹õOä
+Këö\ú›‹ëYò][
+õ‹õHOÇàTôYô\ô[òŸQ\]X[ õ‹õK\ H	âà]\Àê[ûJ]HOÇàõ‹õKï^ë\]X[ ]K›ö[ô–€€\\ö\€€ãì‹ô[ò[Y€õ‹ôPÿ\ŸJHàõ‹õKï^î›\ù’⁄]
+]K›ö[ô–€€\\ö\€€ãì‹ô[ò[Y€õ‹ôPÿ\ŸJJJN¬àYà
+‹[àOHù[
+Bà¬àYà
+‹[ãï⁄[ô›‘›]HOHõ‹õU⁄[ô›‘›]KìZ[ö[Z^ôY
+H‹[ãï⁄[ô›‘›]HHõ‹õU⁄[ô›‘›]Kìõ‹õX[¬à‹[ãêúö[ô’—úõ€ù
+
+N¬à‹[ãêX›]ò]J
+N¬à‹[ãëõÿ›\ 
+N¬àô]\õé¬àBàBÇà›⁄]⁄
+€€[X[ô
+Bà¬àÿ\ŸHîì—U‘»éà‹[îõŸX› 
+N»úôXZŒ¬àÿ\ŸHê”QSïT»éà‹[ê›\›€Y\ú 
+N»úôXZŒ¬àÿ\ŸHëì‘ìëP—Q‘ëT»éà‹[î›\Y\ú 
+N»úôXZŒ¬àÿ\ŸHî—TïíP”‘»éà‹[îŸ\ùöXŸ\ 
+N»úôXZŒ¬àÿ\ŸHì‘ëSî◊‘—TïíP”»éà‹[ì‹ô\ú 
+N»úôXZŒ¬àÿ\ŸHì‘ê–SQSï‘»éà‹[î][›\ 
+N»úôXZŒ¬àÿ\ŸHëìV◊––RVHéÇàYà
+]]í\”X[òYŸ\äH‹[ëö[ò[òŸJ
+N¬à[ŸH[ôõ îŸ]H∞Î]ô[HXŸ\‹€»∞Ë€»\õZ]HXúö\à»õ^»HÿZ^KàäN¬àúôXZŒ¬àÿ\ŸHíT’‘íP”◊’ëSëT»éà‹[í\›‹ûJ
+N»úôXZŒ¬àÿ\ŸHïSW’ëSëT»éà‹[îÿ[\ 
+N»úôXZŒ¬àÿ\ŸHîëSU‘íS‘»éà‹[îô\‹ù 
+N»úôXZŒ¬àÿ\ŸHïT’PTíS‘»éÇàYà
+]]í\–YZ[äH‹[ï\Ÿ\ú 
+N¬à[ŸH[ôõ î€€Y[ùHYZ[ö\›òY‹ô\»Ÿ[HXúö\à\›pË\ö[‹ÀàäN¬àúôXZŒ¬àÿ\ŸHê””ëíQ’TêP”—T»éà‹[îŸ][ô‹ 
+N»úôXZŒ¬àÿ\ŸHê–QT’ì‘»éà‹[êÿY\›õ–Ÿ[ùò[
+
+N»úôXZŒ¬àÿ\ŸHêRïQW––QT’ì»éà⁄›–ÿY\›õ“[
+
+N»úôXZŒ¬àBàBÇàö]ò]Hõ‹õO»ö\ú›XÿŸ\‹’]‹öX[¬Çàö]ò]Hõ⁄Y‹[ëö\ú›XÿŸ\‹’]‹öX[
+õ€€]]€X]X»Hò[ŸJBà¬àÀ»åLåLÃà›ZXH]\ò[Hö[YZ\õ»XŸ\‹€Àà0‚H[Ÿ[\‹Œà»à€€ù[ùXH€XË]ô[ÇàÀ»ôX⁄\à[ù\»»ö[H∞Ë€»€€ò€ZH»]‹öX[à»õ›0Ë€»HõŸ]‹»Ï»Xô\òH[»ö[H»∞ÎY[ÀÇàYà
+]]€X]X»	âàŸ]Ÿ][ô ôö\ú›ÿXÿŸ\‹◊›]‹öX[ÿ€€\]YãåäHOHåHäHô]\õé¬àYà
+ö\ú›XÿŸ\‹’]‹öX[OHù[	âàYö\ú›XÿŸ\‹’]‹öX[í\—\‹‹ŸY
+Bà¬àö\ú›XÿŸ\‹’]‹öX[êX›]ò]J
+N¬àô]\õé¬àBÇàò\àöY[‘]H]ê€€Xö[ôJ\€€ù^êò\ŸQ\ôX›‹ûKê\‹Ÿ]»ãù]‹öX[‹ö[YZ\õ◊ÿXŸ\‹€Àõ\äN¬àYà
+Qö[Kë^\› öY[‘]
+JBà¬àYà
+X]]€X]X HY\‹ÿYŸPõﬁî⁄› ï∞ÎY[»»]‹öX[∞Ë€»[ò€€ùòYÀàãï]‹öX[Hö[YZ\õ»XŸ\‹€»äN¬àô]\õé¬àBÇàò\ààHô]»õ‹õBà¬à^HìPSSëì»8†(à]‹öX[Hö[YZ\õ»XŸ\‹€»ãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãìX[ùX[à⁄YHLåàZY⁄HÃàZ[ö[][T⁄^ôHHô]»⁄^ôJÃMå
+Kàõ‹õPõ‹ô\î›[HHõ‹õPõ‹ô\î›[Kî⁄^òXõU€€⁄[ô›ÀàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäÀNÕäKà‹[‹›HùYKà⁄›“[ï\⁄ÿò\àHò[ŸKàõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+BàN¬àö\ú›XÿŸ\‹’]‹öX[Hé¬Çàò\àõ€›Hô]»XõS^[›][ô[»ÿ⁄»Hÿ⁄‘›[Këö[õ›–€›[ùH€€[[ê€›[ùHKY[ô»Hô]»Y[ô M
+KòX⁄–€€‹àHãêòX⁄–€€‹àN¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KÃäJN¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùL
+JN¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KN
+JN¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KL
+JN¬àãê€€ùõ€ÀêY
+õ€›
+N¬Çàõ€›ê€€ùõ€ÀêY
+ô]»Xô[à¬à^Hê””íp·–H—UHPSSëì»óê\‹⁄\›K]\ŸHHòpÈÿHÿYH]\Hõ»⁄\›[XKàãàÿ⁄»Hÿ⁄‘›[Këö[àõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLãõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàK
+N¬Çàò\àŸXàHô]»ŸXïöY]Ãà»ÿ⁄»Hÿ⁄‘›[Këö[òX⁄–€€‹àH€€‹ãêõX⁄»N¬àõ€›ê€€ùõ€ÀêY
+ŸXãJN¬Çàò\àX›[€àHô]»ù]€Çà¬à^H∏•≠àTìRSëH»∞„QS»TêHPëTêTàT’HUTHãàÿ⁄»Hÿ⁄‘›[Këö[à[òXõYHò[ŸKàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäÃLLäKàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLçYãõ€ù›[Kêõ€
+BàN¬àX›[€ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬àõ€›ê€€ùõ€ÀêY
+X›[€ãäN¬Çàõ€›ê€€ùõ€ÀêY
+ô]»Xô[à¬à^HëôX⁄›HŸ[H]Y\ô\è»RïQH8°§à]‹öX[Hö[YZ\õ»XŸ\‹€»ãàÿ⁄»Hÿ⁄‘›[Këö[àõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäLåååÕJKà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ãàõ€ùHô]»õ€ù
+îŸY€ŸHRHãKõ€ù›[Kêõ€
+BàK N¬ÇàX›[€ãê€X⁄»
+œH
+À HOÇà¬àŸ]Ÿ][ô ôö\ú›ÿXÿŸ\‹◊›]‹öX[ÿ€€\]YãåHäN¬àãê€‹ŸJ
+N¬à‹[îõŸX› 
+N¬àN¬Çàãëõ‹õP€‹ŸY
+œH
+À HOàö\ú›XÿŸ\‹’]‹öX[Hù[¬Çàõ⁄YXŸP]öY⁄
+
+Bà¬àò\à\ôXHHÿ‹ôY[ãëúõ€P€€ùõ€
+\ Kï€‹ö⁄[ô–\ôXN¬àãíZY⁄HX]ìZ[äÃåX]ìX^
+Må\ôXKíZY⁄H
+JN¬àãìYùH\ôXKîöY⁄Hãï⁄YHN¬àãï‹H\ôXKï‹
+»X]ìX^
+N
+\ôXKíZY⁄HãíZY⁄
+H»äN¬àBàXŸP]öY⁄
+
+N¬àãî⁄›€à
+œH\ﬁ[ò»
+À HOÇà¬àûBà¬à]ÿZ]ŸXãë[ú›\ôP€‹ôUŸXïöY]Ãê\ﬁ[ò 
+N¬àŸXãê€‹ôUŸXïöY]ÃãîŸ][ô‹Àê\ôQYò][€€ù^Y[ù\—[òXõYHò[ŸN¬àŸXãê€‹ôUŸXïöY]ÃãîŸ][ô‹Àê\ôQ]ï€€—[òXõYHò[ŸN¬àŸXãê€‹ôUŸXïöY]ÃãïŸXìY\‹ÿYŸTôXŸZ]ôY
+œH
+ÀJHOÇà¬àYà
+KïûQŸ]ŸXìY\‹ÿYŸP\‘›ö[ô 
+HOHùöY[ÀY[ôYäBà¬àX›[€ãë[òXõYHùYN¬àX›[€ãï^Hê–QT’êTàQUHíSQRTì»ì—U»é¬àX›[€ãêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMåÀåç
+N¬àBàN¬àŸXãê€‹ôUŸXïöY]ÃãîŸ]ö\ùX[‹›ò[YU—õ€\ìX\[ô ò\\‹Ÿ]Àõÿÿ[ã]ê€€Xö[ôJ\€€ù^êò\ŸQ\ôX›‹ûKê\‹Ÿ]»äK€‹ôUŸXïöY]Ãí‹›ô\€›\òŸPXÿŸ\‹“⁄[ôê[› N¬àò\à\öHHöŒãÀÿ\\‹Ÿ]Àõÿÿ[›]‹öX[‹ö[YZ\õ◊ÿXŸ\‹€Àõ\é¬àò\à[H	èYÿ›\H[è[èõŸH›[OI€X\ô⁄[éåÿòX⁄Ÿ‹õ›[ôàÃåLMéŸ\‹^Nôõ^⁄ZY⁄åLöÿ[Y€ãZ][\ŒòŸ[ù\é⁄ù\›YûKX€€ù[ùòŸ[ù\é€›ô\ôõ›ŒöY[âœèöY[»YI›â»€€ùõ€»]]‹^H›[OI›⁄YåL	N⁄ZY⁄åL	N€ÿöôX›Yö]ò€€ùZ[éÿòX⁄Ÿ‹õ›[ôòõX⁄…œè€›\òŸH‹òœIﬁ›\ö_I»\OI›öY[À€\	œè›öY[œèÿ‹ö\ôÿ›[Y[ùôŸ][[Y[ùûRY
+	›â KòY]ô[ù\›[ô\ä	Ÿ[ôY	À
+
+OOò⁄õ€YKùŸXùöY]Àú‹›Y\‹ÿYŸJ	›öY[ÀY[ôY	 JNœ‹ÿ‹ö\èÿõŸOè⁄[àé¬àŸXãìò]öYÿ]U‘›ö[ô [
+N¬àBàÿ]⁄
+^Ÿ\[€à^
+Bà¬àY\‹ÿYŸPõﬁî⁄› ì∞Ë€»õ⁄H‹‹Î]ô[[öX⁄X\à»∞ÎY[»»]‹öX[óóàà
+»^ìY\‹ÿYŸKï]‹öX[äN¬àBàN¬àãî⁄› \ N¬àBÇÇàö]ò]H›]X»›ö[ô»Ÿ]Ÿ][ô ›ö[ô»Ÿ^K›ö[ô»ò[òX⁄»HàäBà¬àûBà¬à\⁄[ô»ò\à€àH]Xò\ŸKì‹[ä
+N¬à\⁄[ô»ò\à€YH€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^Hî—SP’ò[YHîì”HŸ][ô‹»“TëHŸ^OI»é¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâ»ãŸ^JN¬àô]\õà€€ùô\ùï‘›ö[ô €Yë^X›]Tÿÿ[\ä
+JHœ»ò[òX⁄Œ¬àBàÿ]⁄à¬àô]\õàò[òX⁄Œ¬àBàBÇàö]ò]H›]X»õ⁄YŸ]Ÿ][ô ›ö[ô»Ÿ^K›ö[ô»ò[YJBà¬à\⁄[ô»ò\à€àH]Xò\ŸKì‹[ä
+N¬à\⁄[ô»ò\à€YH€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^HààÇàSî—TïSï»Ÿ][ô‹ Ÿ^Kò[YJHêSQT 	À	äBà”à””ëìP’
+Ÿ^JH»TUH—Uò[YOY^€YYùò[YBàààé¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâ»ãŸ^JN¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâàãò[YHœ»àäN¬à€Yë^X›]Sõ€î]Y\ûJ
+N¬àBÇàö]ò]Hõ€€⁄›–€€\[ûTôY⁄\›ò][€äõ€€ö\ú›ù[äBà¬à\⁄[ô»ò\ààHô]»õ‹õBà¬à^Hö\ú›ù[à»êÿY\›õ»[öX⁄X[H[\ô\ÿHààëY‹»H[\ô\ÿHãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ùà⁄YHŒàZY⁄HÕåàZ[ö[][T⁄^ôHHô]»⁄^ôJÕåÃå
+Kàõ‹õPõ‹ô\î›[HHõ‹õPõ‹ô\î›[Këö^YX[ŸÀàX^[Z^ôPõﬁHò[ŸKàZ[ö[Z^ôPõﬁHò[ŸKàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+KàŸ^Tô]öY]»HùYBàN¬Çàò\àYŸHHô]»XõS^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[à€€[[ê€›[ùHKàõ›–€›[ùHÀàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+KàY[ô»Hô]»Y[ô 
+BàN¬àYŸKîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KäJN¬àYŸKîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùL
+JN¬àYŸKîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KÃäJN¬àãê€€ùõ€ÀêY
+YŸJN¬Çàò\àXY\àHô]»[ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[àòX⁄–€€‹àH\ö–õYKàX\ô⁄[àHô]»Y[ô 
+BàN¬àXY\ãê€€ùõ€ÀêY
+ô]»Xô[à¬à^Hö\ú›ù[à»ê–QT’ì»HSTëT–HààëQUTàQ‘»HSTëT–Hãàÿ⁄»Hÿ⁄‘›[Këö[àõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãåõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàJN¬àYŸKê€€ùõ€ÀêY
+XY\ã
+N¬Çàò\àõŸHHô]»XõS^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[à€€[[ê€›[ùHKàõ›–€›[ùHMàY[ô»Hô]»Y[ô ÕNÕLäKàX\ô⁄[àHô]»Y[ô 
+KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+BàN¬ÇàXô[
+›ö[ô»^
+HOàô] 
+Bà¬à^H^àÿ⁄»Hÿ⁄‘›[Këö[àõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäMKM
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLçYãõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùêõ›€SYùàX\ô⁄[àHô]»Y[ô 
+BàN¬Çà^õﬁ
+›ö[ô»ò[YHHàäHOàô] 
+Bà¬à^Hò[YKàÿ⁄»Hÿ⁄‘›[Këö[àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLãõ€ù›[Kêõ€
+KàòX⁄–€€‹àH€€‹ãï⁄]Kàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäŒé
+Kàõ‹ô\î›[HHõ‹ô\î›[Këö^Y⁄[ô€KàX\ô⁄[àHô]»Y[ô ã BàN¬Çàò\à€€\[ûSò[YHH
+Ÿ]Ÿ][ô ò€€\[ûW€ò[YHäJN¬àò\àòYSò[YHH
+Ÿ]Ÿ][ô ò€€\[ûW›òYW€ò[YHäJN¬àò\àÿ›[Y[ùH
+Ÿ]Ÿ][ô ò€€\[ûWŸÿ›[Y[ùäJN¬àò\à€ôHH
+Ÿ]Ÿ][ô ò€€\[ûW‹€ôHäJN¬àò\àYô\‹»H
+Ÿ]Ÿ][ô ò€€\[ûWÿYô\‹»äJN¬àò\à⁄]T›]HH
+Ÿ]Ÿ][ô ò€€\[ûWÿ⁄]W‹›]HäJN¬àò\àõ€›\àH
+Ÿ]Ÿ][ô ò€€\[ûWŸõ€›\àãìÿúöYÿY»[HôYô\∞Íõò⁄XHHäJN¬Çàò\àöY[»Hô]»
+›ö[ôÀ^õﬁ
+V◊Bà¬à
+îò^∞Ë€»€ÿ⁄X[»õ€YHH[\ô\ÿHã€€\[ûSò[YJKà
+ìõ€YHò[ù\⁄XHãòYSò[YJKà
+ê”îà»‘àãÿ›[Y[ù
+Kà
+ï[Yõ€ôH»⁄]–\ã€ôJKà
+ë[ô\ôpÈ€»ãYô\‹ Kà
+ê⁄YYH»Qàã⁄]T›]JKà
+ìY[úÿYŸ[Hõ»õŸ\0ÍH»›\€Hãõ€›\äBàN¬Çà[ùõ›»H¬àõ‹ôXX⁄
+ò\à][H[àöY[ Bà¬àõŸKîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùÀåMéMŸäJN¬àõŸKê€€ùõ€ÀêY
+
+][Kí][LJKõ›   N¬àõŸKîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùÀåMéMŸäJN¬àõŸKê€€ùõ€ÀêY
+][Kí][Lãõ›   N¬àBàYŸKê€€ùõ€ÀêY
+õŸKJN¬Çàò\àX›[€ú»Hô]»õ›”^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[àõ›—\ôX›[€àHõ›—\ôX›[€ãîöY⁄”YùàY[ô»Hô]»Y[ô éLãéL
+KàX\ô⁄[àHô]»Y[ô 
+KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+BàN¬Çàò\àÿ]ôHHô]»ù]€Çà¬à^Hî–SêTàãà⁄YHMLàZY⁄HàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMåÀåç
+Kàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+BàN¬àÿ]ôKëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬Çàò\àÿ[òŸ[Hô]»ù]€Çà¬à^Hö\ú›ù[à»ëëP“Tàì—‘êSPHààê–Sê—STàãà⁄YHMåàZY⁄HàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMKLMJKàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+BàN¬àÿ[òŸ[ëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬ÇàX›[€úÀê€€ùõ€ÀêY
+ÿ]ôJN¬àX›[€úÀê€€ùõ€ÀêY
+ÿ[òŸ[
+N¬àYŸKê€€ùõ€ÀêY
+X›[€úÀäN¬Çàÿ]ôKê€X⁄»
+œH
+À HOÇà¬àYà
+›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ€€\[ûSò[YKï^
+JBà¬àY\‹ÿYŸPõﬁî⁄› àí[ôõ‹õYH»õ€YHH[\ô\ÿKàãàìPSSëì»àãàY\‹ÿYŸPõﬁù]€úÀì“ÀàY\‹ÿYŸPõﬁX€€ãí[ôõ‹õX][€äN¬à€€\[ûSò[YKëõÿ›\ 
+N¬àô]\õé¬àBÇàŸ]Ÿ][ô ò€€\[ûW€ò[YHã€€\[ûSò[YKï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûW›òYW€ò[YHãòYSò[YKï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûWŸÿ›[Y[ùãÿ›[Y[ùï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûW‹€ôHã€ôKï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûWÿYô\‹»ãYô\‹Àï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûWÿ⁄]W‹›]Hã⁄]T›]Kï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûWŸõ€›\àãõ€›\ãï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûW‹ôY⁄\›\ôYãåHäN¬ÇàãëX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ì“Œ¬àãê€‹ŸJ
+N¬àN¬Çàÿ[òŸ[ê€X⁄»
+œH
+À HOÇà¬àãëX[Ÿ‘ô\›[HX[Ÿ‘ô\›[êÿ[òŸ[¬àãê€‹ŸJ
+N¬àN¬Çà\Qõÿ][ô’[YJäN¬àãêXÿŸ\ù]€àHÿ]ôN¬àãêÿ[òŸ[ù]€àHÿ[òŸ[¬Çàô]\õàãî⁄›—X[Ÿ \ HOHX[Ÿ‘ô\›[ì“Œ¬àBÇàö]ò]HŸX[Y€\‹»X[Y[ùP€€‹ú»àõŸô\‹⁄[€ò[€€‹ïXõBà¬àXõX»›ô\úöYH€€‹àY[ùR][TŸ[X›YOà€€‹ãëúõ€P\ôÿäLNMŒ
+N¬àXõX»›ô\úöYH€€‹àY[ùR][Põ‹ô\àOà€€‹ãëúõ€P\ôÿäçKåKçMJN¬àXõX»›ô\úöYH€€‹àY[ùR][TŸ[X›Y‹òYY[ùôY⁄[àOà€€‹ãëúõ€P\ôÿäLNMŒ
+N¬àXõX»›ô\úöYH€€‹àY[ùR][TŸ[X›Y‹òYY[ù[ôOà€€‹ãëúõ€P\ôÿäLNMŒ
+N¬àXõX»›ô\úöYH€€‹àY[ùR][Tô\‹ŸY‹òYY[ùôY⁄[àOà€€‹ãëúõ€P\ôÿäMKML
+N¬àXõX»›ô\úöYH€€‹àY[ùR][Tô\‹ŸY‹òYY[ùZYHOà€€‹ãëúõ€P\ôÿäLKMçJN¬àXõX»›ô\úöYH€€‹àY[ùR][Tô\‹ŸY‹òYY[ù[ôOà€€‹ãëúõ€P\ôÿäMKML
+N¬àXõX»›ô\úöYH€€‹à€€›ö\õ‹›€êòX⁄Ÿ‹õ›[ôOà€€‹ãï⁄]N¬àXõX»›ô\úöYH€€‹à[XYŸSX\ô⁄[ë‹òYY[ùôY⁄[àOà€€‹ãï⁄]N¬àXõX»›ô\úöYH€€‹à[XYŸSX\ô⁄[ë‹òYY[ùZYHOà€€‹ãï⁄]N¬àXõX»›ô\úöYH€€‹à[XYŸSX\ô⁄[ë‹òYY[ù[ôOà€€‹ãï⁄]N¬àBÇàö]ò]Hõ⁄YùZ[ZJ
+Bà¬àò\àY[ùHHô]»Y[ùT›ö\à¬àòX⁄–€€‹àHõYKàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+Kàô[ô\ô\àHô]»€€›ö\õŸô\‹⁄[€ò[ô[ô\ô\äô]»X[Y[ùP€€‹ú 
+JBàN¬àõ‹ôXX⁄
+ò\à]H[àô]÷◊H»êÿY\›õ»ãê€€ú›[Hãì[›ö[Y[ùpÈË€»ãëö[ò[òŸZ\õ»ãï[HHô[ô\»ãï][]0Ë\ö[‹»ãîô[]0Ï‹ö[‹»ãêZùYHãîÿZ\ààJBà¬àò\à][HHô]»€€›ö\Y[ùR][J]JBà¬àõ‹ôP€€‹àH€€‹ãï⁄]KàòX⁄–€€‹àHõYBàN¬à][Këõ‹›€ì‹[ö[ô»
+œH
+À HOÇà¬à][Këõ‹ôP€€‹àH€€‹ãï⁄]N¬à][KêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMKML
+N¬à][Kí[ùò[Y]J
+N¬àN¬à][Këõ‹›€ê€‹ŸY
+œH
+À HOÇà¬à][Këõ‹ôP€€‹àH€€‹ãï⁄]N¬à][KêòX⁄–€€‹àHõYN¬à][Kí[ùò[Y]J
+N¬àN¬Çàõ⁄YYY[ùJ›ö[ô»^X›[€àX›[€äBà¬àò\à›XàHô]»€€›ö\Y[ùR][J^
+Bà¬à]]‘⁄^ôHHò[ŸKà⁄YHçKàZY⁄HÕàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäMKM
+BàN¬à›Xãê€X⁄»
+œH
+À HOàX›[€ä
+N¬à][Këõ‹›€í][\ÀêY
+›XäN¬àBÇàYà
+]HOHêÿY\›õ»äBà¬àYY[ùJîõŸ]‹»ã‹[îõŸX› N¬àYY[ùJê€Y[ù\»ã‹[ê›\›€Y\ú N¬àYY[ùJëõ‹õôXŸY‹ô\»ã‹[î›\Y\ú N¬àYY[ùJîŸ\ùöpÈ€‹»ã‹[îŸ\ùöXŸ\ N¬àBà[ŸHYà
+]HOHê€€ú›[HäBà¬àYY[ùJîõŸ]‹»ã‹[îõŸX› N¬àYY[ùJê€Y[ù\»ã‹[ê›\›€Y\ú N¬àYY[ùJí\›0Ï‹öX€»Hô[ô\»ã‹[í\›‹ûJN¬àYY[ùJì‹ô[ú»»‘»ã‹[ì‹ô\ú N¬àYY[ùJì‹∞Èÿ[Y[ù‹»ã‹[î][›\ N¬àBà[ŸHYà
+]HOHì[›ö[Y[ùpÈË€»äBà¬àYY[ùJï[HHô[ô\»ã‹[îÿ[\ N¬àYY[ùJí\›0Ï‹öX€»Hô[ô\»ã‹[í\›‹ûJN¬àYY[ùJì‹ô[ú»»‘»ã‹[ì‹ô\ú N¬àBà[ŸHYà
+]HOHëö[ò[òŸZ\õ»äBà¬àYY[ùJëõ^»HÿZ^Hã
+
+HOà»Yà
+]]í\”X[òYŸ\äH‹[ëö[ò[òŸJ
+N»[ŸHY\‹ÿYŸPõﬁî⁄› îŸ]H∞Î]ô[HXŸ\‹€»∞Ë€»\õZ]HXúö\à»ö[ò[òŸZ\õÀàäN»JN¬àBà[ŸHYà
+]HOHï[HHô[ô\»äBà¬àYY[ùJêXúö\à[HHô[ô\»ã‹[îÿ[\ N¬àBà[ŸHYà
+]HOHï][]0Ë\ö[‹»äBà¬àYY[ùJëò^ô\àòX⁄›\ã
+
+HOà»HòX⁄›\\ﬁ[ò 
+JN¬àYY[ùJîô\›]\ò\àòX⁄›\ã
+
+HOà»Hô\›‹ôPòX⁄›\\ﬁ[ò 
+JN¬àYY[ùJê€€ôöY›\òpÈÌY\»ã‹[îŸ][ô‹ N¬àBà[ŸHYà
+]HOHîô[]0Ï‹ö[‹»äBà¬àYY[ùJêXúö\àô[]0Ï‹ö[‹»ã
+
+HOà»Yà
+]]í\”X[òYŸ\äH‹[îô\‹ù 
+N»[ŸHY\‹ÿYŸPõﬁî⁄› îŸ]H∞Î]ô[HXŸ\‹€»∞Ë€»\õZ]HXúö\àô[]0Ï‹ö[‹ÀàäN»JN¬àBà[ŸHYà
+]HOHêZùYHäBà¬àYY[ùJê€€öpÈÿH»Y[ùHÿY\›õ»ã⁄›–ÿY\›õ“[
+N¬àYY[ùJï]‹öX[Hö[YZ\õ»XŸ\‹€»ã
+
+HOà‹[ëö\ú›XÿŸ\‹’]‹öX[
+ò[ŸJJN¬àYY[ùJê][‹»»àã
+
+HOàY\‹ÿYŸPõﬁî⁄› ëåàö[ò[^ò\àô[ôWëçHÏŸY€»»õŸ]◊ëç»ô[[›ô\à][WëT–»ôX⁄\àò[ô[Hãê][‹»»PSSëì»àäJN¬àYY[ùJê]X[^òpÈÌY\»»⁄\›[XHã
+
+HOà\]SX[òYŸ\ãî⁄›’\]PŸ[ù\ä\ JN¬àYY[ùJî€ÿúôH»⁄\›[XHã
+
+HOàY\‹ÿYŸPõﬁî⁄› 	ìPSSëì»àì◊ïô\úË€»û’\]SX[òYŸ\ãê›\úô[ùô\ú⁄[€üWïX€õ€Ÿ⁄XH]YH€€ôX›Kàãî€ÿúôHäJN¬àBà[ŸHYà
+]HOHîÿZ\àäBà¬àYY[ùJîÿZ\à»⁄\›[XHã€€ôö\õQ^]
+N¬àBÇàY[ùKí][\ÀêY
+][JN¬àBà€€ùõ€ÀêY
+Y[ùJN¬Çàò\àò\àHô]»õ›”^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Kï‹àZY⁄HLLãàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMKM
+KàY[ô»Hô]»Y[ô ÀÀÀäKà‹ò\€€ù[ù»Hò[ŸKà]]‘ÿ‹õ€Hò[ŸBàN¬à€€ùõ€ÀêY
+ò\äN¬àò\ãêúö[ô’—úõ€ù
+
+N¬ÇàY€€
+ò\ãîì—U‘»ãúõŸX›Àúô»ã‹[îõŸX› N¬àY€€
+ò\ãê”QSïT»ãò›\›€Y\úÀúô»ã‹[ê›\›€Y\ú N¬àY€€
+ò\ãëì‘ìëP—Q‘ëT»ãú›\Y\úÀúô»ã‹[î›\Y\ú N¬àY€€
+ò\ãî—Tïíp·”‘»ãúŸ\ùöXŸ\Àúô»ã‹[îŸ\ùöXŸ\ N¬àY€€
+ò\ãíT’0‰‘íP”◊ïëSëT»ãö\›‹ûKúô»ã‹[í\›‹ûJN¬àY€€
+ò\ãëìV»Wê–RVHãôö[ò[òŸKúô»ã‹[ëö[ò[òŸJN¬àY€€
+ò\ãì‘ëSî»◊ì‘»ãõ‹ô\úÀúô»ã‹[ì‹ô\ú N¬àY€€
+ò\ãì‘∞·–SQSï‘»ãú][›\Àúô»ã‹[î][›\ N¬àY€€
+ò\ãïSHWïëSëT»ãúÿ[\Àúô»ã‹[îÿ[\ N¬àY€€
+ò\ãîëSU0‰‘íS‘»ãúô\‹ùÀúô»ã‹[îô\‹ù N¬àY€€
+ò\ãëêVëTóêêP“’TãòòX⁄›\úô»ã
+
+HOà»HòX⁄›\\ﬁ[ò 
+JN¬àY€€
+ò\ãîëT’UTêTóêêP“’TãòòX⁄›\úô»ã
+
+HOà»Hô\›‹ôPòX⁄›\\ﬁ[ò 
+JN¬àY€€
+ò\ãê””ëíQ’Têp·ÂQT»ãúŸ][ô‹Àúô»ã‹[îŸ][ô‹ N¬àY€€
+ò\ãî–RTàãô^]úô»ã€€ôö\õQ^]
+N¬ÇàÀ»\›öXùZHŸ‹»‹»][‹»[H\ô›\òH\‹€∞Î]ô[ÇàÀ»\‹⁄[H∞Ë€»^\›Hò\úòHHõ€YŸ[H‹ö^õ€ù[[ô\[ô[ù[Y[ùBàÀ»Hô\€€pÈË€»H[KÇàõ⁄Yô\⁄^ôT⁄‹ù›]ò\ä
+Bà¬àYà
+ò\ãê€€ùõ€Àê€›[ùOH
+Hô]\õé¬Çà[ù\ÿXõHHX]ìX^
+Nò\ãê€Y[ù⁄^ôKï⁄YHò\ãîY[ôÀí‹ö^õ€ù[H
+N¬à[ùXX⁄HX]ìX^
+\ÿXõH»ò\ãê€€ùõ€Àê€›[ù
+N¬Çàõ‹ôXX⁄
+€€ùõ€⁄‹ù›][àò\ãê€€ùõ€ Bà¬à⁄‹ù›]ï⁄YHX]ìX^
+ãXX⁄H⁄‹ù›]ìX\ô⁄[ãí‹ö^õ€ù[
+N¬ÇàÀ»ôXŸ[ùò[^òH0ÎX€€ôHH^»€€ôõ‹õYHH\ô›\òHôX[»ÿ\ôÇàYà
+⁄‹ù›]ê€€ùõ€Àê€›[ùèHäBà¬àò\àX»H⁄‹ù›]ê€€ùõ€ÀìŸï\OX›\ôPõﬁä
+Këö\ú›‹ëYò][
+
+N¬àò\àÿ\H⁄‹ù›]ê€€ùõ€ÀìŸï\OXô[ä
+Këö\ú›‹ëYò][
+
+N¬àYà
+X»OHù[
+HXÀìYùH
+⁄‹ù›]ï⁄YHXÀï⁄Y
+H»é¬àYà
+ÿ\OHù[
+Bà¬àÿ\ï⁄YH⁄‹ù›]ï⁄Y¬àÿ\ìYùH¬àBàBàBàBÇàò\ãî⁄^ôP⁄[ôŸY
+œH
+À HOàô\⁄^ôT⁄‹ù›]ò\ä
+N¬à⁄›€à
+œH
+À HOàô\⁄^ôT⁄‹ù›]ò\ä
+N¬Çàò\àõŸHHô]»[ô[»ÿ⁄»Hÿ⁄‘›[Këö[òX⁄–€€‹àH€€‹ãï⁄]HN¬à€€ùõ€ÀêY
+õŸJN¬ÇàXZ[îÿ‹ôY[îX›\ôHHô]»X›\ôPõﬁà¬àÿ⁄»Hÿ⁄‘›[Këö[àòX⁄–€€‹àH€€‹ãêõX⁄Àà⁄^ôS[ŸHHX›\ôPõﬁ⁄^ôS[ŸKñõ€€KàX\ô⁄[àHô]»Y[ô 
+KàXî›‹Hò[ŸBàN¬Çàò\à€YR[XYŸHHÿYXZ[îÿ‹ôY[í[XYŸJ
+N¬àYà
+€YR[XYŸHOHù[
+Bà¬àò\àŸ€‘]H]ê€€Xö[ôJ\€€ù^êò\ŸQ\ôX›‹ûKê\‹Ÿ]»ãõŸ€Àúô»äN¬àYà
+ö[Kë^\› Ÿ€‘]
+JBà¬à\⁄[ô»ò\àò[òX⁄»H[XYŸKëúõ€Qö[JŸ€‘]
+N¬à€YR[XYŸHHô]»ö]X\
+ò[òX⁄ N¬àBàBÇàXZ[îÿ‹ôY[îX›\ôKí[XYŸHH€YR[XYŸN¬àõŸKê€€ùõ€ÀêY
+XZ[îÿ‹ôY[îX›\ôJN¬àXZ[îÿ‹ôY[îX›\ôKîŸ[ô–òX⁄ 
+N¬Çàò\à[€ö]‹àHô]»[ô[à¬à⁄YHçÕKàZY⁄HNKàòX⁄–€€‹àHõYKà[ò⁄‹àH[ò⁄‹î›[\Àï‹[ò⁄‹î›[\ÀîöY⁄àN¬àò\à]Hô]»Xô[à¬à^HìS”íU‘àHT’‘UQHãàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+Kà]]‘⁄^ôHHùYKàYùHMãà‹HMBàN¬à›‘›ÿ⁄”Xô[ëõ‹ôP€€‹àH€€‹ãï⁄]N¬à›‘›ÿ⁄”Xô[ëõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+N¬à›‘›ÿ⁄”Xô[ìYùHMé¬à›‘›ÿ⁄”Xô[ï‹HMN¬à›‘›ÿ⁄”Xô[ï⁄YHççN¬à›‘›ÿ⁄”Xô[íZY⁄HLÃ¬à[€ö]‹ãê€€ùõ€ÀêY
+]
+N¬à[€ö]‹ãê€€ùõ€ÀêY
+›‘›ÿ⁄”Xô[
+N¬àÀ»[€ö]‹à[ùY€»ô[[›öY»H[Hö[ò⁄\[ÇàÀ»[€ö]‹à[ùY€»ò[»HXZ\»^XöYÀÇàõŸKîô\⁄^ôH
+œH
+À HOÇà¬à[€ö]‹ãìYùHX]ìX^
+LõŸKê€Y[ù⁄^ôKï⁄YH[€ö]‹ãï⁄YHå
+N¬à[€ö]‹ãï‹HN¬àN¬Çà›]\ÀêòX⁄–€€‹àHõYN¬à›]\Àëõ‹ôP€€‹àH€€‹ãï⁄]N¬à›]\Àí][\ÀêY
+ô]»€€›ö\›]\”Xô[
+ìPSSëì»””ëP’Q»äJN¬à›]\Àí][\ÀêY
+ô]»€€›ö\›]\”Xô[»‹ö[ô»HùYK^H	ì‹\òY‹éà–]]ì‹\ò]‹ìò[Y_H8†(à–]]ê›\úô[ùÀîõ€_HàJN¬à›]\Àí][\ÀêY
+ô]»€€›ö\›]\”Xô[
+	ë]Nà—]U[YKìõ›Œô”SKﬁ^^^_HäJN¬à›]\Àí][\ÀêY
+ô]»€€›ö\›]\”Xô[
+	îŸ\öX[à—]Xò\ŸKë]öXŸTŸ\öX[
+
+_HäJN¬à›]\Àí][\ÀêY
+ô]»€€›ö\›]\”Xô[
+	ïû’\]SX[òYŸ\ãê›\úô[ùô\ú⁄[€üHäJN¬à€€ùõ€ÀêY
+›]\ N¬Çà‹ôX]TòY[–€€ùõ€ 
+N¬àBÇàö]ò]H€€ú››ö[ô»Yò][òY[‘›ôX[HHöŒãÀ›››Àú€›[ô[^ò€€KŸ^[\\À€\À‘€›[ô[^T€€ôÀLKõ\»é¬Çàö]ò]Hõ⁄Y‹ôX]TòY[–€€ùõ€ 
+Bà¬àòY[‘^Y\àHô]»ŸXïöY]Ãà»⁄^ôHHô]»⁄^ôJKJKö\⁄XõHHò[ŸKXî›‹Hò[ŸHN¬à€€ùõ€ÀêY
+òY[‘^Y\äN¬ÇàòY[–€€ùõ€ù]€àHô]»ù]€Çà¬àò[YHHòùê€€ùõ€TòY[»ãà^H∏¶j»pÊî“P–Hãà⁄^ôHHô]»⁄^ôJMãäKà[ò⁄‹àH[ò⁄‹î›[\Àêõ›€H[ò⁄‹î›[\ÀîöY⁄àòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäÃLLäKàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+Kà›\ú€‹àH›\ú€‹úÀí[ôàN¬àòY[–€€ùõ€ù]€ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHHN¬àòY[–€€ùõ€ù]€ãëõ]\X\ò[òŸKêõ‹ô\ê€€‹àH€€‹ãëúõ€P\ôÿäåçMJN¬àòY[–€€ùõ€ù]€ãê€X⁄»
+œH\ﬁ[ò»
+À HOÇà¬àYà
+òY[—\⁄\ôY^Z[ô H]ÿZ]›‹òY[–\ﬁ[ò 
+N¬à[ŸH]ÿZ]›\ùòY[–\ﬁ[ò 
+N¬àN¬à€€ùõ€ÀêY
+òY[–€€ùõ€ù]€äN¬Çàõ⁄Y‹⁄][€îòY[–ù]€ä
+Bà¬àYà
+òY[–€€ùõ€ù]€àOHù[
+Hô]\õé¬àòY[–€€ùõ€ù]€ãìYùHX]ìX^
+Lã€Y[ù⁄^ôKï⁄YHòY[–€€ùõ€ù]€ãï⁄YHåäN¬àòY[–€€ùõ€ù]€ãï‹HX]ìX^
+Lå€Y[ù⁄^ôKíZY⁄HòY[–€€ùõ€ù]€ãíZY⁄H›]\ÀíZY⁄Hç
+N¬àòY[–€€ùõ€ù]€ãêúö[ô’—úõ€ù
+
+N¬àBàô\⁄^ôH
+œH
+À HOà‹⁄][€îòY[–ù]€ä
+N¬à⁄›€à
+œH
+À HOà‹⁄][€îòY[–ù]€ä
+N¬à‹⁄][€îòY[–ù]€ä
+N¬àBÇàö]ò]H\ﬁ[ò»\⁄»[ú›\ôTòY[“[ö]X[^ôY\ﬁ[ò 
+Bà¬àYà
+òY[‘^Y\àOHù[òY[“[ö]X[^ôY
+Hô]\õé¬à]ÿZ]òY[‘^Y\ãë[ú›\ôP€‹ôUŸXïöY]Ãê\ﬁ[ò 
+N¬àòY[‘^Y\ãê€‹ôUŸXïöY]ÃãîŸ][ô‹Àê\ôQYò][€€ù^Y[ù\—[òXõYHò[ŸN¬àòY[‘^Y\ãê€‹ôUŸXïöY]ÃãîŸ][ô‹Àê\ôQ]ï€€—[òXõYHò[ŸN¬àòY[‘^Y\ãìò]öYÿ]U‘›ö[ô èYÿ›\H[è[èõŸOè]Y[»YI‹òY[…»€‹ô[ÿYIÿ]]…œèÿ]Y[œèÿõŸOè⁄[àäN¬àòY[“[ö]X[^ôYHùYN¬à]ÿZ]\⁄Àë[^JML
+N¬àBÇàö]ò]H\ﬁ[ò»\⁄»^X›]TòY[‘ÿ‹ö\\ﬁ[ò ›ö[ô»ÿ‹ö\
+Bà¬àYà
+[ùõ⁄ŸTô\]Z\ôY
+Bà¬à]ÿZ]
+\⁄ R[ùõ⁄ŸJô]»ù[òœ\⁄œä
+
+HOà^X›]TòY[‘ÿ‹ö\\ﬁ[ò ÿ‹ö\
+JJN¬àô]\õé¬àBà]ÿZ][ú›\ôTòY[“[ö]X[^ôY\ﬁ[ò 
+N¬àYà
+òY[‘^Y\èÀê€‹ôUŸXïöY]ÃàOHù[
+H]ÿZ]òY[‘^Y\ãë^X›]Tÿ‹ö\\ﬁ[ò ÿ‹ö\
+N¬àBÇàö]ò]H\ﬁ[ò»\⁄»›\ùòY[–\ﬁ[ò 
+Bà¬àûBà¬àòY[—\⁄\ôY^Z[ô»HùYN¬àòY[‘]\ŸYûSXHHò[ŸN¬àò\à\õHŸ]Ÿ][ô úòY[◊‹›ôX[W›\õãYò][òY[‘›ôX[JKïö[J
+N¬àYà
+›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ\õ
+JH\õHYò][òY[‘›ôX[N¬àò\à[ò€ŸY\õHú€€îŸ\öX[^ô\ãîŸ\öX[^ôJ\õ
+N¬à]ÿZ]^X›]TòY[‘ÿ‹ö\\ﬁ[ò 	ò€€ú›OYÿ›[Y[ùôŸ][[Y[ùûRY
+	‹òY[… N»YäKú‹ò»OO^Ÿ[ò€ŸY\õJHKú‹òœ^Ÿ[ò€ŸY\õN»Kú^J
+N»äN¬à\]TòY[–ù]€ä
+N¬àBàÿ]⁄
+^Ÿ\[€à^
+Bà¬àòY[—\⁄\ôY^Z[ô»Hò[ŸN¬à\]TòY[–ù]€ä
+N¬àY\‹ÿYŸPõﬁî⁄› \Àì∞Ë€»õ⁄H‹‹Î]ô[[öX⁄X\àHpÓú⁄XÿKà€€ôö\òHH[ù\õô]HHTìH∞ËY[»[H€€ôöY›\òpÈÌY\Àóóàà
+»^ìY\‹ÿYŸKàî∞ËY[»H⁄òHãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãïÿ\õö[ô N¬àBàBÇàö]ò]H\ﬁ[ò»\⁄»›‹òY[–\ﬁ[ò 
+Bà¬àòY[—\⁄\ôY^Z[ô»Hò[ŸN¬àòY[‘]\ŸYûSXHHò[ŸN¬àûH»]ÿZ]^X›]TòY[‘ÿ‹ö\\ﬁ[ò ò€€ú›OYÿ›[Y[ùôŸ][[Y[ùûRY
+	‹òY[… N»Kú]\ŸJ
+N»Kò›\úô[ù[YOL»äN»Hÿ]⁄»Bà\]TòY[–ù]€ä
+N¬àBÇàö]ò]H\ﬁ[ò»\⁄»]\ŸTòY[—õ‹ìXP\ﬁ[ò 
+Bà¬àYà
+\òY[—\⁄\ôY^Z[ô Hô]\õé¬àòY[‘]\ŸYûSXHHùYN¬àûH»]ÿZ]^X›]TòY[‘ÿ‹ö\\ﬁ[ò ôÿ›[Y[ùôŸ][[Y[ùûRY
+	‹òY[… Kú]\ŸJ
+N»äN»Hÿ]⁄»Bà\]TòY[–ù]€ä
+N¬àBÇàö]ò]H\ﬁ[ò»\⁄»ô\›[YTòY[–Yù\ìXP\ﬁ[ò 
+Bà¬àYà
+\òY[—\⁄\ôY^Z[ô Hô]\õé¬àòY[‘]\ŸYûSXHHò[ŸN¬àûH»]ÿZ]^X›]TòY[‘ÿ‹ö\\ﬁ[ò ôÿ›[Y[ùôŸ][[Y[ùûRY
+	‹òY[… Kú^J
+N»äN»Hÿ]⁄»Bà\]TòY[–ù]€ä
+N¬àBÇàö]ò]Hõ⁄Y\]TòY[–ù]€ä
+Bà¬àYà
+òY[–€€ùõ€ù]€àOHù[òY[–€€ùõ€ù]€ãí\—\‹‹ŸY
+Hô]\õé¬àYà
+òY[–€€ùõ€ù]€ãí[ùõ⁄ŸTô\]Z\ôY
+H»òY[–€€ùõ€ù]€ãêôY⁄[í[ùõ⁄ŸJô]»X›[€ä\]TòY[–ù]€äJN»ô]\õé»BàòY[–€€ùõ€ù]€ãï^H\òY[—\⁄\ôY^Z[ô»»∏¶j»pÊî“P–HààòY[‘]\ŸYûSXH»∏¶j»UT–QHàà∏•®T”Q–Tàé¬àòY[–€€ùõ€ù]€ãêòX⁄–€€‹àHòY[—\⁄\ôY^Z[ô»	âà\òY[‘]\ŸYûSXH»€€‹ãëúõ€P\ôÿäLÕKLJHà€€‹ãëúõ€P\ôÿäÃLLäN¬àBÇàö]ò]Hõ⁄Y›\ùòY[–€€ùõ€\›[ô\ä
+HOà»H\›[ëõ‹îòY[–€€[X[ô–\ﬁ[ò òY[”\›[ô\ê›Àï⁄Ÿ[äN¬Çàö]ò]H\ﬁ[ò»\⁄»\›[ëõ‹îòY[–€€[X[ô–\ﬁ[ò ÿ[òŸ[][€ï⁄Ÿ[àÿ[òŸ[][€ï⁄Ÿ[äBà¬à⁄[H
+Xÿ[òŸ[][€ï⁄Ÿ[ãí\–ÿ[òŸ[][€îô\]Y\›Y
+Bà¬àûBà¬à]ÿZ]\⁄[ô»ò\à\HHô]»ò[YY\TŸ\ùô\î›ôX[JìX[[ôõ‘ãîòY[–€€ùõ€ã\Q\ôX›[€ãí[ì›]Kà\Uò[ú€Z\‹⁄[€ì[ŸKêû]K\S‹[€úÀê\ﬁ[ò⁄õ€õ›\ N¬à]ÿZ]\KïÿZ]õ‹ê€€õôX›[€ê\ﬁ[ò ÿ[òŸ[][€ï⁄Ÿ[äN¬à\⁄[ô»ò\àôXY\àHô]»›ôX[TôXY\ä\Kﬁ\›[Kï^ë[ò€Ÿ[ôÀïUéùYKLçùYJN¬à\⁄[ô»ò\à‹ö]\àHô]»›ôX[U‹ö]\ä\Kﬁ\›[Kï^ë[ò€Ÿ[ôÀïUéLçùYJH»]]—õ\⁄HùYHN¬àò\à€€[X[ôH
+]ÿZ]ôXY\ãîôXY[ôP\ﬁ[ò ÿ[òŸ[][€ï⁄Ÿ[äHœ»àäKïö[J
+Kï’\\í[ùò\öX[ù
+
+N¬àYà
+€€[X[ôOHîUT—W—ì‘ó”PHäH]ÿZ]]\ŸTòY[—õ‹ìXP\ﬁ[ò 
+N¬à[ŸHYà
+€€[X[ôOHîëT’SQW–QïTó”PHäH]ÿZ]ô\›[YTòY[–Yù\ìXP\ﬁ[ò 
+N¬à[ŸHYà
+€€[X[ôOHî’‘äH]ÿZ]›‹òY[–\ﬁ[ò 
+N¬à]ÿZ]‹ö]\ãï‹ö]S[ôP\ﬁ[ò òY[—\⁄\ôY^Z[ô»»
+òY[‘]\ŸYûSXH»îUT—QààîVRSë»äHàî’‘QäN¬àBàÿ]⁄
+‹\ò][€êÿ[òŸ[Y^Ÿ\[€äH»úôXZŒ»Bàÿ]⁄»Yà
+Xÿ[òŸ[][€ï⁄Ÿ[ãí\–ÿ[òŸ[][€îô\]Y\›Y
+H]ÿZ]\⁄Àë[^JçLÿ[òŸ[][€ï⁄Ÿ[äN»BàBàBÇàö]ò]Hõ⁄Y⁄›–ÿY\›õ“[
+
+Bà¬àõ⁄Yõ›[ô[
+€€ùõ€À[ùòY]\ Bà¬àõ⁄Y\Tõ›[ô[
+
+Bà¬àYà
+Àï⁄YÀíZY⁄
+Hô]\õé¬Çàò\àôX›Hô]»ôX›[ô€JÀï⁄YHKÀíZY⁄HJN¬à[ùHX]ìX^
+ãòY]\»
+àäN¬àò\à‹Hô]»ﬁ\›[Këò]⁄[ôÀëò]⁄[ôÃëë‹ò\X‹‘]
+
+N¬Çà‹êY\ò ôX›ñôX›ñKNL
+N¬à‹êY\ò ôX›îöY⁄HôX›ñKçÃL
+N¬à‹êY\ò ôX›îöY⁄HôX›êõ›€HHL
+N¬à‹êY\ò ôX›ñôX›êõ›€HHLL
+N¬à‹ê€‹ŸQöY›\ôJ
+N¬ÇàÀîôY⁄[€èÀë\‹‹ŸJ
+N¬àÀîôY⁄[€àHô]»ôY⁄[€ä‹
+N¬à‹ë\‹‹ŸJ
+N¬àBÇàÀí[ôP‹ôX]Y
+œH
+À HOà\Tõ›[ô[
+
+N¬àÀîô\⁄^ôH
+œH
+À HOà\Tõ›[ô[
+
+N¬àYà
+Àí\“[ôP‹ôX]Y
+H\Tõ›[ô[
+
+N¬àBÇà\⁄[ô»ò\ààHô]»õ‹õBà¬à^HêŸ[ùò[HZùYH8†(àÿY\›õ»ãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\îÿ‹ôY[ãà⁄YHLLàZY⁄HÕåàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäÀÃKM
+Kàõ‹õPõ‹ô\î›[HHõ‹õPõ‹ô\î›[Kî⁄^òXõKàX^[Z^ôPõﬁHùYKàZ[ö[Z^ôPõﬁHò[ŸKà]]‘ÿÿ[S[ŸHH]]‘ÿÿ[S[ŸKìõ€ôKàŸ^Tô]öY]»HùYBàN¬Çàò\àXY\àHô]»Xô[à¬à^Hë’RPHíT’PS8†(à–QT’ì»ãàYùHà‹Hà⁄YHMçàZY⁄HÃàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMKM
+Kàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãåõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ãà[ò⁄‹àH[ò⁄‹î›[\Àï‹[ò⁄‹î›[\ÀìYù[ò⁄‹î›[\ÀîöY⁄àN¬àãê€€ùõ€ÀêY
+XY\äN¬Çàò\à›\]HHô]»Xô[à¬àYùHÃà‹Hãà⁄YHLàZY⁄HàòX⁄–€€‹àH€€‹ãïò[ú‹\ô[ùàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãNõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ãà[ò⁄‹àH[ò⁄‹î›[\Àï‹[ò⁄‹î›[\ÀìYù[ò⁄‹î›[\ÀîöY⁄àN¬àãê€€ùõ€ÀêY
+›\]JN¬Çàò\à[ÿ⁄»Hô]»[ô[à¬àYùHà‹HMKà⁄YHéàZY⁄HÃÃàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåŒççMJKà[ò⁄‹àH[ò⁄‹î›[\Àï‹[ò⁄‹î›[\Àêõ›€H[ò⁄‹î›[\ÀìYù[ò⁄‹î›[\ÀîöY⁄àN¬àãê€€ùõ€ÀêY
+[ÿ⁄ N¬àõ›[ô[
+[ÿ⁄ÀåäN¬Çàò\à[ú›ùX›[€àHô]»Xô[à¬àYùHà‹HLà⁄YHéàZY⁄HÃãàòX⁄–€€‹àH€€‹ãïò[ú‹\ô[ùàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäåKåÕKçL
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKçYãõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ãà[ò⁄‹àH[ò⁄‹î›[\Àêõ›€H[ò⁄‹î›[\ÀìYù[ò⁄‹î›[\ÀîöY⁄àN¬àãê€€ùõ€ÀêY
+[ú›ùX›[€äN¬Çàò\àô]àHô]»ù]€Çà¬à^H∏•‡SïTíS‘àãàYùHà‹HNKà⁄YHNàZY⁄HàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMKLMJKàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLçYãõ€ù›[Kêõ€
+Kà›\ú€‹àH›\ú€‹úÀí[ôà[ò⁄‹àH[ò⁄‹î›[\Àêõ›€H[ò⁄‹î›[\ÀìYùàN¬àô]ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôOL¬àõ›[ô[
+ô]ãM
+N¬àãê€€ùõ€ÀêY
+ô]äN¬Çàò\à€›[ù\àHô]»Xô[à¬àYùHŒLãà‹HNKà⁄YHNàZY⁄Hàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäNKåÃçL
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ãà[ò⁄‹àH[ò⁄‹î›[\Àêõ›€BàN¬àãê€€ùõ€ÀêY
+€›[ù\äN¬Çàò\àô^Hô]»ù]€Çà¬à^Hî∞‰÷SS»8•≠àãàYùHÃÕãà‹HNKà⁄YHNàZY⁄HàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMåÀåç
+Kàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLçYãõ€ù›[Kêõ€
+Kà›\ú€‹àH›\ú€‹úÀí[ôà[ò⁄‹àH[ò⁄‹î›[\Àêõ›€H[ò⁄‹î›[\ÀîöY⁄àN¬àô^ëõ]\X\ò[òŸKêõ‹ô\î⁄^ôOL¬àõ›[ô[
+ô^M
+N¬àãê€€ùõ€ÀêY
+ô^
+N¬ÇàXô[õﬁXô[
+›ö[ô»^[ù[ùK[ùÀ[ù€€‹àôÀ€€‹àôÀõÿ]⁄^ôOLL
+Bà¬àò\àœ[ô]»Xô[à¬à^]^àYù^à‹^Kà⁄Y]ÀàZY⁄ZàòX⁄–€€‹èXôÀàõ‹ôP€€‹èYôÀàõ€ù[ô]»õ€ù
+îŸY€ŸHRHã⁄^ôKõ€ù›[Kêõ€
+Kà^[Y€èP€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàN¬à[ÿ⁄Àê€€ùõ€ÀêY
+ N¬àõ›[ô[
+ÀLäN¬àô]\õàŒ¬àBÇàõ⁄Y€› €€ùõ€ Bà¬àò\à€›œ[ô]»[ô[à¬àYùXÀìYùMKà‹XÀï‹MKà⁄YXÀï⁄Y
+ÃLàZY⁄XÀíZY⁄
+ÃLàòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäåLçMJBàN¬à[ÿ⁄Àê€€ùõ€ÀêY
+€› N¬à€›ÀîŸ[ô–òX⁄ 
+N¬àõ›[ô[
+€›ÀMJN¬àBÇà[ù›\L¬à€€ú›[ù›[›\»HŒ¬ÇàXô[[ôõ–ÿ\ô
+›ö[ô»]K›ö[ô»õŸK[ù[ùK[ùÀ[ù€€‹àXÿŸ[ù
+Bà¬àò\àÿ\ôHô]»Xô[à¬à^H]H
+»óóàà
+»õŸKàYùHà‹HKà⁄YHÀàZY⁄HàòX⁄–€€‹àH€€‹ãï⁄]Kàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäMKM
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãKéãõ€ù›[KîôY›[\äKà^[Y€àH€€ù[ù[Y€õY[ùìZYSYùàY[ô»Hô]»Y[ô NLãNLäBàN¬à[ÿ⁄Àê€€ùõ€ÀêY
+ÿ\ô
+N¬àõ›[ô[
+ÿ\ôM
+N¬Çàò\à›ö\HHô]»[ô[à¬àYùHà‹HKà⁄YHÀàZY⁄HàòX⁄–€€‹àHXÿŸ[ùàN¬à[ÿ⁄Àê€€ùõ€ÀêY
+›ö\JN¬à›ö\Kêúö[ô’—úõ€ù
+
+N¬àô]\õàÿ\ô¬àBÇàõ⁄YYõŸ‹ô\‹ 
+Bà¬à[ù›Hç¬à[ùÿ\HLé¬à[ù›[H›[›\»
+à›
+»
+›[›\»HJH
+àÿ\¬à[ùHX]ìX^
+å
+[ÿ⁄Àï⁄YH›[
+H»äN¬à[ùHHX]ìX^
+[ÿ⁄ÀíZY⁄H
+N¬àõ‹à
+[ùHH»H›[›\Œ»J  Bà¬àò\àHô]»Xô[à¬à^H
+H
+»JKï‘›ö[ô 
+KàYùH
+»H
+à
+›
+»ÿ\
+Kà‹HKà⁄YH›àZY⁄H›àòX⁄–€€‹àHHOH›\»€€‹ãëúõ€P\ôÿäMåÀåç
+Hà€€‹ãëúõ€P\ôÿäNMãåMãåÃ
+Kàõ‹ôP€€‹àHHOH›\»€€‹ãï⁄]Hà€€‹ãëúõ€P\ôÿäMKM
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãçYãõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàN¬à[ÿ⁄Àê€€ùõ€ÀêY
+
+N¬àõ›[ô[
+LäN¬àBàBÇàõ⁄Yô[ô\ä
+Bà¬à[ÿ⁄Àê€€ùõ€Àê€X\ä
+N¬à€›[ù\ãï^Iû‹›\
+Ã_HH››[›\ﬂHé¬àô]ãë[òXõY\›\å¬àô]ãêòX⁄–€€‹àH›\å»€€‹ãëúõ€P\ôÿäMKLMJHà€€‹ãëúõ€P\ôÿäãçK
+N¬àô^ï^\›\O]›[›\ÀLH»ê””ê”RTà8ß$»ààî∞‰÷SS»8•≠àé¬ÇàYä›\OL
+Bà¬à›\]Kï^HîT‘”»H8†(à””íp·–H»QSïH–QT’ì»é¬à[ú›ùX›[€ãï^Hì»Y[ùH–QT’ì»ôpÓõôH]X]õ»0Ë\ôX\ŒàõŸ]‹À€Y[ù\Àõ‹õôXŸY‹ô\»HŸ\ùöpÈ€‹Ààé¬ÇàõﬁXô[
+ê–QT’ì»ãÃéNã€€‹ãëúõ€P\ôÿäLNMŒ
+K€€‹ãï⁄]KLäN¬àõﬁXô[
+åHããLãÕÕ€€‹ãëúõ€P\ôÿäMåÀåç
+K€€‹ãï⁄]KL
+N¬àõﬁXô[
+îì—U‘»ãååã€€‹ãëúõ€P\ôÿäNKN
+K€€‹ãï⁄]KLJN¬àõﬁXô[
+åàããMÀÕÕ€€‹ãëúõ€P\ôÿäMåÀåç
+K€€‹ãï⁄]KL
+N¬àõﬁXô[
+ê”QSïT»ãLŒKååã€€‹ãëúõ€P\ôÿäNKN
+K€€‹ãï⁄]KLJN¬àõﬁXô[
+å»ããNMÕÕ€€‹ãëúõ€P\ôÿäMåÀåç
+K€€‹ãï⁄]KL
+N¬àõﬁXô[
+ëì‘ìëP—Q‘ëT»ãNLååã€€‹ãëúõ€P\ôÿäNKN
+K€€‹ãï⁄]KLJN¬àõﬁXô[
+çããçKÕÕ€€‹ãëúõ€P\ôÿäMåÀåç
+K€€‹ãï⁄]KL
+N¬àõﬁXô[
+î—Tïíp·”‘»ãçKååã€€‹ãëúõ€P\ôÿäNKN
+K€€‹ãï⁄]KLJN¬Çà[ôõ–ÿ\ô
+îTêHUQH—TïëO»ãàï\ŸH\›HY[ùH\òH‹öX\àHX[ù\à‹»ÿY\›õ‹»]YHŸ\∞Ë€»\ÿY‹»ò\»ô[ô\À€€ú›[\»H‹ô[ú»HŸ\ùöpÈ€ÀàãàÕçKéLMÃ€€‹ãëúõ€P\ôÿäMåÀåç
+JN¬àõﬁXô[
+ìò\»∞Ïﬁ[X\»[\ÀÿYH‹0ÈË€»Ÿ\∞ËH^XÿYHŸ\\òY[Y[ùKàãÕçKçLãLà€€‹ãëúõ€P\ôÿäåçKçãçLäK€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àBà[ŸHYä›\OLJBà¬à›\]Kï^HîT‘”»à8†(à–QT’ì»àì—U‘»é¬à[ú›ùX›[€ãï^HêÿY\›ôH‹»][ú»ô[ôY‹»H€€ùõ€HôpÈ€À\›‹]YHpÎ[ö[[»Hõ›»»õŸ]Ààé¬ÇàõﬁXô[
+îì—U‘»»T’‘UQHãéåLã€€‹ãëúõ€P\ôÿäMKM
+K€€‹ãï⁄]KL N¬àõﬁXô[
+êÏŸY€»Hò\úò\»ãÕKÃãNçã€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àõﬁXô[
+çŒLãÕKLçLÕã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àõﬁXô[
+ìõ€YH»õŸ]»ãÃLÃãNçã€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àõﬁXô[
+îì—U»VST»ãÃLLçLÕã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àõﬁXô[
+êÿ]Y€‹öXHãÕKMãLåçã€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àõﬁXô[
+íSëì‘ìp‡UP–HãÕKMÕNÕã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àõﬁXô[
+ê›\›»ãåÕKMãLçã€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àõﬁXô[
+îâÀãåÕKMÕLÕKÕã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àõﬁXô[
+ïô[ôHãŒLMãLçã€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àõﬁXô[
+îâLãŒLMÕLÕKÕã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àõﬁXô[
+ë\›‹]YHãÕKååLçã€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àõﬁXô[
+åçKãÕKçLÕKÕã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àõﬁXô[
+ë\›‹]YHpÎ[ö[[»ãNLååMLçã€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àõﬁXô[
+çKãNLçLÕKÕã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àò\à›œPõﬁXô[
+º'‰Ì»ì’»ãŒLåçãLÕKN€€‹ãëúõ€P\ôÿäLNMŒ
+K€€‹ãï⁄]KL
+N»€› › N¬Çà[ôõ–ÿ\ô
+ì»UQHì–‚àêVàTURHãà∏†(àÏŸY€»Hò\úò\»Y[ùYöXÿH»][Kó∏†(àõ€YHHÿ]Y€‹öXH‹ôÿ[ö^ò[HHù\ÿÿKó∏†(à›\›»Hô[ôHôY⁄\›ò[H‹»ò[‹ô\Àó∏†(à\›‹]YHHpÎ[ö[[»ZùY[Hõ»€€ùõ€Kó∏†(àõ›»òX⁄[]HôX€€öXŸ\à»õŸ]ÀàãàMMKéLåŒ€€‹ãëúõ€P\ôÿäMåÀåç
+JN¬àBà[ŸHYä›\OLäBà¬à›\]Kï^HîT‘”»»8†(à–QT’ì»à”QSïT»é¬à[ú›ùX›[€ãï^Hë›X\ôH‹»Y‹»‹»€Y[ù\»\òH€€ú›[\Àô[ô\»H‹ô[ú»HŸ\ùöpÈ€Ààé¬ÇàõﬁXô[
+ê–QT’ì»H”QSïHãéåLã€€‹ãëúõ€P\ôÿäMKM
+K€€‹ãï⁄]KL N¬à›ö[ô÷◊HXúœ^»ìõ€YHãê‘ã–”îàãï[Yõ€ôHãëK[XZ[ãë[ô\ôpÈ€»üN¬à›ö[ô÷◊Hò[œ^»ê”QSïHVST»ãåååLãäç
+HNNNNKNNNNHãò€Y[ùP[XZ[ò€€HãîùXH»òZ\úõ»»⁄YYHüN¬à[ùOMŒ¬àõ‹ä[ùOL⁄OXúÀì[ô›⁄J  Bà¬àõﬁXô[
+Xú÷⁄WKŒKLMKÕ€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àò\àõPõﬁXô[
+ò[÷⁄WKMçKKÕMKÕã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àYäOOL
+H€› õ
+N¬àJœMŒ¬àBà[ôõ–ÿ\ô
+îUPSë»T–TàãàêÿY\›ôH»€Y[ùH]X[ô»]Z\Ÿ\àX[ù\àõ€YHH€€ù]»\‹€∞Î]ôZ\»õ»⁄\›[XKà»ì”QH0ÍHÿúöYÿ]0Ï‹ö[Œ»‹»[XZ\»Y‹»Ÿ[HŸ\àôY[ò⁄Y‹»€€ôõ‹õYHHôXŸ\‹⁄YYKàãàMÃÃçååK€€‹ãëúõ€P\ôÿäMåÀåç
+JN¬àBà[ŸHYä›\OL Bà¬à›\]Kï^HîT‘”»8†(à–QT’ì»àì‘ìëP—Q‘ëT»é¬à[ú›ùX›[€ãï^HêÿY\›ôH[\ô\ÿ\»H\òŸZ\õ‹»]YHõ‹õôXŸ[HõŸ]‹»›HŸ\ùöpÈ€‹»\òH›XH⁄òKàé¬ÇàõﬁXô[
+ê–QT’ì»Hì‘ìëP—Q‘àãéåLã€€‹ãëúõ€P\ôÿäMKM
+K€€‹ãï⁄]KL N¬à›ö[ô÷◊HXúœ^»ìõ€YH»[\ô\ÿHãê‘ã–”îàãï[Yõ€ôHãëK[XZ[ãë[ô\ôpÈ€»üN¬à›ö[ô÷◊Hò[œ^»ëì‘ìëP—Q‘àVST»ãåååÃKLãäç
+HNNNNKNNNNHãò€€ù]–[\ô\ÿKò€€HãîùXH»òZ\úõ»»⁄YYHüN¬à[ùOMŒ¬àõ‹ä[ùOL⁄OXúÀì[ô›⁄J  Bà¬àõﬁXô[
+Xú÷⁄WKŒKLçKÕ€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àò\àõPõﬁXô[
+ò[÷⁄WKMÕKKÕKÕã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKåŸäN¬àYäOOL
+H€› õ
+N¬àJœMŒ¬àBà[ôõ–ÿ\ô
+îTêHUQH—TïëHãàï\ŸH\›HÿY\›õ»\òHôY⁄\›ò\àõ‹õôXŸY‹ô\»HZ^\à‹»€€ù]‹»Ÿ[ùò[^òY‹Àà\‹€»òX⁄[]Hÿÿ[^ò\àò\Y[Y[ùH[\ô\ÿKÿ›[Y[ùÀ[Yõ€ôKK[XZ[H[ô\ôpÈ€ÀàãàMÃÃçååK€€‹ãëúõ€P\ôÿäMåÀåç
+JN¬àBà[ŸHYä›\OM
+Bà¬à›\]Kï^HîT‘”»H8†(à–QT’ì»à—Tïíp·”‘»é¬à[ú›ùX›[€ãï^HêÿY\›ôH‹»Ÿ\ùöpÈ€‹»ô\›Y‹»HZ^H»ò[‹àõ€ù»\òHô]][^ò\àõ»][ô[Y[ùÀàé¬ÇàõﬁXô[
+ê–QT’ì»H—Tïíp·”»ãéåLã€€‹ãëúõ€P\ôÿäMKM
+K€€‹ãï⁄]KL N¬àõﬁXô[
+îŸ\ùöpÈ€»ãLLÃ€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àò\àŸ\ùèPõﬁXô[
+ëì‘ìPUp·‡”»H””TUQ‘àãLåLã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN»€› Ÿ\ùäN¬àõﬁXô[
+ïò[‹àãNLLÃ€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àõﬁXô[
+îâLåãåLãNLã€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKçYäN¬àõﬁXô[
+ë\ÿ‹öpÈË€»ãçåNLåÃ€€‹ãïò[ú‹\ô[ù€€‹ãëúõ€P\ôÿäMKM
+KJN¬àõﬁXô[
+ë\ÿ‹öpÈË€»»Ÿ\ùöpÈ€»^X›]Y»ãçååLãçÃÕ€€‹ãï⁄]K€€‹ãëúõ€P\ôÿäMKM
+KKåôäN¬à[ôõ–ÿ\ô
+ê””S»ïSê“S”êHãàí[ôõ‹õYH»õ€YH»Ÿ\ùöpÈ€À»ò[‹à€ÿúòY»H[XH\ÿ‹öpÈË€Àà\⁄\»[HöXÿH\‹€∞Î]ô[õ»ÿY\›õ»\òH€€ú›[HHô]][^òpÈË€ÀàãàMÃãçåN€€‹ãëúõ€P\ôÿäMåÀåç
+JN¬àBà[ŸHYä›\OMJBà¬à›\]Kï^HîT‘”»à8†(àì’ìÀQUTàHV”RTàé¬à[ú›ùX›[€ãï^Hìò\»\›\»HÿY\›õÀ\ŸH‹»õ›0ÌY\»HpÈË€»\òHX[ù\àŸ]\»ôY⁄\›õ‹»]X[^òY‹Ààé¬ÇàõﬁXô[
+êp·ÂQT»»–QT’ì»ãéçKãã€€‹ãëúõ€P\ôÿäMKM
+K€€‹ãï⁄]KL N¬àò\àõ›õœPõﬁXô[
+ªÔ"»ì’ì»ãKMKåMKåã€€‹ãëúõ€P\ôÿäMåÀåç
+K€€‹ãï⁄]KLäN»€› õ›õ N¬àò\àY]\èPõﬁXô[
+∏ß#àQUTàãÃçKMKåMKåã€€‹ãëúõ€P\ôÿäLKMå
+K€€‹ãï⁄]KLäN»€› Y]\äN¬àò\à^€Z\èPõﬁXô[
+º'Â‰HV”RTàãåKMKNLåã€€‹ãëúõ€P\ôÿäNçãçäK€€‹ãï⁄]KLäN»€› ^€Z\äN¬à[ôõ–ÿ\ô
+ìì’ì»ãê‹öXH[Hõ›õ»ôY⁄\›õ»HXúôH‹»ÿ[\‹»\òHôY[ò⁄[Y[ùÀàãKNLåMKLK€€‹ãëúõ€P\ôÿäMåÀåç
+JN¬à[ôõ–ÿ\ô
+ëQUTàãîŸ[X⁄[€ôH[HôY⁄\›õ»H\›HH[\ôH‹»Y‹»∞ËHÿY\›òY‹ÀàãÃçKNLåMKLK€€‹ãëúõ€P\ôÿäLKMå
+JN¬à[ôõ–ÿ\ô
+ëV”RTàãîô[[›ôH»ÿY\›õ»Ÿ[X⁄[€òYÀà€€ôö\õYH€€Y[ùH]X[ô»]ô\àŸ\ù^òKàãåKNLNLLK€€‹ãëúõ€P\ôÿäNçãçäJN¬àBà[ŸBà¬à›\]Kï^Hê–QT’ì»8†(à’RPH””ê”p„Q»é¬à[ú›ùX›[€ãï^HïõÿÍà∞ËH€€öXŸH\»]X]õ»0Ë\ôX\»»ÿY\›õ»H\»ö[ò⁄\Z\»pÈÌY\Àà€\]YH[H””ê”RTà\òHõ€\à[»ãàé¬àõﬁXô[
+∏ß$»ãÃÃŒåLLN€€‹ãëúõ€P\ôÿäMÃLJK€€‹ãï⁄]KäN¬àõﬁXô[
+îì—U‘»8†(à”QSïT»8†(àì‘ìëP—Q‘ëT»8†(à—Tïíp·”‘»ãLKNçåLã€€‹ãëúõ€P\ôÿäKLã
+K€€‹ãï⁄]KLKçYäN¬à[ôõ–ÿ\ô
+îì”ï»TêHT–Tàãàë[ùôH[H–QT’ìÀ\ÿ€€HH0Ë\ôXH\ŸZòYHH\ŸHì’ì»\òH€€YpÈÿ\ãàô]ö\ŸH‹»Y‹»[ù\»Hÿ[ò\ãàãàåKåŒåM€€‹ãëúõ€P\ôÿäMÃLJJN¬àBÇàYõŸ‹ô\‹ 
+N¬àBÇàô]ãê€X⁄»
+œH
+À HOà»Yä›\å
+^‹›\KN‘ô[ô\ä
+NﬂHN¬àô^ê€X⁄»
+œH
+À HOà»Yä›\›[›\ÀLJ^‹›\
+ Œ‘ô[ô\ä
+NﬂH[ŸHãê€‹ŸJ
+N»N¬ÇàãíŸ^Q›€à
+œH
+ÀJHOÇà¬àYäKíŸ^P€ŸOORŸ^\ÀîöY⁄	âà›\›[›\ÀLJ^‹›\
+ Œ‘ô[ô\ä
+NﬂBà[ŸHYäKíŸ^P€ŸOORŸ^\ÀìYù	âà›\å
+^‹›\KN‘ô[ô\ä
+NﬂBà[ŸHYäKíŸ^P€ŸOORŸ^\Àë\ÿÿ\JHãê€‹ŸJ
+N¬àN¬ÇàãìÿY
+œH
+À HOÇà¬àò\à\ôXHHÿ‹ôY[ãëúõ€P€€ùõ€
+\ Kï€‹ö⁄[ô–\ôXN¬ÇàÀ»XúôH‹ò[ôHHô\ôYKô\‹Z][ô»\[ò\»H0Ë\ôXH0Óù[»[€ö]‹ãÇà[ù»HX]ìZ[äLL\ôXKï⁄YH
+N¬à[ùHX]ìZ[äÕå\ôXKíZY⁄H
+N¬àãêõ›[ô»Hô]»ôX›[ô€Jà\ôXKìYù
+»
+\ôXKï⁄YH H»ãà\ôXKï‹
+»
+\ôXKíZY⁄H
+H»ãàÀà
+N¬ÇàÀ»ô\‹⁄X⁄[€òHH\›ù]\òHö[ò⁄\[€€Hò\ŸHõ»[X[ö»ëPSHò[ô[KÇàXY\ãï⁄YHãê€Y[ù⁄^ôKï⁄Y¬à›\]Kï⁄YHãê€Y[ù⁄^ôKï⁄YHå¬à[ÿ⁄Àï⁄YHãê€Y[ù⁄^ôKï⁄YHMé¬à[ÿ⁄ÀíZY⁄HX]ìX^
+Õãê€Y[ù⁄^ôKíZY⁄HÃÃ
+N¬Çà[ú›ùX›[€ãï‹Hãê€Y[ù⁄^ôKíZY⁄HN¬à[ú›ùX›[€ãï⁄YHãê€Y[ù⁄^ôKï⁄YHMé¬Çàô]ãï‹Hãê€Y[ù⁄^ôKíZY⁄HÕN¬àô^ï‹Hãê€Y[ù⁄^ôKíZY⁄HÕN¬àô^ìYùHãê€Y[ù⁄^ôKï⁄YHô^ï⁄YH¬à€›[ù\ãï‹Hãê€Y[ù⁄^ôKíZY⁄HÕN¬à€›[ù\ãìYùH
+ãê€Y[ù⁄^ôKï⁄YH€›[ù\ãï⁄Y
+H»é¬ÇàÀ»ô[ô\ö^òH€€Y[ùH\⁄\»]YH»[X[ö»ôX[Hò[ô[H\›]ô\àYö[öYÀÇàÀ»]ö]Hÿ\ù0ÌY\À‹õŸ‹ô\‹€»ÿ[›[Y‹»€€HH[\òH[öX⁄X[H^‹»€‹ùY‹ÀÇàô[ô\ä
+N¬àN¬Çàãîô\⁄^ôH
+œH
+À HOÇà¬àYà
+Yãí\“[ôP‹ôX]Y
+Hô]\õé¬àXY\ãï⁄YHãê€Y[ù⁄^ôKï⁄Y¬à›\]Kï⁄YHX]ìX^
+Ããê€Y[ù⁄^ôKï⁄YHå
+N¬à[ÿ⁄Àï⁄YHX]ìX^
+Lãê€Y[ù⁄^ôKï⁄YHMäN¬à[ÿ⁄ÀíZY⁄HX]ìX^
+Õãê€Y[ù⁄^ôKíZY⁄HÃÃ
+N¬à[ú›ùX›[€ãï‹Hãê€Y[ù⁄^ôKíZY⁄HN¬à[ú›ùX›[€ãï⁄YHX]ìX^
+Lãê€Y[ù⁄^ôKï⁄YHMäN¬àô]ãï‹Hãê€Y[ù⁄^ôKíZY⁄HÕN¬àô^ï‹Hãê€Y[ù⁄^ôKíZY⁄HÕN¬àô^ìYùHãê€Y[ù⁄^ôKï⁄YHô^ï⁄YH¬à€›[ù\ãï‹Hãê€Y[ù⁄^ôKíZY⁄HÕN¬à€›[ù\ãìYùH
+ãê€Y[ù⁄^ôKï⁄YH€›[ù\ãï⁄Y
+H»é¬ÇàÀ»ôXÿ[›[H‹»[[Y[ù‹»[ù\õõ‹»\òHô[ö[XH]\HöXÿ\à€‹ùYH[»ôY[Y[ú⁄[€ò\ãÇàô[ô\ä
+N¬àN¬Çàãî⁄›—X[Ÿ \ N¬àBÇÇàö]ò]Hõ⁄Y€€ôö\õQ^]
+
+Bà¬àò\ààHY\‹ÿYŸPõﬁî⁄› àë\ŸZòHôX[Y[ùHÿZ\à»PSSëì»è»ãàê€€ôö\õX\àÿpÎYHãàY\‹ÿYŸPõﬁù]€úÀñY\”õÀàY\‹ÿYŸPõﬁX€€ãî]Y\›[€ãàY\‹ÿYŸPõﬁYò][ù]€ãêù]€åäN¬àYà
+àOHX[Ÿ‘ô\›[ñY\ Bà€‹ŸJ
+N¬àBÇàö]ò]Hõ⁄YY€€
+€€ùõ€\ô[ù›ö[ô»^›ö[ô»X€€ëö[KX›[€àX›[€äBà¬à€€ú›[ùÿ\ô»HLé¬à€€ú›[ùÿ\ôHL¬àò\àÿ\ôHô]»[ô[à¬à⁄YHÿ\ôÀàZY⁄Hÿ\ôàX\ô⁄[àHô]»Y[ô JKàòX⁄–€€‹àH€€‹ãïò[ú‹\ô[ùà›\ú€‹àH›\ú€‹úÀí[ôàN¬Çàõ€€›ô\àHò[ŸN¬à[ù[ŸHH¬àõ€€[ŸU\HùYN¬à›ö[ô»õ‹õX[^ôY^H^îô\XŸJóàãàäKïö[J
+N¬àõ€€⁄›[[ŸHHõ‹õX[^ôY^ë\]X[ îì—U‘»ã›ö[ô–€€\\ö\€€ãì‹ô[ò[Y€õ‹ôPÿ\ŸJBàõ‹õX[^ôY^ë\]X[ ïSHHëSëT»ã›ö[ô–€€\\ö\€€ãì‹ô[ò[Y€õ‹ôPÿ\ŸJN¬àò\à[ŸU[Y\àHô]»ﬁ\›[Kï⁄[ô›‹Àëõ‹õ\Àï[Y\à»[ù\ùò[HÃN¬Çàÿ\ôîZ[ù
+œH
+ÀJHOÇà¬àKë‹ò\X‹Àî€[€›[ô”[ŸHHﬁ\›[Këò]⁄[ôÀëò]⁄[ôÃëî€[€›[ô”[ŸKê[ùP[X\Œ¬à[ùö\›X[[ŸHH⁄›[[ŸH»[ŸHà¬à[ù[úŸ]HX]ìX^
+K»Hö\›X[[ŸH»
+N¬àò\àôX›Hô]»ôX›[ô€J[úŸ][úŸ]ÿ\ôï⁄YH[úŸ]
+ààHKÿ\ôíZY⁄H[úŸ]
+ààHJN¬à€€ú›[ùòY]\»Hå¬à\⁄[ô»ò\à‹Hô]»ﬁ\›[Këò]⁄[ôÀëò]⁄[ôÃëë‹ò\X‹‘]
+
+N¬à‹êY\ò ôX›ñôX›ñKòY]\ÀòY]\ÀNL
+N¬à‹êY\ò ôX›îöY⁄\òY]\ÀôX›ñKòY]\ÀòY]\ÀçÃL
+N¬à‹êY\ò ôX›îöY⁄\òY]\ÀôX›êõ›€K\òY]\ÀòY]\ÀòY]\ÀL
+N¬à‹êY\ò ôX›ñôX›êõ›€K\òY]\ÀòY]\ÀòY]\ÀLL
+N¬à‹ê€‹ŸQöY›\ôJ
+N¬Çà[ùYùHö\›X[[ŸH
+àN¬à\⁄[ô»ò\àô»Hô]»ﬁ\›[Këò]⁄[ôÀëò]⁄[ôÃëì[ôX\ë‹òYY[ùúù\⁄
+ôX›à›ô\à»€€‹ãëúõ€P\ôÿäåãMÃåÕJHà€€‹ãëúõ€P\ôÿäLMH
+»YùN
+»Yù
+Kà€€‹ãëúõ€P\ôÿäãéçäKLäN¬àKë‹ò\X‹Àëö[]
+ôÀ‹
+N¬Çà[ù[HHX]ìZ[äçMKLH
+»ö\›X[[ŸH
+àN
+»
+›ô\à»Hà
+JN¬à\⁄[ô»ò\à€›»Hô]»[ä€€‹ãëúõ€P\ôÿä[KåçKçMJK›ô\à»çYààÀåôà
+»ö\›X[[ŸH
+àåLôäN¬àKë‹ò\X‹Àëò]‘]
+€›À‹
+N¬Çàò\à[õô\îôX›HôX›[ô€Kí[ôõ]JôX›MM
+N¬à\⁄[ô»ò\à[õô\î]Hô]»ﬁ\›[Këò]⁄[ôÀëò]⁄[ôÃëë‹ò\X‹‘]
+
+N¬à[õô\î]êY\ò [õô\îôX›ñ[õô\îôX›ñKòY]\»HòY]\»HNL
+N¬à[õô\î]êY\ò [õô\îôX›îöY⁄JòY]\ÀM
+K[õô\îôX›ñKòY]\»HòY]\»HçÃL
+N¬à[õô\î]êY\ò [õô\îôX›îöY⁄JòY]\ÀM
+K[õô\îôX›êõ›€KJòY]\ÀM
+KòY]\»HòY]\»HL
+N¬à[õô\î]êY\ò [õô\îôX›ñ[õô\îôX›êõ›€KJòY]\ÀM
+KòY]\»HòY]\»HLL
+N¬à[õô\î]ê€‹ŸQöY›\ôJ
+N¬à\⁄[ô»ò\à[õô\ë€›»Hô]»[ä€€‹ãëúõ€P\ôÿäÃ
+»ö\›X[[ŸH
+àLåLçLçMJKKåôäN¬àKë‹ò\X‹Àëò]‘]
+[õô\ë€›À[õô\î]
+N¬àN¬Çàò\àÿ\[€àHô]»Xô[à¬à^Hõ‹õX[^ôY^àÿ⁄»Hÿ⁄‘›[Këö[à^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ãàõ‹ôP€€‹àH€€‹ãï⁄]KàòX⁄–€€‹àH€€‹ãïò[ú‹\ô[ùàõ€ùHô]»õ€ù
+îŸY€ŸHRHãKåôãõ€ù›[Kêõ€
+Kà]]—[\⁄\»Hò[ŸKà›\ú€‹àH›\ú€‹úÀí[ôàY[ô»Hô]»Y[ô  BàN¬àÿ\ôê€€ùõ€ÀêY
+ÿ\[€äN¬ÇàYà
+⁄›[[ŸJBà¬à[ŸU[Y\ãïX⁄»
+œH
+À HOÇà¬à[ŸH
+œH[ŸU\»HàLN¬àYà
+[ŸHèH H»[ŸHHŒ»[ŸU\Hò[ŸN»BàYà
+[ŸHH
+H»[ŸHH»[ŸU\HùYN»Bàÿ\ôí[ùò[Y]J
+N¬àN¬à[ŸU[Y\ãî›\ù
+
+N¬àBÇàõ⁄YŸ]›ô\äõ€€€äBà¬à›ô\àH€é¬àÿ\[€ãëõ€ùHô]»õ€ù
+îŸY€ŸHRHã€à»KçŸààKåôãõ€ù›[Kêõ€
+N¬àÿ\ôí[ùò[Y]J
+N¬àBàõ⁄Y[ù\äÿöôX›»À]ô[ù\ô‹»JHOàŸ]›ô\äùYJN¬àõ⁄YX]ôJÿöôX›»À]ô[ù\ô‹»JBà¬àò\àHÿ\ôî⁄[ù–€Y[ù
+›\ú€‹ãî‹⁄][€äN¬àYà
+Xÿ\ôê€Y[ùôX›[ô€Kê€€ùZ[ú 
+JHŸ]›ô\äò[ŸJN¬àBàÿ\ôì[›\ŸQ[ù\à
+œH[ù\é¬àÿ\ôì[›\ŸSX]ôH
+œHX]ôN¬àÿ\[€ãì[›\ŸQ[ù\à
+œH[ù\é¬àÿ\[€ãì[›\ŸSX]ôH
+œHX]ôN¬àõ⁄Yù[äÿöôX›»À]ô[ù\ô‹»JHOàX›[€ä
+N¬àÿ\ôê€X⁄»
+œHù[é¬àÿ\[€ãê€X⁄»
+œHù[é¬àÿ\ôë\‹‹ŸY
+œH
+À HOà[ŸU[Y\ãë\‹‹ŸJ
+N¬à\ô[ùê€€ùõ€ÀêY
+ÿ\ô
+N¬àBúö]ò]Hõ⁄Y\Qõÿ][ô’[YJõ‹õHäBà¬àãêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+N¬àãëõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+N¬Çàõ⁄Yõ›[ô€€ùõ€
+€€ùõ€À[ùòY]\ Bà¬àõ⁄Y\J
+Bà¬àYà
+Àï⁄YÀíZY⁄
+Hô]\õé¬àò\àôX›Hô]»ôX›[ô€JÀï⁄YÀíZY⁄
+N¬àò\à‹Hô]»ﬁ\›[Këò]⁄[ôÀëò]⁄[ôÃëë‹ò\X‹‘]
+
+N¬à[ùHX]ìX^
+ãòY]\»
+àäN¬à‹êY\ò ôX›ñôX›ñKNL
+N¬à‹êY\ò ôX›îöY⁄HHKôX›ñKçÃL
+N¬à‹êY\ò ôX›îöY⁄HHKôX›êõ›€HHHKL
+N¬à‹êY\ò ôX›ñôX›êõ›€HHHKLL
+N¬à‹ê€‹ŸQöY›\ôJ
+N¬àÀîôY⁄[€èÀë\‹‹ŸJ
+N¬àÀîôY⁄[€àHô]»ôY⁄[€ä‹
+N¬à‹ë\‹‹ŸJ
+N¬àBàÀí[ôP‹ôX]Y
+œH
+À HOà\J
+N¬àÀîô\⁄^ôH
+œH
+À HOà\J
+N¬àYà
+Àí\“[ôP‹ôX]Y
+H\J
+N¬àBÇàõ⁄Y›[TôX›\ú⁄]ôJ€€ùõ€\ô[ù
+Bà¬àõ‹ôXX⁄
+€€ùõ€»[à\ô[ùê€€ùõ€ Bà¬àYà
+»\»^õﬁäBà¬àãêòX⁄–€€‹àH€€‹ãï⁄]N¬àãëõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäŒé
+N¬àãëõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKçYãõ€ù›[Kêõ€
+N¬àãêõ‹ô\î›[HHõ‹ô\î›[Këö^Y⁄[ô€N¬àõ›[ô€€ùõ€
+ãL
+N¬àBà[ŸHYà
+»\»€€Xõ–õﬁÿäBà¬àÿãêòX⁄–€€‹àH€€‹ãï⁄]N¬àÿãëõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäŒé
+N¬àÿãëõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+N¬àõ›[ô€€ùõ€
+ÿãL
+N¬àBà[ŸHYà
+»\»ù[Y\öX’\›€àùY
+Bà¬àùYêòX⁄–€€‹àH€€‹ãï⁄]N¬àùYëõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäŒé
+N¬àùYëõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKçYãõ€ù›[Kêõ€
+N¬àõ›[ô€€ùõ€
+ùYL
+N¬àBà[ŸHYà
+»\»ù]€àäBà¬àãëõ]›[HHõ]›[Këõ]¬àãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬àãê›\ú€‹àH›\ú€‹úÀí[ô¬àYà
+ãêòX⁄–€€‹àOHﬁ\›[P€€‹úÀê€€ùõ€ãêòX⁄–€€‹àOH€€‹ãë[\JBàãêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMKåL
+N¬àYà
+ãëõ‹ôP€€‹àOHﬁ\›[P€€‹úÀê€€ùõ€^ãëõ‹ôP€€‹àOH€€‹ãë[\JBàãëõ‹ôP€€‹àH€€‹ãï⁄]N¬àãëõ€ùHô]»õ€ù
+îŸY€ŸHRHãX]ìX^
+Yããëõ€ùî⁄^ôJKõ€ù›[Kêõ€
+N¬àõ›[ô€€ùõ€
+ãLäN¬àBà[ŸHYà
+»\»]Q‹öYöY]» Bà¬àÀêõ‹ô\î›[HHõ‹ô\î›[Kìõ€ôN¬àÀêòX⁄Ÿ‹õ›[ô€€‹àH€€‹ãï⁄]N¬àÀë[òXõRXY\ú’ö\›X[›[\»Hò[ŸN¬àÀê€€[[íXY\ú—Yò][Ÿ[›[KêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåKåÃãç N¬àÀê€€[[íXY\ú—Yò][Ÿ[›[Këõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäMKM
+N¬àÀê€€[[íXY\ú—Yò][Ÿ[›[Këõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+N¬àÀëYò][Ÿ[›[KîŸ[X›[€êòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäNLåÃãçL
+N¬àÀëYò][Ÿ[›[KîŸ[X›[€ëõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäKäN¬àõ›[ô€€ùõ€
+ÀLäN¬àBà[ŸHYà
+»\»Xô[õ
+Bà¬àYà
+õêòX⁄–€€‹àOH€€‹ãïò[ú‹\ô[ùõêòX⁄–€€‹àOHﬁ\›[P€€‹úÀê€€ùõ€
+Bàõëõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäMKM
+N¬àBà[ŸHYà
+»\»[ô[õ	âàõêòX⁄–€€‹àOH€€‹ãï⁄]JBà¬àõ›[ô€€ùõ€
+õN
+N¬àBÇàYà
+Àí\–⁄[ô[äBà›[TôX›\ú⁄]ôJ N¬àBàBÇà›[TôX›\ú⁄]ôJäN¬àBÇàö]ò]Hõ⁄YôYúô\⁄\⁄õÿ\ô
+
+Bà¬à\⁄[ô»ò\à€àH]Xò\ŸKì‹[ä
+N¬à\⁄[ô»ò\à€YH€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^HààÇà—SP’à
+—SP’”’Sï
+
+äHîì”HõŸX›»“TëHX›]ôOLJKà
+—SP’”’Sï
+
+äHîì”HõŸX›»“TëHX›]ôOLHSë›ÿ⁄»HZ[ó‹›ÿ⁄ Kà
+—SP’”’Sï
+
+äHîì”Hÿ[\ N¬àààé¬à\⁄[ô»ò\àôH€Yë^X›]TôXY\ä
+N¬àYà
+ôîôXY
+
+JBà¬à›‘›ÿ⁄”Xô[ï^Bà	îõŸ]‹»XòZ^»»pÎ[ö[[◊û‹ôëŸ][ùÃäJ_HõŸ]  Wóàà
+¬à	îõŸ]‹»ÿY\›òY‹◊û‹ôëŸ][ùÃä
+_HõŸ]  Wóàà
+¬à	ïô[ô\»ôX[^òY\◊û‹ôëŸ][ùÃää_Hô[ôJ Hé¬àBàBÇàö]ò]Hõ⁄Y‹[îõŸX› 
+HOà⁄›–‹ùY
+àîì—U‘»»T’‘UQHãàî—SP’YT»Qò\ò€ŸHT»ÏŸY€Àò[YHT»õŸ]Àÿ]Y€‹ûHT»ÿ]Y€‹öXKö[ùä	‘â	KåôâÀöXŸJHT»ô[ôK›ÿ⁄»T»\›‹]YKZ[ó‹›ÿ⁄»T»pÎ[ö[[»îì”HõŸX›»“TëHX›]ôOLH‘ëTàñHò[YHãà
+
+HOàY]õŸX›
+ù[
+KàYOàY]õŸX›
+Y
+KàYOÇà¬àYà
+€€ôö\õJë^€Z\à\›HõŸ]œ»äJBà¬à^X ïTUHõŸX›»—UX›]ôOL“TëHYIYã
+âYãY
+JN¬àôYúô\⁄\⁄õÿ\ô
+
+N¬àBàJN¬Çàö]ò]Hõ⁄YY]õŸX›
+€ôœ»Y
+Bà¬à\⁄[ô»ò\ààHô]»õ‹õBà¬à^HYí\’ò[YH»ëY]\àõŸ]»ààìõ›õ»õŸ]»ãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ùà⁄YHLàZY⁄HçLàZ[ö[][T⁄^ôHHô]»⁄^ôJååå
+KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåŒçãçLäKàõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+BàN¬Çàò\àõ€›Hô]»XõS^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[à€€[[ê€›[ùHãàõ›–€›[ùHKàY[ô»Hô]»Y[ô N
+KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåŒçãçLäBàN¬àõ€›ê€€[[î›[\ÀêY
+ô]»€€[[î›[J⁄^ôU\Kî\òŸ[ùN
+JN¬àõ€›ê€€[[î›[\ÀêY
+ô]»€€[[î›[J⁄^ôU\Kî\òŸ[ùäJN¬àãê€€ùõ€ÀêY
+õ€›
+N¬Çàõ⁄Yõ›[ôõŸX›€€ùõ€
+€€ùõ€À[ùòY]\ Bà¬àõ⁄Y\J
+Bà¬àYà
+Àï⁄YHHÀíZY⁄HJHô]\õé¬àò\ààHô]»ôX›[ô€JÀï⁄YÀíZY⁄
+N¬àò\à‹Hô]»ﬁ\›[Këò]⁄[ôÀëò]⁄[ôÃëë‹ò\X‹‘]
+
+N¬à[ùHX]ìX^
+òY]\»
+àäN¬à‹êY\ò ãñãñKNL
+N¬à‹êY\ò ãîöY⁄HHKãñKçÃL
+N¬à‹êY\ò ãîöY⁄HHKãêõ›€HHHKL
+N¬à‹êY\ò ãñãêõ›€HHHKLL
+N¬à‹ê€‹ŸQöY›\ôJ
+N¬àÀîôY⁄[€èÀë\‹‹ŸJ
+N¬àÀîôY⁄[€àHô]»ôY⁄[€ä‹
+N¬à‹ë\‹‹ŸJ
+N¬àBàÀîô\⁄^ôH
+œH
+À HOà\J
+N¬àÀí[ôP‹ôX]Y
+œH
+À HOà\J
+N¬àBÇàò\àöY[‘[ô[Hô]»[ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[àòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+KàY[ô»Hô]»Y[ô åäBàN¬àõ€›ê€€ùõ€ÀêY
+öY[‘[ô[
+N¬àõ›[ôõŸX›€€ùõ€
+öY[‘[ô[ç
+N¬Çàò\àöY[»Hô]»XõS^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[à€€[[ê€›[ùHKàõ›–€›[ùHMKàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+BàN¬àöY[‘[ô[ê€€ùõ€ÀêY
+öY[ N¬Çà^õﬁöY[
+›ö[ô»XŸZ€\àHàäBà¬àò\àõﬁHô]»^õﬁà¬àÿ⁄»Hÿ⁄‘›[Këö[àõ€ùHô]»õ€ù
+îŸY€ŸHRHãNKõ€ù›[Kêõ€
+Kàõ‹ô\î›[HHõ‹ô\î›[Këö^Y⁄[ô€KàòX⁄–€€‹àH€€‹ãï⁄]Kàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäŒé
+KàXŸZ€\ï^HXŸZ€\ãàX\ô⁄[àHô]»Y[ô À KàY[ô»Hô]»Y[ô LL
+BàN¬àõ›[ôõŸX›€€ùõ€
+õﬁLäN¬àô]\õàõﬁ¬àBÇàXô[õ
+›ö[ô» HOàô] 
+Bà¬à^HÀàÿ⁄»Hÿ⁄‘›[Këö[àõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäMKM
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùêõ›€SYùàN¬Çàò\àò\ò€ŸHHöY[
+
+N¬àò\àò[YHHöY[
+
+N¬àò\àÿ]Y€‹ûHHöY[
+
+N¬àò\à€‹›HöY[
+åäN¬àò\àöXŸHHöY[
+åäN¬àò\à›ÿ⁄»HöY[
+åäN¬àò\àZ[î›ÿ⁄»HöY[
+åäN¬ÇàÀ»ÿY\›õ»[ù[YŸ[ùHôYö[òYŒà€€ôö\õXpÈË€»\ÿ‹ô]HHõÿ€»[H›\›ÀÇàÀ»ö[YZ\õ»€€ú›[H‹[àõ€ŸòX›Œ»ŸH∞Ë€»›]ô\àõŸ]À€€ú›[H‹[àõŸX›»òX›ÀÇàÀ»ù[ò⁄[€òH€€HZ]‹ô\»]YH[ùöX[HSïTàH€€HZ]‹ô\»]YH\[ò\»Y⁄][H»PSã—’SãÇàò\àò\ò€ŸS€⁄›\[Y\àHô]»ﬁ\›[Kï⁄[ô›‹Àëõ‹õ\Àï[Y\à»[ù\ùò[HçLN¬àò\àò\ò€ŸS€⁄›\ù[õö[ô»Hò[ŸN¬à›ö[ô»\›ò\ò€ŸS€⁄›\Hàé¬àò\à€⁄›\›]\»Hô]»Xô[à¬à^HêY›X\ô[ô»Z]\òH»ÏŸY€»Hò\úò\Àããàãàÿ⁄»Hÿ⁄‘›[Këö[à]]—[\⁄\»HùYKàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäLKMçJKàõ€ùHô]»õ€ù
+îŸY€ŸHRHãKçYãõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYSYùàY[ô»Hô]»Y[ô 
+BàN¬Çàõ⁄YŸ]€⁄›\›]\ ›ö[ô»^õ€€\úõ‹àHò[ŸJBà¬àYà
+ãí\—\‹‹ŸY
+Hô]\õé¬à€⁄›\›]\Àï^H^¬à€⁄›\›]\Àëõ‹ôP€€‹àH\úõ‹à»€€‹ãëúõ€P\ôÿäNLKJHà€€‹ãëúõ€P\ôÿäLKMçJN¬àBÇàõ€€\–ò\ò€ŸS[ô›ò[Y
+›ö[ô»€ŸJHOà€ŸKì[ô›\»‹àLà‹àL»‹àM¬Çà\ﬁ[ò»\⁄œú€€ë[[Y[ùœàûQö[ôõŸX›\ﬁ[ò €Y[ù›ö[ô»ò\ŸU\õ›ö[ô»€ŸJBà¬àò\à\õH	ûÿò\ŸU\õKÿ\K›åã‹õŸX›ﬁ’\öKë\ÿÿ\Q]T›ö[ô €ŸJ_Köú€€èŸöY[œ\õŸX›€ò[YKõŸX›€ò[YW‹úò[ôÀÿ]Y€‹öY\◊›Y‹»é¬à\⁄[ô»ò\àô\‹€úŸHH]ÿZ]ëŸ]\ﬁ[ò \õ
+N¬ÇàÀ»õŸ]»]\Ÿ[ùHô\›Hò\ŸNà∞Ë€»0ÍH\úõŒ»\[ò\»[ùHH∞Ïﬁ[XKÇàYà
+ô\‹€úŸKî›]\–€ŸHOHﬁ\›[Kìô]í›]\–€ŸKìõ›õ›[ô
+Bàô]\õàù[¬Çàô\‹€úŸKë[ú›\ôT›XÿŸ\‹‘›]\–€ŸJ
+N¬à\⁄[ô»ò\àÿ»Hú€€ëÿ›[Y[ùî\úŸJ]ÿZ]ô\‹€úŸKê€€ù[ùîôXY\‘›ö[ô–\ﬁ[ò 
+JN¬àò\àõ€›ú€€àHÿÀîõ€›[[Y[ù¬ÇàYà
+õ€›ú€€ãïûQŸ]õ‹\ùJú›]\»ã›]ò\à›]\“ú€€äH	âà›]\“ú€€ãïò[YR⁄[ôOHú€€ïò[YR⁄[ôìù[Xô\à	âà›]\“ú€€ãëŸ][ùÃä
+HOH
+Bàô]\õàù[¬ÇàYà
+\õ€›ú€€ãïûQŸ]õ‹\ùJúõŸX›ã›]ò\àõŸX›
+HõŸX›ïò[YR⁄[ôOHú€€ïò[YR⁄[ôìÿöôX›
+Bàô]\õàù[¬Çàô]\õàõŸX›ê€€ôJ
+N¬àBÇà\ﬁ[ò»\⁄»€⁄›\ò\ò€ŸS€õ[ôP\ﬁ[ò 
+Bà¬àò\à€ŸHHô]»›ö[ô ò\ò€ŸKï^ï⁄\ôJ⁄\ãí\—Y⁄]
+Kï–\úò^J
+JN¬àYà
+R\–ò\ò€ŸS[ô›ò[Y
+€ŸJJBà¬àŸ]€⁄›\›]\ 	êÏŸY€»€€Hÿ€ŸKì[ô›H0ÎY⁄]‹»8†%Y›X\ô[ô»LãL»›HMàäN¬àô]\õé¬àBàYà
+ò\ò€ŸS€⁄›\ù[õö[ô Bà¬àŸ]€⁄›\›]\ ê€€ú›[H∞ËH\›0ËH[H[ô[Y[ùÀããàäN¬àô]\õé¬àBàYà
+€ŸHOH\›ò\ò€ŸS€⁄›\
+Bà¬àŸ]€⁄›\›]\ 	êÏŸY€»ÿ€Ÿ_H∞ËH€€ú›[Y»ô\›H[ù]]òKàäN¬àô]\õé¬àBÇàÀ»ö[YZ\õ»ô\‹Z]H»ÿY\›õ»ÿÿ[àù[òÿH€ÿúô\ÿ‹ô]ôHõŸ]»^\›[ùHõ»ãÇà\⁄[ô»
+ò\àÿÿ[H]Xò\ŸKì‹[ä
+JBà\⁄[ô»
+ò\à€YHÿÿ[ê‹ôX]P€€[X[ô
+
+JBà¬à€Yê€€[X[ô^Hî—SP’ò[YHîì”HõŸX›»“TëHò\ò€ŸOIàSëX›]ôOLHSRUHé¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâàã€ŸJN¬àò\à^\›[ô»H€Yë^X›]Tÿÿ[\ä
+OÀï‘›ö[ô 
+N¬àYà
+\›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ^\›[ô JBà¬àŸ]€⁄›\›]\ 	êÏŸY€»∞ËHÿY\›òYŒàŸ^\›[ôﬂHäN¬àY\‹ÿYŸPõﬁî⁄› ã	ë\›HÏŸY€»∞ËH\›0ËHÿY\›òY»€€[ŒóóûŸ^\›[ôﬂHãîõŸ]»∞ËHÿY\›òY»ãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãí[ôõ‹õX][€äN¬àô]\õé¬àBàBÇàò\ò€ŸS€⁄›\ù[õö[ô»HùYN¬à\›ò\ò€ŸS€⁄›\H€ŸN¬àò\à€›\ú€‹àHãê›\ú€‹é¬àãê›\ú€‹àH›\ú€‹úÀïÿZ]›\ú€‹é¬àò\ò€ŸKë[òXõYHò[ŸN¬ÇàûBà¬à\⁄[ô»ò\àHô]»€Y[ù»[Y[›]H[YT‹[ãëúõ€TŸX€€ô L
+HN¬àëYò][ô\]Y\›XY\úÀï\Ÿ\êYŸ[ùî\úŸPY
+ìPSRSëìÀTãÃLåLÃ
+ÿY\›õÀZ[ù[YŸ[ùJHäN¬ÇàŸ]€⁄›\›]\ 	ê€€ú›[[ô»ÿ€Ÿ_H[H‹[àõ€ŸòX›ÀããàäN¬àò\àõŸX›H]ÿZ]ûQö[ôõŸX›\ﬁ[ò öŒãÀ›€‹õõ‹[ôõ€ŸòX›Àõ‹ô»ã€ŸJN¬àò\à€›\òŸHHì‹[àõ€ŸòX›»é¬ÇàYà
+õŸX›\»ù[
+Bà¬àŸ]€⁄›\›]\ 	ì∞Ë€»[ò€€ùòY»[H[[Y[ù‹Àà€€ú›[[ô»õŸ]‹»Ÿ\òZ\ÀããàäN¬àõŸX›H]ÿZ]ûQö[ôõŸX›\ﬁ[ò öŒãÀ›€‹õõ‹[úõŸX›ŸòX›Àõ‹ô»ã€ŸJN¬à€›\òŸHHì‹[àõŸX›»òX›»é¬àBÇàYà
+õŸX›\»ù[
+Bà¬àŸ]€⁄›\›]\ 	îõŸ]»ÿ€Ÿ_H∞Ë€»[ò€€ùòY»€õ[ôKàôY[ò⁄HX[ùX[Y[ùKàãùYJN¬àò[YKëõÿ›\ 
+N¬àô]\õé¬àBÇàò\àú€€àHõŸX›ïò[YN¬à›ö[ô»ôXY›ö[ô ›ö[ô»õ‹
+HOàú€€ãïûQŸ]õ‹\ùJõ‹›]ò\àäH	âàãïò[YR⁄[ôOHú€€ïò[YR⁄[ôî›ö[ô»»
+ãëŸ]›ö[ô 
+Hœ»àäKïö[J
+Hààé¬àò\àõŸX›ò[YHHôXY›ö[ô úõŸX›€ò[YW‹äN¬àYà
+›ö[ôÀí\”ù[‹ï⁄]T‹XŸJõŸX›ò[YJJHõŸX›ò[YHHôXY›ö[ô úõŸX›€ò[YHäN¬àò\àúò[ôHôXY›ö[ô òúò[ô»äN¬ÇàYà
+\›ö[ôÀí\”ù[‹ï⁄]T‹XŸJõŸX›ò[YJJBàò[YKï^H›ö[ôÀí\”ù[‹ï⁄]T‹XŸJúò[ô
+HõŸX›ò[YKê€€ùZ[ú úò[ô›ö[ô–€€\\ö\€€ãì‹ô[ò[Y€õ‹ôPÿ\ŸJBà»õŸX›ò[YBàà	û‹õŸX›ò[Y_HHÿúò[ôHé¬ÇàYà
+›ö[ôÀí\”ù[‹ï⁄]T‹XŸJÿ]Y€‹ûKï^
+H	âàú€€ãïûQŸ]õ‹\ùJòÿ]Y€‹öY\◊›Y‹»ã›]ò\àÿ] H	âàÿ]Àïò[YR⁄[ôOHú€€ïò[YR⁄[ôê\úò^JBà¬à›ö[ô»ò[òX⁄–ÿ]Y€‹ûHHàé¬àõ‹ôXX⁄
+ò\à»[àÿ]Àë[ù[Y\ò]P\úò^J
+JBà¬àò\àò]»HÀëŸ]›ö[ô 
+Hœ»àé¬àYà
+›ö[ôÀí\”ù[‹ï⁄]T‹XŸJò] JH€€ù[ùYN¬àYà
+ò]Àî›\ù’⁄]
+úàã›ö[ô–€€\\ö\€€ãì‹ô[ò[Y€õ‹ôPÿ\ŸJJBà¬àò[òX⁄–ÿ]Y€‹ûHHò]÷ÃÀãóKîô\XŸJ	ÀIÀ	»	 N¬àúôXZŒ¬àBàYà
+›ö[ôÀí\”ù[‹ï⁄]T‹XŸJò[òX⁄–ÿ]Y€‹ûJJBàò[òX⁄–ÿ]Y€‹ûHHò]Àê€€ùZ[ú 	Œâ H»ò]÷ ò]Àí[ô^Ÿä	Œâ H
+»JKãóKîô\XŸJ	ÀIÀ	»	 Hàò]Àîô\XŸJ	ÀIÀ	»	 N¬àBàYà
+\›ö[ôÀí\”ù[‹ï⁄]T‹XŸJò[òX⁄–ÿ]Y€‹ûJJBàÿ]Y€‹ûKï^H›[\ôR[ôõÀê›\úô[ù›[\ôKï^[ôõÀï’]Pÿ\ŸJò[òX⁄–ÿ]Y€‹ûJN¬àBÇàYà
+\›ö[ôÀí\”ù[‹ï⁄]T‹XŸJò[YKï^
+JBà¬àŸ]€⁄›\›]\ 	ëSê””ïêQ»[H‹€›\òŸ_Nà€ò[YKï^HäN¬àŸ]€⁄›\›]\ 	∏ß$»õŸ]»[ò€€ùòY»€õ[ôH8†%€ò[YKï^HäN¬à€‹›ëõÿ›\ 
+N¬àBà[ŸBà¬àŸ]€⁄›\›]\ 	êÏŸY€»[ò€€ùòY»[H‹€›\òŸ_K‹∞Í[HŸ[Hõ€YKàôY[ò⁄HX[ùX[Y[ùKàãùYJN¬àò[YKëõÿ›\ 
+N¬àBàBàÿ]⁄
+ô\]Y\›^Ÿ\[€à^
+Bà¬àŸ]€⁄›\›]\ 	ëò[HH€€][öXÿpÈË€ŒàŸ^ìY\‹ÿYŸ_HãùYJN¬àY\‹ÿYŸPõﬁî⁄› ã	ì∞Ë€»õ⁄H‹‹Î]ô[€€ú›[\à\»ò\Ÿ\»€õ[ôHY€‹òKóóûŸ^ìY\‹ÿYŸ_Wóì»ÿY\›õ»X[ùX[€€ù[ùXH\‹€∞Î]ô[àãêÿY\›õ»[ù[YŸ[ùHãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãïÿ\õö[ô N¬àò[YKëõÿ›\ 
+N¬àBàÿ]⁄
+\⁄–ÿ[òŸ[Y^Ÿ\[€äBà¬àŸ]€⁄›\›]\ ê€€ú›[H€õ[ôH^ŸY]H»[\»[Z]KàôY[ò⁄HX[ùX[Y[ùKàãùYJN¬àò[YKëõÿ›\ 
+N¬àBàÿ]⁄
+^Ÿ\[€à^
+Bà¬àŸ]€⁄›\›]\ 	ë\úõ»òH€€ú›[NàŸ^ìY\‹ÿYŸ_HãùYJN¬àY\‹ÿYŸPõﬁî⁄› ã	ìÿ€‹úô]H[H\úõ»\ò[ùHH€€ú›[H€õ[ôKóóûŸ^ìY\‹ÿYŸ_Wóì»ÿY\›õ»X[ùX[€€ù[ùXH\‹€∞Î]ô[àãêÿY\›õ»[ù[YŸ[ùHãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãïÿ\õö[ô N¬àò[YKëõÿ›\ 
+N¬àBàö[ò[Bà¬àò\ò€ŸKë[òXõYHùYN¬àãê›\ú€‹àH€›\ú€‹é¬àò\ò€ŸS€⁄›\ù[õö[ô»Hò[ŸN¬àBàBÇàò\ò€ŸKï^⁄[ôŸY
+œH
+À HOÇà¬àò\ò€ŸS€⁄›\[Y\ãî›‹
+
+N¬àò\à€ŸHHô]»›ö[ô ò\ò€ŸKï^ï⁄\ôJ⁄\ãí\—Y⁄]
+Kï–\úò^J
+JN¬àYà
+€ŸHOH\›ò\ò€ŸS€⁄›\
+H\›ò\ò€ŸS€⁄›\Hàé¬ÇàYà
+\–ò\ò€ŸS[ô›ò[Y
+€ŸJJBà¬àŸ]€⁄›\›]\ 	êÏŸY€»]X›YŒàÿ€Ÿ_Kà€€ú›[[ô»]]€X]Xÿ[Y[ùKããàäN¬àò\ò€ŸS€⁄›\[Y\ãî›\ù
+
+N¬àBà[ŸHYà
+€ŸKì[ô›à
+Bà¬àŸ]€⁄›\›]\ 	ì[ô»ÏŸY€Àããàÿ€ŸKì[ô›H0ÎY⁄]‹»ôXŸXöY‹ÀàäN¬àBàN¬Çàò\ò€ŸS€⁄›\[Y\ãïX⁄»
+œH\ﬁ[ò»
+À HOÇà¬àò\ò€ŸS€⁄›\[Y\ãî›‹
+
+N¬à]ÿZ]€⁄›\ò\ò€ŸS€õ[ôP\ﬁ[ò 
+N¬àN¬Çàò\ò€ŸKíŸ^Q›€à
+œH\ﬁ[ò»
+ÀJHOÇà¬àYà
+KíŸ^P€ŸHOHŸ^\Àë[ù\äHô]\õé¬àKî›\ô\‹“Ÿ^Tô\‹»HùYN¬àò\ò€ŸS€⁄›\[Y\ãî›‹
+
+N¬à]ÿZ]€⁄›\ò\ò€ŸS€õ[ôP\ﬁ[ò 
+N¬àN¬Çàò\à€€ùõ€»Hô]»
+›ö[ô»Xô[€€ùõ€[ú]
+V◊Bà¬à
+êÏŸY€»Hò\úò\»ãò\ò€ŸJKà
+ìõ€YHãò[YJKà
+êÿ]Y€‹öXHãÿ]Y€‹ûJKà
+ê›\›»ã€‹›
+Kà
+îôpÈ€»Hô[ôHãöXŸJKà
+ë\›‹]YHã›ÿ⁄ Kà
+ë\›‹]YHpÎ[ö[[»ãZ[î›ÿ⁄ BàN¬Çà[ùõ›»H¬àõ‹ôXX⁄
+ò\à[à€€ùõ€ Bà¬àöY[Àîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]Ké
+JN¬àöY[Àê€€ùõ€ÀêY
+õ
+õXô[
+Kõ›   N¬àöY[Àîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]K
+JN¬àöY[Àê€€ùõ€ÀêY
+ö[ú]õ›   N¬ÇàYà
+ôYô\ô[òŸQ\]X[ ö[ú]ò\ò€ŸJJBà¬àöY[Àîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]Ké
+JN¬àöY[Àê€€ùõ€ÀêY
+€⁄›\›]\Àõ›   N¬àBàBàöY[Àîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùL
+JN¬Çàò\à›‘⁄YHHô]»[ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[àòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäNKN
+KàY[ô»Hô]»Y[ô å
+BàN¬àõ€›ê€€ùõ€ÀêY
+›‘⁄YKK
+N¬àõ›[ôõŸX›€€ùõ€
+›‘⁄YKç
+N¬Çàò\à›”^[›]Hô]»XõS^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[à€€[[ê€›[ùHKàõ›–€›[ùHÀàòX⁄–€€‹àH€€‹ãïò[ú‹\ô[ùàN¬à›”^[›]îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KJJN¬à›”^[›]îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùL
+JN¬à›”^[›]îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]K
+JN¬à›”^[›]îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KäJN¬à›”^[›]îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]K
+JN¬à›”^[›]îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]K
+JN¬à›”^[›]îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KN
+JN¬à›‘⁄YKê€€ùõ€ÀêY
+›”^[›]
+N¬Çà›”^[›]ê€€ùõ€ÀêY
+ô]»Xô[à¬à^Hëì’»»ì—U»ãàÿ⁄»Hÿ⁄‘›[Këö[àõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãMKõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàK
+N¬Çàò\àô]öY]»Hô]»X›\ôPõﬁà¬àÿ⁄»Hÿ⁄‘›[Këö[àòX⁄–€€‹àH€€‹ãï⁄]Kà⁄^ôS[ŸHHX›\ôPõﬁ⁄^ôS[ŸKñõ€€KàX\ô⁄[àHô]»Y[ô 
+BàN¬à›”^[›]ê€€ùõ€ÀêY
+ô]öY]ÀJN¬àõ›[ôõŸX›€€ùõ€
+ô]öY]ÀN
+N¬Çà›ö[ôœ»Ÿ[X›Y›»Hù[¬Çàõ⁄YÿYô]öY] ›ö[ôœ»]
+Bà¬àô]öY]Àí[XYŸOÀë\‹‹ŸJ
+N¬àô]öY]Àí[XYŸHHù[¬ÇàYà
+\›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ]
+H	âàö[Kë^\› ]
+JBà¬à\⁄[ô»ò\à[Y»H[XYŸKëúõ€Qö[J]
+N¬àô]öY]Àí[XYŸHHô]»ö]X\
+[Y N¬àô]\õé¬àBÇàò\àŸ€»H]ê€€Xö[ôJ\€€ù^êò\ŸQ\ôX›‹ûKê\‹Ÿ]»ãõŸ€Àúô»äN¬àYà
+ö[Kë^\› Ÿ€ JBà¬à\⁄[ô»ò\à[Y»H[XYŸKëúõ€Qö[JŸ€ N¬àô]öY]Àí[XYŸHHô]»ö]X\
+[Y N¬àBàBÇàò\à⁄€‹ŸSÿÿ[Hô]»ù]€Çà¬à^Hî—SP“S”êTàì’»»””TUQ‘àãàÿ⁄»Hÿ⁄‘›[Këö[àX\ô⁄[àHô]»Y[ô 
+KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMKåL
+Kàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãKçYãõ€ù›[Kêõ€
+BàN¬à⁄€‹ŸSÿÿ[ëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬àõ›[ôõŸX›€€ùõ€
+⁄€‹ŸSÿÿ[M
+N¬à›”^[›]ê€€ùõ€ÀêY
+⁄€‹ŸSÿÿ[äN¬Çàò\àŸXê⁄X⁄»Hô]»⁄X⁄–õﬁà¬à^Hêù\ÿÿ\àõ›»òHŸXàãàÿ⁄»Hÿ⁄‘›[Këö[àX\ô⁄[àHô]»Y[ô Lã
+Kàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+Kà⁄X⁄ŸYHò[ŸBàN¬àò\àŸXê⁄X⁄“‹›Hô]»[ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[àX\ô⁄[àHô]»Y[ô À KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäNãLé
+KàY[ô»Hô]»Y[ô L
+BàN¬àŸXê⁄X⁄Àëÿ⁄»Hÿ⁄‘›[Këö[¬àŸXê⁄X⁄ÀìX\ô⁄[àHô]»Y[ô 
+N¬àŸXê⁄X⁄“‹›ê€€ùõ€ÀêY
+ŸXê⁄X⁄ N¬à›”^[›]ê€€ùõ€ÀêY
+ŸXê⁄X⁄“‹› N¬àõ›[ôõŸX›€€ùõ€
+ŸXê⁄X⁄“‹›L N¬Çàò\àŸXêù]€àHô]»ù]€Çà¬à^HîT‘URT–TàSPQ—Sî»êH—Pàãàÿ⁄»Hÿ⁄‘›[Këö[àX\ô⁄[àHô]»Y[ô 
+KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäéMãLÕJKàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãKçYãõ€ù›[Kêõ€
+Kà[òXõYHò[ŸBàN¬àŸXêù]€ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬àõ›[ôõŸX›€€ùõ€
+ŸXêù]€ãM
+N¬à›”^[›]ê€€ùõ€ÀêY
+ŸXêù]€ã
+N¬Çàò\à\ŸQ›€õÿYYHô]»ù]€Çà¬à^HïT–TàSPQ—SHêRVQHãàÿ⁄»Hÿ⁄‘›[Këö[àX\ô⁄[àHô]»Y[ô 
+KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäéMãLÕJKàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãKçYãõ€ù›[Kêõ€
+Kà[òXõYHò[ŸBàN¬à\ŸQ›€õÿYYëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬àõ›[ôõŸX›€€ùõ€
+\ŸQ›€õÿYYM
+N¬à›”^[›]ê€€ùõ€ÀêY
+\ŸQ›€õÿYYJN¬Çàò\àù]€ú»Hô]»õ›”^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[àõ›—\ôX›[€àHõ›—\ôX›[€ãîöY⁄”YùàY[ô»Hô]»Y[ô äBàN¬àò\àÿ]ôHHô]»ù]€Çà¬à^Hî–SêTàãà⁄YHLMKàZY⁄HàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMÃåå
+Kàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+BàN¬àò\àÿ[òŸ[Hô]»ù]€Çà¬à^Hê–Sê—STàãà⁄YHLMKàZY⁄HàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMKLMJKàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+BàN¬àÿ]ôKëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬àõ›[ôõŸX›€€ùõ€
+ÿ]ôKM
+N¬àÿ[òŸ[ëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬àõ›[ôõŸX›€€ùõ€
+ÿ[òŸ[M
+N¬àù]€úÀê€€ùõ€ÀêY
+ÿ]ôJN¬àù]€úÀê€€ùõ€ÀêY
+ÿ[òŸ[
+N¬à›”^[›]ê€€ùõ€ÀêY
+ù]€úÀäN¬Çà⁄€‹ŸSÿÿ[ê€X⁄»
+œH
+À HOÇà¬à\⁄[ô»ò\à»Hô]»‹[ëö[QX[Ÿ¬à¬à]HHîŸ[X⁄[€ò\àõ›»»õŸ]»ãàö[\àHí[XYŸ[úﬂ
+ãöúŒ ãöúYŒ ãúôŒ ãùŸXú ãòõ\ÇàN¬àYà
+Àî⁄›—X[Ÿ äHOHX[Ÿ‘ô\›[ì“ Bà¬àŸ[X›Y›»HÀëö[Sò[YN¬àÿYô]öY] Ÿ[X›Y› N¬àBàN¬ÇàŸXê⁄X⁄Àê⁄X⁄ŸY⁄[ôŸY
+œH
+À HOÇà¬àŸXêù]€ãë[òXõYHŸXê⁄X⁄Àê⁄X⁄ŸY¬à\ŸQ›€õÿYYë[òXõYHŸXê⁄X⁄Àê⁄X⁄ŸY¬àN¬ÇàŸXêù]€ãê€X⁄»
+œH
+À HOÇà¬àò\à\õHH›ö[ôÀí\”ù[‹ï⁄]T‹XŸJò[YKï^
+Bà»úõŸ]»Çààò[YKï^ïö[J
+N¬Çàò\à\õHöŒãÀ›››Àòö[ôÀò€€K⁄[XYŸ\À‹ŸX\ò⁄‹OHà
+¬à\öKë\ÿÿ\Q]T›ö[ô \õH
+»àõŸ]»äN¬àûBà¬àﬁ\›[KëXY€õ‹›X‹ÀîõÿŸ\‹Àî›\ù
+ô]»ﬁ\›[KëXY€õ‹›X‹ÀîõÿŸ\‹‘›\ù[ôõ¬à¬àö[Sò[YHH\õà\ŸT⁄[^X›]HHùYBàJN¬àY\‹ÿYŸPõﬁî⁄› àë\ÿ€€H[XH[XYŸ[Hõ»ò]ôYÿY‹àHÿ[ôHõ»€€\]Y‹ãóóë\⁄\»õ€H[»ÿY\›õ»H€\]YH[HïT–TàSPQ—SHêRVQWãàãàêù\ÿÿ\àõ›»òHŸXàãàY\‹ÿYŸPõﬁù]€úÀì“ÀàY\‹ÿYŸPõﬁX€€ãí[ôõ‹õX][€äN¬àBàÿ]⁄
+^Ÿ\[€à^
+Bà¬àY\‹ÿYŸPõﬁî⁄› ì∞Ë€»õ⁄H‹‹Î]ô[Xúö\àHù\ÿÿHòHŸXãóóàà
+»^ìY\‹ÿYŸJN¬àBàN¬Çà\ŸQ›€õÿYYê€X⁄»
+œH
+À HOÇà¬à\⁄[ô»ò\à»Hô]»‹[ëö[QX[Ÿ¬à¬à]HHîŸ[X⁄[€ò\àH[XYŸ[HòZ^YHHŸXàãàö[\àHí[XYŸ[úﬂ
+ãöúŒ ãöúYŒ ãúôŒ ãùŸXú ãòõ\ÇàN¬àYà
+Àî⁄›—X[Ÿ äHOHX[Ÿ‘ô\›[ì“ Bà¬àŸ[X›Y›»HÀëö[Sò[YN¬àÿYô]öY] Ÿ[X›Y› N¬àBàN¬ÇàYà
+Yí\’ò[YJBà¬à\⁄[ô»ò\à€àH]Xò\ŸKì‹[ä
+N¬à\⁄[ô»ò\à€YH€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^HààÇà—SP’”–ST–—Jò\ò€ŸK	… Kò[YK”–ST–—Jÿ]Y€‹ûK	… Kà€‹›öXŸK›ÿ⁄ÀZ[ó‹›ÿ⁄À”–ST–—J›◊‹]	… Bàîì”HõŸX›»“TëHYIYàààé¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâYãYïò[YJN¬à\⁄[ô»ò\àôH€Yë^X›]TôXY\ä
+N¬àYà
+ôîôXY
+
+JBà¬àò\ò€ŸKï^HôëŸ]›ö[ô 
+N¬àò[YKï^HôëŸ]›ö[ô JN¬àÿ]Y€‹ûKï^HôëŸ]›ö[ô äN¬à€‹›ï^HôëŸ]›XõJ Kï‘›ö[ô ìåàã›[\ôR[ôõÀëŸ]›[\ôR[ôõ úPîàäJN¬àöXŸKï^HôëŸ]›XõJ
+Kï‘›ö[ô ìåàã›[\ôR[ôõÀëŸ]›[\ôR[ôõ úPîàäJN¬à›ÿ⁄Àï^HôëŸ]›XõJJKï‘›ö[ô ìå»ã›[\ôR[ôõÀëŸ]›[\ôR[ôõ úPîàäJN¬àZ[î›ÿ⁄Àï^HôëŸ]›XõJäKï‘›ö[ô ìå»ã›[\ôR[ôõÀëŸ]›[\ôR[ôõ úPîàäJN¬àŸ[X›Y›»HôëŸ]›ö[ô  N¬àBàBÇàÿYô]öY] Ÿ[X›Y› N¬Çàÿ[òŸ[ê€X⁄»
+œH
+À HOàãê€‹ŸJ
+N¬Çàÿ]ôKê€X⁄»
+œH
+À HOÇà¬àYà
+›ö[ôÀí\”ù[‹ï⁄]T‹XŸJò[YKï^
+JBà¬à[ôõ í[ôõ‹õYH»õ€YH»õŸ]ÀàäN¬àò[YKëõÿ›\ 
+N¬àô]\õé¬àBÇà›ö[ôœ»ö[ò[›‘]HŸ[X›Y›Œ¬àYà
+\›ö[ôÀí\”ù[‹ï⁄]T‹XŸJŸ[X›Y› H	âàö[Kë^\› Ÿ[X›Y› JBà¬àò\àõŸX››‹»H]ê€€Xö[ôJ]Xò\ŸKê\õ€\ãîõŸX›[XYŸ\»äN¬à\ôX›‹ûKê‹ôX]Q\ôX›‹ûJõŸX››‹ N¬Çàò\à^H]ëŸ]^[ú⁄[€äŸ[X›Y› N¬àYà
+›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ^
+JH^Hãöú»é¬Çàò\à\›H]ê€€Xö[ôJàõŸX››‹Àà	úõŸ]◊ﬁ YÀï‘›ö[ô 
+Hœ»›ZYìô]—›ZY
+
+Kï‘›ö[ô ìàäJ_^Ÿ^ï”›Ÿ\í[ùò\öX[ù
+
+_HäN¬ÇàYà
+T]ëŸ]ù[]
+Ÿ[X›Y› Kë\]X[ ]ëŸ]ù[]
+\›
+K›ö[ô–€€\\ö\€€ãì‹ô[ò[Y€õ‹ôPÿ\ŸJJBàö[Kê€‹JŸ[X›Y›À\›ùYJN¬Çàö[ò[›‘]H\›¬àBÇà\⁄[ô»ò\à€àH]Xò\ŸKì‹[ä
+N¬à\⁄[ô»ò\à€YH€ãê‹ôX]P€€[X[ô
+
+N¬ÇàYà
+Yí\’ò[YJBà¬à€Yê€€[X[ô^HààÇàTUHõŸX›¬à—Uò\ò€ŸOIãò[YOIãÿ]Y€‹ûOIÀ€‹›I€ÀöXŸOIà›ÿ⁄œIÀZ[ó‹›ÿ⁄œIK›◊‹]I›¬à“TëHYIYàààé¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâYãYïò[YJN¬àBà[ŸBà¬à€Yê€€[X[ô^HààÇàSî—TïSï»õŸX› ò\ò€ŸKò[YKÿ]Y€‹ûK€‹›öXŸK›ÿ⁄ÀZ[ó‹›ÿ⁄À›◊‹]
+BàêSQT 	ã	ã	À	€À		À	K	› Bàààé¬àBÇà€Yî\ò[Y]\úÀêY⁄]ò[YJâàãò\ò€ŸKï^ïö[J
+JN¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâàãò[YKï^ïö[J
+JN¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâ»ãÿ]Y€‹ûKï^ïö[J
+JN¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâ€»ãù[J€‹›ï^
+JN¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâãù[JöXŸKï^
+JN¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâ»ãù[J›ÿ⁄Àï^
+JN¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâHãù[JZ[î›ÿ⁄Àï^
+JN¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâ›»ã
+ÿöôX› Yö[ò[›‘]œ»ìù[ïò[YJN¬à€Yë^X›]Sõ€î]Y\ûJ
+N¬ÇàôYúô\⁄\⁄õÿ\ô
+
+N¬àãëX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ì“Œ¬àãê€‹ŸJ
+N¬àN¬Çà\Qõÿ][ô’[YJäN¬ÇÇàãî⁄›—X[Ÿ \ N¬àBÇàö]ò]Hõ⁄Y‹[ê›\›€Y\ú 
+HOà⁄›‘\ú€€ê‹ùY
+ê”QSïT»ãò›\›€Y\ú»äN¬àö]ò]Hõ⁄Y‹[î›\Y\ú 
+HOà⁄›‘\ú€€ê‹ùY
+ëì‘ìëP—Q‘ëT»ãú›\Y\ú»äN¬Çàö]ò]Hõ⁄Y⁄›‘\ú€€ê‹ùY
+›ö[ô»]K›ö[ô»XõJBà¬à⁄›–‹ùY
+]Kà	î—SP’YT»Qò[YHT»õ€YKÿ›[Y[ùT»ÿ›[Y[ùÀ€ôHT»[Yõ€ôK[XZ[T»[XZ[Yô\‹»T»[ô\ôpÈ€»îì”H›Xõ_H‘ëTàñHò[YHãà
+
+HOàY]\ú€€äXõKù[]VÀãóåWJKàYOàY]\ú€€äXõKY]VÀãóåWJKàYOà»Yà
+€€ôö\õJë^€Z\à\›HÿY\›õœ»äJH^X 	ëSUHîì”H›Xõ_H“TëHYIYã
+âYãY
+JN»JN¬àBÇàö]ò]Hõ⁄YY]\ú€€ä›ö[ô»XõK€ôœ»Y›ö[ô»]JBà¬àò\ààHY]‹ä]Kô]÷◊H»ìõ€YHãê‘ã–”îàãï[Yõ€ôHãëK[XZ[ãë[ô\ôpÈ€»àJN¬àYà
+Yí\’ò[YJBà¬à\⁄[ô»ò\à€àH]Xò\ŸKì‹[ä
+N¬à\⁄[ô»ò\à€YH€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^H	î—SP’ò[YKÿ›[Y[ù€ôK[XZ[Yô\‹»îì”H›Xõ_H“TëHYIYé¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâYãYïò[YJN¬à\⁄[ô»ò\àôX€Yë^X›]TôXY\ä
+N¬àYäôîôXY
+
+JHö[Y]‹äãôëŸ]›ö[ô 
+KôëŸ]›ö[ô JKôëŸ]›ö[ô äKôëŸ]›ö[ô  KôëŸ]›ö[ô 
+JN¬àBà\Qõÿ][ô’[YJäN¬ÇàYäãî⁄›—X[Ÿ \ OOQX[Ÿ‘ô\›[ì“ Bà¬àò\àèQY]‹ïò[Y\ äN¬àYä›ö[ôÀí\”ù[‹ï⁄]T‹XŸJñÃJJH»[ôõ í[ôõ‹õYH»õ€YKàäN»ô]\õé»BàYäYí\’ò[YJBà^X 	ïTUH›Xõ_H—Uò[YOIãÿ›[Y[ùI€ôOI[XZ[IKYô\‹œIH“TëHYIYãà
+âàãñÃJK
+âãñÃWJK
+âãñÃóJK
+âHãñÃ◊JK
+âHãñÕJK
+âYãYïò[YJJN¬à[ŸBà^X 	íSî—TïSï»›Xõ_Jò[YKÿ›[Y[ù€ôK[XZ[Yô\‹ HêSQT 	ã			K	JHãà
+âàãñÃJK
+âãñÃWJK
+âãñÃóJK
+âHãñÃ◊JK
+âHãñÕJJN¬àBàBÇàö]ò]Hõ⁄Y‹[îŸ\ùöXŸ\ 
+HOà⁄›–‹ùY
+î—Tïíp·”‘»ãàî—SP’YT»Qò[YHT»Ÿ\ùöpÈ€Àö[ùä	‘â	KåôâÀöXŸJHT»ò[‹ã\ÿ‹ö\[€àT»\ÿ‹öpÈË€»îì”HŸ\ùöXŸ\»‘ëTàñHò[YHãà
+
+HOàY]Ÿ\ùöXŸJù[
+KàYOàY]Ÿ\ùöXŸJY
+KàYOà»Yä€€ôö\õJë^€Z\à\›HŸ\ùöpÈ€œ»äJH^X ëSUHîì”HŸ\ùöXŸ\»“TëHYIYã
+âYãY
+JN»JN¬Çàö]ò]Hõ⁄YY]Ÿ\ùöXŸJ€ôœ»Y
+Bà¬àò\àèQY]‹äîŸ\ùöpÈ€»ãô]÷◊^»îŸ\ùöpÈ€»ãïò[‹àãë\ÿ‹öpÈË€»üJN¬àYäYí\’ò[YJBà¬à\⁄[ô»ò\à€èQ]Xò\ŸKì‹[ä
+N»\⁄[ô»ò\à€YX€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^Hî—SP’ò[YKöXŸK\ÿ‹ö\[€àîì”HŸ\ùöXŸ\»“TëHYIYé»€Yî\ò[Y]\úÀêY⁄]ò[YJâYãYïò[YJN¬à\⁄[ô»ò\àôX€Yë^X›]TôXY\ä
+N»YäôîôXY
+
+JHö[Y]‹äãôëŸ]›ö[ô 
+KôëŸ]›XõJJKôëŸ]›ö[ô äJN¬àBà\Qõÿ][ô’[YJäN¬ÇàYäãî⁄›—X[Ÿ \ OOQX[Ÿ‘ô\›[ì“ Bà¬àò\àèQY]‹ïò[Y\ äN¬àYäYí\’ò[YJH^X ïTUHŸ\ùöXŸ\»—Uò[YOIãöXŸOI\ÿ‹ö\[€èI“TëHYIYã
+âàãñÃJK
+âãù[JñÃWJJK
+âãñÃóJK
+âYãYïò[YJJN¬à[ŸH^X íSî—TïSï»Ÿ\ùöXŸ\ ò[YKöXŸK\ÿ‹ö\[€äHêSQT 	ã		
+Hã
+âàãñÃJK
+âãù[JñÃWJJK
+âãñÃóJJN¬àBàBÇàö]ò]Hõ⁄Y‹[ì‹ô\ú 
+HOà⁄›–‹ùY
+ì‘ëSî»H—Tïíp·”»ãàî—SP’YT»Q‹[ôYÿ]T»]K›\›€Y\ó€ò[YHT»€Y[ùK\]Z\Y[ùT»\]Z\[Y[ùÀYôX›T»YôZ]À›]\»T»›]\Àö[ùä	‘â	KåôâÀ[[›[ù
+HT»ò[‹àîì”HŸ\ùöXŸW€‹ô\ú»‘ëTàñHYT–»ãà
+
+HOàY]‹ô\äù[
+KàYOàY]‹ô\äY
+KàYOà»Yä€€ôö\õJë^€Z\à\›H‘œ»äJH^X ëSUHîì”HŸ\ùöXŸW€‹ô\ú»“TëHYIYã
+âYãY
+JN»JN¬Çàö]ò]Hõ⁄YY]‹ô\ä€ôœ»Y
+Bà¬àò\àèQY]‹äì‹ô[HHŸ\ùöpÈ€»ãô]÷◊^»ê€Y[ùHãë\]Z\[Y[ù»ãëYôZ]»»ôX€[XpÈË€»ãîŸ\ùöpÈ€»ôX[^òY»ãî›]\»ãïò[‹àãìÿúŸ\ùòpÈÌY\»üJN¬àYäYí\’ò[YJBà¬à\⁄[ô»ò\à€èQ]Xò\ŸKì‹[ä
+N»\⁄[ô»ò\à€YX€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^Hî—SP’›\›€Y\ó€ò[YK\]Z\Y[ùYôX›Ÿ\ùöXŸWŸ€ôK›]\À[[›[ùõ›\»îì”HŸ\ùöXŸW€‹ô\ú»“TëHYIYé»€Yî\ò[Y]\úÀêY⁄]ò[YJâYãYïò[YJN¬à\⁄[ô»ò\àôX€Yë^X›]TôXY\ä
+N»YäôîôXY
+
+JHö[Y]‹äãôëŸ]›ö[ô 
+KôëŸ]›ö[ô JKôëŸ]›ö[ô äKôëŸ]›ö[ô  KôëŸ]›ö[ô 
+KôëŸ]›XõJJKôëŸ]›ö[ô äJN¬àBà\Qõÿ][ô’[YJäN¬ÇàYäãî⁄›—X[Ÿ \ OOQX[Ÿ‘ô\›[ì“ Bà¬àò\àèQY]‹ïò[Y\ äN¬àYäYí\’ò[YJH^X ààïTUHŸ\ùöXŸW€‹ô\ú»—U›\›€Y\ó€ò[YOIÀ\]Z\Y[ùIKYôX›IŸ\ùöXŸWŸ€ôOIÀ›]\œI›[[›[ùIKõ›\œIà“TëHYIYààãà
+â»ãñÃJK
+âHãñÃWJK
+âãñÃóJK
+â»ãñÃ◊JK
+â›ãñÕJK
+âHãù[JñÕWJJK
+âàãñÕóJK
+âYãYïò[YJJN¬à[ŸH^X ààíSî—TïSï»Ÿ\ùöXŸW€‹ô\ú ‹[ôYÿ]›\›€Y\ó€ò[YK\]Z\Y[ùYôX›Ÿ\ùöXŸWŸ€ôK›]\À[[›[ùõ›\ HêSQT 		À	K		À	›	K	äHààãà
+âã]U[YKìõ›Àï‘›ö[ô û^^^KSSKYõ[Nú‹»äJK
+â»ãñÃJK
+âHãñÃWJK
+âãñÃóJK
+â»ãñÃ◊JK
+â›ã›ö[ôÀí\”ù[‹ï⁄]T‹XŸJñÕJO»êPëTïHéùñÕJK
+âHãù[JñÕWJJK
+âàãñÕóJJN¬àBàBÇàö]ò]Hõ⁄Y‹[î][›\ 
+HOà⁄›–‹ùY
+ì‘∞·–SQSï‘»ãàî—SP’YT»Q‹ôX]Yÿ]T»]K›\›€Y\ó€ò[YHT»€Y[ùK\ÿ‹ö\[€àT»\ÿ‹öpÈË€Àö[ùä	‘â	KåôâÀ[[›[ù
+HT»ò[‹ã›]\»T»›]\»îì”H][›\»‘ëTàñHYT–»ãà
+
+HOàY]][›Jù[
+KàYOàY]][›JY
+KàYOà»Yä€€ôö\õJë^€Z\à\›H‹∞Èÿ[Y[ùœ»äJH^X ëSUHîì”H][›\»“TëHYIYã
+âYãY
+JN»JN¬Çàö]ò]Hõ⁄YY]][›J€ôœ»Y
+Bà¬àò\àèQY]‹äì‹∞Èÿ[Y[ù»ãô]÷◊^»ê€Y[ùHãë\ÿ‹öpÈË€»ãïò[‹àãî›]\»üJN¬àYäYí\’ò[YJBà¬à\⁄[ô»ò\à€èQ]Xò\ŸKì‹[ä
+N»\⁄[ô»ò\à€YX€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^Hî—SP’›\›€Y\ó€ò[YK\ÿ‹ö\[€ã[[›[ù›]\»îì”H][›\»“TëHYIYéÿ€Yî\ò[Y]\úÀêY⁄]ò[YJâYãYïò[YJN¬à\⁄[ô»ò\àôX€Yë^X›]TôXY\ä
+N⁄YäôîôXY
+
+JQö[Y]‹äãôëŸ]›ö[ô 
+KôëŸ]›ö[ô JKôëŸ]›XõJäKôëŸ]›ö[ô  JN¬àBà\Qõÿ][ô’[YJäN¬ÇàYäãî⁄›—X[Ÿ \ OOQX[Ÿ‘ô\›[ì“ Bà¬àò\àèQY]‹ïò[Y\ äN¬àYäYí\’ò[YJH^X ïTUH][›\»—U›\›€Y\ó€ò[YOIÀ\ÿ‹ö\[€èI[[›[ùIK›]\œI»“TëHYIYã
+â»ãñÃJK
+âãñÃWJK
+âHãù[JñÃóJJK
+â»ãñÃ◊JK
+âYãYïò[YJJN¬à[ŸH^X íSî—TïSï»][›\ ‹ôX]Yÿ]›\›€Y\ó€ò[YK\ÿ‹ö\[€ã[[›[ù›]\ HêSQT 		À		K	 Hã
+âã]U[YKìõ›Àï‘›ö[ô û^^^KSSKYõ[Nú‹»äJK
+â»ãñÃJK
+âãñÃWJK
+âHãù[JñÃóJJK
+â»ã›ö[ôÀí\”ù[‹ï⁄]T‹XŸJñÃ◊JO»îSëSïHéùñÃ◊JJN¬àBàBÇàö]ò]Hõ⁄Y‹[ëö[ò[òŸJ
+HOà⁄›–‹ùY
+ëìV»H–RVHãàî—SP’YT»Qÿÿ›\úôYÿ]T»]K\HT»\À\ÿ‹ö\[€àT»\ÿ‹öpÈË€Àö[ùä	‘â	KåôâÀ[[›[ù
+HT»ò[‹àîì”Hÿ\⁄€[›ô[Y[ù»‘ëTàñHYT–»ãà
+
+HOÇà¬àò\àèQY]‹äì[∞Èÿ[Y[ù»ö[ò[òŸZ\õ»ãô]÷◊^»ï\»
+SïêQK‘–p„QJHãë\ÿ‹öpÈË€»ãïò[‹àüJN¬àYäãî⁄›—X[Ÿ \ OOQX[Ÿ‘ô\›[ì“ ^›ò\àèQY]‹ïò[Y\ äN—^X íSî—TïSï»ÿ\⁄€[›ô[Y[ù ÿÿ›\úôYÿ]\K\ÿ‹ö\[€ã[[›[ù
+HêSQT 				JHã
+âã]U[YKìõ›Àï‘›ö[ô û^^^KSSKYõ[Nú‹»äJK
+âãñÃJK
+âãñÃWJK
+âHãù[JñÃóJJJNﬂBàKù[àYOû⁄Yä€€ôö\õJë^€Z\à\›H[∞Èÿ[Y[ùœ»äJQ^X ëSUHîì”Hÿ\⁄€[›ô[Y[ù»“TëHYIYã
+âYãY
+JNﬂJN¬Çàö]ò]Hõ⁄Y‹[í\›‹ûJ
+HOà⁄›‘ôXY€õJíT’0‰‘íP”»HëSëT»ãàî—SP’YT»ô[ôK€€ÿ]T»]K^[Y[ùT»Yÿ[Y[ùÀö[ùä	‘â	KåôâÀ›Xù›[
+HT»›Xù›[ö[ùä	‘â	KåôâÀ\ÿ€›[ù
+HT»\ÿ€€ùÀö[ùä	‘â	KåôâÀ›[
+HT»›[‹\ò]‹àT»‹\òY‹àîì”Hÿ[\»‘ëTàñHYT–»äN¬Çàö]ò]Hõ⁄Y‹[îô\‹ù 
+Bà¬à\⁄[ô»ò\à€èQ]Xò\ŸKì‹[ä
+N¬à€ô»õŸX›œTÿÿ[\ì€ô €ãî—SP’”’Sï
+
+äHîì”HõŸX›»“TëHX›]ôOLHäN¬à€ô»€Y[ùœTÿÿ[\ì€ô €ãî—SP’”’Sï
+
+äHîì”H›\›€Y\ú»äN¬à€ô»ÿ[\œTÿÿ[\ì€ô €ãî—SP’”’Sï
+
+äHîì”Hÿ[\»äN¬à›XõH›[Tÿÿ[\ë›XõJ€ãî—SP’”–ST–—J’SJ›[
+K
+Hîì”Hÿ[\»äN¬à›XõH[ùöY\œTÿÿ[\ë›XõJ€ãî—SP’”–ST–—J’SJ[[›[ù
+K
+Hîì”Hÿ\⁄€[›ô[Y[ù»“TëH\\ä\JHì’R—H	…T–p„QII»äN¬à›XõH^]œTÿÿ[\ë›XõJ€ãî—SP’”–ST–—J’SJ[[›[ù
+K
+Hîì”Hÿ\⁄€[›ô[Y[ù»“TëH\\ä\JHR—H	…T–p„QII»äN¬à€ô»›œTÿÿ[\ì€ô €ãî—SP’”’Sï
+
+äHîì”HõŸX›»“TëHX›]ôOLHSë›ÿ⁄œ[Z[ó‹›ÿ⁄»äN¬àY\‹ÿYŸPõﬁî⁄› à	îëSU0‰‘íS»—TêSóîõŸ]‹Œà‹õŸX›ﬂWê€Y[ù\Œàÿ€Y[ùﬂWïô[ô\Œà‹ÿ[\ﬂWï›[ô[ôYŒà”[€ô^J›[
+_Wóë[ùòY\Œà”[€ô^J[ùöY\ _WîÿpÎY\Œà”[€ô^J^] _Wîÿ[Œà”[€ô^J[ùöY\ÀY^] _Wóë\›‹]YHòZ^Œà€›ﬂHõŸ]  HãàìPSSëì»àHô[]0Ï‹ö[‹»ãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãí[ôõ‹õX][€äN¬àBÇàö]ò]Hõ⁄Y‹[ï\Ÿ\ú 
+Bà¬à\⁄[ô»ò\àè[ô]»õ‹õ^’^Hï\›pË\ö[‹»H∞Î]ôZ\»HXŸ\‹€»ã›\ù‹⁄][€èQõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ùà⁄YNNZY⁄MçLòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäåçåŒKç
+Kõ€ù[ô]»õ€ù
+îŸY€ŸHRHãL
+_N¬àò\à‹öY[ô]»]Q‹öYöY]ﬁ—ÿ⁄œQÿ⁄‘›[Këö[ôXY€õO]ùYK[›’\Ÿ\ï–Yõ›‹œYò[ŸKõ›“XY\ú’ö\⁄XõOYò[ŸKà]]‘⁄^ôP€€[[ú”[ŸOQ]Q‹öYöY]–]]‘⁄^ôP€€[[ú”[ŸKëö[Ÿ[X›[€ì[ŸOQ]Q‹öYöY]‘Ÿ[X›[€ì[ŸKëù[õ›‘Ÿ[X›N¬àò\àò\è[ô]»õ›”^[›][ô[—ÿ⁄œQÿ⁄‘›[Kêõ›€KZY⁄MçY[ôœ[ô]»Y[ô L
+Kõ›—\ôX›[€èQõ›—\ôX›[€ãìYù‘öY⁄N¬àò\àY[ô]»ù]€û’^Hìì’ì»T’p‡TíS»ã⁄YLMLZY⁄MüN¬àò\àô\Ÿ][ô]»ù]€û’^HîëQQíSíTà—SíHã⁄YLMåZY⁄MüN¬àò\àŸŸ€O[ô]»ù]€û’^HêUUêTà»SêUUêTàã⁄YLMåZY⁄MüN¬àò\ãê€€ùõ€ÀêY
+Y
+Nÿò\ãê€€ùõ€ÀêY
+ô\Ÿ]
+Nÿò\ãê€€ùõ€ÀêY
+ŸŸ€JN¬àãê€€ùõ€ÀêY
+‹öY
+NŸãê€€ùõ€ÀêY
+ò\äN¬Çàõ⁄YÿY\Ÿ\ú 
+Bà¬à\⁄[ô»ò\à€èQ]Xò\ŸKì‹[ä
+N¬à\⁄[ô»ò\à€YX€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^Hî—SP’YT»Qù[€ò[YHT»õ€YK\Ÿ\õò[YHT»\›X\ö[Àõ€HT»ö]ô[[XZ[T»[XZ[€ôHT»[Yõ€ôK–T—HX›]ôH“SàHSà	–UUì…»S—H	“SêUUì…»SëT»›]\À–T—Hÿ[óŸ\ÿ€›[ù“SàHSà	‘“SI»S—H	”∞‡”…»SëT»\ÿ€€ù»îì”H\Ÿ\ú»‘ëTàñHù[€ò[YHé¬à\⁄[ô»ò\àôX€Yë^X›]TôXY\ä
+N¬àò\à[ô]»ﬁ\›[Kë]Kë]UXõJ
+N¬àìÿY
+ô
+N¬à‹öYë]T€›\òŸOY¬àBÇàYê€X⁄ œJÀ OOû¬à\⁄[ô»ò\àYè[ô]»õ‹õ^’^Hìõ›õ»\›pË\ö[»ã›\ù‹⁄][€èQõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ù⁄YMMåZY⁄MMÃàõ‹õPõ‹ô\î›[OQõ‹õPõ‹ô\î›[Këö^YX[ŸÀX^[Z^ôPõﬁYò[ŸKZ[ö[Z^ôPõﬁYò[ŸKòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäåçåŒKç
+_N¬àò\à[ô]»XõS^[›][ô[—ÿ⁄œQÿ⁄‘›[Këö[€€[[ê€›[ùLKY[ôœ[ô]»Y[ô Ã
+_N¬àYãê€€ùõ€ÀêY
+
+N¬à^õﬁäõ€€œYò[ŸJOOõô] 
+^—ÿ⁄œQÿ⁄‘›[Kï‹ZY⁄LŒ\ŸTﬁ\›[T\‹›€‹ô⁄\è\Àõ€ù[ô]»õ€ù
+îŸY€ŸHRHãLJ_N¬àXô[
+›ö[ô» OOõô] 
+^’^\Àÿ⁄œQÿ⁄‘›[Kï‹ZY⁄Lçãõ€ù[ô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+_N¬àò\àèPä
+N›ò\àOPä
+N›ò\àOPä
+N›ò\àPä
+N›ò\àœPäùYJN¬àò\àõ€O[ô]»€€Xõ–õﬁ—ÿ⁄œQÿ⁄‘›[Kï‹õ‹›€î›[OP€€Xõ–õﬁ›[Këõ‹›€ì\›ZY⁄LŒN¬àõ€Kí][\ÀêYò[ôŸJô]÷◊^»êQRSíT’êQ‘àãë—TëSïHãì‘TêQ‘àüJN‹õ€KîŸ[X›Y[ô^Lé¬àò\à\ÿ€›[ù[ô]»⁄X⁄–õﬁ’^HîŸH€€òŸY\à\ÿ€€ù»ãÿ⁄œQÿ⁄‘›[Kï‹ZY⁄LÕ_N¬àõ‹ôXX⁄
+ò\à[àô]»
+›ö[ôÀ€€ùõ€
+V◊^ ìõ€YH€€\]»ãäK
+ï\›pË\ö[»ãJK
+ëK[XZ[ãJK
+ï[Yõ€ôHã
+K
+îŸ[öH[öX⁄X[ã K
+ì∞Î]ô[HXŸ\‹€»ãõ€J_JBà‹ê€€ùõ€ÀêY
+
+í][LJJN‹ê€€ùõ€ÀêY
+í][LäNﬂBàê€€ùõ€ÀêY
+\ÿ€›[ù
+N¬àò\àÿ]ôO[ô]»ù]€û’^Hî–SêTàT’p‡TíS»ãÿ⁄œQÿ⁄‘›[Kï‹ZY⁄MãòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäMåÀåç
+Kõ‹ôP€€‹èP€€‹ãï⁄]Kõ]›[OQõ]›[Këõ]N¬àê€€ùõ€ÀêY
+ÿ]ôJN¬àÿ]ôKê€X⁄ œJÀ OOû¬àYä›ö[ôÀí\”ù[‹ï⁄]T‹XŸJãï^
+_›ö[ôÀí\”ù[‹ï⁄]T‹XŸJKï^
+_Àï^ì[ô›ä^”Y\‹ÿYŸPõﬁî⁄› ìõ€YK\›pË\ö[»HŸ[öHHõ»pÎ[ö[[»àÿ\òX›\ô\»Ë€»ÿúöYÿ]0Ï‹ö[‹ÀàäN‹ô]\õéﬂBàû^–]]ê‹ôX]U\Ÿ\äãï^Kï^Àï^õ€Kï^Kï^ï^\ÿ€›[ùê⁄X⁄ŸY
+N›YãëX[Ÿ‘ô\›[QX[Ÿ‘ô\›[ì“Œ›Yãê€‹ŸJ
+NﬂBàÿ]⁄
+^Ÿ\[€à^
+^”Y\‹ÿYŸPõﬁî⁄› ë\úõ»[»ÿ[ò\à\›pË\ö[ŒóàäŸ^ìY\‹ÿYŸJNﬂBàN¬àYäYãî⁄›—X[Ÿ äOOQX[Ÿ‘ô\›[ì“ SÿY\Ÿ\ú 
+N¬àN¬Çàô\Ÿ]ê€X⁄ œJÀ OOû¬àYä‹öYê›\úô[ùõ›œO[ù[
+\ô]\õé¬à€ô»YP€€ùô\ùï“[ùç
+‹öYê›\úô[ùõ›ÀêŸ[÷»íQóKïò[YJN¬à›ö[ô»ò[YOP€€ùô\ùï‘›ö[ô ‹öYê›\úô[ùõ›ÀêŸ[÷»ìõ€YHóKïò[YJOœ»àé¬à\⁄[ô»ò\àôè[ô]»õ‹õ^’^HîôYYö[ö\àŸ[öHã›\ù‹⁄][€èQõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ù⁄YMZY⁄Lçõ‹õPõ‹ô\î›[OQõ‹õPõ‹ô\î›[Këö^YX[ŸﬂN¬àò\àè[ô]»^õﬁ”YùLÕK‹MÃ⁄YLŒL\ŸTﬁ\›[T\‹›€‹ô⁄\è]ùYKõ€ù[ô]»õ€ù
+îŸY€ŸHRHãLä_N¬àò\àXè[ô]»Xô[”YùLÕK‹LçK⁄YLŒL^Hìõ›òHŸ[öH\òHä€ò[YJ»à
+pÎ[ö[[»àÿ\òX›\ô\ NàüN¬àò\à⁄œ[ô]»ù]€û”YùLçÕK‹LLçK⁄YLMLZY⁄LŒ^HîëQQíSíTàüN¬àôãê€€ùõ€ÀêYò[ôŸJô]»€€ùõ€◊^€Xãã⁄ﬂJN¬à⁄Àê€X⁄ œJÀ OOû⁄Yäãï^ì[ô›ä^”Y\‹ÿYŸPõﬁî⁄› ï\ŸH[»Y[õ‹»àÿ\òX›\ô\ÀàäN‹ô]\õéﬂP]]îô\Ÿ]\‹›€‹ô
+Yãï^
+N‹ôãëX[Ÿ‘ô\›[QX[Ÿ‘ô\›[ì“Œ‹ôãê€‹ŸJ
+NﬂN¬àYäôãî⁄›—X[Ÿ äOOQX[Ÿ‘ô\›[ì“ SY\‹ÿYŸPõﬁî⁄› îŸ[öHôYYö[öYH€€H›XŸ\‹€ÀàäN¬àN¬ÇàŸŸ€Kê€X⁄ œJÀ OOû¬àYä‹öYê›\úô[ùõ›œO[ù[
+\ô]\õé¬à€ô»YP€€ùô\ùï“[ùç
+‹öYê›\úô[ùõ›ÀêŸ[÷»íQóKïò[YJN¬àYä]]ê›\úô[ùÀíYOZY
+^”Y\‹ÿYŸPõﬁî⁄› ïõÿÍà∞Ë€»ŸH[ò]]ò\àŸ]H∞Ï‹ö[»\›pË\ö[»\ò[ùHHŸ\‹Ë€ÀàäN‹ô]\õéﬂBà\⁄[ô»ò\à€èQ]Xò\ŸKì‹[ä
+N›\⁄[ô»ò\à€YX€ãê‹ôX]P€€[X[ô
+
+N¬à€Yê€€[X[ô^HïTUH\Ÿ\ú»—UX›]ôOP–T—HX›]ôH“SàHSàS—HHSë“TëHYIYé¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâYãY
+Nÿ€Yë^X›]Sõ€î]Y\ûJ
+N”ÿY\Ÿ\ú 
+N¬àN¬àÿY\Ÿ\ú 
+N¬à\Qõÿ][ô’[YJäN¬àãî⁄›—X[Ÿ \ N¬àBÇàö]ò]Hõ⁄Y⁄›“[ö]X[ŸX›\ö]TŸ]\
+
+Bà¬àYà
+]]ê›\úô[ùOHù[
+Hô]\õé¬Çà\⁄[ô»ò\ààHô]»õ‹õBà¬à^Hîõ›ZòH›XH€€ùHHYZ[ö\›òY‹àãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ùà⁄YHçLàZY⁄HÃàõ‹õPõ‹ô\î›[HHõ‹õPõ‹ô\î›[Këö^YX[ŸÀàX^[Z^ôPõﬁHò[ŸKàZ[ö[Z^ôPõﬁHò[ŸKàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+BàN¬Çàò\àõ€›Hô]»XõS^[›][ô[—ÿ⁄œQÿ⁄‘›[Këö[€€[[ê€›[ùLKõ›–€›[ùMY[ôœ[ô]»Y[ô é
+_N¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]K
+JN¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùL
+JN¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KN
+JN¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KN
+JN¬àãê€€ùõ€ÀêY
+õ€›
+N¬Çàõ€›ê€€ùõ€ÀêY
+ô]»Xô[à¬à^Hîì’p·‡”»H””ïHãàÿ⁄œQÿ⁄‘›[Këö[àõ‹ôP€€‹èQ\ö–õYKàõ€ù[ô]»õ€ù
+îŸY€ŸHRHãåõ€ù›[Kêõ€
+Kà^[Y€èP€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàK
+N¬Çàõ€›ê€€ùõ€ÀêY
+ô]»Xô[à¬à^Hê[ù\»H€€ù[ùX\ãŸ\ôHÏŸY€‹»HôX›\\òpÈË€»H[Y\ôÍõò⁄XKóóë[\»\õZ][HôX›\\ò\àHŸ[öHY\€[»ŸH»K[XZ[Z[ôH∞Ë€»\›]ô\à€€ôöY›\òYÀóóë›X\ôH\‹Ÿ\»ÏŸY€‹»[Hÿÿ[ŸY›\õÀàÿYHÏŸY€»ù[ò⁄[€òH\[ò\»[XHô^ãàãàÿ⁄œQÿ⁄‘›[Këö[àõ‹ôP€€‹èP€€‹ãëúõ€P\ôÿäMKM
+Kàõ€ù[ô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+Kà^[Y€èP€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàKJN¬Çàò\àŸ[ô\ò]HHô]»ù]€Çà¬à^Hë—TêTà‰—Q”‘»HSQTë‚ìê“PHãàÿ⁄œQÿ⁄‘›[Këö[àòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäNKåãŒ
+Kàõ‹ôP€€‹èP€€‹ãï⁄]Kàõ]›[OQõ]›[Këõ]àõ€ù[ô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+BàN¬àŸ[ô\ò]Këõ]\X\ò[òŸKêõ‹ô\î⁄^ôOL¬àõ€›ê€€ùõ€ÀêY
+Ÿ[ô\ò]KäN¬Çàò\à]\àHô]»ù]€Çà¬à^Hê””ïSïPTàãàÿ⁄œQÿ⁄‘›[Këö[àòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäMåÀåç
+Kàõ‹ôP€€‹èP€€‹ãï⁄]Kàõ]›[OQõ]›[Këõ]àõ€ù[ô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+Kà[òXõYYò[ŸBàN¬à]\ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôOL¬àõ€›ê€€ùõ€ÀêY
+]\ã N¬ÇàŸ[ô\ò]Kê€X⁄»
+œH
+À HOÇà¬à⁄›—[Y\ôŸ[òﬁP€Ÿ\ ]]ê›\úô[ùíYùYJN¬àYà
+]]îô[XZ[ö[ô—[Y\ôŸ[òﬁP€Ÿ\ ]]ê›\úô[ùíY
+Hà
+Bà]\ãë[òXõYHùYN¬àN¬Çà]\ãê€X⁄»
+œH
+À HOÇà¬àŸ]Ÿ][ô úŸX›\ö]W‹Ÿ]\ÿ€€\]YãåHäN¬àãê€‹ŸJ
+N¬àN¬Çàãî⁄›—X[Ÿ \ N¬àBÇàö]ò]Hõ⁄Y⁄›—[Y\ôŸ[òﬁP€Ÿ\ €ô»\Ÿ\íYõ€€[ö]X[Ÿ]\
+Bà¬àò\à€Ÿ\»H]]ëŸ[ô\ò]Q[Y\ôŸ[òﬁP€Ÿ\ \Ÿ\íY
+N¬à›ö[ô»ôX€›ô\ûRY[ù]HH]]ê›\úô[ùÀï\Ÿ\õò[YHœ»àé¬àYà
+]]ê›\úô[ùOHù[	âà\›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ]]ê›\úô[ùë[XZ[
+JBàôX€›ô\ûRY[ù]HH]]ê›\úô[ùë[XZ[¬à]]îÿ]ôSÿÿ[ôX€›ô\ûRŸ^J\Ÿ\íYôX€›ô\ûRY[ù]K€Ÿ\ N¬Çà\⁄[ô»ò\ààHô]»õ‹õBà¬à^HêÏŸY€‹»HôX›\\òpÈË€»H[Y\ôÍõò⁄XHãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ùà⁄YHååàZY⁄Hååàõ‹õPõ‹ô\î›[HHõ‹õPõ‹ô\î›[Këö^YX[ŸÀàX^[Z^ôPõﬁHò[ŸKàZ[ö[Z^ôPõﬁHò[ŸKàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+BàN¬Çàò\ààHô]»^õﬁà¬à][[[ôHHùYKàôXY€õHHùYKàÿ⁄»Hÿ⁄‘›[Këö[àõ€ùHô]»õ€ù
+ê€€ú€€\»ãMãõ€ù›[Kêõ€
+Kà^[Y€àH‹ö^õ€ù[[Y€õY[ùêŸ[ù\ãàòX⁄–€€‹àH€€‹ãï⁄]Kàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäŒé
+Kà^H›ö[ôÀíõ⁄[ä[ùö\õ€õY[ùìô]”[ôH
+»[ùö\õ€õY[ùìô]”[ôK€Ÿ\ BàN¬Çàò\à[ôõ»Hô]»Xô[à¬àÿ⁄»Hÿ⁄‘›[Kï‹àZY⁄HKà^Hë’PTëHT’T»‰—Q”‘»SH––S—Q’Tì◊êÿYHÏŸY€»ù[ò⁄[€òH€€Y[ùH[XHô^ãàãàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäNKåãŒ
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàN¬Çàò\àõ›€HHô]»õ›”^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Kêõ›€KàZY⁄HÃàõ›—\ôX›[€àHõ›—\ôX›[€ãîöY⁄”YùàY[ô»Hô]»Y[ô LäBàN¬Çàò\à€‹HHô]»ù]€û’^Hê”‘PTà‰—Q”‘»ã⁄YLMåZY⁄MüN¬àò\à€‹ŸHHô]»ù]€û’^Hí∞‡H’PTëRHã⁄YLMLZY⁄MüN¬Çà€‹Kê€X⁄»
+œH
+À HOÇà¬à€\õÿ\ôîŸ]^
+ãï^
+N¬àY\‹ÿYŸPõﬁî⁄› êÏŸY€‹»€‹XY‹ÀàäN¬àN¬à€‹ŸKê€X⁄»
+œH
+À HOàãê€‹ŸJ
+N¬Çàõ›€Kê€€ùõ€ÀêY
+€‹ŸJN¬àõ›€Kê€€ùõ€ÀêY
+€‹JN¬Çàãê€€ùõ€ÀêY
+äN¬àãê€€ùõ€ÀêY
+[ôõ N¬àãê€€ùõ€ÀêY
+õ›€JN¬Çà\Qõÿ][ô’[YJäN¬àãî⁄›—X[Ÿ \ N¬àBÇàö]ò]Hõ⁄Y‹[ë[XZ[Ÿ][ô‹ 
+Bà¬àò\àœQ[XZ[ôX€›ô\ûKëŸ]€]
+
+N¬à\⁄[ô»ò\àè[ô]»õ‹õ^’^Hê€€ôöY›\òpÈË€»HôX›\\òpÈË€»‹àK[XZ[ã›\ù‹⁄][€èQõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ù⁄YMéZY⁄Måõ‹õPõ‹ô\î›[OQõ‹õPõ‹ô\î›[Këö^YX[ŸÀX^[Z^ôPõﬁYò[ŸKZ[ö[Z^ôPõﬁYò[ŸKòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäåçåŒKç
+Kõ€ù[ô]»õ€ù
+îŸY€ŸHRHãL
+_N¬àò\à[ô]»XõS^[›][ô[—ÿ⁄œQÿ⁄‘›[Këö[€€[[ê€›[ùLKõ›–€›[ùLLÀY[ôœ[ô]»Y[ô ÕåÕå
+_NŸãê€€ùõ€ÀêY
+
+N¬àXô[
+›ö[ô»
+OOõô] 
+^’^^ÿ⁄œQÿ⁄‘›[Këö[õ‹ôP€€‹èP€€‹ãëúõ€P\ôÿäMKM
+Kõ€ù[ô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+K^[Y€èP€€ù[ù[Y€õY[ùêõ›€SYùN¬à^õﬁä›ö[ô»Hàãõ€€œYò[ŸJOOõô] 
+^’^^ÿ⁄œQÿ⁄‘›[Këö[õ€ù[ô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+K\ŸTﬁ\›[T\‹›€‹ô⁄\è\ﬂN¬àò\à‹›PäÀö‹›
+N›ò\à‹ùPäÀú‹ùï‘›ö[ô 
+JN›ò\à\Ÿ\èPäÀù\Ÿ\äN›ò\à\‹›€‹ôPäàãùYJN›ò\àúõ€OPäÀôúõ€Sò[YJN¬àò\à‹€[ô]»⁄X⁄–õﬁ’^Hï\ÿ\à‘”’»ã⁄X⁄ŸY\Àú‹€ÿ⁄œQÿ⁄‘›[Këö[õ€ù[ô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+_N¬àò\à[ù[ô]»Xô[’^\Àö\‘\‹›€‹ô»îŸ[öH”U∞ËHÿY\›òYKàZ^H[Húò[ò€»\òHX[ù\ãàéàí[ôõ‹õYHHŸ[öH”Uàãÿ⁄œQÿ⁄‘›[Këö[õ‹ôP€€‹èP€€‹ãëúõ€P\ôÿäLLL
+_N¬àò\àöY[œ[ô]»
+›ö[ôÀ€€ùõ€
+V◊^ îŸ\ùöY‹à”Uã‹›
+K
+î‹ùHã‹ù
+K
+ëK[XZ[’\›pË\ö[»”Uã\Ÿ\äK
+îŸ[öH”Uã\‹›€‹ô
+K
+ìõ€YH»ô[Y][ùHãúõ€J_N¬à[ùèLŸõ‹ôXX⁄
+ò\à[àöY[ ^‹îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]Ké
+JN‹ê€€ùõ€ÀêY
+
+í][LJKä  N‹îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KJJN‹ê€€ùõ€ÀêY
+í][Lãä  NﬂBàîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KÕäJN‹ê€€ùõ€ÀêY
+‹€ä  N‹îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KÕ
+JN‹ê€€ùõ€ÀêY
+[ùä  N¬àò\àÿ]ôO[ô]»ù]€û’^Hî–SêTà””ëíQ’Têp·‡”»ãÿ⁄œQÿ⁄‘›[Këö[òX⁄–€€‹èP€€‹ãëúõ€P\ôÿäMåÀåç
+Kõ‹ôP€€‹èP€€‹ãï⁄]Kõ]›[OQõ]›[Këõ]õ€ù[ô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+_N‹ÿ]ôKëõ]\X\ò[òŸKêõ‹ô\î⁄^ôOL‹îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùL
+JN‹ê€€ùõ€ÀêY
+ÿ]ôKä  N¬àÿ]ôKê€X⁄ œJÀ OOû⁄Yä›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ‹›ï^
+_›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ\Ÿ\ãï^
+J^”Y\‹ÿYŸPõﬁî⁄› îŸ\ùöY‹à”UH\›pË\ö[ÀŸK[XZ[Ë€»ÿúöYÿ]0Ï‹ö[‹ÀàäN‹ô]\õéﬂZYäZ[ùïûT\úŸJ‹ùï^›]ò\à J^”Y\‹ÿYŸPõﬁî⁄› î‹ùH[ù∞Ë[YKàäN‹ô]\õéﬂQ[XZ[ôX€›ô\ûKîÿ]ôT€]
+‹›ï^À\Ÿ\ãï^\‹›€‹ôï^‹€ê⁄X⁄ŸYúõ€Kï^
+N”Y\‹ÿYŸPõﬁî⁄› ê€€ôöY›\òpÈË€»HK[XZ[ÿ[òKàäNŸãëX[Ÿ‘ô\›[QX[Ÿ‘ô\›[ì“ŒŸãê€‹ŸJ
+NﬂN¬à\Qõÿ][ô’[YJäNŸãî⁄›—X[Ÿ \ N¬àBÇàö]ò]Hõ⁄Y‹[îŸ][ô‹ 
+Bà¬àò\à[ôXYS‹[àH\Xÿ][€ãì‹[ëõ‹õ\Àêÿ\›õ‹õOä
+Bàëö\ú›‹ëYò][
+Oàï^OHê€€ôöY›\òpÈÌY\»»⁄\›[XHäN¬àYà
+[ôXYS‹[àOHù[
+Bà¬à[ôXYS‹[ãêúö[ô’—úõ€ù
+
+N¬à[ôXYS‹[ãêX›]ò]J
+N¬à[ôXYS‹[ãëõÿ›\ 
+N¬àô]\õé¬àBÇàò\ààHô]»õ‹õBà¬à^Hê€€ôöY›\òpÈÌY\»»⁄\›[XHãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ùà⁄YHLàZY⁄HÕåàZ[ö[][T⁄^ôHHô]»⁄^ôJåé
+KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+BàN¬Çàò\àXY\àHô]»Xô[à¬à^Hê—SïêSH””ëíQ’Têp·ÂQT»ãàÿ⁄»Hÿ⁄‘›[Kï‹àZY⁄HŒàòX⁄–€€‹àH\ö–õYKàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãåõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàN¬àãê€€ùõ€ÀêY
+XY\äN¬Çàò\àXú»Hô]»Xê€€ùõ€»ÿ⁄»Hÿ⁄‘›[Këö[õ€ùHô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+KY[ô»Hô]»⁄[ù
+N
+HN¬àò\à€€\[ûUXàHô]»XîYŸJëQ‘»HSTëT–HäH»òX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+KY[ô»Hô]»Y[ô çäHN¬àò\àﬁ\›[UXàHô]»XîYŸJî“T’SPHH—Q’TêS∞·–HäH»òX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåçåŒKç
+KY[ô»Hô]»Y[ô çäHN¬àXúÀïXîYŸ\ÀêY
+€€\[ûUXäN¬àXúÀïXîYŸ\ÀêY
+ﬁ\›[UXäN¬àãê€€ùõ€ÀêY
+Xú N¬àXúÀêúö[ô’—úõ€ù
+
+N¬Çàò\à€€\[ûHHô]»XõS^[›][ô[»ÿ⁄»Hÿ⁄‘›[Këö[€€[[ê€›[ùHãõ›–€›[ùHY[ô»Hô]»Y[ô LäHN¬à€€\[ûKê€€[[î›[\ÀêY
+ô]»€€[[î›[J⁄^ôU\KêXú€€]KåÃ
+JN¬à€€\[ûKê€€[[î›[\ÀêY
+ô]»€€[[î›[J⁄^ôU\Kî\òŸ[ùL
+JN¬àõ‹à
+[ùOL⁄OŒ⁄J  H€€\[ûKîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùLãçYäJN¬à€€\[ûKîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùLãçYäJN¬à€€\[ûUXãê€€ùõ€ÀêY
+€€\[ûJN¬Çà^õﬁŸ][ô–õﬁ
+›ö[ô»ò[YJHOàô] 
+H»^]ò[YKÿ⁄œQÿ⁄‘›[Këö[õ€ù[ô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+KX\ô⁄[è[ô]»Y[ô 
+HN¬àXô[Ÿ][ô”Xô[
+›ö[ô»ò[YJHOàô] 
+H»^]ò[YKÿ⁄œQÿ⁄‘›[Këö[õ‹ôP€€‹èQ\ö–õYKõ€ù[ô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+K^[Y€èP€€ù[ù[Y€õY[ùìZYSYùN¬Çàò\à€€\[ûSò[YHHŸ][ô–õﬁ
+Ÿ]Ÿ][ô ò€€\[ûW€ò[YHäJN¬àò\àòYSò[YHHŸ][ô–õﬁ
+Ÿ]Ÿ][ô ò€€\[ûW›òYW€ò[YHäJN¬àò\àÿ›[Y[ùHŸ][ô–õﬁ
+Ÿ]Ÿ][ô ò€€\[ûWŸÿ›[Y[ùäJN¬àò\à€ôHHŸ][ô–õﬁ
+Ÿ]Ÿ][ô ò€€\[ûW‹€ôHäJN¬àò\àYô\‹»HŸ][ô–õﬁ
+Ÿ]Ÿ][ô ò€€\[ûWÿYô\‹»äJN¬àò\à⁄]T›]HHŸ][ô–õﬁ
+Ÿ]Ÿ][ô ò€€\[ûWÿ⁄]W‹›]HäJN¬àò\àôXŸZ\õ€›\àHŸ][ô–õﬁ
+Ÿ]Ÿ][ô ò€€\[ûWŸõ€›\àãìÿúöYÿY»[HôYô\∞Íõò⁄XHHäJN¬àò\àöY[»Hô]»
+›ö[ô»Xô[^õﬁõﬁ
+V◊Bà¬à
+îò^∞Ë€»€ÿ⁄X[»õ€YHH[\ô\ÿHã€€\[ûSò[YJK
+ìõ€YHò[ù\⁄XHãòYSò[YJKà
+ê”îà»‘àãÿ›[Y[ù
+K
+ï[Yõ€ôH»⁄]–\ã€ôJK
+ë[ô\ôpÈ€»ãYô\‹ Kà
+ê⁄YYH»Qàã⁄]T›]JK
+ìY[úÿYŸ[Hõ»õŸ\0ÍH»›\€HãôXŸZ\õ€›\äBàN¬àõ‹ä[ùOL⁄OöY[Àì[ô›⁄J  H»€€\[ûKê€€ùõ€ÀêY
+Ÿ][ô”Xô[
+öY[÷⁄WKõXô[
+KJN»€€\[ûKê€€ùõ€ÀêY
+öY[÷⁄WKòõﬁKJN»BÇàò\àÿ]ôP€€\[ûHHô]»ù]€à»^Hî–SêTàQ‘»HSTëT–Hãÿ⁄œQÿ⁄‘›[KîöY⁄⁄YLçåZY⁄MãòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäMåÀåç
+Kõ‹ôP€€‹èP€€‹ãï⁄]Kõ]›[OQõ]›[Këõ]õ€ù[ô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+KX\ô⁄[è[ô]»Y[ô L
+HN¬àÿ]ôP€€\[ûKëõ]\X\ò[òŸKêõ‹ô\î⁄^ôOL¬à€€\[ûKîŸ]€€[[î‹[äÿ]ôP€€\[ûKäN»€€\[ûKê€€ùõ€ÀêY
+ÿ]ôP€€\[ûK N¬àÿ]ôP€€\[ûKê€X⁄»
+œH
+À HOÇà¬àYä›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ€€\[ûSò[YKï^
+JH»[ôõ í[ôõ‹õYH»õ€YHH[\ô\ÿKàäN»€€\[ûSò[YKëõÿ›\ 
+N»ô]\õé»BàŸ]Ÿ][ô ò€€\[ûW€ò[YHã€€\[ûSò[YKï^ïö[J
+JN»Ÿ]Ÿ][ô ò€€\[ûW›òYW€ò[YHãòYSò[YKï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûWŸÿ›[Y[ùãÿ›[Y[ùï^ïö[J
+JN»Ÿ]Ÿ][ô ò€€\[ûW‹€ôHã€ôKï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûWÿYô\‹»ãYô\‹Àï^ïö[J
+JN»Ÿ]Ÿ][ô ò€€\[ûWÿ⁄]W‹›]Hã⁄]T›]Kï^ïö[J
+JN¬àŸ]Ÿ][ô ò€€\[ûWŸõ€›\àãôXŸZ\õ€›\ãï^ïö[J
+JN»Ÿ]Ÿ][ô ò€€\[ûW‹ôY⁄\›\ôYãåHäN¬à[ôõ ëY‹»H[\ô\ÿHÿ[õ‹»€€H›XŸ\‹€ÀàäN¬àN¬Çàò\àﬁ\›[HHô]»XõS^[›][ô[»ÿ⁄œQÿ⁄‘›[Këö[€€[[ê€›[ùLãõ›–€›[ùMãY[ôœ[ô]»Y[ô M
+HN¬àﬁ\›[Kê€€[[î›[\ÀêY
+ô]»€€[[î›[J⁄^ôU\Kî\òŸ[ùL
+JN»ﬁ\›[Kê€€[[î›[\ÀêY
+ô]»€€[[î›[J⁄^ôU\Kî\òŸ[ùL
+JN¬àõ‹ä[ùOL⁄ON⁄J  Hﬁ\›[Kîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùM JN¬àﬁ\›[Kîõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùMJJN»ﬁ\›[UXãê€€ùõ€ÀêY
+ﬁ\›[JN¬àù]€à€€ôöY–ù]€ä›ö[ô»^X›[€àX›[€äBà¬àò\àè[ô]»ù]€û’^]^ÿ⁄œQÿ⁄‘›[Këö[X\ô⁄[è[ô]»Y[ô L
+KòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäÃLLäKõ‹ôP€€‹èP€€‹ãï⁄]Kõ]›[OQõ]›[Këõ]õ€ù[ô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+_N¬àãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôOLÿãê€X⁄ œJÀ OOòX›[€ä
+N‹ô]\õàé¬àBàﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äêSTêTàSPQ—SHHSHíSê“TSã
+
+OOû⁄YäXZ[îÿ‹ôY[îX›\ôHO[ù[
+P⁄[ôŸSXZ[îÿ‹ôY[í[XYŸJXZ[îÿ‹ôY[îX›\ôJNﬂJK
+N¬àﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äîëP’TTêp·‡”»‘àKSPRSã
+
+OOû⁄Yä]]í\–YZ[äS‹[ë[XZ[Ÿ][ô‹ 
+NŸ[ŸH[ôõ î€€Y[ùHQRSíT’êQ‘àŸH€€ôöY›\ò\à»K[XZ[àäNﬂJKK
+N¬àﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äïT’p‡TíS‘»HP—T‘”‘»ã
+
+OOû⁄Yä]]í\–YZ[äS‹[ï\Ÿ\ú 
+NŸ[ŸH[ôõ î€€Y[ùHQRSíT’êQ‘àŸHŸ\ô[ò⁄X\à\›pË\ö[‹ÀàäNﬂJKJN¬àﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äê‰—Q”‘»HSQTë‚ìê“PHã
+
+OOû⁄Yä]]í\–YZ[ââê]]ê›\úô[ùO[ù[
+T⁄›—[Y\ôŸ[òﬁP€Ÿ\ ]]ê›\úô[ùíYò[ŸJNŸ[ŸH[ôõ î€€Y[ùHQRSíT’êQ‘àŸHŸ\ò\àÏŸY€‹»H[Y\ôÍõò⁄XKàäNﬂJKKJN¬àﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äëêVëTàêP“’Tã
+
+OOó»HòX⁄›\\ﬁ[ò 
+JKäN¬àﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äîëT’UTêTàêP“’Tã
+
+OOó»Hô\›‹ôPòX⁄›\\ﬁ[ò 
+JKKäN¬àﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äêUPSVêp·ÂQT»»“T’SPHã
+
+OOï\]SX[òYŸ\ãî⁄›’\]PŸ[ù\ääJK N¬àﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äïU‘íPSHíSQRTì»P—T‘”»ã
+
+OOì‹[ëö\ú›XÿŸ\‹’]‹öX[
+ò[ŸJJKK N¬àﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äê””ëíQ’TêTà∞‡QS»»pÊî“P–Hã€€ôöY›\ôTòY[‘›ôX[JK
+N¬àﬁ\›[Kê€€ùõ€ÀêY
+€€ôöY–ù]€äìQ–Tà»T”Q–TàpÊî“P–Hã
+
+OOó»HòY[—\⁄\ôY^Z[ô»»›‹òY[–\ﬁ[ò 
+Hà›\ùòY[–\ﬁ[ò 
+JKK
+N¬àò\àﬁ\›[R[ôõœ[ô]»Xô[’^Iî⁄\›[XNàPSSëì»à8†(àô\úË€Œàû’\]SX[òYŸ\ãê›\úô[ùô\ú⁄[€üWîŸ\öX[à—]Xò\ŸKë]öXŸTŸ\öX[
+
+_Wêò[ò€»ÿÿ[à—]Xò\ŸKëî]Hãÿ⁄œQÿ⁄‘›[Këö[õ‹ôP€€‹èQ\ö–õYKõ€ù[ô]»õ€ù
+îŸY€ŸHRHãKçYãõ€ù›[Kêõ€
+K^[Y€èP€€ù[ù[Y€õY[ùìZYPŸ[ù\üN¬àﬁ\›[KîŸ]€€[[î‹[äﬁ\›[R[ôõÀäN‹ﬁ\›[Kê€€ùõ€ÀêY
+ﬁ\›[R[ôõÀJN¬Çà\Qõÿ][ô’[YJäN¬àãî⁄› \ N¬àBÇàö]ò]Hõ⁄Y€€ôöY›\ôTòY[‘›ôX[J
+Bà¬à\⁄[ô»ò\àX[Ÿ»Hô]»õ‹õH»^Hê€€ôöY›\ò\à∞ËY[»H⁄òHã›\ù‹⁄][€èQõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ù⁄YMéLZY⁄Lçåõ‹õPõ‹ô\î›[OQõ‹õPõ‹ô\î›[Këö^YX[ŸÀX^[Z^ôPõﬁYò[ŸKZ[ö[Z^ôPõﬁYò[ŸKòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäåçåŒKç
+Kõ€ù[ô]»õ€ù
+îŸY€ŸHRHãL
+HN¬àò\àXô[Hô]»Xô[»^HïTì\ô]H»0Ë]Y[À‹›ôX[H
+ NàãYùLé‹Lç⁄YMåZY⁄LçKõ‹ôP€€‹èQ\ö–õYKõ€ù[ô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+HN¬àò\à\õHô]»^õﬁ»YùLé‹MM⁄YMååZY⁄LÃã^QŸ]Ÿ][ô úòY[◊‹›ôX[W›\õãYò][òY[‘›ôX[JKõ€ù[ô]»õ€ù
+îŸY€ŸHRHãL
+HN¬àò\à[ùHô]»Xô[»^HîY∞Ë€»0ÍX€öX€Œà€›[ô[^
+–»ñHå
+Kà\òH\€»òH⁄òK[ôõ‹õYH[H›ôX[H›ZòHXŸ[∞ÈÿH\õZ]H^X›pÈË€»€€Y\ò⁄X[àãYùLé‹NM⁄YMååZY⁄Mõ‹ôP€€‹èP€€‹ãëúõ€P\ôÿäçKÕKJHN¬àò\àÿ]ôHHô]»ù]€à»^Hî–SêTàãYùMLÀ‹LMLã⁄YLMMKZY⁄MãòX⁄–€€‹èP€€‹ãëúõ€P\ôÿäMåÀåç
+Kõ‹ôP€€‹èP€€‹ãï⁄]Kõ]›[OQõ]›[Këõ]N¬àÿ]ôKê€X⁄»
+œH\ﬁ[ò»
+À HOÇà¬àYà
+U\öKïûP‹ôX]J\õï^ïö[J
+K\öR⁄[ôêXú€€]K›]ò\à\úŸY
+H
+\úŸYîÿ⁄[YHOHö»à	âà\úŸYîÿ⁄[YHOHöäJH»[ôõ í[ôõ‹õYH[XHTì›H»∞Ë[YKàäN»ô]\õé»BàŸ]Ÿ][ô úòY[◊‹›ôX[W›\õã\õï^ïö[J
+JN¬àYà
+òY[—\⁄\ôY^Z[ô H»]ÿZ]›‹òY[–\ﬁ[ò 
+N»]ÿZ]›\ùòY[–\ﬁ[ò 
+N»BàX[ŸÀëX[Ÿ‘ô\›[QX[Ÿ‘ô\›[ì“Œ»X[ŸÀê€‹ŸJ
+N¬àN¬àX[ŸÀê€€ùõ€ÀêYò[ôŸJô]»€€ùõ€◊^€Xô[\õ[ùÿ]ô_JN¬àX[ŸÀî⁄›—X[Ÿ \ N¬àBÇàö]ò]H\ﬁ[ò»\⁄»òX⁄›\\ﬁ[ò 
+Bà¬àYà
+P]]í\–YZ[äH»Y\‹ÿYŸPõﬁî⁄› î€€Y[ùHQRSíT’êQ‘àŸH[ùöX\àòX⁄›\ÀàãêXŸ\‹€»ôYÿY»ãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãïÿ\õö[ô N»ô]\õé»BàûBà¬à\ŸUÿZ]›\ú€‹àHùYN¬àò\àö\H]ÿZ]]Xò\ŸPòX⁄›\Ÿ\ùöXŸKê‹ôX]P[ôŸ[ô\ﬁ[ò 
+N¬àY\‹ÿYŸPõﬁî⁄› êòX⁄›\[ùöXY»€€H›XŸ\‹€»\òH»K[XZ[€€ôöY›\òYÀóóêÏ‹XHÿÿ[óàà
+»ö\àêòX⁄›\€€ò€pÎY»ãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãí[ôõ‹õX][€äN¬àBàÿ]⁄
+^Ÿ\[€à^
+Bà¬àY\‹ÿYŸPõﬁî⁄› ì∞Ë€»õ⁄H‹‹Î]ô[[ùöX\à»òX⁄›\óóàà
+»^ìY\‹ÿYŸKàë\úõ»õ»òX⁄›\ãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãë\úõ‹äN¬àBàö[ò[H»\ŸUÿZ]›\ú€‹àHò[ŸN»BàBÇàö]ò]H\ﬁ[ò»\⁄»ô\›‹ôPòX⁄›\\ﬁ[ò 
+Bà¬àYà
+P]]í\–YZ[äH»Y\‹ÿYŸPõﬁî⁄› î€€Y[ùHQRSíT’êQ‘àŸHô\›]\ò\àòX⁄›\ÀàãêXŸ\‹€»ôYÿY»ãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãïÿ\õö[ô N»ô]\õé»Bà\⁄[ô»ò\àX[Ÿ»Hô]»‹[ëö[QX[Ÿ¬à¬à]HHîŸ[X⁄[€ò\àòX⁄›\»PSSëì»àãàö[\àHêòX⁄›\»à
+
+ãûö\ ãôé ãú‹[]J_
+ãûö\ ãôé ãú‹[]_Ÿ‹»‹»\ú]Z]õ‹»
+
+ãää_
+ãäàãà⁄X⁄—ö[Q^\›»HùYKà][\Ÿ[X›Hò[ŸBàN¬àYà
+X[ŸÀî⁄›—X[Ÿ \ HOHX[Ÿ‘ô\›[ì“ Hô]\õé¬àYà
+Y\‹ÿYŸPõﬁî⁄› êHô\›]\òpÈË€»›Xú›]Z\∞ËH‹»Y‹»]XZ\»[‹»Y‹»»òX⁄›\Ÿ[X⁄[€òYÀóóï[XHÏ‹XHHŸY›\ò[∞ÈÿH»ò[ò€»]X[Ÿ\∞ËH›X\ôYH[ù\»HõÿÿKà\ŸZòH€€ù[ùX\è»ãàê€€ôö\õX\àô\›]\òpÈË€»ãY\‹ÿYŸPõﬁù]€úÀñY\”õÀY\‹ÿYŸPõﬁX€€ãïÿ\õö[ôÀY\‹ÿYŸPõﬁYò][ù]€ãêù]€åäHOHX[Ÿ‘ô\›[ñY\ Hô]\õé¬ÇàûBà¬à\ŸUÿZ]›\ú€‹àHùYN¬à]ÿZ]]Xò\ŸPòX⁄›\Ÿ\ùöXŸKîô\›‹ôP\ﬁ[ò X[ŸÀëö[Sò[YJN¬à]]€X]X–òX⁄›\€€\]YHùYN¬àY\‹ÿYŸPõﬁî⁄› êòX⁄›\ô\›]\òY»Hò[YY»€€H›XŸ\‹€Àóóì»àŸ\∞ËHôZ[öX⁄XY»Y€‹òH\òHÿ\úôYÿ\à‹»Y‹»ôX›\\òY‹Ààãàîô\›]\òpÈË€»€€ò€pÎYHãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãí[ôõ‹õX][€äN¬à\Xÿ][€ãîô\›\ù
+
+N¬àBàÿ]⁄
+^Ÿ\[€à^
+Bà¬àY\‹ÿYŸPõﬁî⁄› ì»ò[ò€»]X[∞Ë€»õ⁄H›Xú›]pÎYÀóóàà
+»^ìY\‹ÿYŸKàëò[HòHô\›]\òpÈË€»ãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãë\úõ‹äN¬àBàö[ò[H»\ŸUÿZ]›\ú€‹àHò[ŸN»BàBÇàö]ò]H\ﬁ[ò»õ⁄YXZ[ëõ‹õW—õ‹õP€‹⁄[ô ÿöôX›»Ÿ[ô\ãõ‹õP€‹⁄[ô—]ô[ù\ô‹»JBà¬àYà
+]]€X]X–òX⁄›\€€\]Y]]€X]X–òX⁄›\ù[õö[ô Hô]\õé¬à]]€X]X–òX⁄›\ù[õö[ô»HùYN¬àKêÿ[òŸ[HùYN¬àûBà¬à\⁄[ô»ò\à[Y[›]Hô]»ÿ[òŸ[][€ï⁄Ÿ[î€›\òŸJ[YT‹[ãëúõ€TŸX€€ô Ã
+JN¬à]ÿZ]]Xò\ŸPòX⁄›\Ÿ\ùöXŸKê‹ôX]P[ôŸ[ô\ﬁ[ò [Y[›]ï⁄Ÿ[äN¬àBàÿ]⁄
+^Ÿ\[€à^
+Bà¬àûBà¬à\ôX›‹ûKê‹ôX]Q\ôX›‹ûJ]Xò\ŸKêòX⁄›\õ€\äN¬à]ÿZ]ö[Kê\[ô[^\ﬁ[ò ]ê€€Xö[ôJ]Xò\ŸKêòX⁄›\õ€\ãòòX⁄›\Y\úõ‹úÀõŸ»äKà	ñﬁ—]U[YKìõ›Œû^^^KSSKYõ[Nú‹ﬂWHŸ^WàäN¬àBàÿ]⁄»BàBàö[ò[Bà¬à]]€X]X–òX⁄›\€€\]YHùYN¬à]]€X]X–òX⁄›\ù[õö[ô»Hò[ŸN¬àôY⁄[í[ùõ⁄ŸJ€‹ŸJN¬àBàBÇÇÇÇàö]ò]H›ö[ô»XZ[îÿ‹ôY[í[XYŸT]OÇà]ê€€Xö[ôJ[ùö\õ€õY[ùëŸ]õ€\î]
+[ùö\õ€õY[ùî‹X⁄X[õ€\ãê\Xÿ][€ë]JKàìPSSëì»””ëP’Q»ãîàãù[W‹ö[ò⁄\[úô»äN¬Çàö]ò]H›ö[ô»Yò][XZ[îÿ‹ôY[í[XYŸT]OÇà]ê€€Xö[ôJ\€€ù^êò\ŸQ\ôX›‹ûKê\‹Ÿ]»ãù[W‹ö[ò⁄\[úô»äN¬Çàö]ò]H[XYŸO»ÿYXZ[îÿ‹ôY[í[XYŸJ
+Bà¬àûBà¬àò\à›\›€HHXZ[îÿ‹ôY[í[XYŸT]¬àò\à€›\òŸHHö[Kë^\› ›\›€JH»›\›€HàYò][XZ[îÿ‹ôY[í[XYŸT]¬àYà
+Qö[Kë^\› €›\òŸJJHô]\õàù[¬Çà\⁄[ô»ò\à[\H[XYŸKëúõ€Qö[J€›\òŸJN¬àô]\õàô]»ö]X\
+[\
+N¬àBàÿ]⁄à¬àô]\õàù[¬àBàBÇàö]ò]Hõ⁄Y⁄[ôŸSXZ[îÿ‹ôY[í[XYŸJX›\ôPõﬁX›\ôJBà¬à\⁄[ô»ò\à»Hô]»‹[ëö[QX[Ÿ¬à¬à]HHë\ÿ€€\à[XYŸ[HH[Hö[ò⁄\[ãàö[\àHí[XYŸ[ú»
+
+ãúôŒ ãöúŒ ãöúYŒ ãòõ\
+_
+ãúôŒ ãöúŒ ãöúYŒ ãòõ\ãà][\Ÿ[X›Hò[ŸBàN¬ÇàYà
+Àî⁄›—X[Ÿ \ HOHX[Ÿ‘ô\›[ì“ Hô]\õé¬ÇàûBà¬àò\àõ€\àH]ëŸ]\ôX›‹ûSò[YJXZ[îÿ‹ôY[í[XYŸT]
+HN¬à\ôX›‹ûKê‹ôX]Q\ôX›‹ûJõ€\äN¬Çà\⁄[ô»ò\à‹öY⁄[ò[H[XYŸKëúõ€Qö[JÀëö[Sò[YJN¬à\⁄[ô»ò\àõ\Hô]»ö]X\
+‹öY⁄[ò[
+N¬ÇàÀ»ÿ[òHŸ[\ôH[Hë»\òH»⁄\›[XH\ÿ\à[Hõ‹õX]»ô]ö\Î]ô[Çàõ\îÿ]ôJXZ[îÿ‹ôY[í[XYŸT]ﬁ\›[Këò]⁄[ôÀí[XY⁄[ôÀí[XYŸQõ‹õX]îô N¬ÇàX›\ôKí[XYŸOÀë\‹‹ŸJ
+N¬àX›\ôKí[XYŸHHô]»ö]X\
+õ\
+N¬àX›\ôKî⁄^ôS[ŸHHX›\ôPõﬁ⁄^ôS[ŸKñõ€€N¬àX›\ôKîôYúô\⁄
+
+N¬àX›\ôKí[ùò[Y]J
+N¬àX›\ôKï\]J
+N¬à\Xÿ][€ãë—]ô[ù 
+N¬ÇàY\‹ÿYŸPõﬁî⁄› àï[Hö[ò⁄\[[\òYH€€H›XŸ\‹€Àóóàà
+¬àëXÿNà\òHôY[ò⁄\àY[‹àH[K\ŸH[XH[XYŸ[H‹ö^õ€ù[MééKà
+¬àú‹à^[\»NLåLàãàìPSSëì»””ëP’Q»ãàY\‹ÿYŸPõﬁù]€úÀì“ÀàY\‹ÿYŸPõﬁX€€ãí[ôõ‹õX][€äN¬àBàÿ]⁄
+^Ÿ\[€à^
+Bà¬àY\‹ÿYŸPõﬁî⁄› ì∞Ë€»õ⁄H‹‹Î]ô[õÿÿ\àH[XYŸ[Kóóàà
+»^ìY\‹ÿYŸKàìPSSëì»””ëP’Q»ãY\‹ÿYŸPõﬁù]€úÀì“ÀY\‹ÿYŸPõﬁX€€ãë\úõ‹äN¬àBàBÇÇàö]ò]Hõ⁄Y‹[êÿY\›õ–Ÿ[ùò[
+
+Bà¬à\⁄[ô»ò\ààHô]»õ‹õBà¬à^HêÿY\›õ‹»ãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ùà⁄YHåàZY⁄HÃÃàõ‹õPõ‹ô\î›[HHõ‹õPõ‹ô\î›[Këö^YX[ŸÀàX^[Z^ôPõﬁHò[ŸKàZ[ö[Z^ôPõﬁHò[ŸKàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäKç Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+KàŸ^Tô]öY]»HùYBàN¬ÇàÀ»^[›]\›ù]\ò[àÿXôpÈÿ[»»€€ùpÓô»»õŸ\0ÍKÇàÀ»]ö]H]X[]Y\à€ÿúô\‹⁄pÈË€»›H€‹ùKÇàò\àõ€›Hô]»XõS^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[à€€[[ê€›[ùHKàõ›–€›[ùHãàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäKç KàX\ô⁄[àHô]»Y[ô 
+KàY[ô»Hô]»Y[ô 
+BàN¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\Kî\òŸ[ùL
+JN¬àõ€›îõ›‘›[\ÀêY
+ô]»õ›‘›[J⁄^ôU\KêXú€€]KÕ
+JN¬àãê€€ùõ€ÀêY
+õ€›
+N¬Çàò\à\›Hô]»õ›”^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Këö[àõ›—\ôX›[€àHõ›—\ôX›[€ãï‹›€ãà‹ò\€€ù[ù»Hò[ŸKà]]‘ÿ‹õ€Hò[ŸKàY[ô»Hô]»Y[ô NMN
+KàX\ô⁄[àHô]»Y[ô 
+KàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäKç BàN¬àõ€›ê€€ùõ€ÀêY
+\›
+N¬Çàõ⁄YŸ[ùò[^ò\êÿY\›õ 
+Bà¬à[ù\ô›\òR][HHL¬à[ùX\ôŸ[HHX]ìX^
+
+\›ê€Y[ù⁄^ôKï⁄YH\ô›\òR][JH»äN¬à\›îY[ô»Hô]»Y[ô X\ôŸ[KX\ôŸ[K
+N¬àBà\›î⁄^ôP⁄[ôŸY
+œH
+À HOàŸ[ùò[^ò\êÿY\›õ 
+N¬àãî⁄›€à
+œH
+À HOàŸ[ùò[^ò\êÿY\›õ 
+N¬ÇÇÇÇÇÇà€€ùõ€XZŸPÿY\›õ–ù]€ä›ö[ô»^›ö[ô»\ÿ‹ö\[€ã›ö[ô»X€€ëö[KX›[€àX›[€äBà¬à€€ú›[ù‹›»HL¬à€€ú›[ù‹›HL¬à€€ú›[ùõ‹õX[»Hé¬à€€ú›[ùõ‹õX[H¬à€€ú›[ù›ô\ï»Hé¬à€€ú›[ù›ô\íHLé¬Çàò\à‹›Hô]»[ô[à¬à⁄YH‹›ÀàZY⁄H‹›àX\ô⁄[àHô]»Y[ô 
+KàòX⁄–€€‹àH€€‹ãïò[ú‹\ô[ùàN¬Çàò\ààHô]»ù]€Çà¬à⁄YHõ‹õX[ÀàZY⁄Hõ‹õX[àYùH
+‹›»Hõ‹õX[ H»ãà‹H
+‹›Hõ‹õX[
+H»ãàõ]›[HHõ]›[Këõ]àòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäNKN
+Kàõ‹ôP€€‹àH€€‹ãï⁄]Kà^[Y€àH€€ù[ù[Y€õY[ùìZYSYùà[XYŸP[Y€àH€€ù[ù[Y€õY[ùìZYSYùàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLÀõ€ù›[Kêõ€
+KàY[ô»Hô]»Y[ô åãMã
+Kà›\ú€‹àH›\ú€‹úÀí[ôàXî›‹HùYKà\ŸUö\›X[›[PòX⁄–€€‹àHò[ŸKà^Hàà
+»^
+»óàà
+»\ÿ‹ö\[€ÇàN¬Çàãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHHN¬àãëõ]\X\ò[òŸKêõ‹ô\ê€€‹àH€€‹ãëúõ€P\ôÿäMLåL
+N¬àãëõ]\X\ò[òŸKì[›\ŸS›ô\êòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäLNMŒ
+N¬àãëõ]\X\ò[òŸKì[›\ŸQ›€êòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäNMMJN¬Çà‹›ê€€ùõ€ÀêY
+äN¬Çàò\àX€€î]H]ê€€Xö[ôJ\€€ù^êò\ŸQ\ôX›‹ûKê\‹Ÿ]»ãX€€ëö[JN¬à[XYŸO»ò\ŸRX€€àHù[¬ÇàYà
+ö[Kë^\› X€€î]
+JBà¬à\⁄[ô»ò\à‹ò“X€€àH[XYŸKëúõ€Qö[JX€€î]
+N¬àò\ŸRX€€àHô]»ö]X\
+‹ò“X€€äN¬àãí[XYŸHHô]»ö]X\
+ò\ŸRX€€ãô]»⁄^ôJLãLäJN¬àBÇàò\à›ô\àHò[ŸN¬àò\à[Y\àHô]»ﬁ\›[Kï⁄[ô›‹Àëõ‹õ\Àï[Y\à»[ù\ùò[HMHN¬Çàõ⁄Y\T›]J
+Bà¬àYà
+›ô\äBà¬àãêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäLNMŒ
+N¬àãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHHŒ¬àãëõ]\X\ò[òŸKêõ‹ô\ê€€‹àH€€‹ãëúõ€P\ôÿäLåçKçMJN¬àãëõ€ùHô]»õ€ù
+îŸY€ŸHRHãMõ€ù›[Kêõ€
+N¬àãîY[ô»Hô]»Y[ô NM
+N¬ÇàYà
+ò\ŸRX€€àOHù[
+Bà¬àãí[XYŸOÀë\‹‹ŸJ
+N¬àãí[XYŸHHô]»ö]X\
+ò\ŸRX€€ãô]»⁄^ôJÃÃ
+JN¬àBàBà[ŸBà¬àãêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäNKN
+N¬àãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHHN¬àãëõ]\X\ò[òŸKêõ‹ô\ê€€‹àH€€‹ãëúõ€P\ôÿäMLåL
+N¬àãëõ€ùHô]»õ€ù
+îŸY€ŸHRHãLÀõ€ù›[Kêõ€
+N¬àãîY[ô»Hô]»Y[ô åãMã
+N¬ÇàYà
+ò\ŸRX€€àOHù[
+Bà¬àãí[XYŸOÀë\‹‹ŸJ
+N¬àãí[XYŸHHô]»ö]X\
+ò\ŸRX€€ãô]»⁄^ôJLãLäJN¬àBàBÇàãí[ùò[Y]J
+N¬àãï\]J
+N¬àBÇà[Y\ãïX⁄»
+œH
+À HOÇà¬àò\à\ôŸ]»H›ô\à»›ô\ï»àõ‹õX[Œ¬àò\à\ôŸ]H›ô\à»›ô\íàõ‹õX[¬Çàò\à»H\ôŸ]»Hãï⁄Y¬àò\àH\ôŸ]HãíZY⁄¬ÇàYà
+X]êXú  HHà	âàX]êXú 
+HHäBà¬àãï⁄YH\ôŸ]Œ¬àãíZY⁄H\ôŸ]¬àãìYùH
+‹›»Hãï⁄Y
+H»é¬àãï‹H
+‹›HãíZY⁄
+H»é¬à[Y\ãî›‹
+
+N¬àô]\õé¬àBÇàãï⁄Y
+œHX]î⁄Y€ä H
+àX]ìX^
+ãX]êXú  H»
+N¬àãíZY⁄
+œHX]î⁄Y€ä
+H
+àX]ìX^
+ãX]êXú 
+H»
+N¬ÇàÀ»»‹›öXÿHö^ÀàÏ»»õ›0Ë€»‹ô\ÿŸH[ùõ»[KÇàãìYùH
+‹›»Hãï⁄Y
+H»é¬àãï‹H
+‹›HãíZY⁄
+H»é¬àãêúö[ô’—úõ€ù
+
+N¬àN¬Çàãì[›\ŸQ[ù\à
+œH
+À HOÇà¬à›ô\àHùYN¬à\T›]J
+N¬à[Y\ãî›\ù
+
+N¬àN¬Çàãì[›\ŸSX]ôH
+œH
+À HOÇà¬àò\àÿÿ[Hãî⁄[ù–€Y[ù
+›\ú€‹ãî‹⁄][€äN¬àYà
+ãê€Y[ùôX›[ô€Kê€€ùZ[ú ÿÿ[
+JBàô]\õé¬Çà›ô\àHò[ŸN¬à\T›]J
+N¬à[Y\ãî›\ù
+
+N¬àN¬Çàãê€X⁄»
+œH
+À HOÇà¬àãíYJ
+N¬àX›[€ä
+N¬àãî⁄› 
+N¬àãêX›]ò]J
+N¬àN¬Çàãë\‹‹ŸY
+œH
+À HOÇà¬à[Y\ãî›‹
+
+N¬à[Y\ãë\‹‹ŸJ
+N¬àãí[XYŸOÀë\‹‹ŸJ
+N¬àò\ŸRX€€èÀë\‹‹ŸJ
+N¬àN¬Çàô]\õà‹›¬àBÇà\›ê€€ùõ€ÀêY
+XZŸPÿY\›õ–ù]€äàîì—U‘»ãàêÿY\›õÀôpÈ€‹»H€€ùõ€HH\›‹]YHãàúõŸX›Àúô»ãà‹[îõŸX› JN¬Çà\›ê€€ùõ€ÀêY
+XZŸPÿY\›õ–ù]€äàê”QSïT»ãàëY‹À€€ù]»H\›0Ï‹öX€»»€Y[ùHãàò›\›€Y\úÀúô»ãà‹[ê›\›€Y\ú JN¬Çà\›ê€€ùõ€ÀêY
+XZŸPÿY\›õ–ù]€äàëì‘ìëP—Q‘ëT»ãàêÿY\›õ»HY‹»Hõ‹õôXŸY‹ô\»ãàú›\Y\úÀúô»ãà‹[î›\Y\ú JN¬Çà\›ê€€ùõ€ÀêY
+XZŸPÿY\›õ–ù]€äàî—Tïíp·”‘»ãàîŸ\ùöpÈ€‹Àò[‹ô\»H\ÿ‹öpÈÌY\»ãàúŸ\ùöXŸ\Àúô»ãà‹[îŸ\ùöXŸ\ JN¬ÇÇàò\à\ÿ€€SXô[Hô]»Xô[à¬à^HëT–””HSPHT»‘0·ÂQT»P“SPHãà⁄YHLàZY⁄HÃãàX\ô⁄[àHô]»Y[ô ã
+KàòX⁄–€€‹àH€€‹ãïò[ú‹\ô[ùàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäLåååçMJKàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+Kà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ÇàN¬à\›ê€€ùõ€ÀêY
+\ÿ€€SXô[
+N¬ÇÇÇÇÇàò\àõ€›\àHô]»Xô[à¬àÿ⁄»Hÿ⁄‘›[Këö[àòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäÃLLäKàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäNKåÃçL
+Kà^Hî\‹ŸH»[›\ŸH€ÿúôH[XH‹0ÈË€»\òH[\X\à8†(àT–»ôX⁄Hãà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ãàõ€ùHô]»õ€ù
+îŸY€ŸHRHãJKàX\ô⁄[àHô]»Y[ô 
+BàN¬àõ€›ê€€ùõ€ÀêY
+õ€›\ãJN¬ÇàãíŸ^Q›€à
+œH
+ÀJHOÇà¬àYà
+KíŸ^P€ŸHOHŸ^\Àë\ÿÿ\JBà¬àãê€‹ŸJ
+N¬àKí[ôYHùYN¬àKî›\ô\‹“Ÿ^Tô\‹»HùYN¬àBàN¬Çà\Qõÿ][ô’[YJäN¬ÇÇàãî⁄›—X[Ÿ \ N¬àBÇàö]ò]HŸX[Y€\‹»ô[[›ôP€€ôö\õQõ‹õHàõ‹õBà¬àXõX»ù]€àY\–ù]€à»Ÿ]»BàXõX»ù]€àõ–ù]€à»Ÿ]»BÇàö]ò]Hõ€€Y\‘Ÿ[X›YHùYN¬àö]ò]HôXY€õH€€‹à\ö–õYN¬ÇàXõX»ô[[›ôP€€ôö\õQõ‹õJ›ö[ô»õŸX›ò[YK›XõH]K›ö[ô»›[^€€‹à\ö–õYJBà¬à\Àô\ö–õYHH\ö–õYN¬Çà^Hîô[[›ô\à][HHô[ôHé¬à›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ù¬à⁄YHLå¬àZY⁄HççN¬àõ‹õPõ‹ô\î›[HHõ‹õPõ‹ô\î›[Këö^YX[ŸŒ¬àX^[Z^ôPõﬁHò[ŸN¬àZ[ö[Z^ôPõﬁHò[ŸN¬àòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäçKçKçLäN¬àõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+N¬àŸ^Tô]öY]»HùYN¬Çàò\à‹Hô]»[ô[à¬àÿ⁄»Hÿ⁄‘›[Kï‹àZY⁄HNàòX⁄–€€‹àH\ö–õYBàN¬à‹ê€€ùõ€ÀêY
+ô]»Xô[à¬à^Hê””ëíTìPTàëSS·‡”»ãàÿ⁄»Hÿ⁄‘›[Këö[à^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ãàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãMKõ€ù›[Kêõ€
+BàJN¬à€€ùõ€ÀêY
+‹
+N¬Çàò\à\Ÿ»Hô]»Xô[à¬à^H	ë\ŸZòHôX[Y[ùHô[[›ô\à\›H][HHô[ôO◊óû‹õŸX›ò[Y_Wî]éà‹]NìåﬂH8†(à››[^HãàYùHÃà‹HŒà⁄YHKàZY⁄Hãà^[Y€àH€€ù[ù[Y€õY[ùìZYPŸ[ù\ãàõ‹ôP€€‹àH€€‹ãëúõ€P\ôÿäMKÃ
+Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLKõ€ù›[Kêõ€
+BàN¬à€€ùõ€ÀêY
+\Ÿ N¬ÇàY\–ù]€àHô]»ù]€Çà¬à^Hî“SKëSS’ëTàãàYùHMKà‹HMÕKà⁄YHMLàZY⁄Hàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+KàX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ñY\ÀàXî›‹Hò[ŸBàN¬àY\–ù]€ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬Çàõ–ù]€àHô]»ù]€Çà¬à^Hê–Sê—STàãàYùHççKà‹HMÕKà⁄YHMLàZY⁄Hàõ]›[HHõ]›[Këõ]àõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+KàX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ìõÀàXî›‹Hò[ŸBàN¬àõ–ù]€ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬Çà€€ùõ€ÀêY
+Y\–ù]€äN¬à€€ùõ€ÀêY
+õ–ù]€äN¬Çà\]TŸ[X›[€ïö\›X[
+
+N¬ÇàY\–ù]€ãê€X⁄»
+œH
+À HOÇà¬àY\‘Ÿ[X›YHùYN¬àX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ñY\Œ¬à€‹ŸJ
+N¬àN¬Çàõ–ù]€ãê€X⁄»
+œH
+À HOÇà¬àY\‘Ÿ[X›YHò[ŸN¬àX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ìõŒ¬à€‹ŸJ
+N¬àN¬àBÇàö]ò]Hõ⁄Y\]TŸ[X›[€ïö\›X[
+
+Bà¬àYà
+Y\‘Ÿ[X›Y
+Bà¬àY\–ù]€ãêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäNLKJN¬àY\–ù]€ãëõ‹ôP€€‹àH€€‹ãï⁄]N¬àY\–ù]€ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHHŒ¬àY\–ù]€ãëõ]\X\ò[òŸKêõ‹ô\ê€€‹àH€€‹ãëúõ€P\ôÿäçMKåMKÃ
+N¬Çàõ–ù]€ãêòX⁄–€€‹àH\ö–õYN¬àõ–ù]€ãëõ‹ôP€€‹àH€€‹ãï⁄]N¬àõ–ù]€ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬àBà[ŸBà¬àY\–ù]€ãêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäLçKLçKLçJN¬àY\–ù]€ãëõ‹ôP€€‹àH€€‹ãï⁄]N¬àY\–ù]€ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHH¬Çàõ–ù]€ãêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäMLåL
+N¬àõ–ù]€ãëõ‹ôP€€‹àH€€‹ãï⁄]N¬àõ–ù]€ãëõ]\X\ò[òŸKêõ‹ô\î⁄^ôHHŒ¬àõ–ù]€ãëõ]\X\ò[òŸKêõ‹ô\ê€€‹àH€€‹ãëúõ€P\ôÿäçMKåMKÃ
+N¬àBÇà[ùò[Y]J
+N¬à\]J
+N¬àBÇàõ›X›Y›ô\úöYHõ€€õÿŸ\‹–€YŸ^JôYàY\‹ÿYŸH\ŸÀŸ^\»Ÿ^Q]JBà¬àò\àŸ^HHŸ^Q]H	àŸ^\ÀíŸ^P€ŸN¬ÇàYà
+Ÿ^HOHŸ^\ÀìYùŸ^HOHŸ^\ÀîöY⁄Ÿ^HOHŸ^\ÀïXäBà¬àY\‘Ÿ[X›YH^Y\‘Ÿ[X›Y¬à\]TŸ[X›[€ïö\›X[
+
+N¬àô]\õàùYN¬àBÇàYà
+Ÿ^HOHŸ^\Àë[ù\äBà¬àX[Ÿ‘ô\›[HY\‘Ÿ[X›Y»X[Ÿ‘ô\›[ñY\»àX[Ÿ‘ô\›[ìõŒ¬à€‹ŸJ
+N¬àô]\õàùYN¬àBÇàYà
+Ÿ^HOHŸ^\Àë\ÿÿ\JBà¬àX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ìõŒ¬à€‹ŸJ
+N¬àô]\õàùYN¬àBÇàô]\õàò\ŸKîõÿŸ\‹–€YŸ^JôYà\ŸÀŸ^Q]JN¬àBàBÇàö]ò]HŸX[Y€\‹»ÿ\ù][Bà¬àXõX»€ô»õŸX›Y»Ÿ]»Ÿ]»BàXõX»›ö[ô»€ŸH»Ÿ]»Ÿ]»HHàé¬àXõX»›ö[ô»\ÿ‹ö\[€à»Ÿ]»Ÿ]»HHàé¬àXõX»›XõH]H»Ÿ]»Ÿ]»BàXõX»›XõH[ö]öXŸH»Ÿ]»Ÿ]»BàXõX»›XõH›[Oà]H
+à[ö]öXŸN¬àBÇÇàö]ò]HŸX[Y€\‹»^[Y[ù\ùà¬àXõX»›ö[ô»Y]Ÿ»Ÿ]»Ÿ]»HHàé¬àXõX»›XõH[[›[ù»Ÿ]»Ÿ]»BàBÇÇàö]ò]H
+€ô»Y›ö[ô»€ŸK›ö[ô»ò[YK›XõHöXŸK›XõH›ÿ⁄ O»Ÿ[X›õŸX›úõ€Pÿ][Ÿ 
+Bà¬à\⁄[ô»ò\ààHô]»õ‹õBà¬à^Hê€€ú›[\àõŸ]»HçHãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ùà⁄YHNàZY⁄HçLàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäçKçKçLäKàõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+BàN¬Çàò\àXY\àHô]»[ô[à¬àÿ⁄»Hÿ⁄‘›[Kï‹àZY⁄HçàòX⁄–€€‹àH\ö–õYBàN¬àXY\ãê€€ùõ€ÀêY
+ô]»Xô[à¬à^Hê””î’SHHì—U‘»ãàõ‹ôP€€‹àH€€‹ãï⁄]Kàõ€ùHô]»õ€ù
+îŸY€ŸHRHãNõ€ù›[Kêõ€
+Kà]]‘⁄^ôHHùYKàYùHåãà‹HMÇàJN¬àãê€€ùõ€ÀêY
+XY\äN¬Çàò\àŸX\ò⁄Hô]»^õﬁà¬àÿ⁄»Hÿ⁄‘›[Kï‹àZY⁄HÕãàõ€ùHô]»õ€ù
+îŸY€ŸHRHãLäKàXŸZ€\ï^HëY⁄]HÏŸY€ÀÏŸY€»Hò\úò\»›Hõ€YH»õŸ]ÀããàÇàN¬àãê€€ùõ€ÀêY
+ŸX\ò⁄
+N¬àŸX\ò⁄êúö[ô’—úõ€ù
+
+N¬Çàò\à‹öYHô]»]Q‹öYöY]¬à¬àÿ⁄»Hÿ⁄‘›[Këö[àôXY€õHHùYKà[›’\Ÿ\ï–Yõ›‹»Hò[ŸKà[›’\Ÿ\ï—[]Tõ›‹»Hò[ŸKàõ›“XY\ú’ö\⁄XõHHò[ŸKà]]—Ÿ[ô\ò]P€€[[ú»Hò[ŸKàŸ[X›[€ì[ŸHH]Q‹öYöY]‘Ÿ[X›[€ì[ŸKëù[õ›‘Ÿ[X›à][TŸ[X›Hò[ŸKàòX⁄Ÿ‹õ›[ô€€‹àH€€‹ãï⁄]Kàõ‹ô\î›[HHõ‹ô\î›[Kìõ€ôKà€€[[íXY\ú“ZY⁄HàN¬à‹öYë[òXõRXY\ú’ö\›X[›[\»Hò[ŸN¬à‹öYê€€[[íXY\ú—Yò][Ÿ[›[KêòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäåNåŒKçLJN¬à‹öYê€€[[íXY\ú—Yò][Ÿ[›[Këõ‹ôP€€‹àH\ö–õYN¬à‹öYê€€[[íXY\ú—Yò][Ÿ[›[Këõ€ùHô]»õ€ù
+îŸY€ŸHRHãLõ€ù›[Kêõ€
+N¬à‹öYë]Q\úõ‹à
+œH
+ÀJHOà»Kïõ›—^Ÿ\[€àHò[ŸN»Kêÿ[òŸ[HùYN»N¬Çà‹öYê€€[[úÀêY
+ô]»]Q‹öYöY]’^õﬁ€€[[à»ò[YHHíQãXY\ï^HíQã⁄YHÃJN¬à‹öYê€€[[úÀêY
+ô]»]Q‹öYöY]’^õﬁ€€[[à»ò[YHHêÏŸY€»ãXY\ï^HêÏŸY€»ã⁄YHMJN¬à‹öYê€€[[úÀêY
+ô]»]Q‹öYöY]’^õﬁ€€[[à»ò[YHHîõŸ]»ãXY\ï^HîõŸ]»ã]]‘⁄^ôS[ŸHH]Q‹öYöY]–]]‘⁄^ôP€€[[ì[ŸKëö[JN¬à‹öYê€€[[úÀêY
+ô]»]Q‹öYöY]’^õﬁ€€[[à»ò[YHHîôpÈ€»ãXY\ï^HîôpÈ€»ã⁄YHLåJN¬à‹öYê€€[[úÀêY
+ô]»]Q‹öYöY]’^õﬁ€€[[à»ò[YHHë\›‹]YHãXY\ï^Hë\›‹]YHã⁄YHLåJN¬Çàãê€€ùõ€ÀêY
+‹öY
+N¬à‹öYêúö[ô’—úõ€ù
+
+N¬Çàò\àõ›€HHô]»õ›”^[›][ô[à¬àÿ⁄»Hÿ⁄‘›[Kêõ›€KàZY⁄Håãàõ›—\ôX›[€àHõ›—\ôX›[€ãîöY⁄”YùàY[ô»Hô]»Y[ô L
+BàN¬àò\à⁄€‹ŸHHX›[€êù]€äî—SP“S”êTàã
+
+HOà»ãëX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ì“Œ»ãê€‹ŸJ
+N»JN¬àò\àÿ[òŸ[HX›[€êù]€äê–Sê—STàããê€‹ŸJN¬àõ›€Kê€€ùõ€ÀêY
+⁄€‹ŸJN¬àõ›€Kê€€ùõ€ÀêY
+ÿ[òŸ[
+N¬àãê€€ùõ€ÀêY
+õ›€JN¬Çàõ⁄YÿYõŸX› ›ö[ô»\õJBà¬à‹öYîõ›‹Àê€X\ä
+N¬à\⁄[ô»ò\à€àH]Xò\ŸKì‹[ä
+N¬à\⁄[ô»ò\à€YH€ãê‹ôX]P€€[X[ô
+
+N¬ÇàYà
+›ö[ôÀí\”ù[‹ï⁄]T‹XŸJ\õJJBà¬à€Yê€€[X[ô^HààÇà—SP’Y”–ST–—Jò\ò€ŸK	… Kò[YKöXŸK›ÿ⁄¬àîì”HõŸX›¬à“TëHX›]ôOLBà‘ëTàñHò[YBàààé¬àBà[ŸBà¬à€Yê€€[X[ô^HààÇà—SP’Y”–ST–—Jò\ò€ŸK	… Kò[YKöXŸK›ÿ⁄¬àîì”HõŸX›¬à“TëHX›]ôOLBàSë
+à–T’
+YT»V
+HR—H	\õBà‘àò\ò€ŸHR—H	\õBà‘à›Ÿ\äò[YJHR—H›Ÿ\ä	\õJBà
+Bà‘ëTàñHò[YBàààé¬à€Yî\ò[Y]\úÀêY⁄]ò[YJâ\õHãâHà
+»\õKïö[J
+H
+»âHäN¬àBÇà\⁄[ô»ò\àôH€Yë^X›]TôXY\ä
+N¬à⁄[H
+ôîôXY
+
+JBà¬à‹öYîõ›‹ÀêY
+àôëŸ][ùç
+
+KàôëŸ]›ö[ô JKàôëŸ]›ö[ô äKà[€ô^JôëŸ]›XõJ JKàôëŸ]›XõJ
+Kï‘›ö[ô ìå»ã›[\ôR[ôõÀëŸ]›[\ôR[ôõ úPîàäJBà
+N¬àBàBÇàŸX\ò⁄ï^⁄[ôŸY
+œH
+À HOàÿYõŸX› ŸX\ò⁄ï^
+N¬à‹öYêŸ[›XõP€X⁄»
+œH
+ÀJHOÇà¬àYà
+Kîõ›“[ô^èH
+Bà¬àãëX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ì“Œ¬àãê€‹ŸJ
+N¬àBàN¬àŸX\ò⁄íŸ^Q›€à
+œH
+ÀJHOÇà¬àYà
+KíŸ^P€ŸHOHŸ^\Àë[ù\à	âà‹öYîõ›‹Àê€›[ùà
+Bà¬à‹öYîõ›‹÷ÃKîŸ[X›YHùYN¬à‹öYê›\úô[ùŸ[H‹öYîõ›‹÷ÃKêŸ[÷ÃN¬àãëX[Ÿ‘ô\›[HX[Ÿ‘ô\›[ì“Œ¬àãê€‹ŸJ
+N¬àKî›\ô\‹“Ÿ^Tô\‹»HùYN¬àBàN¬ÇàÿYõŸX› àäN¬àãî⁄›€à
+œH
+À HOàŸX\ò⁄ëõÿ›\ 
+N¬Çà\Qõÿ][ô’[YJäN¬ÇÇàYà
+ãî⁄›—X[Ÿ \ HOHX[Ÿ‘ô\›[ì“»‹öYê›\úô[ùõ›»OHù[
+Bàô]\õàù[¬Çàò\àYH€€ùô\ùï“[ùç
+‹öYê›\úô[ùõ›ÀêŸ[÷»íQóKïò[YJN¬Çà\⁄[ô»ò\à€åàH]Xò\ŸKì‹[ä
+N¬à\⁄[ô»ò\à€YàH€åãê‹ôX]P€€[X[ô
+
+N¬à€Yãê€€[X[ô^HààÇà—SP’Y”–ST–—Jò\ò€ŸK	… Kò[YKöXŸK›ÿ⁄¬àîì”HõŸX›¬à“TëHYIYSëX›]ôOLBàààé¬à€Yãî\ò[Y]\úÀêY⁄]ò[YJâYãY
+N¬à\⁄[ô»ò\àôàH€Yãë^X›]TôXY\ä
+N¬àYà
+\ôãîôXY
+
+JBàô]\õàù[¬Çàô]\õà
+àôãëŸ][ùç
+
+KàôãëŸ]›ö[ô JKàôãëŸ]›ö[ô äKàôãëŸ]›XõJ KàôãëŸ]›XõJ
+Bà
+N¬àBÇÇÇàö]ò]H\›^[Y[ù\ùè»Ÿ[X›^[Y[ù
+›XõH›[
+Bà¬à\⁄[ô»ò\ààHô]»õ‹õBà¬à^Hëö[ò[^ò\àô[ôHãà›\ù‹⁄][€àHõ‹õT›\ù‹⁄][€ãêŸ[ù\î\ô[ùà⁄YHÕåàZY⁄HåLàõ‹õPõ‹ô\î›[HHõ‹õPõ‹ô\î›[Këö^YX[ŸÀàX^[Z^ôPõﬁHò[ŸKàZ[ö[Z^ôPõﬁHò[ŸKàòX⁄–€€‹àH€€‹ãëúõ€P\ôÿäççãçLJKàõ€ùHô]»õ€ù
+îŸY€ŸHRHãL
+KàŸ^Tô]öY]»HùYBàN¬Çàò\àXY\àHô]»[ô[à¬àÿ⁄»Hÿ⁄‘›[Kï‹àZY⁄HãàòX⁄–€€‹àH\ö–õYBàN¬Çàò\à]HHô]»Xô[à¬à^HëíSêSVêTàëSëHãàõ‹πﬂﬁm¢Gß≤⁄Óù∆≠y“ñbÜF∆rÂ6Ü˜tFñ∆ˆráFÜó2í”“Fñ∆ˆu&W7V«B‰Ù≤ê¢∞¢G'í≤Fˆ2Â&ñÁBÇì≤–¢6F6ÇÑWÜ6WFñˆ‚WÇí≤ñÊfÚÇ$Ï:6Úfˆí˜7<:◊fV¬ñ◊&ñ÷ó#•∆‚"≤WÇ‰÷W76vRì≤–¢–¢–†¢&ófFRfˆñB˜VÂ6∆W2Çê¢∞¢f"b“ÊWrf˜&–¢∞¢FWáB“$ƒT¬î‰dÚ4Ù‰T5DDÚ“DTƒDRdT‰D2(
+"c„3"¿¢vñÊF˜u7FFR“f˜&’vñÊF˜u7FFR‰÷Üñ÷ó¶VB¿¢÷ñÊñ◊V’6ó¶R“ÊWr6ó¶RÉÉ¬s#í¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"Ér¬#B¬C2í¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬í¿¢∂Wï&WfñWr“G'VP¢”∞†¢f"6'DóFV◊2“ÊWr∆ó7Cƒ6'DóFV”‚Çì∞¢f"6'E6˜W&6R“ÊWr&ñÊFñÊu6˜W&6R≤FF6˜W&6R“6'DóFV◊2”∞†¢ÚÚfó7V¬c„3¢6ÁF˜2'&VFˆÊFF˜2¬FV÷2R6&÷VÁFÚ÷ˆFW&ÊÚ¿¢ÚÚ6V“«FW&"Ã;6vñ6FRfVÊF‡¢fˆñB&˜VÊBÑ6ˆÁG&ˆ¬2¬ñÁB&FóW2ê¢∞¢fˆñB«íÇê¢∞¢ñbÜ2ÂvñGFÇ√“«¬2‰ÜVñváB√“í&WGW&„∞¢f""“ÊWr&V7FÊv∆RÉ¬¬2ÂvñGFÇ¬2‰ÜVñváBì∞¢f"w“ÊWr7ó7FV“‰G&vñÊr‰G&vñÊs$B‰w&Üñ75FÇÇì∞¢ñÁBB“÷FÇ‰÷ÇÉB¬&FóW2¢"ì∞¢w‰FD&2á"ÂÇ¬"Âí¬B¬B¬É¬ìì∞¢w‰FD&2á"Â&ñváB“B“¬"Âí¬B¬B¬#s¬ìì∞¢w‰FD&2á"Â&ñváB“B“¬"‰&˜GFˆ““B“¬B¬B¬¬ìì∞¢w‰FD&2á"ÂÇ¬"‰&˜GFˆ““B“¬B¬B¬ì¬ìì∞¢w‰6∆˜6TfñwW&RÇì∞¢2Â&Vvñˆ„Ú‰Fó7˜6RÇì∞¢2Â&Vvñˆ‚“ÊWr&Vvñˆ‚Üwì∞¢w‰Fó7˜6RÇì∞¢–¢2Â&W6ó¶R≥“ÖÚ¬Úí”‚«íÇì∞¢2‰ÜÊF∆T7&VFVB≥“ÖÚ¬Úí”‚«íÇì∞¢–†¢fˆñB÷ˆFW&‰'WGFˆ‚Ñ'WGFˆ‚"¬6ˆ∆˜"Ê˜&÷¬¬6ˆ∆˜"Ü˜fW"ê¢∞¢"‰&6¥6ˆ∆˜"“Ê˜&÷√∞¢"‰f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆C∞¢"‰f∆DV&Ê6R‰&˜&FW%6ó¶R“∞¢"‰7W'6˜"“7W'6˜'2‰ÜÊC∞¢&˜VÊBÜ"¬Bì∞¢"‰÷˜W6TVÁFW"≥“ÖÚ¬Úí”‡¢∞¢"‰&6¥6ˆ∆˜"“Ü˜fW#∞¢"‰fˆÁB“ÊWrfˆÁBÜ"‰fˆÁB‰fˆÁDf÷ñ«í¬"‰fˆÁBÂ6ó¶R≤„fb¬fˆÁE7Gñ∆R‰&ˆ∆Bì∞¢”∞¢"‰÷˜W6T∆VfR≥“ÖÚ¬Úí”‡¢∞¢"‰&6¥6ˆ∆˜"“Ê˜&÷√∞¢"‰fˆÁB“ÊWrfˆÁBÜ"‰fˆÁB‰fˆÁDf÷ñ«í¬÷FÇ‰÷ÇÉÜb¬"‰fˆÁBÂ6ó¶R“„fbí¬fˆÁE7Gñ∆R‰&ˆ∆Bì∞¢”∞¢–†¢ÚÚ””””“4$\8tƒÑÚ””””–¢f"ÜVFW"“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆RÂF˜¿¢ÜVñváB“ì"¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉB¬CR¬É"ê¢”∞†¢f"ÜVFW%FóF∆R“ÊWr∆&V¿¢∞¢FWáB“$ƒT¬î‰dÚ4Ù‰T5DDÚ(
+"4ïÑÚEb"¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬#B¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢WFı6ó¶R“G'VR¿¢∆VgB“#b¿¢F˜“Ä¢”∞†¢f"ÜVFW$ñÊfÚ“ÊWr∆&V¿¢∞¢FWáB“B%DT4‰ÙƒÙtîTR4Ù‰T5D(
+"FVÊFVÁFS¢D‘î‚(
+"¥FFUFñ÷R‰Ê˜s¶FBÙ‘“˜óóóíÑÉ¶÷◊“"¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢WFı6ó¶R“G'VR¿¢Ê6Ü˜"“Ê6Ü˜%7Gñ∆W2ÂF˜¬Ê6Ü˜%7Gñ∆W2Â&ñvá@¢”∞†¢ÜVFW"‰6ˆÁG&ˆ«2‰FBÜÜVFW%FóF∆Rì∞¢ÜVFW"‰6ˆÁG&ˆ«2‰FBÜÜVFW$ñÊfÚì∞†¢f"ÜVFW$∆ñÊR“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰&˜GFˆ“¿¢ÜVñváB“B¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É¬É2¬#SRê¢”∞¢ÜVFW"‰6ˆÁG&ˆ«2‰FBÜÜVFW$∆ñÊRì∞¢ÜVFW"Â&W6ó¶R≥“ÖÚ¬Úí”‡¢∞¢ÜVFW$ñÊfÚ‰∆VgB“÷FÇ‰÷ÇÉ#¬ÜVFW"‰6∆ñVÁE6ó¶RÂvñGFÇ“ÜVFW$ñÊfÚÂvñGFÇ“#Çì∞¢ÜVFW$ñÊfÚÂF˜“3#∞¢”∞¢b‰6ˆÁG&ˆ«2‰FBÜÜVFW"ì∞†¢ÚÚ””””“4ÙÂD\9§DÚ$U5ÙÂ4ïdÚ””””–¢f"&ˆGí“ÊWrF&∆T∆ñ˜WEÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢6ˆ«V÷‰6˜VÁB“2¿¢&˜t6˜VÁB“¿¢FFñÊr“ÊWrFFñÊrÉÇí¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"Ér¬#B¬C2ê¢”∞¢&ˆGí‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬#Ríì∞¢&ˆGí‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬3íì∞¢&ˆGí‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬CRíì∞¢b‰6ˆÁG&ˆ«2‰FBÜ&ˆGíì∞¢&ˆGí‰'&ñÊuFÙg&ˆÁBÇì∞†¢ÚÚ””””“dïE$î‰Ru$‰DRDÚ$ÙEUDÚ””””–¢f"Ü˜Fı6Ü˜v66R“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"Éí¬S"¬ÉÇí¿¢FFñÊr“ÊWrFFñÊrÉbí¿¢÷&vñ‚“ÊWrFFñÊrÉ¬¬"¬ê¢”∞¢&ˆGí‰6ˆÁG&ˆ«2‰FBáÜ˜Fı6Ü˜v66R¬¬ì∞¢&˜VÊBáÜ˜Fı6Ü˜v66R¬#Bì∞†¢f"Ü˜FÙ∆ñ˜WB“ÊWrF&∆T∆ñ˜WEÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢6ˆ«V÷‰6˜VÁB“¿¢&˜t6˜VÁB“2¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂG&Á7&VÁ@¢”∞¢Ü˜FÙ∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬SRíì∞¢Ü˜FÙ∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬íì∞¢Ü˜FÙ∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬É"íì∞¢Ü˜Fı6Ü˜v66R‰6ˆÁG&ˆ«2‰FBáÜ˜FÙ∆ñ˜WBì∞†¢f"Ü˜FıFóF∆R“ÊWr∆&V¿¢∞¢FWáB“%$ÙEUDÚ"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬b¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW ¢”∞¢Ü˜FÙ∆ñ˜WB‰6ˆÁG&ˆ«2‰FBáÜ˜FıFóF∆R¬¬ì∞†¢f"'&ÊEÊV¬“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É#3Ç¬#CÇ¬#SRí¿¢FFñÊr“ÊWrFFñÊrÉí¿¢÷&vñ‚“ÊWrFFñÊrÉ¬B¬¬ê¢”∞†¢f"&ˆGV7Eñ7GW&R“ÊWrñ7GW&T&˜Ä¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢6ó¶T÷ˆFR“ñ7GW&T&˜Ö6ó¶T÷ˆFRÂ¶ˆˆ“¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É#CÇ¬#S¬#S"ê¢”∞¢'&ÊEÊV¬‰6ˆÁG&ˆ«2‰FBá&ˆGV7Eñ7GW&Rì∞¢Ü˜FÙ∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÜ'&ÊEÊV¬¬¬ì∞¢&˜VÊBÜ'&ÊEÊV¬¬#"ì∞†¢f"Ü˜Fı&ˆGV7DÊ÷R“ÊWr∆&V¿¢∞¢FWáB“%6V∆V6ñˆÊRV“&ˆGWFÚ"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉB¬CR¬É"í¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬2¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW"¿¢FFñÊr“ÊWrFFñÊrÉÇí¿¢÷&vñ‚“ÊWrFFñÊrÉê¢”∞¢Ü˜FÙ∆ñ˜WB‰6ˆÁG&ˆ«2‰FBáÜ˜Fı&ˆGV7DÊ÷R¬¬"ì∞¢&˜VÊBáÜ˜Fı&ˆGV7DÊ÷R¬bì∞†¢fˆñB6Ü˜u&ˆGV7EÜ˜FÚÜ∆ˆÊsÚ&ˆGV7DñBê¢∞¢&ˆGV7Eñ7GW&R‰ñ÷vSÚ‰Fó7˜6RÇì∞¢&ˆGV7Eñ7GW&R‰ñ÷vR“ÁV∆√∞¢Ü˜Fı&ˆGV7DÊ÷RÂFWáB“%6V∆V6ñˆÊRV“&ˆGWFÚ#∞†¢7G&ñÊsÚFÇ“ÁV∆√∞¢7G&ñÊsÚ&ˆGV7DÊ÷R“ÁV∆√∞¢ñbá&ˆGV7DñB‰Ü5f«VRê¢∞¢W6ñÊrf"6‚“FF&6R‰˜V‚Çì∞¢W6ñÊrf"6÷B“6‚‰7&VFT6ˆ÷÷ÊBÇì∞¢6÷B‰6ˆ÷÷ÊEFWáB“%4TƒT5B4ÙƒU44RáÜ˜Fı˜FÇ¬rrí¬Ê÷Re$Ù“&ˆGV7G2tÑU$RñC“FñB#∞¢6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"FñB"¬&ˆGV7DñBÂf«VRì∞¢W6ñÊrf"&B“6÷B‰WÜV7WFU&VFW"Çì∞¢ñbá&BÂ&VBÇíê¢∞¢FÇ“&B‰vWE7G&ñÊrÉì∞¢&ˆGV7DÊ÷R“&B‰vWE7G&ñÊrÉì∞¢–¢–†¢ñbÇ7G&ñÊr‰ó4ÁV∆ƒ˜%vÜóFU76Rá&ˆGV7DÊ÷Ríê¢Ü˜Fı&ˆGV7DÊ÷RÂFWáB“&ˆGV7DÊ÷S∞†¢ñbÇ7G&ñÊr‰ó4ÁV∆ƒ˜%vÜóFU76RáFÇíê¢∞¢7G&ñÊr&W6ˆ«fVB“FÉ∞†¢ñbÇFÇ‰ó5FÖ&ˆ˜FVBá&W6ˆ«fVBíê¢∞¢f"&V∆FófR“FÇ‰6ˆ÷&ñÊRÑ6ˆÁFWáB‰&6TFó&V7F˜'í¬&W6ˆ«fVBì∞¢f"76WG5&V∆FófR“FÇ‰6ˆ÷&ñÊRÑ6ˆÁFWáB‰&6TFó&V7F˜'í¬$76WG2"¬&W6ˆ«fVBì∞†¢ñbÑfñ∆R‰WÜó7G2Ü&V∆FófRíê¢&W6ˆ«fVB“&V∆FófS∞¢V«6RñbÑfñ∆R‰WÜó7G2Ü76WG5&V∆FófRíê¢&W6ˆ«fVB“76WG5&V∆FófS∞¢–†¢ñbÑfñ∆R‰WÜó7G2á&W6ˆ«fVBíê¢∞¢W6ñÊrf"ñ÷r“ñ÷vR‰g&ˆ‘fñ∆Rá&W6ˆ«fVBì∞¢&ˆGV7Eñ7GW&R‰ñ÷vR“ÊWr&óF÷Üñ÷rì∞¢&ˆGV7Eñ7GW&RÂ&Vg&W6ÇÇì∞¢&WGW&„∞¢–¢–†¢ÚÚW7FFÚf¶ñÛ¢÷ÁL:ñ“∆ˆvˆ÷&6ÊfóG&ñÊR‡¢ÚÚ&ˆGWFÚ6V∆V6ñˆÊFÚ6V“f˜FÛ¢Ï:6Ú6ˆÊgVÊFó"∆ˆvÚ6ˆ“f˜FÚFÚ&ˆGWFÚ‡¢ñbÇ&ˆGV7DñB‰Ü5f«VRê¢∞¢f"∆ˆvıFÇ“FÇ‰6ˆ÷&ñÊRÑ6ˆÁFWáB‰&6TFó&V7F˜'í¬$76WG2"¬&∆ˆvÚÁÊr"ì∞¢ñbÑfñ∆R‰WÜó7G2Ü∆ˆvıFÇíê¢∞¢W6ñÊrf"ñ÷r“ñ÷vR‰g&ˆ‘fñ∆RÜ∆ˆvıFÇì∞¢&ˆGV7Eñ7GW&R‰ñ÷vR“ÊWr&óF÷Üñ÷rì∞¢–¢Ü˜Fı&ˆGV7DÊ÷RÂFWáB“%6V∆V6ñˆÊRV“&ˆGWFÚ#∞¢–¢V«6P¢∞¢&ˆGV7Eñ7GW&R‰ñ÷vR“ÁV∆√∞¢Ü˜Fı&ˆGV7DÊ÷RÂFWáB“7G&ñÊr‰ó4ÁV∆ƒ˜%vÜóFU76Rá&ˆGV7DÊ÷Rê¢Ú%4T“dıDÚ4D5E$D ¢¢&ˆGV7DÊ÷R≤"(
+"4T“dıDÚ4D5E$D#∞¢–¢–†¢6Ü˜u&ˆGV7EÜ˜FÚÜÁV∆¬ì∞†¢ÚÚ””””“4Ù≈T‰4TÂE$¬ÚƒÏ8t‘TÂDÚ””””–¢f"∆VgB“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"Éí¬S"¬ÉÇí¿¢FFñÊr“ÊWrFFñÊrÉ#Bê¢”∞¢&ˆGí‰6ˆÁG&ˆ«2‰FBÜ∆VgB¬¬ì∞¢&˜VÊBÜ∆VgB¬#Bì∞†¢f"∆VgD∆ñ˜WB“ÊWrF&∆T∆ñ˜WEÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢6ˆ«V÷‰6˜VÁB“¿¢&˜t6˜VÁB“¿¢FFñÊr“ÊWrFFñÊrÉ#B¬B¬#B¬Bí¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂG&Á7&VÁ@¢”∞¢ÚÚ&W6W'fW7:vÚ$T¬&Ú7FGW2ÊÚ&ˆF:í‚ÁFW22&ñ÷Vó&2∆ñÊÜ0¢ÚÚ6ˆÁ7V÷ñ“&Fñ6÷VÁFRFˆF«GW&;ßFñ¬RÚ$4ïÑƒïe$R"W&6˜'FFÚ‡¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬#Çíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬CBíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬#Çíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬CBíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬#Çíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬CBíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬#Çíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬CBíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬Cbíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬Cbíì∞¢∆VgD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬íì∞¢∆VgB‰6ˆÁG&ˆ«2‰FBÜ∆VgD∆ñ˜WBì∞†¢∆&V¬6∆T∆&V¬á7G&ñÊrFWáBí”‚ÊWrÇê¢∞¢FWáB“FWáB¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰&˜GFˆ‘∆Vg@¢”∞†¢f"6V&6Ñ∆&V¬“6∆T∆&V¬Ç$<;6FñvÚFR&'&2Ú&ˆGWFÚ¥cU“"ì∞¢6V&6Ñ∆&V¬‰7W'6˜"“7W'6˜'2‰ÜÊC∞¢f"6V&6Ç“ÊWrFWáD&˜Ä¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬R¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬3Ç¬cÇí¿¢&˜&FW%7Gñ∆R“&˜&FW%7Gñ∆R‰fóÜVE6ñÊv∆P¢”∞¢f"Gí“ÊWrÁV÷W&ñ5WF˜v‡¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢FV6ñ÷≈∆6W2“2¿¢÷ñÊñ◊V““„“¿¢÷Üñ◊V““ìììììí¿¢f«VR“¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬R¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“Ü˜&ó¶ˆÁFƒ∆ñvÊ÷VÁBÂ&ñváB¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬3Ç¬cÇê¢”∞¢f"VÊóB“ÊWrFWáD&˜Ä¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¬&VDˆÊ«í“G'VR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬R¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“Ü˜&ó¶ˆÁFƒ∆ñvÊ÷VÁBÂ&ñváB¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¬f˜&T6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬3Ç¬cÇí¿¢&˜&FW%7Gñ∆R“&˜&FW%7Gñ∆R‰fóÜVE6ñÊv∆R¬FWáB“%"B√ ¢”∞¢f"óFV’F˜F¬“ÊWrFWáD&˜Ä¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¬&VDˆÊ«í“G'VR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬R¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“Ü˜&ó¶ˆÁFƒ∆ñvÊ÷VÁBÂ&ñváB¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¬f˜&T6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬3Ç¬cÇí¿¢&˜&FW%7Gñ∆R“&˜&FW%7Gñ∆R‰fóÜVE6ñÊv∆R¬FWáB“%"B√ ¢”∞¢f"FB“ÊWr'WGFˆ‡¢∞¢FWáB“$Dî4îÙ‰"ïDT“¥TÂDU%“"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É¬É2¬#SRí¬f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬"¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢7W'6˜"“7W'6˜'2‰ÜÊB¬÷&vñ‚“ÊWrFFñÊrÉ¬B¬¬"ê¢”∞¢FB‰f∆DV&Ê6R‰&˜&FW%6ó¶R“∞¢÷ˆFW&‰'WGFˆ‚ÜFB¬6ˆ∆˜"‰g&ˆ‘&v"É¬É2¬#SRí¬6ˆ∆˜"‰g&ˆ‘&v"É3R¬#R¬#SRíì∞†¢f"6∆V"“ÊWr'WGFˆ‡¢∞¢FWáB“$ƒî’""¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É#Ç¬ìb¬3Rí¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢7W'6˜"“7W'6˜'2‰ÜÊB¿¢÷&vñ‚“ÊWrFFñÊrÉ¬B¬¬"ê¢”∞¢6∆V"‰f∆DV&Ê6R‰&˜&FW%6ó¶R“∞¢÷ˆFW&‰'WGFˆ‚Ü6∆V"¬6ˆ∆˜"‰g&ˆ‘&v"É#Ç¬ìb¬3Rí¬6ˆ∆˜"‰g&ˆ‘&v"ÉCR¬3¬sRíì∞†¢ÚÚ÷ˆ∆GW&6ñÊV÷Fˆw,:fñ6FÚ7FGW3¢Ú∆&V¬6ˆÁFñÁV6VÊFÚÚ÷W6÷Ú6ˆ◊ˆÊVÁFP¢ÚÚW6FÚV∆Ã;6vñ6FfVÊF‚÷ˆ∆GW&:íVÊ2fó7V¬¬WfóFÊFÚ&Vw&W7<;VW2‡¢f"7FGW4g&÷R“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É¬ì¬#CRí¿¢÷&vñ‚“ÊWrFFñÊrÉ¬b¬¬í¿¢FFñÊr“ÊWrFFñÊrÉ"ê¢”∞¢f"7FGW4ñÊÊW"“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“F&¥&«VR¿¢÷&vñ‚“FFñÊr‰V◊Gí¿¢FFñÊr“FFñÊr‰V◊Gê¢”∞¢f"7FGW4&˜Ç“ÊWr∆&V¿¢∞¢FWáB“$4ïÑƒïe$R"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂG&Á7&VÁB¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬Ç¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW"¿¢WFı6ó¶R“f«6R¿¢FFñÊr“FFñÊr‰V◊Gí¿¢÷&vñ‚“FFñÊr‰V◊Gí¿¢W6T6ˆ◊Fñ&∆UFWáE&VÊFW&ñÊr“f«6P¢”∞¢7FGW4ñÊÊW"‰6ˆÁG&ˆ«2‰FBá7FGW4&˜Çì∞¢7FGW4g&÷R‰6ˆÁG&ˆ«2‰FBá7FGW4ñÊÊW"ì∞†¢&˜VÊBá6V&6Ç¬"ì∞¢&˜VÊBáGí¬"ì∞¢&˜VÊBáVÊóB¬"ì∞¢&˜VÊBÜóFV’F˜F¬¬"ì∞¢&˜VÊBá7FGW4g&÷R¬Çì∞¢&˜VÊBá7FGW4ñÊÊW"¬bì∞†¢ÚÚV«6Ú6ñÊV÷Fˆw,:fñ6ÚW7L:fV√¢vVˆ÷WG&ñRfˆÁFRÁVÊ6◊VF“‡¢ÚÚ6ˆ÷VÁFR«W¢F÷ˆ∆GW&RÚgVÊFÚf&ñ“7VfV÷VÁFR‡¢&ˆˆ¬V«6UW“G'VS∞¢ñÁBV«6U7FW“∞¢f"g&VUV«6R“ÊWr7ó7FV“ÂvñÊF˜w2‰f˜&◊2ÂFñ÷W"≤ñÁFW'f¬“ì”∞¢g&VUV«6RÂFñ6≤≥“ÖÚ≈Úí”‡¢∞¢ñbá7FGW4&˜ÇÂFWáB“$4ïÑƒïe$R"ê¢∞¢7FGW4g&÷R‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É¬S¬#Rì∞¢7FGW4ñÊÊW"‰&6¥6ˆ∆˜"“F&¥&«VS∞¢7FGW4&˜Ç‰f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFS∞¢&WGW&„∞¢–†¢V«6U7FW≥“V«6UWÚ¢”∞¢ñbáV«6U7FW„“bí≤V«6U7FW“c≤V«6UW“f«6S≤–¢ñbáV«6U7FW√“í≤V«6U7FW“≤V«6UW“G'VS≤–†¢7FGW4g&÷R‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"Ä¢¿¢cR≤V«6U7FW¢Ç¿¢#R≤V«6U7FW¢bì∞¢7FGW4ñÊÊW"‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"Ä¢¿¢ì"≤V«6U7FW¢R¿¢C"≤V«6U7FW¢rì∞¢7FGW4&˜Ç‰f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFS∞¢”∞¢g&VUV«6RÂ7F'BÇì∞¢b‰f˜&‘6∆˜6VB≥“ÖÚ≈Úí”‚g&VUV«6R‰Fó7˜6RÇì∞†¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBá6V&6Ñ∆&V¬¬¬ì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBá6V&6Ç¬¬ì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÖ6∆T∆&V¬Ç%VÁFñFFR"í¬¬"ì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBáGí¬¬2ì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÖ6∆T∆&V¬Ç%f∆˜"VÊóL:&ñÚ"í¬¬Bì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBáVÊóB¬¬Rì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÖ6∆T∆&V¬Ç%f∆˜"F˜F¬FÚóFV“"í¬¬bì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÜóFV’F˜F¬¬¬rì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÜFB¬¬Çì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÜ6∆V"¬¬íì∞¢∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBá7FGW4g&÷R¬¬ì∞†¢ÚÚ””””“4Ù≈T‰Dï$TïDÚ5UÙ“””””–¢f"&ñváB“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É#C¬#Cr¬#S"í¿¢FFñÊr“ÊWrFFñÊrÉBê¢”∞¢&ˆGí‰6ˆÁG&ˆ«2‰FBá&ñváB¬"¬ì∞¢&˜VÊBá&ñváB¬#Bì∞†¢ÚÚW7G'WGW&&ˆfó76ñˆÊ√†¢ÚÚíF˜F¬6ˆ◊7FÚRF˜F∆÷VÁFRfó<:◊fV¿¢ÚÚ"íFñ6c"∆ˆvÚ&óÜ¢ÚÚ2íL:◊GV∆Ú≤F&V∆ˆ7WÊFÚÚ÷ñ˜"W7:v¢ÚÚBí6∆ñVÁFP¢ÚÚRí:|;VW2ÊÚ&ˆF:ê¢f"&ñváD∆ñ˜WB“ÊWrF&∆T∆ñ˜WEÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢6ˆ«V÷‰6˜VÁB“¿¢&˜t6˜VÁB“b¿¢FFñÊr“ÊWrFFñÊrÉí¿¢÷&vñ‚“ÊWrFFñÊrÉí¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂG&Á7&VÁ@¢”∞¢&ñváD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬#bíì≤ÚÚF˜F¿¢&ñváD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬3Çíì≤ÚÚc ¢&ñváD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬c"íì≤ÚÚL:◊GV∆ÚóFVÁ0¢&ñváD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬íì≤ÚÚF&V∆¢&ñváD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬SBíì≤ÚÚ6∆ñVÁFP¢&ñváD∆ñ˜WBÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬cÇíì≤ÚÚ&˜L;VW0¢&ñváB‰6ˆÁG&ˆ«2‰FBá&ñváD∆ñ˜WBì∞†¢ÚÚ””””“DıD¬DdT‰D””””–¢f"7V'F˜F≈ÊV¬“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“F&¥&«VR¿¢FFñÊr“ÊWrFFñÊrÉÇ¬¬Ç¬í¿¢÷&vñ‚“ÊWrFFñÊrÉ¬¬¬rê¢”∞¢&˜VÊBá7V'F˜F≈ÊV¬¬Çì∞†¢f"7V'F˜Fƒ6Fñˆ‚“ÊWr∆&V¿¢∞¢FWáB“%DıD¬DdT‰D"¿¢Fˆ6≤“Fˆ6µ7Gñ∆RÂF˜¿¢ÜVñváB“#Ç¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬„Vb¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T∆Vg@¢”∞†¢f"7V'F˜F≈f«VR“ÊWr∆&V¿¢∞¢FWáB“%"B√"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬#B¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆U&ñváB¿¢FFñÊr“ÊWrFFñÊrÉ¬¬B¬ê¢”∞†¢7V'F˜F≈ÊV¬‰6ˆÁG&ˆ«2‰FBá7V'F˜F≈f«VRì∞¢7V'F˜F≈ÊV¬‰6ˆÁG&ˆ«2‰FBá7V'F˜Fƒ6Fñˆ‚ì∞¢&ñváD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBá7V'F˜F≈ÊV¬¬¬ì∞†¢ÚÚ””””“Dî4c"””””–¢f"ñ÷VÁEÊV¬“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂG&Á7&VÁB¿¢÷&vñ‚“ÊWrFFñÊrÉê¢”∞†¢f"ñ÷VÁEFWáB“ÊWr∆&V¿¢∞¢FWáB“%&W76ñˆÊRc"&W66ˆ∆ÜW"f˜&÷FRv÷VÁFÚ"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬„Vb¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢f˜&T6ˆ∆˜"“F&¥&«VR¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T∆VgB¿¢FFñÊr“ÊWrFFñÊrÉR¬¬¬ê¢”∞¢ñ÷VÁEÊV¬‰6ˆÁG&ˆ«2‰FBáñ÷VÁEFWáBì∞¢&ñváD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBáñ÷VÁEÊV¬¬¬ì∞†¢ÚÚ÷ÁFñFÚ˜"6ˆ◊Fñ&ñ∆ñFFR6ˆ“Ã;6vñ6WÜó7FVÁFR‡¢f"ñ÷VÁB“ÊWr6ˆ÷&Ù&˜Ä¢∞¢vñGFÇ“É¿¢ÜVñváB“3b¿¢G&˜F˜vÂ7Gñ∆R“6ˆ÷&Ù&˜Ö7Gñ∆R‰G&˜F˜v‰∆ó7B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬í¿¢fó6ñ&∆R“f«6P¢”∞¢ñ÷VÁB‰óFV◊2‰FE&ÊvRÜÊWuµ“≤$FñÊÜVó&Ú"¬%ïÇ"¬$6'L:6Ú"¬$‹;¶«Fó∆Ú"“ì∞¢ñ÷VÁBÂ6V∆V7FVDñÊFWÇ“∞¢ñ÷VÁEÊV¬‰6ˆÁG&ˆ«2‰FBáñ÷VÁBì∞†¢ÚÚ””””“L8’ETƒÚDı2ïDTÂ2””””–¢f"7Wˆ’FóF∆R“ÊWr∆&V¿¢∞¢FWáB“$ƒT¬î‰dÚ(
+"ïDTÂ2DdT‰D"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“F&¥&«VR¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬r¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW"¿¢÷&vñ‚“ÊWrFFñÊrÉ¬B¬¬Rê¢”∞¢&ñváD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÜ7Wˆ’FóF∆R¬¬"ì∞¢&˜VÊBÜ7Wˆ’FóF∆R¬bì∞†¢ÚÚ””””“D$Tƒu$‰DR””””–¢f"w&ñB“ÊWrFFw&ñEfñWp¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6∂w&˜VÊD6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢&˜&FW%7Gñ∆R“&˜&FW%7Gñ∆R‰ÊˆÊR¿¢&VDˆÊ«í“G'VR¿¢∆∆˜uW6W%FÙFE&˜w2“f«6R¿¢∆∆˜uW6W%FÙFV∆WFU&˜w2“f«6R¿¢&˜tÜVFW'5fó6ñ&∆R“f«6R¿¢WFÙvVÊW&FT6ˆ«V÷Á2“f«6R¿¢6V∆V7Fñˆ‰÷ˆFR“FFw&ñEfñWu6V∆V7Fñˆ‰÷ˆFR‰gV∆≈&˜u6V∆V7B¿¢◊V«Fï6V∆V7B“f«6R¿¢6ˆ«V÷‰ÜVFW'4ÜVñváB“C¿¢÷&vñ‚“ÊWrFFñÊrÉ¬¬¬Rê¢”∞¢w&ñB‰VÊ&∆TÜVFW'5fó7V≈7Gñ∆W2“f«6S∞¢w&ñB‰6ˆ«V÷‰ÜVFW'4FVfV«D6V∆≈7Gñ∆R‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É#R¬#3í¬#S"ì∞¢w&ñB‰6ˆ«V÷‰ÜVFW'4FVfV«D6V∆≈7Gñ∆R‰f˜&T6ˆ∆˜"“F&¥&«VS∞¢w&ñB‰6ˆ«V÷‰ÜVFW'4FVfV«D6V∆≈7Gñ∆R‰fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bì∞¢w&ñB‰FVfV«D6V∆≈7Gñ∆R‰fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬ì∞¢w&ñB‰FVfV«D6V∆≈7Gñ∆RÂ6V∆V7Fñˆ‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É#¬3R¬#ì∞¢w&ñB‰FVfV«D6V∆≈7Gñ∆RÂ6V∆V7Fñˆ‰f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFS∞¢w&ñB‰«FW&ÊFñÊu&˜w4FVfV«D6V∆≈7Gñ∆R‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É#CR¬#S¬#SRì∞¢w&ñB‰FFW'&˜"≥“ÖÚ¬Rí”‚≤RÂFá&˜tWÜ6WFñˆ‚“f«6S≤R‰6Ê6V¬“G'VS≤”∞†¢w&ñB‰6ˆ«V÷Á2‰FBÜÊWrFFw&ñEfñWuFWáD&˜Ñ6ˆ«V÷‡¢∞¢ÜVFW%FWáB“$<;6FñvÚ"¿¢FF&˜W'GîÊ÷R“Ê÷VˆbÑ6'DóFV“‰6ˆFRí¿¢vñGFÇ“ìP¢“ì∞¢w&ñB‰6ˆ«V÷Á2‰FBÜÊWrFFw&ñEfñWuFWáD&˜Ñ6ˆ«V÷‡¢∞¢ÜVFW%FWáB“$FW67&ú:|:6Ú"¿¢FF&˜W'GîÊ÷R“Ê÷VˆbÑ6'DóFV“‰FW67&óFñˆ‚í¿¢WFı6ó¶T÷ˆFR“FFw&ñEfñWtWFı6ó¶T6ˆ«V÷‰÷ˆFR‰fñ∆¿¢“ì∞¢w&ñB‰6ˆ«V÷Á2‰FBÜÊWrFFw&ñEfñWuFWáD&˜Ñ6ˆ«V÷‡¢∞¢ÜVFW%FWáB“%FB‚"¿¢FF&˜W'GîÊ÷R“Ê÷VˆbÑ6'DóFV“ÂGíí¿¢vñGFÇ“cÇ¿¢FVfV«D6V∆≈7Gñ∆R“ÊWrFFw&ñEfñWt6V∆≈7Gñ∆R≤f˜&÷B“$„2"–¢“ì∞¢w&ñB‰6ˆ«V÷Á2‰FBÜÊWrFFw&ñEfñWuFWáD&˜Ñ6ˆ«V÷‡¢∞¢ÜVFW%FWáB“%f«"VÊóB‚"¿¢FF&˜W'GîÊ÷R“Ê÷VˆbÑ6'DóFV“ÂVÊóE&ñ6Rí¿¢vñGFÇ“ìR¿¢FVfV«D6V∆≈7Gñ∆R“ÊWrFFw&ñEfñWt6V∆≈7Gñ∆R≤f˜&÷B“$3""–¢“ì∞¢w&ñB‰6ˆ«V÷Á2‰FBÜÊWrFFw&ñEfñWuFWáD&˜Ñ6ˆ«V÷‡¢∞¢ÜVFW%FWáB“%F˜F¬"¿¢FF&˜W'GîÊ÷R“Ê÷VˆbÑ6'DóFV“ÂF˜F¬í¿¢vñGFÇ“R¿¢FVfV«D6V∆≈7Gñ∆R“ÊWrFFw&ñEfñWt6V∆≈7Gñ∆R≤f˜&÷B“$3""–¢“ì∞¢w&ñB‰FF6˜W&6R“6'E6˜W&6S∞¢&ñváD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÜw&ñB¬¬2ì∞¢&˜VÊBÜw&ñB¬"ì∞†¢ÚÚ””””“4ƒîTÂDR””””–¢f"6∆ñVÁD∆&V¬“ÊWr∆&V¿¢∞¢FWáB“$4ƒîTÂDS¢4ÙÂ5T‘îDı"dî‰¬"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É##"¬#3í¬#Sí¿¢f˜&T6ˆ∆˜"“F&¥&«VR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬„Vb¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T∆VgB¿¢FFñÊr“ÊWrFFñÊrÉ"¬¬¬í¿¢÷&vñ‚“ÊWrFFñÊrÉ¬¬¬Rê¢”∞¢&ñváD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÜ6∆ñVÁD∆&V¬¬¬Bì∞¢&˜VÊBÜ6∆ñVÁD∆&V¬¬"ì∞†¢ÚÚ””””“8|9TU2‰Ú$ÙD8í””””–¢f"7FñˆÂÊV¬“ÊWrF&∆T∆ñ˜WEÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢6ˆ«V÷‰6˜VÁB“B¿¢&˜t6˜VÁB“¿¢÷&vñ‚“ÊWrFFñÊrÉí¿¢FFñÊr“ÊWrFFñÊrÉ¬R¬¬ê¢”∞¢7FñˆÂÊV¬‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬#Bíì∞¢7FñˆÂÊV¬‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬Çíì∞¢7FñˆÂÊV¬‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬3bíì∞¢7FñˆÂÊV¬‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬#"íì∞†¢f"&V÷˜fR“ÊWr'WGFˆ‡¢∞¢FWáB“%$T‘ıdU"ïDT“¥cu“"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢÷&vñ‚“ÊWrFFñÊrÉ¬¬R¬í¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉcR¬CÇ¬c"í¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬í„Vb¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢7W'6˜"“7W'6˜'2‰ÜÊ@¢”∞¢&V÷˜fR‰f∆DV&Ê6R‰&˜&FW%6ó¶R“∞¢÷ˆFW&‰'WGFˆ‚á&V÷˜fR¬6ˆ∆˜"‰g&ˆ‘&v"ÉcR√CÇ√c"í¬6ˆ∆˜"‰g&ˆ‘&v"É#R√cR√É"íì∞¢&˜VÊBá&V÷˜fR¬"ì∞†¢f"7Gñ∆T'WGFˆ‚“ÊWr'WGFˆ‡¢∞¢FWáB“/	¯ÍÇU5DîƒÚ"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢÷&vñ‚“ÊWrFFñÊrÉR¬¬R¬í¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É¬CR¬#í¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬í„Vb¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢7W'6˜"“7W'6˜'2‰ÜÊ@¢”∞¢7Gñ∆T'WGFˆ‚‰f∆DV&Ê6R‰&˜&FW%6ó¶R“∞¢÷ˆFW&‰'WGFˆ‚á7Gñ∆T'WGFˆ‚¬6ˆ∆˜"‰g&ˆ‘&v"É"√s"√ìí¬6ˆ∆˜"‰g&ˆ‘&v"ÉSR√R√#3Ríì∞¢&˜VÊBá7Gñ∆T'WGFˆ‚¬"ì∞†¢f"fñÊó6Ç“ÊWr'WGFˆ‡¢∞¢FWáB“$dî‰ƒï§"dT‰D¥c%“"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢÷&vñ‚“ÊWrFFñÊrÉR¬¬R¬í¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É¬c2¬##Bí¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bê¢”∞¢fñÊó6Ç‰f∆DV&Ê6R‰&˜&FW%6ó¶R“∞¢fñÊó6Ç‰7W'6˜"“7W'6˜'2‰ÜÊC∞¢÷ˆFW&‰'WGFˆ‚ÜfñÊó6Ç¬6ˆ∆˜"‰g&ˆ‘&v"É√s√Rí¬6ˆ∆˜"‰g&ˆ‘&v"É#R√##√CRíì∞¢&˜VÊBÜfñÊó6Ç¬"ì∞†¢f"6∆˜6R“ÊWr'WGFˆ‡¢∞¢FWáB“$dT4Ñ""¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢÷&vñ‚“ÊWrFFñÊrÉR¬¬¬í¿¢&6¥6ˆ∆˜"“F&¥&«VR¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬í„Vb¬fˆÁE7Gñ∆R‰&ˆ∆Bê¢”∞¢6∆˜6R‰f∆DV&Ê6R‰&˜&FW%6ó¶R“∞¢6∆˜6R‰7W'6˜"“7W'6˜'2‰ÜÊC∞¢÷ˆFW&‰'WGFˆ‚Ü6∆˜6R¬6ˆ∆˜"‰g&ˆ‘&v"ÉSR√cÇ√É"í¬6ˆ∆˜"‰g&ˆ‘&v"ÉÉÇ√R√#"íì∞¢&˜VÊBÜ6∆˜6R¬"ì∞†¢7FñˆÂÊV¬‰6ˆÁG&ˆ«2‰FBá&V÷˜fR¬¬ì∞¢7FñˆÂÊV¬‰6ˆÁG&ˆ«2‰FBá7Gñ∆T'WGFˆ‚¬¬ì∞¢7FñˆÂÊV¬‰6ˆÁG&ˆ«2‰FBÜfñÊó6Ç¬"¬ì∞¢7FñˆÂÊV¬‰6ˆÁG&ˆ«2‰FBÜ6∆˜6R¬2¬ì∞¢&ñváD∆ñ˜WB‰6ˆÁG&ˆ«2‰FBÜ7FñˆÂÊV¬¬¬Rì∞†¢&óF÷7&VFUGeFWáGW&RÜñÁBvñGFÇ¬ñÁBÜVñváB¬6ˆ∆˜"3¬6ˆ∆˜"3"¬6ˆ∆˜"v∆˜r¬&ˆˆ¬∆ñváB¬ñÁB6VVBê¢∞¢vñGFÇ“÷FÇ‰÷ÇÉìb¬vñGFÇì∞¢ÜVñváB“÷FÇ‰÷ÇÉìb¬ÜVñváBì∞¢f"&◊“ÊWr&óF÷ávñGFÇ¬ÜVñváBì∞¢W6ñÊrf"r“w&Üñ72‰g&ˆ‘ñ÷vRÜ&◊ì∞¢rÂ6÷ˆ˜FÜñÊt÷ˆFR“7ó7FV“‰G&vñÊr‰G&vñÊs$BÂ6÷ˆ˜FÜñÊt÷ˆFR‰ÁFî∆ñ3∞†¢W6ñÊráf"&6T''W6Ç“ÊWr7ó7FV“‰G&vñÊr‰G&vñÊs$B‰∆ñÊV$w&FñVÁD''W6ÇÄ¢ÊWrˆñÁBÉ¬í¬ÊWrˆñÁBávñGFÇ¬ÜVñváBí¬3¬3"íê¢∞¢r‰fñ∆≈&V7FÊv∆RÜ&6T''W6Ç¬¬¬vñGFÇ¬ÜVñváBì∞¢–†¢ÚÚ«W¢W&ˆ∆FFñgW6¢L:fˆ«V÷R6V“fó&"V“gVÊFÚ6Ü÷FófÚFV÷ó2‡¢W6ñÊráf"v∆˜uFÇ“ÊWr7ó7FV“‰G&vñÊr‰G&vñÊs$B‰w&Üñ75FÇÇíê¢∞¢v∆˜uFÇ‰FDV∆∆ó6RÇ◊vñGFÇÚR¬÷ÜVñváBÚ2¬vñGFÇ¬ÜVñváBì∞¢W6ñÊrf"v"“ÊWr7ó7FV“‰G&vñÊr‰G&vñÊs$BÂFÑw&FñVÁD''W6ÇÜv∆˜uFÇì∞¢v"‰6VÁFW$6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"Ü∆ñváBÚs"¢SB¬v∆˜rì∞¢v"Â7W'&˜VÊD6ˆ∆˜'2“ÊWuµ“≤6ˆ∆˜"‰g&ˆ‘&v"É¬v∆˜rí”∞¢r‰fñ∆≈FÇáv"¬v∆˜uFÇì∞¢–†¢ÚÚfóÜ26WFñÊF2FñvˆÊó2¬V6RG&Á7&VÁFW2‡¢W6ñÊráf"6Fñ‚“ÊWrV‚Ñ6ˆ∆˜"‰g&ˆ‘&v"Ü∆ñváBÚ#"¢Ç¬6ˆ∆˜"ÂvÜóFRí¬„&bíê¢∞¢f˜"ÜñÁBÇ“÷ÜVñváC≤Ç¬vñGFÇ≤ÜVñváC≤Ç≥“#bê¢r‰G&t∆ñÊRá6Fñ‚¬Ç¬¬Ç≤ÜVñváB¬ÜVñváBì∞¢–†¢ÚÚ÷ñ7&˜FWáGW&FWFW&÷ñÏ:◊7Fñ6&VV'&"V«VW"6VÁ6:|:6ÚFR6˜"6ÜF‡¢f"&ÊB“ÊWr&ÊFˆ“á6VVBì∞¢ñÁBF˜G2“÷FÇ‰÷ÇÉÉ¬vñGFÇ¢ÜVñváBÚSSì∞¢f˜"ÜñÁBí“≤í¬F˜G3≤í≤≤ê¢∞¢ñÁBÇ“&ÊB‰ÊWáBávñGFÇì∞¢ñÁBí“&ÊB‰ÊWáBÜÜVñváBì∞¢ñÁB“&ÊB‰ÊWáBÜ∆ñváBÚB¢R¬∆ñváBÚR¢rì∞¢ñÁBb“&ÊB‰ÊWáBÉs¬#Sbì∞¢W6ñÊrf"F˜B“ÊWr6ˆ∆ñD''W6ÇÑ6ˆ∆˜"‰g&ˆ‘&v"Ü¬b¬b¬bíì∞¢r‰fñ∆≈&V7FÊv∆RÜF˜B¬Ç¬í¬¬ì∞¢–†¢ÚÚfVñ˜27VfW2&˜<:íˆ÷WL:∆ñ6˜2‡¢W6ñÊráf"fVñ‚“ÊWrV‚Ñ6ˆ∆˜"‰g&ˆ‘&v"Ü∆ñváBÚÇ¢#"¬v∆˜rí¬„bíê¢∞¢f˜"ÜñÁBí“É≤í¬ÜVñváC≤í≥“C"ê¢r‰G&t&W¶ñW"áfVñ‚¬¬í¬vñGFÇÚ2¬í“B¬vñGFÇ¢"Ú2¬í≤b¬vñGFÇ¬í“Bì∞¢–†¢&WGW&‚&◊∞¢–†¢fˆñB6∆V%FWáGW&RÑ6ˆÁG&ˆ¬2ê¢∞¢f"ˆ∆B“2‰&6∂w&˜VÊDñ÷vS∞¢2‰&6∂w&˜VÊDñ÷vR“ÁV∆√∞¢ˆ∆CÚ‰Fó7˜6RÇì∞¢–†¢fˆñB6WEFWáGW&RÑ6ˆÁG&ˆ¬2¬6ˆ∆˜"3¬6ˆ∆˜"3"¬6ˆ∆˜"v∆˜r¬&ˆˆ¬∆ñváB¬ñÁB6VVBê¢∞¢6∆V%FWáGW&RÜ2ì∞¢2‰&6∂w&˜VÊDñ÷vR“7&VFUGeFWáGW&RÉs#¬S#¬3¬3"¬v∆˜r¬∆ñváB¬6VVBì∞¢2‰&6∂w&˜VÊDñ÷vT∆ñ˜WB“ñ÷vT∆ñ˜WBÂ7G&WF6É∞¢–†¢fˆñB«ï6∆W5FÜV÷Rá7G&ñÊrFÜV÷Rê¢∞¢6ˆ∆˜"&r¬ÜVFW$&r¬66VÁB¬66VÁDÜ˜fW"¬∆VgD&r¬&ñváD&r¬fñV∆D&r¬FWáDF&≤¬6ˆgB¬6V6ˆÊF'ì∞†¢7vóF6ÇáFÜV÷Rê¢∞¢66R$F&≤&V÷óV“#†¢&r“6ˆ∆˜"‰g&ˆ‘&v"É¬"¬Çì∞¢ÜVFW$&r“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬#¬#íì∞¢66VÁB“6ˆ∆˜"‰g&ˆ‘&v"É¬s¬#3Rì∞¢66VÁDÜ˜fW"“6ˆ∆˜"‰g&ˆ‘&v"ÉC¬#¬#SRì∞¢∆VgD&r“6ˆ∆˜"‰g&ˆ‘&v"É#B¬#Ç¬3Çì∞¢&ñváD&r“6ˆ∆˜"‰g&ˆ‘&v"É3¬3B¬CBì∞¢fñV∆D&r“6ˆ∆˜"‰g&ˆ‘&v"É#CR¬#Cr¬#Sì∞¢FWáDF&≤“6ˆ∆˜"‰g&ˆ‘&v"É#¬#Ç¬3Çì∞¢6ˆgB“6ˆ∆˜"‰g&ˆ‘&v"É#¬##¬#3ì∞¢6V6ˆÊF'í“6ˆ∆˜"‰g&ˆ‘&v"ÉS"¬c¬sRì∞¢'&V≥∞†¢66R$6∆V‚&Ú#†¢&r“6ˆ∆˜"‰g&ˆ‘&v"É##R¬#3R¬#C"ì∞¢ÜVFW$&r“6ˆ∆˜"‰g&ˆ‘&v"É3R¬cÇ¬ì"ì∞¢66VÁB“6ˆ∆˜"‰g&ˆ‘&v"ÉCR¬3R¬Éì∞¢66VÁDÜ˜fW"“6ˆ∆˜"‰g&ˆ‘&v"És¬cR¬#Rì∞¢∆VgD&r“6ˆ∆˜"‰g&ˆ‘&v"É#CR¬#Cí¬#S"ì∞¢&ñváD&r“6ˆ∆˜"ÂvÜóFS∞¢fñV∆D&r“6ˆ∆˜"ÂvÜóFS∞¢FWáDF&≤“6ˆ∆˜"‰g&ˆ‘&v"É3R¬SÇ¬s"ì∞¢6ˆgB“6ˆ∆˜"‰g&ˆ‘&v"É##B¬#3R¬#C"ì∞¢6V6ˆÊF'í“6ˆ∆˜"‰g&ˆ‘&v"Éì¬R¬3ì∞¢'&V≥∞†¢66R$&«VR&VB&6ñÊr#†¢&r“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬#"¬C"ì∞¢ÜVFW$&r“6ˆ∆˜"‰g&ˆ‘&v"ÉÉR¬#"¬3Çì∞¢66VÁB“6ˆ∆˜"‰g&ˆ‘&v"É#3R¬3¬CÇì∞¢66VÁDÜ˜fW"“6ˆ∆˜"‰g&ˆ‘&v"É#SR¬cR¬sÇì∞¢∆VgD&r“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬SB¬ì"ì∞¢&ñváD&r“6ˆ∆˜"‰g&ˆ‘&v"É#CR¬#Cb¬#CÇì∞¢fñV∆D&r“6ˆ∆˜"ÂvÜóFS∞¢FWáDF&≤“6ˆ∆˜"‰g&ˆ‘&v"É"¬3Ç¬cÇì∞¢6ˆgB“6ˆ∆˜"‰g&ˆ‘&v"É#3Ç¬#Ç¬##"ì∞¢6V6ˆÊF'í“6ˆ∆˜"‰g&ˆ‘&v"É#R¬s"¬#Rì∞¢'&V≥∞†¢66R%fW&FRFWáGW&ó¶FÚ#†¢&r“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬CR¬3Bì∞¢ÜVFW$&r“6ˆ∆˜"‰g&ˆ‘&v"É¬ì"¬c2ì∞¢66VÁB“6ˆ∆˜"‰g&ˆ‘&v"É3"¬ì¬Çì∞¢66VÁDÜ˜fW"“6ˆ∆˜"‰g&ˆ‘&v"És"¬##R¬Sì∞¢∆VgD&r“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬R¬s"ì∞¢&ñváD&r“6ˆ∆˜"‰g&ˆ‘&v"É#3"¬#CÇ¬#3íì∞¢fñV∆D&r“6ˆ∆˜"‰g&ˆ‘&v"É#S¬#SR¬#S"ì∞¢FWáDF&≤“6ˆ∆˜"‰g&ˆ‘&v"É"¬cR¬CRì∞¢6ˆgB“6ˆ∆˜"‰g&ˆ‘&v"É#R¬#3Ç¬##ì∞¢6V6ˆÊF'í“6ˆ∆˜"‰g&ˆ‘&v"É3Ç¬#R¬Ébì∞¢'&V≥∞¢66R%Eb&˜6#†¢ÚÚ&˜6V∆VvÊ6S¢&˜<:í¬g&÷&ˆW6RfñÊÜÚ6ˆ“6&÷VÁFÚ6WFñÊFÚ˜W&ˆ∆FÚ‡¢&r“6ˆ∆˜"‰g&ˆ‘&v"ÉcR¬¬C2ì∞¢ÜVFW$&r“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬2¬sÇì∞¢66VÁB“6ˆ∆˜"‰g&ˆ‘&v"É#CB¬cr¬Sì∞¢66VÁDÜ˜fW"“6ˆ∆˜"‰g&ˆ‘&v"É#SR¬#b¬ìì∞¢∆VgD&r“6ˆ∆˜"‰g&ˆ‘&v"Éì"¬Ç¬crì∞¢&ñváD&r“6ˆ∆˜"‰g&ˆ‘&v"É#SR¬#C"¬#Cíì∞¢fñV∆D&r“6ˆ∆˜"‰g&ˆ‘&v"É#SR¬#S"¬#SBì∞¢FWáDF&≤“6ˆ∆˜"‰g&ˆ‘&v"Éì¬#¬cbì∞¢6ˆgB“6ˆ∆˜"‰g&ˆ‘&v"É#SR¬##¬#3Çì∞¢6V6ˆÊF'í“6ˆ∆˜"‰g&ˆ‘&v"Ésb¬S2¬#ì∞¢'&V≥∞†¢FVfV«C†¢FÜV÷R“$gWGW&ó7FßV¬#∞¢&r“6ˆ∆˜"‰g&ˆ‘&v"Ér¬#B¬C2ì∞¢ÜVFW$&r“6ˆ∆˜"‰g&ˆ‘&v"ÉB¬CR¬É"ì∞¢66VÁB“6ˆ∆˜"‰g&ˆ‘&v"É¬É2¬#SRì∞¢66VÁDÜ˜fW"“6ˆ∆˜"‰g&ˆ‘&v"É#R¬#R¬#SRì∞¢∆VgD&r“6ˆ∆˜"‰g&ˆ‘&v"Éí¬S"¬ÉÇì∞¢&ñváD&r“6ˆ∆˜"‰g&ˆ‘&v"É#C¬#Cr¬#S"ì∞¢fñV∆D&r“6ˆ∆˜"ÂvÜóFS∞¢FWáDF&≤“6ˆ∆˜"‰g&ˆ‘&v"ÉB¬SR¬ìBì∞¢6ˆgB“6ˆ∆˜"‰g&ˆ‘&v"É##"¬#3í¬#Sì∞¢6V6ˆÊF'í“6ˆ∆˜"‰g&ˆ‘&v"É#Ç¬ìb¬3Rì∞¢'&V≥∞¢–†¢ÚÚ&V÷˜fRV«VW"FWáGW&FÚFV÷ÁFW&ñ˜"ÁFW2FR∆ñ6",;7Üñ÷‡¢f˜&V6Çáf"2ñ‚ÊWr6ˆÁG&ˆ≈µ“≤b¬&ˆGí¬ÜVFW"¬∆VgB¬&ñváB¬Ü˜Fı6Ü˜v66R“ê¢6∆V%FWáGW&RÜ2ì∞†¢b‰&6¥6ˆ∆˜"“&s∞¢&ˆGí‰&6¥6ˆ∆˜"“&s∞¢ÜVFW"‰&6¥6ˆ∆˜"“ÜVFW$&s∞†¢ñbáFÜV÷R”“%fW&FRFWáGW&ó¶FÚ"ê¢∞¢6WEFWáGW&RÜb¬6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬SÇ¬C"í¬6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬Ç¬sÇí¬6ˆ∆˜"‰g&ˆ‘&v"És¬#3R¬SRí¬f«6R¬sì∞¢6WEFWáGW&RÜ&ˆGí¬6ˆ∆˜"‰g&ˆ‘&v"É¬c"¬CBí¬6ˆ∆˜"‰g&ˆ‘&v"É#¬"¬sbí¬6ˆ∆˜"‰g&ˆ‘&v"És¬#3R¬SRí¬f«6R¬s"ì∞¢6WEFWáGW&RÜ∆VgB¬6ˆ∆˜"‰g&ˆ‘&v"Éb¬ì"¬c"í¬6ˆ∆˜"‰g&ˆ‘&v"Éí¬SÇ¬C"í¬6ˆ∆˜"‰g&ˆ‘&v"Éì¬#CR¬sí¬f«6R¬s2ì∞¢–¢ñbáFÜV÷R”“%Eb&˜6"ê¢∞¢ÚÚV&V∆&˜66∆&W66ˆ∆ÜñFV∆ÚW7\:&ñÚ&ÚFV÷Eb&˜6‡¢6ˆÁ7B7G&ñÊr&˜6V&V∆&6ScB“"Ûñ¢ÛD6µ§•&t$$BÛFtÖï5T‰EÉ%5C§•DUTTÑît'F&Â'ïV∂D4îfÖ•vîÉD$T&Öì4ÁtóEîED≈∆µ•ÑÊ§Ñ5'ïtf∆$d%&Âtf∆$¥%&ïtf∆%%#6DÑ#%T%'ïdd§D%§6ÜÂdd§D%§6Üïdd§D%§6Ü¶4Ñ£&§GáF$Öf§T’•sUeWtt4Ñ‘Vt$ÑT•ïufˆt#dîF£F¥fÖ•vî&ñ’CET&¶tf∆î56tÑG3ïïufˆtóEîED≈Ñ&Ü6‘T5¶’î∂‰ÂuSî$'F$Öf§T’•sUeWt44V4't'dv4$&ƒ45'Tt‘∆ttDî‘ÑF"Û't$Dî$T$î$T4tî4uDtî4uTT$‘T&uTt&uîd&uît'v¥î&v4§'uît44î5Ù¥6vÙ¥&vtƒD4¥D¥¥6w"Û't$Dî4tî4uTDuT¥'uîÑ6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6vÙ¥6w"˜t$4ßîîD4îÑT$ÑT"ÛÖÖt‘$T$$T4uî4î6bÙTeUî$t‘4$Tuît4‘$UT4tTUU4ïDd$&Ñ÷ïU%ïïÑV•Ùu%WTÑeDÊó64Vµ4≈#Fdt‰dÁ¶w˜ìÖtı6ˆvÑVDµ3•S&wÜ35%e&∂ƒ≈ìábÙT'4$TdT‘îT%îÇÛÖ˜ÑTtî$$d44$î$%T4ÑTTVîWÑ%$÷ïdfÑdDßÜu§vÉÑ4˜ÑeE#ìƒ∆ÉÖ%ñ¥Âtßó7bˆtD4U’$CÑ˜GDÜ'sSEÉágF÷îUf‰ÖíııcW#'ñS%fd∆tu'v£$4÷d’ÑÙˆgd”gWñ'¶wÖ6ÊfÜ≈F7R∑6Áe7Sá52ˆ«îVv∆6ßT∂D54¶ı5wáUVVÊ"ˆÂ7DÊ75&CEgt‘∆ß4Üˆ‰•6$dSf7V„F#v§Ü¶eFEÜ¥ˆ„4sU§§c&∂6ÜßßG$≈¶◊£T’ót÷Uïcf£ud#u•áìÉTì&∆î”TáET÷«&§4gdÂUu&ÛT¶î34ñ¶2ÛwFñ«W'Sb¥CáTFÊ•ñ2˜'•EsD‘’óñî∂4U¶◊t∑Ñ◊Ñ‰‰Ûu$µÖÜÛdÑî≤ı6µ5fµïgñÁE∆ur∂„'váVÑ∂§‘Ùóî”U6ÙÖSscfßUVwEÉ4÷6%&∂‰É7Öv˜St˜áVˆfÉv”3Éád∂3B≥'6D≥G§∆#fdv¶3ÜîTV‰ÉÉe6T7%á&Dƒ÷ÛVct3SD¶%£ßgÑìUîÜñˆñT‘≥wWu%#$6tî’%îÙ‘VÜVƒ'ÉdÂ•t¶C7TÉT∑ïWÑ4ˆˆ§¶Vı#4EÜ∂ó3Á$óìÑVSWÉuVÊµáÖDÊ6&ˆDˆ≥áU¥WÉó£ugDìTDbˆÛf¶∂c%CBµTá4¥’gwt„4∆t&ÁÉÉ'$„7Utí¥îˆß6cFÁ•vDìÖE$¶GFÛsTµ§ÙÁÙÚ¥ÁßÉeVvSÉÖ$„ìß%$÷6„G£R∑ÑïBÙ˜g3áu∂∂Ù’WV≈tW¶≈WF7ÉSïÑóG"∑Ûf'áÙ£#îCCV6Tá√7Wd§ïáßRÙUVW#˜t#'d‰„ìfv5¶dU•Ê∂D”ÜgìcñgD3¶$6ß$3&'¶6WtÂ5wÉ$Âî≈wce%ETì∂áU£E÷••≈u•eÉîTg4F£ußV˜FDsdcîgóT÷ÛucÜ≈3b˜'uÑcf∂Ö¶6ÂßóSBˆ&v∂RıSwTñD„3fS'6îß&«$ßE£•ó£dSWÉ3Ccî’fÜdgfuÇ∂≥7v¶d'$sf√s6cTWt”'ßñÙÑí∑ñV‘¥S&dgB˜6F≥TSU•4£VóîˆÛcáˆWá¶óáE$∆GFƒSfÂB¥FT‰«WeEuV∆WÉîìÁsd≈e&C&v¬¥¶É5V∑7&%ÇÙÁ◊vWc‰Á#c#SîÖ2˜F#%ßeS&•¶‰ÛÜD#Ù”DV¬ˆW7G'TFt#sD∑ı5&≥Ü3Ü3ñVÂF÷ñE$2∂¶váññî‰Á$tƒ¢≥UÖ"∑deEt‘tF$ÛgìFgSe'ÜÉÜ∆ÛwuGw§÷Ê≈4ıs'óCt√$FeDÖáC7vˆV’ïWV÷≈6∑dı•&ïCvsìÜ5f‰Ù˜Gß¢µD’ÉT”É'É7ˆì's'S4∑$Ñ‘‘«3cÜ‰d˜Rµ7g$∂%•fƒßeC2∂á7dF„FµV∑GÑ¥§cÉWCÜ¶ñÛ7WTß∂∆ó6ó$ut¶Ñ≤ˆƒ£cÖcT$Ö£6«7V’Ñ÷ñ˜ï'óÉÉß'ßsñ#7Gó3ì#ótFÉìeÑ&Û%v«v7•ÖeDÛeGFTcÖî∆'cÑ4t¶%&ñ#ÖuÉÛÑïÜCÉ3eF5WC«£d•D¬ÛïÜfveGñ≈ásU¶∂ìb¥RÙf¶£&V"ÛÑ≥∆V4Dßá£˜ñ≥3fì'TTÑvÊ•ïáf•ó$F∆C4∂w6eUfgt”vìF§F$46˜¶¥áF¢ÙÉ$Cc%WF4fÉ5CTˆU∑4EÑƒ¥6¶ƒÁ&&4DtÙGt¥◊dˆ4ÑƒıÉ$wîıïñe√U663ïssWU§◊ó§∂ÑET∂5ñ'B∑Ecf∆36µV"ÙF$Át7ñ‰§§£Rˆ≈Ü÷ßó&DgG§µd≥DÛFDF÷≥6∆∂ıdÙf&◊ÜÜ%7îÊsf5ïïdÙ6'§d◊¶‰''d÷¶VÑ&Ö%dÜÁ$îÊñ46‘$¶'3Ñ$ñ‚∑FT'sdÑ‰FVˆWîìV4Dt∂dó¶¶w4WdÙ6÷£Dı%fTˆE5ÑÙµîdƒDc&6óVß4∑¶µe&v◊%Ö§ÖB∂DwïcTƒD∑§6£vf5cv'TU"∑ETc7î∑uW%ßïƒ6£'√%ÑócváTóïávóvƒf¢µÜñv%§fÜÑ¶ïF‰ÂgfC6ÖWwÉîµñFf’6T3cñ◊Efƒ¶Ê‰CeUÂóT÷”VïîuıE2ıTƒET«4cCVÜ∂¶¥v√Üfr≥óTt¬ÙU•óÇÙ¥ETÑıv4§c'%C&7ó7t÷'6£EDÁ3#Ñ„VEv∂˜Fb≥&b¥Éff¥˜T‰ƒu3WD‰ßWÑd¶∆§SusìÜsî5$•2˜ÖG$Üó%GD6¶◊Uñ˜VµTd•F&Ê¶∂‰§í∂wt∑'ó53ñ•£ˆÉá6ñıFìácÑ÷£VC'Ü”á'DñÛUG6≥&Wg§cdÜTˆwvcÑ∆ÁEvìïcîÉìgEßWE6∂Ñ•UÜ«îdV∂••ÑÙˆ‘Û37#V√DÁdÂÜ‰•U75r¥sÜƒvÜtñîÙs6&”ó£'£ecïVFÊ¶¶•¶Ée&µîd7∑6÷£G'VîÂGs3ïÁ5ìfDî√'îÁ7w'ìVáT∆TGîó≈ï7u'ÉsÜ◊V∑f÷DÙÙ∑4ÖW'§ÜÜ4w•Vb∑¢Ùˆc7'¶ß•4÷•sÜ∑dˆgvw•§ìÜÂDï7gî„˜Ceñ”Üƒì§≤˜t&¥G¢≥î7É4ÁÑˆÖ§‘§SîƒF«•c‰ÑÜ&ÛfÑ‘ı'wÉTßu£ïF≥U5ÉTÜÜ”ÉW7ï4‰tÙïB˜gF∆Ê7§'uuUïe647w5'7Ü¶ƒî#CïvdtSDF∆t#ÇˆVµF§t∂¶∑SÉs#4VÊÁï§#UTRı7Fc'4÷gsv∆ì&VÑÖ6ˆÜˆ‰Us&£6#$áeTñÛtµt◊$ñt≈ós%'îEî64s4ß#îU4’4”ÁD◊SáUÜcÖ7'D≥%ECWï4DF„$cD&ı2Ù÷«÷√§d$7§46÷¥vˆ÷∑$Ü&tD∂ß#ñ6ÊWEìeïdTwßñÊÑî3D‰5&tíˆ÷eg5d◊§¶ÂáÉG≈ï¶gßVÑ¶ˆUuVsî’T3fóßáîßDÜfó$gVÛFˆw'G¶∂÷ı5ÑÁdˆC„U%≥ìv6∑îîÙÙ∂r¥uÖóv3G‰Ü«'•w5E7”Tt’&Ê5C3W•¶7WïU5'7ñ%5vîîSÜ5UFUÙgï&∆fgD$∂EÙ¥Fe'ïf÷∆áEU¶v5ñ∑ßTîÜVáñ3'•3ñDTìÉñáV√f§ƒdÑ•óïÖ&ÙÙV«ÁÜƒtÖÑı6Vf6D∑¶WCf∆S&∆ÛìVUî«ó7î¶‰ìv7FuíÛCÜ£#r¥r¥ßc%d76É##t&4ÑÖDˆT„3¶ß&÷á'óvññG&ìáTT÷”U7sád•VCÑÑıgÜñı6'uÜD˜ur≤˜îD££u3uìt¶&≥6Ü54Êƒv&4”Cv‰îıBµSÖeÖFCï5f&«%t„SñÉ'î‘cï6‰íµÜvU§√VcEÜ’6RıÂtsìT‘îÉcÊ∆îˆ˜6ÑßdÙD¶¶ÖWCÜ”Ü”CsB˜t%ï&¶§v63ó≥e¶WÑ#ÜtSácuG§ƒueñÉcááTóß¢∂ƒFT$UÖV∂S7cDvñ∂ñ’¬µóSìóïEEìï%¶W6√ñ∆3CÖî¢ÙF«VgÑ÷GdsÜ¶Ê§„4ßß¢∂ÑS3îÇ˜Ö&«Swv¬≥3URÛ&cÉÜ3'Er¥dí¥ÑÑìáß∑V˜ïµT«ÜÊB˜¢≥îßáóî‰˜SUf≈∆í˜tÜ◊¥d≈5Ö2ˆíÛîbÛÛs'TÚıDÊì«3w$ÑfEñ4Fµf”ïáG%Ecî∂√ï%ßÜvWßRÙ7&cfUÜfÂ&cf„á%"˜Ñ∂f6WÇı6ï&#d≤∑'WG&T£Sb∂gÖs$&óTÁgÜsî∑d735ß'F¶&GÖÜó'7vƒƒ&÷F3”óDÖÖSt„&∆§B∑‘Áî÷¢Ù£G&ÙÂGW∆E§ïßGìS'G£'%áDtÁìT$$•C$‰£ïsÑñ&ÑÉì"Ù¶µC$ˆ3ÖU'áwTEV$VıEÖáTDÊSv¥ÛVw6't£sCfñÑ∆R˜T‰Ü‰SG5ï6‘ÑCìÑG"Ù‘∑V”%tu§Üuf∂&FvïV63íÚ¥ecf¶Ùw5DµV5&¥&T¶E#sÉgîCÛ5sÜßGEfñ◊BÙÊv≈DD¶„ñáGs$‰ßfîd$'í¥µf&c•sÊGÑDƒÊ’ÊÙ¥Êe#5§#VñtDuw∆%§fVñ’Est¥«£G4Üt«Ñgïf&µìcf&Td§µ§ïvgótˆÑd•c∑Ö§wÉátÉ#$ñˆ◊Ö¶ˆ%£5V‰ÑÉ‰∆3Ü∑fV¶óˆ&egÑ√GS'e«d&TuF‰‰d3Ue#f¶„uVñ‰≈7Ü§∆ˆEw3óÑ∆É#eV5•d6&•35F#d„Df§ÖÑdwñ¶$Tw¢Ùˆî∆˜¶%ìFÊá$$S£T≥Ê÷ÑíµvÑñ'EGug7£3Dd6ÂCD≥Ü˜d¶D$ñîSváÖT£Táv˜&t6Vw•T”5Ç∂D‘•%6U3uG$¥’'íµñf‘eUÉG7&FÛóáu%S&Ê4s‰vCGñ&‰sCîµFdñ4§Û4∆dwF%&EG3CEßìuD6ïCátìD§‰FÉF5§‰ÙˆµÑ÷%6§÷Ù$ÑEìT'v•44≥TUV6WtÑì5ñCÖTg"∑ÇıuW666ß6ó'VgCï%TrıGï7'Uv˜Ñ5tWUDfÁs'˜Ê5w•'u•ÁìóÉ‰Á%cvdwï≥Cuí˜ñÚıt‰ÊEEc∂d÷fÁ76f“ˆcí∑T&ÁeVDÛDìUîñƒ#Vñu£dUí˜ÜÙ5tÙV#E£SSf#UÑ$Û6sá$î6FÛcTe5c∆”4T¥#7ƒ••'Övı£îtd'ßuÖ&ÖìFV3ñ3ñ˜áEWvt∆îÉCÖÇˆ’cVÖ&¢≥2ˆ¥≥f¥7rˆ¥ÊáDfwGïS7eÜ√ñ£T§fW£4ƒ¶$V«Vƒ%%ÖgefufF&∆«f¥§÷“ˆ¬µCñ÷ïD‘udÖv√w6FÙîÖv÷Fî”#G•îc7ñW3wÇˆ¶F£e7E&DE$T≥Ü÷ódñ§∂Ê6U4∑á2Ùïñ’ìV¶gî∂∆w'4≥U$Ñ¢¥gCîEîáef4’3$ÁtñtG6#Usó∂Ê¥¶eTtówFDeßttµFÊÜ£uW66ß##ñ4$ï6&ˆÁ£uóc$∆„W•$∆%$áñv3FˆÙf6vv5dóB¥67§≈îßSU%ÜófÑ◊tßV∆ïf3DÑÖ6¥eñ”3T¥W¶t∂˜ud≥ìÖfÂWeîóó%uDıV4fáWî#tÜñÂÜìuWÑ6vñ’&G£ÉSt6ƒÊ∑'ìC7GwóÉ#íÛıWƒßf4≈du¶¶FdV474ÁdµDtu∆¶Ù÷„cWW3g%ßD’TF§4#Ñw%£v”EeÖD’6Ù‘4ÉssCSUïeï&∆ï5v&«g%Cw3îTïÑgfÑwCdg$dÇÙCáV¥˜7uV§s%ÑBµwDGW§‰u•TutEßuì„C5ÑÊógtÁ$ÑóÜƒuñ÷ES6gÖñ”CT#f$ÊVıU∑§g5Üˆ◊UtîƒÑ∂¬∑Û$4ÙÛF≥7§gtÜ$6ß4µgïß5ñ≥4VÇıV∂Çµ6£t#ó¢ÙDıÑîE•¶ÖV$Á6eFƒ÷5v÷¶ìVîÁSTîFf◊•S&wï7DDì$GáDá¶fVÂf§√T’7sEñ¶ı4ˆ5cW&∂∆•£&ÖV‰Ñ$¶Û$fwìEÉ'á6ñ‘¥ìt≥ßsdÑtFÜ◊FÙtßGì$fƒˆT∂‘ß&vÙÊsïuGt∑3á5CWÜß¢ÙTtÖv◊vóáV∂Ê«5&EÜÊñÊCîˆ‘7î∂Û%6SGv„cÂïÑµw3$Û6≈scTÂ§••¶¥44T%‘De6”WÜ5t÷Ù”ÑetÖTv◊ÉÑf∆$‘ÁGóîcdÁVVÛ#F∂•Û&gÑ∂÷’4t•e&‘Ù”v•v$5ÖvµÑµD”vî¶¶vt6‘◊C∑ï'∂∂tÉWg%S∆vıvT∂ÁV£vˆ‰ß¶◊eT6D∑#ÉVw¶«ï$î¥F§d365&ƒÊSwïGt¥ßCBÙ’ÜµVîıesÜñïEr¥§DeGÉ6˜Só5Ü‰dÇÙDÖUg¶ÙÑu&ı§ıvˆƒµ5¶‰«W¶«3Ww65&4˜eTGÜ¥§∂Ñ•¶dCVÑıf&%C$Ù$vUìGÜÁc'SváC$ñ5&6BıeTÑg&‰•ïw¶î≈&‰∆'sóEFw•¥’6ñ§'÷ÊácD$v¥§FFGÉeVdV∑Gd◊%6≈gógîáEÜÁá47§ˆ§’tˆUt‰◊WÖC„ñ£Cb∂w7d∆T7îFÂEßóGwÉÑ√Ü¶6£6ıE"ÙÉ√&•4ˆµááT4ìFsd÷Ut§áB˜¶÷‘wwáDï•dóu#$d∂$¥cFÑñ¥ìî¥§ñ$%îÉ7¶Êtvï§ƒÊ4∑&ÉV‰√DµÉÜÑS'5r∂◊g”óSwñÜ‘§ïıFÊÁs77#'TgCCÑÑÙÁî«ï&ÂWfÁ3ìî&%á4˜UÉñ‰∑á33d7GÜ‰Ê$ásw4Vud$î5uFCgV‰áC3c∑#4‰ÊrÙVE%e&ƒ4Ù÷c4w'DÊF∆∂$%Ñßî¥áFEGG&’&ñ¶¶7v÷§T÷«î◊ñv&GT'ñÖvuC&«ìÜ«d¶¶V3G•'Á&ƒuÖDwVUó¶Tt„v§≈6V$’dUïÜEU§ïÑ6«Ññó#f3‰ÂG3sdÑ&∂∂∂÷EC6Úı5wcSvgóE5EñtÉE%ED∂UÜ§%ñ«ñ¥d•7î◊$5óÖÑ7îfF3Ü‰Ö7&F'G&'§f≈d÷áÉÖ4wÉ&%3ñ«G¶wt÷‰É˜ßÖ&FT˜G¶˜4ñ•dÛÉ7$£ÉìÉG£sñWwÉEF«BÙE¶µeT%u%3#FGST≥fµ4µî6•≥3ìf«#%wVsTˆÛfóì#ÜRˆ$ßDóî#í¥GÉñv’w6GWF∆¥•eóÜ§‰¥∑§îÖ¢ı'sU¶&%•fE4≈&î◊ÖîsTÖóÜu¶≥T‰s4◊tá7óñeWEEÑ4Ê∂‰ÑÖ%&Ö2ÚÙT≈ÖU%ÖRµ#á7Ü◊F33tƒƒîutV$dFdµG£v◊&˜&Ü˜óFÂwt$µáSsuU$fı&¶µ36∂ïcSïC%Cóìdeß∑#6∂¶GS&cw'%v•Ee%Tó&tw7&GÙ4tá4‚∂%ñÖTµT¥3c$”î¬ÙfÑSUï¢˜ßDvFdÂ6∆wd7wïrµ3DtˆáegÜ≥'sT3ñ'cwÑñ‰¥ìTÜ6£&ÙcUï¶‰ó¶áñ6r≥ï∂gt∂ÂCÖ¶µváß5'6ÁCuWT˜U7îÖ§T‘‘ıG£˜E6ÁUSï¢∂&‰‰√T∆cEuÑfU#e§ˆUE'Ö&§Ü$tfÁ6§Ù3uó£ñVÂÑ&«Df3ÜÁt÷¶∂§5'W•ï‘TUgDáT§W5t4DÛvñÊÑß7cf‘∂v÷¥ÖÜGìÑîuóed&«WfÜÉWeïd≈VÊWE$§gv5WR¥ÜSv6≤∂Ücv”3ábÙ∑VSîf3Ñev‘TÑÜ≥ì’sc¶ƒƒ◊§Ü«GF'cFD•7Ñu%f§ïFÉ%d∂∑£ógVÙ≥6÷FuedCg6§%fóv&'ñ‘‘∆&∂ES¶ñ¥∑Fá£gF‰ÑÖG%áF’§ógVfñ3u&•ßGÜ≤Ûw7Gfµ'F‰%V¥eGÉî˜DÊDÁd¶'Vv¶µetÙÛ%6fÙµ6∑îfƒ◊E£ñÉñóvuÑ§ı#î¥wSw7§"ıGSsïÑ43•DÛ3&Ù¶t•T$4÷2∑áUu£Ñ≥Cv”Ñ6efDÂtµG£&UGóï¢µí∑ÇÛRˆÂÖuUE6wóÉUTßîbˆï6cíÛÑÂ$g¶%5Ñ‘«G7ñ7£ıEB∑VcÜ≥ÖdÑUF§•WîˆtÉıDß¢∑DE7ñ◊'GE√T7&§ñt#Tá5WE3¥Ácg5£CW6∂dÁ4Ö6£Dó$W#Ñá4∂Öî∂”5&t#sScÑ&◊Tˆ%¶ÊDÂó7sÉ7r˜Vñ”%£sSFFVWñsóófÉsFUïEsáÖÖ&Ú≥¶≈Ñ‘’'î4ÛCdv’7áwsìÖ§ƒ’t•tÁ4Á2∑váV6ß5sî&Û§≤ˆƒ¶ÚıUï•î•euV∂Ê„f5WU∑Tï§6ÖÑÛCî∂Cñ∑sWÉUïF3&˜Vw7&„BµÑÖ6w$§d•5&¶∆Ü≥F˜ìwî•sÉ‘Éñ3vCT¶‰T§áCußw4§Ù«Éteïó˜E&DìDf6ÜFv£ó◊G'duCìe$„uc%d¶S5ñv∆f∑îB≥îceFC4◊3U$§'UÑï#uTÂ§43#4Áîáe$ˆƒ$$µÜ7v6sTÜ$Ñesv5C$˜GDñTtDìTegdG7$5ÜT’ßñ≥#ÑGeW§∂ì&ÊuWî‰”'óÙ∑7fıv‘4ñÑvSî55EsáîVFVá'îsÜ÷ßc4Ê∂GtÛD‰áìUEátÖ7df#'u3Ü‘D◊7Dt"∂ƒ«•ì#'&Ç˜t74∑GCTî§ˆ6SïÉ6VÛ&Wá&Fˆ∆¶§3Ñ‘4#ñÖg4cUì&«V£#Ñ%ó6ÛV§$"ıv«s$‰á§≥CU6UÇ∂wgÜEw6¶•Úıí∑Ñ‰√'cB∑w'UÜ&sï75%F•w'D¶%WvsïFB∂4v«t5ÜS%5&GSÉCcîCs5v3ÑvÖ$¶UÜ’£Wï#7GD≥óñtFñî∂T‘VFc4e536≥V≥E"¥4÷‘ÊrıC%w#G$tÙß§Ñ≥C7TtÜ'6¶wGGñUW§&Ü§ïóñDñGFeátu#f’£v$ßTfßvÁ§uÑd£wßÑ•$ıìÑ÷Ù2ı§‰”Dƒws$gud•CuTfc#V¢µÖóáÑ„fct’ó674¥e7$v◊TTGÉñ%Öw&c$GÜÙ•ÉÖ%&£3vCfW36’T∂¶vS∂DCCEVdeGÑD÷ásvrıD˜Çı6‰÷G34CV„Fµ#cCfñƒF3îÁÁ≈e7Ü£cñ’Wc3vî≥W$ÖTÂsóÉv7Ñˆ”7ì§˜Vfßsv3#'%%ÖîuócïÑ¬Ù7bı4¶Fìst≥T∆„ÑÙ¬Ùˆ˜fwESfîw6•v∂◊67cÖî˜FF'GuewTÖñ∂§§∂§tˆƒıó'îg§sÑ∂Ê‘E£cñıìEft‘’SS$3óTìd3sv∂§7%WuufEGï£DÉtWgïC't¥”WóßTdD£ucv5CvTfˆ’6¶áD¬Ùñve7VıGÛE˜vFE36¶%Uu∑ÜgìÜ%R∂$'RÙ◊ïówS%WCát4‘Gìñ”Fd«WwS6&¥F§et7∑&ˆˆÖt‰s6&3DÛR˜ßeTvµf5sWï#r≥63#V5DÁD≥Wî‘Dác6ıEtv‘6fÑÊ¥‘ÁT"Ù”4ƒñˆWd„v6’StÉït‘dd$∂¶ß&≥G%F◊DD„ÖCe5ñ&GÉcìg&ƒ#6ìU4gïFtTR∂Á“∑&§dÖsÖñB∂5ïV¥ÉÉcó3FeßGÜÑD&&Ê#f33wG%vtGDtÁ§∆Ñcìctî3WF&Á§ìÜcgÜCeB∂ƒ5wáWr¥6UT”uG¶ƒÑ£E•ï’$„tÉ'¶v≥‰á6•ïáó'Dˆñ’te•§cïÜW&÷∂¶Öf‚µóV4GESGu3T≥'6”ó#T&'cUÑ≤∑4•3cgVˆ'É%%óuST‰”scU3%î˜TuñV∂÷∆«ïe&f4V63ìfusÑSe√&'fDd≈tóDbÙb∂$d34U'T4Ds3$‰ˆE4V6Ùïñ•á%7îƒÊïñ6evwF6«StVCWÖ'ÜÇ¥≥DáÖUV•#vUìC%ÉRı7S5ÑTÉ#F§µÜsugÖvvFˆÛ¥Üƒ≥t#Üt≈Wwñ∂∂≥É#%#4gì$Csutw∆$Ö•Ù∂¶’gì%&tÑe7F&«§Fî$÷&WßdD¶3Sá#√$‰Éf&T§$3eÖ£ïUFß%5W76Ö•gFìÜ6Ñ„7GVÙ’t≈§t%cÑgD§TVì5§dîÉedÙ≥GC$5C#É4$Ñ≥W$Ûd”#$t&¥á§’#ˆï7ïUßß7áGátfUu7∂∆3UßT7ccÑFDÜGE%Ü≈ÑÑuWó3µGtñÙt4∂¶≈ó∑6£ñ5d&’¶¶Ü«„Ñ4ó¶Ù¢˜ÑE3fScÜt√cv∆¥U3G£ÙsV”Ü∂≥Bˆ≈T7Ö3&uu4¶ó$FÙÖdFß¶”$c$77tµììgGsÊ◊WTe7ÂÜ$d≈e4˜T÷Ce&'¶tR¥F÷ñfdÑÁT2Ù◊Ew•Ö%$Á5ugVÙWï%$ÑßVîá#VÖ$’Ü∂¥ÇÙ◊g§6¥µfÂFî7•'R¥‘¬≥s&óîî‘fcUWt÷5D«ñ˜tìC'ÜñµbÙÁó5îïÜ∂6µ4Ñ$e6áf%sD£ásÜD¥wUvv◊Tt646v&∆wGVïC'ıEg§Â•¶GgDƒ‘W3Ü#Üt≥STˆ•Gd3∑4ßWót”Gîuí˜'FÜsˆï4s#TfáïtÂFñ∑U¶÷WßGîUf6≥D∑CóÜ£4'ìSóWóf§áT¶dUvwóvÚˆ∑ßÉá'GóDFÖ§F¶¥'Ñufßev÷v¶◊V‘≥7ï&VÁvEEVEcÑ∑u3'$Ê7GCEdÛîF5Ü‰¥•5dec&g§3v∆áSïD÷ˆï§ñÜ∂ƒ#ÊU3$ñ§§S6∆≈tscÉtƒ≥ó3u6sá§tï•dÑ‰'ï77ßñ¶'cT%ìÜñÖıEß&•Ñ˜d∂dVµ§∑65ßÉáÉsdßGt&Fìv4ÜÖcsì'ß§fU3C#î#'d7u4‘µÑ'îCñsÉ'3ïs3vD$˜GÉUT¢∂§ı33cóDgT"ıîáóÉìf∆∑ÊıeVgì'uBÙ˜v7ñeeßîd3CGw¶&«ÛÑóSv∑tVV¥F3£fî3V•V7Áñ‚Ù∑F£FcGGfFv¶D¥Á¶‚Ù∂ƒÜ∆ƒEÜcágF¥Â¶¶¶4Ds7áñ•ÜE&£áÑw•7&≤∂36√W#g'suÑÙ∑s'dì&”fÛwsTgd∑Sñ§ótì6WtÂ5E¶#ÑgG'&7S'T&f#u§√4’î6wÜvd≈E7¶ïï3V∂µRˆîDáTÛ4ÙV∂¥s4ìt7V∂‘gSde§tıCuS$‘ì$¶UßváFS6ìáîw3áFÁEeEás#sˆgV&%f˜ñ§f6w&ßÉˆU3U4ıSvteáECU•FÖSáE5Çıug¢Ù57'ÑgÜÊìEÑV∆ECVµ3Ü’v$&3ÉGÖfß7GÖ4$FtDÂ%‰‘÷µfT’Gf∂∆¥‰’5#ÑeÛ÷¥&D&£uU$D∆„7cV§'4E6ñîÜ÷&$Sïswf&ìC£sU"ÙÁît6F4Ñ˜t6fßñ√6SóvñU£ÜıÜ∂§ÑÑÉ3ef&55Dfƒ∂Ü6sv’Ü≤ÛSïÜ∂5r¥Vµ§$µf„cÑáCìgÂïß576§¥∑vvcG6ìb¥R¥gu“ÚÙˆgÖEÖwÇµ£&¥Ç¥‰ÑctÜ2ÙU3RµDÜ‘«Bˆ"Ù˜ffó¶w5ÜUtıWGótcá6ñ◊W•R¥cïeóîÂïÜ§DìdSìfD≈•sáódv‘F§§'#RÙ'Ö5$∆ìD•gód$f˜só#GÑ6§«Uîßt¥ÂeñÁw§É∂∑7&f’$tÁß§◊f÷3Dı&ñ«W%t¥÷§5¶WgìGÊWÑñ¥#&V¶µWD73vEgTÜVïGÜwT˜Ü7Cî5&d÷Gd∆T”sÉÖV$d$≥¶’Góe6§#TßVG6µCCcG7t≥Sááñ6sÜe¶ı7góW4Ñ7óGïÖ”f$Û'ÉeÑ∂ÊïÑ'vÑ‘U#îµÑFD≈î&Sff'ßg6T‘$#Gd∆ˆ≥Vıó'U„&÷”Ñ4ñ«TÙ&Ê'¶◊á6&&ÑƒdßîGt÷e6≥G$•¶áßvS‘G7DµV˜'4t#ïÖ&≥f¥≥FïTƒt#g65¶ıt2ˆÂ#&ñfuìTˆîc&∑6Ù≈6∂á6¶#sf5Vá'6ƒƒƒ•ßÜ≈7ñßCs§&73Ü”≥î4Áv¥F$SvÊóUsvEc4∑dÙ∂áST4ˆÊ73DuV√#%î”Ü≤≥eµgì5cî„f¶µdtET√áGF≥d6«cTWDÛ7$÷u%d•'c7Tˆ‰dFWÉS'Cc$¶Wï5sTVd§e37ßUvu6d4FTstTwf##es&f≈áî&¥‘GÖ7Rˆ∂µ&ƒ∂ˆ§gáT§&ˆU2ˆSt75ÑDÑ$6áU&˜s≥T¢∑s&áWìv÷E§4ÙÙ”¶#4VñÉ"≥táe6%Dv¶ñ”ÜÑ3u66≥ÖWï&Ê∂∆#Ü§§#uV∑vC5SÑF7ó&ÜU#$Â§£VˆTıÑÑÉgEuTáïTÁDµßD÷∆3U¶ßì&ñ∆ƒ§áFÜ¥„6ˆï3e&cugT”ÉÉî45•5ì3sìdát˜5Ö•Üb¥ÇÛ≥uÉˆeDóe6ÊG6óñ$∆É$$$Ñ«EuÉ356’§'weT≈&ÊÇıSUìF÷Ü∆77$ÜÖÑ‰•CTsv÷§∑&eÇ∂sGST•î«7ñ∂ï$÷6vCd≥ıf&Ü$§vtıT£Td«53t7Dñug4eÖ'˜T∆STTÙ•£5$5◊ßÊ«ƒáñıFñ≤∑Ü≥ñwß¶ïSÖ2ÙîCñ§Üî«vÉÑD6##t÷”Á§ñv6≤ˆ‰gGFî&fßd‰%VtWC&Û&SU¶ˆ◊V%3T'óU7Vß5v”5VvURµ$÷∆Ü3áwT∂„ÖUCÉácÂ#SD√óE5§S346Ù‘ñÙÜdÉUBˆ•dÁ&EÖóV¶5ìá$ÜVÙ§‰wwF∆µdÙCtwóî√VSñ÷Ù≥gTì6≥î÷≈vV&E4µñ&6"˜#sfCfg#ƒgáSFfV≥6v≈d4Ûv«#ïSgUucóÉEñd¥”ñ"ı4fVTÉuwCS5uwócÑbÛ6gCuf”V'Ñ£$÷ï'4§"µÑ‰Ée¶EÑEwT&r˜%Uó¶∑4◊eÉewWó∑îıTSgCGwdÂvÊ¥ÁïÖTV3cFEC#r∑r∑UVÉTÂS∑áEtwóófÉáÑv6ÜñVt¢˜t7G¶6'7U"∂ƒv$F£≈7¶√ÜuW˜’ó$&&ÛÜ÷≈Cd§SóÜGÜdT§∑óñıf¥ıGÜ•wïCváwï7CGñó56v‰f‰ÂFt¶ñ'#ó§gƒs%Fƒgf¥7V∂÷¶f$váu•ff#ì÷4T'Ü¢¥vìF%dÜGíÛd„îF§ó&£U%5VU'&EG6¶§Ç˜e∑¢ÛÑ'˜tCeVFßÉ"ÙEwWwÑd¬ÙVÚıÑbıñ„ÑˆGdÂFÜsuó#$ıTÉWU5d"˜we•V‰ìTñGfVÛ6Gw66Wv¶vFî◊∆e7'D„cÜÁ%Eˆñ∆’7ï¶”cWáVwî#Ñd¶£wîVÂ§ƒf4DDB¥w«%7dˆ√'ïì56„áF74T‘áT6Fu&'ßñ'5ìug5£VC#GUîwF§f∑óÖÑ'Üs„udá6∆÷óedGñÜ÷ì$÷U#ñ§«%Tñ'ìs&ÖGwîÜÂvÑ¬∑¶É&G#&ßDwñ∂$§V≥tÉ6ˆ'í∂ì57GUì$∆Ç≤Û≥Ç≥VusFD§ñ˜u4ÑìfFWs#Ñ¶EtgTƒ5¶u¶fÑ◊ßTÑÖÖ‰tE34≈TcÜ≈6Ù$VÉEdts$USTÁdáTUìVƒÑ"ÛSGsÜ∂E'6‰cïıEw∆vƒ∆ÛuFtDvVßeV§ı4˜ÖïVáW&”6§V¶¶CgT&¶◊$ƒÛï¶ì66UáÉá$¶÷óÉî◊óTÛ4¥ÜˆE•ÑF£#cÜ’tïîñÙ4≥ÜE÷¶Áe$¥G£4R˜eGÜt•cvR∂ìV&‘ıe5%GìÉV2µs$∂µÖ4¥”t∂ˆñC6d∂Ê÷÷$£wsÜÁFÛóÑá§∂RıDeÉ6∂Ö§b¥rÛ%áwt”îEd•&“ÙtV&áás#vud%Ü∂Ñ˜ïó≤ˆÉñtı#uRµvµF5d£v¥«V&î6á•¶ud≈§uGÜÁSUñˆÉTƒ5WîCtw'&ì6sáïVV3tıF£c'Sî«c£5ı6‘62∑ÜÙEßWw&∂∆∆á5wDÛ%&76Âó¶‰ÂuWñUìE&¶§3GÉ'§gFáUF÷76sVeeTß§∑#SñÛV&w•ó•TÁ§≈%e£T‰Eßßï7vïG•U¶V7EgÜ32˜Ñ§¥%TSìÜcEe¶Ûe6wtîì&#ñıcs≤µ•ñ∂CEc%ìñÜ‰ˆWE3ñóde&ÜwÖT§dß§5tÁˆV’§„Ñ¶ï∑ìSáU6ˆfÛT’'g#Vá§vÇ˜ÑÊ≈WDdw#f&'ï%sETÑ«dt5u4eF§'v3RÛÑ‰fÑ5V˜F≈Ef◊Ö%ÖÖuDccáwCó7D÷tv§3ñVÉd‰D”ów•#s5%tÛU#fEá&F÷¶BÙ”7V÷7Ü∆WTEc&•tÁ&'t∑t4¥#góf∑4¥áFSGGÉVî„‰î'gF”ï•§î4G3îˆwÑtÊÛ4á£GUu4‰ÂUÖñÙáue£U¶E§'t6’g$ßW¶√Ü4eGCÑ÷fd‰&Âf¶F‰f˜Çı6ÖVWdÊ7ï÷≥#Ü∂≥ÜtwÉÑ•TSÑ≥ñ£7ÖvwD‰¥v≈vr¥sá"∑í˜E¶cÉeF&≤¥%6óîµR≥3ÑµìsV∂”Éî34ÛÜCd∑F”4÷td67&≥DÜ‰c‰v$uD÷µ§ÛVSïT∆WTñ≈§4&áFsuUtu≥6‰Éw§ß&£4∆ñÙ˜7et'ñ§’Sf#GÜsFÙ≤Ù%ìu4Ûîñ§5set’îCuTóÜ'$tÜÖv$áï6‰2˜eF„Cf∑DÂ%tÙfµñ¶TwîµeÖccî◊îFf4µW5g&V„5ÉïïEsb∑F◊ñTµF”áDÉEeG•5S6£E÷fïswVá5§«fGTtTt&£sdgGÛT4¥D66tcTÁ¶fWf‰f«#VñwSt◊VgvSî˜$≈g&∂%¶ÙìGttE£CóßgîgCÑÉÜ„7§ÉÜc4ÂßˆısÖ52∂$∂ÑDCÑáe6CU'&%##tñ¥D£Ç∂T„≈ƒ“µe•CÜÙßáFÛ#7FÂe$”î˜sdá%W3T∂∂EvÜCÜ¶‘¥3á4≈4µ6VñU'tÉîîÉcáF∂wT∆57Dgd%îFDáîµGïÜ∆÷%GìwUÜ∆V’54"∂≈cf'$ß6Á¶í∂7T64µ57óïD∑3f$ßÜ#ó§¬¥ìîïÖDÊfÂU¥÷sStw&D÷∂∂ÂÜG¢∂ÜˆÁÖF'fS3c5•◊5î#Sud∑ó6á4F§udÉáf£Ö≥6Gìs7¶tïÑu$7GvÖÛ$tÑÜÑó&Ötî6GV7cg£îµ%ÁF√v∂Âuud„¥UììgFˆÊ∆e§”3fññ%3v≈%6√‘#'Öá&d'Ü”ñï#4ÙıìE§•ìCTìÑ˜&§$áeDÛÁ2¥uñ4‘‘%v'Uw•ÉVµ$∂«6vóDÊÙvÂ7ó$Üdg555ƒ≥'&§wW6$uñ∆‰óîƒ≥ıuÊáGT&¶%Öe'£6◊¢˜t33ó§ÚÙV&áv‰d≥&UEÙEÑ§Â%stvGV¶ƒìÂÜÊı•#4∂á5ßcV7GCî£Vı4ßìuß•g3fw‰‰ıáDµ§∂√4µ3tá#ÙsdEs3F&ß#Ñ$ï§5ìßïW√gßW&≥sÜßeÖ•&G÷˜ów§”6∆’•&ÖB¥ïw¶∑"Ùí≥&ÜìV¶í¥5sc$ıw¶≈wuìÖfÙ√u5F'Öï%t3S4ñ6Â#sÖ√áÑ≥&ˆ6ÜTGCBÛET'ÜUEFá˜ï5$∑ñ‰Uá¶ƒÜÙs¥É3ìÉGD£ud∆4≥g≈F∆¢µìSuf∆÷’§ÙDu„%‚ıv’EÑÁ∆ïf#U÷VU#7‘gÂgÉï'ÜE5F6ÙµìucWUT√U6Cdec6t5ÑîÙµî4≤˜6óB∑£5Wñdı7%•3cás66§ÙEC5É$wßÑˆ6Öcf≤ˆWV◊dï&ÛstUî∂5§d≤ÙTÜ§cî'Fw7§55ßb∑&ÖFt√ìgwG£GV«SvñR∑SDÖ¶ÉÜñïD%ßfÙ∂VC≤¥÷≥Ñ”w%F“∑eí∑5u6d3tDî5BµÜ¢Ù'¶D6Wßt73ÉÑS∂Db˜3sDWFÊƒSuds%'ádfCï%Ög$4ıs6≈Ñ§#UfáÉî∂EF§Ê4V$‰gDÖf‰∂$≈S#FƒÜÂUf$fEÖÑ÷‰dC&3ñ7W&ñìE&ïeV‰ÁE#g6dÑDÑ≈t¶Fì%FÁsb˜w%$ó5ÉF$gTÙíÛE&£É∑FV◊7î∆7ñ√∑v”óïGï''&fñ÷5v∂µî&Ü∑ñíµïwîÁV6≤ÛFfVáV64g•7Vt6«FáSUÑ√tG$4ìSSGñgEV%UEGß¶∂%Ñ§«C5•Ùˆ63îˆg$„Ñ¶u’ufî÷'Ug£v%G¢∑VT¥Û’3ÜSïÑóGÙ∑"∑$2≤ıFßcÙ∂$ˆÜÂD˜Wf„DÑf«S¥cFu§GT%tdÁV4ÑÜ3ïˆT∂%tD”wuD#ÜÛD%îSTîıc3Ss≈ñ∑Sv’ì4∑gEî∂G5E§có£#f65ScÑÂ5sóU7Ñów§DEßávRı7Ü#d”ueU&§'ïCSó¶6%§ÊWCVî∑uDÙ’£ñÖFá&u5v¥2µT÷◊Ü3R∑•Vs%Sñˆ¶VWtdÙ’dÙTÊeÑ§D4¥e#í∂Uñˆ‰cf¢∑í∂TU•Ü∆4g$µDDÊv÷$v2≥v3§f3#ó&ßGVf¶„dÉFÊÜßf#3D‘É6∂‚∂V&√î$≈Tuñ6¥ÜG4G„7v$ÊF¥áE&‘4‚ÙS&∑îµGt∑sódEß5V4«ñ5ï‰'•7§ÊGáÜÙÁUdıcF3Êf”VSÑgW$fUCV5dÑ¶Û#5"∂Ö¢ı&ƒÜG„ìFÉıCîU%ÖÑs6§ÊScwìñVÂCt54ÙCfƒCóWD¶◊EDdîìv˜î«uv•ÂuÑÛÜ4≤ˆÜ‰ì55î#sG∆ƒƒ$EUe„%É3t√ÑE&§ÛWT◊tÙTÙEód¥≈î$∆É#4U§îVd≥ï"˜'D√cV%Ñ‘¥gT6•6W%ì'V◊7d’VU&WîdsWwÉDÉ4‰ÁÉtd4∂ƒ&%£ÑcÖvı%Ü$SDîÊUÜ6ˆ√ïïï§‰3#&Ás&ÇÙf¥§•vïìG%Ñı2ÛsÉ&ÙµuT∆¶$‰Û#ÜáWgTµcfÂñ'TÙ#eFñ„áCVsVˆ&w'¶„eVóSs6«ïDv4í˜ñ÷∂v∆∆U•3Dd3fb¥∆”UñÊ#4∑Ñµ7ñÁî5'CóÖ&˜ÑS%v4ÜGá•Ü«ftˆ6≈t63Ñ6Ü÷Ñ≥WT«ñE•ï5DSFÛd’'Ü∆6Ffı%7&'Fßfó'∆ÖÜ4DÑ$áE4◊V&%§53G'ï∂¶¶§‰e%wgñ5cc÷ıÙÁt'f'$”4‰Us∂îGe%TÁDˆ˜E6‰dñcvvó$ƒ¥’cEt6sT‰e'g¶„î∂ˆS7ñ5UD§G•Uñ’63D3d&tG%f¥ÊÙïF¥7V’FE4ß7ïds5ßvóîÁGñFtîvUC7%VTf§•§t◊CC#FtTD'$≥%SÑÊ¶55dµtáf•’ìVSFÜuïv54µCg7&÷ï&Ñ•É≈f«4Ág6%F%¢˜Ügß'§ÉñdV4sf≤ıßcìñECsì3$≥§∆'DÙ‘wuvñ$‰÷ˆÂFÙ%Öw#ÜµVd4≈76DFƒ¥F◊óóG4ïÉ'75s∂◊$≈tÉWÉó3É4¶FwF≥Vî¥˜Ñƒ‘'ßÖ#FGÖáµuów&≥vDefGuSCc≈5ó$¥◊áDñÜC%É'¶6∂$•&6GÉt∆ı&∆‘$ecÑwîÜÑTÜñ„ÖUñ#g&Ê∑ì%„áT•Fßud∆Éîá¢ıT‰ñ5ìUV6e6∑W%eT§Dt‘sDÖF≥CcfdR∂Áw•&#Ff’#WÉG'g∆ff'Ü„∂5eGUwsg'wSgduUñ«7ñ«cátÑFv§ur˜u4dg#e&Ö3WT„4ÙWÜ∑ÉóTˆscÉÖf•É&d¢¥óD≈dTı$§∆t£ß¢∂„&FW&¥Á£Ö&&§‘&ÑÁ6s#vVS5ÊÁf÷ÜUñ∂•UÜÖ&ïBÛ‰FV&5&Tî¶‰GuÑ÷”U£U•&∂vÂ"ı6”ewV√#ñ¥ïw5óvˆ&Td§%6g#$≈ÖÜßïtÙeßƒµv#FFs6ˆÑ&4¶‰tˆÊ‘£ÜS$cñ'ñ∂d‘$ïÖìD63Wï#sî∂¶‘E§Û53c∂Eáusf£D∑3C&W7ÊßCfÑwñÛóWeFñ’ÉEÜ÷ï'D∆gFÖ¶6w3E'#'gfïïÖVt◊$'eU$ñ6f'#r≥Ù«eV¶6„T§uuß6‘ƒtFß5&Á'•SCv3UsñÊ&U'vEGD7Ü'§µE3cwSuTR∂fDB˜t4Éñß6VÛ4f≥e5sf&∆dƒ‘”V4Ê‰%îñt∂Ù„WágWìTw'rˆá√'Ü£Vƒ”$3Ü&&ÛWu2ÛÑµEÜ√4Ê5ÖEsá6v4∑g$ÑÖÂ'ñ£wñcC'ÜT3É$îttf≈F∆≈ñ≥u'î÷ñsv≈î∆GufÂf‰¥÷ìSfvÊ‚ÙSıÖ'#fT’îƒtı6F‰D$ïµD£CUfVVWtß•vsÂD•î§$¶7î$u%e5f’ÑTÜÙ4ˆ65W¥5u3e∑Ñ£Ut‘d3T'É4îvT&„ñG§F4§UFWó$U§ñ≈4TuÖ#tÊ≤˜FáUu6«'&◊tF˜dEfÂdƒ”óïCf”ïDBµÑf«w£D‘gd‰¶5#TuÖSwñ3Éóá•ˆì$„t$ƒVwTdîìU%##ó"∂„'¶ˆ◊ïD%î5ˆ5ñ”ÉDı£Ö3F6Fñ«wí¥µóuW’TÖg¶Á%áStV’#ÉÊV’ÜDvTÛïw¶ÊU$áV«á6ìtST•Üód«Eñ∂ÖSÜµìWá%¶¶vtG4µeÑñƒ6‘'&¥FÁ&óáe3&eWFó7f˜¶W%4”íµ£F√RµÑÂ3v'¶‰◊C$‘ÜÙEDEf$§fÂuu∑ó¶∂µcvS&%w$óTìÜ'3#C5#áTµïÜˆ3CecG¢∂‰t∑5•7vÜ∆$Öv÷te%RÙ$Û6ñ§‰√≥wïgW'g§"ÛÖt∂sÜñÛ&∑2˜Ñr¥‘eSEóÜ¥ÇÙv∑Wñ3cC%Â&Gîƒ¶'$◊$&‘ì'TÖáe4Ú˜t%VÑ˜GÜÑ¢Ù&%§¥§§‘CsE•WD∑óîUST&îÑ‰37V’6TïV∂g§V¶ñ¶√'WeFCñCÜƒ∂Ñ∂÷TrµUîÛÜeUó•ßó§’ñ∂E7cV‘ÜcueÑEƒtÜ√vƒı7ef£gÜˆ666óñ÷4≤∑vî#2≥R∑EU#eÑv÷ÊÉV#D5V∂'FÛcGñ$fC∑5Ö#6µcDeÉñ4◊64∆$”WcF'S&E§Át˜EÜD‘«DÁ6Á¶ß%DGó#îÛus5'ó64u5def‘Ù#7ÖdÊ◊S$÷˜¶•&ˆ”7•$dfµÑìvñµ£ó§$îDßEuDïáeweìr¥ı5‘◊4Ádt7ET4v'UÖîî$ÑßÖUñÙ«ÜSS7ScSdVñÛádñdvCWîEgeSîƒg%T„V2˜%#5f”W¢≥îñswd4ì4∆cCsT’EU$ƒÂfÇ∑FR∂d5'u#î¥î4ıt§Ceg•£ÂDDîEfGutñÚ≥ÛÖîß$ıETfuSv≈ÜÜt÷¶ESuvUu%GF$4µ&t'TìS$ÛSUìÑ•DGsïów¶≈Dñ4‘5W•••ó6ƒtÂuu4&óáî"≥ñECEtfÙ&£F¬˜tıcD”3uWftwó5£DÊWD◊ÖÉƒDì$£cÑ2∂≥É'TÙGîµfí¥Ñdd∑ïóñˆı¶≥4F4&óÜ¶ñµ&∑6≥V˜•ct7gsT%ì§WWsî≥Ü’U7Ö4ñe#&CTsÑñTìÉïefCDÜÜƒW5ÖG$µV«V•Ü&≥%DCT"¥VfVñ∆∂∆ÂW55##ìfE7ññ”gF∆§ÙUWì'v’ìá&‰fdıd‘Ucv'4◊ÜUV≈DáóÖ6gErÛÖ%Ö≥'#vÜ•fÊ«ÜU4”wddÛ#îwîS6ó&ˆ£6w5•&ßUá4§«tw¶≈‰Tfñ÷§’764W33Ñß£ñf≈§•¶ıïF6ıF∑&∂5ïÑÉ%#g•¢ÙÑìß£EóCdGV$ìW£4«'§∆«&f¥V¶≥DD÷ÂSCfr˜d&ÛtE#$ı34¢ˆî≥vSVwE5SdÙ7¶î∆4ÑÑÖGÖ43VócÑFEewßî4◊5ubÙ‘∂uìS#¬˜vG&6µÜ‘÷Ê$ÑÊÜ¬∂Ù£ìe¶Ùf∂∆ƒñETUSGÜvî‘≈sìfñ˜G3ÛcfñîF÷ÁWßsìVEÁ$#U37É4ñT¶ñÑîÉ˜SÉÖw'%V%g2∂7VßìDueñ3ÉïF÷u3ástıÖT∑≤≥4vd3ì#D§Ce5Ü‰Tµá7ÂE6“≥cuC5Ñf3SóïgG#c4FÂ7&óÜı4#%TVf’VCÜFc#uSóECGW%TT5EÊ˜îÊDdáV$§f&Fv$”CìÑSTÉs'DßF%ÉEBÙUÇ≥•Ùw&fñ&cì6gC3f5U466Áï•wWEd7ÑF£óÖvdF∂«¶%U3TV$«F$ñ&7wÜµî£eeEETÊ‰cSU7tD∂§eG5¶ÉvÁb∑F$eì$µñ¶ÜƒáˆGg6VÜ˜GE•§ÜñïfïU45VñUv’ì2¥µsìsD÷CFG3wS#GStVf∆fb≥rÛuìí˜F◊wF«SwÖeñdıÑ#uìv3"¥S$utÉFf∆c&Es$ÁEñ‘’5&§C4‘‘ƒ2ıÜV4ƒÖ6$Ö&√Éî÷f∑5¶ÛGDµ#îµseÑ˜ñÛáGÙ«ÙÙegßìvv∑V¶ÊED∑ñ74◊f‰7§ìF$v˜¶Üñ‘˜e7Üï7ÑFÊÁEdsówvµCáddVdDóu64Gìuá§ávf%uT¥”CsÜ∂µ¶≥6∂Ff∑§§¶‰vÑ§fóE%óÜ«c'◊GWáBı4Ù÷5UGƒddÖ7Wf˜ÑG6$dD∆5•tÙµñ˜Suf∂f5#f63gV¥§îuC%6◊ïs4UÑ≈f„ït≈uÉád&ıße7É&4∑#T÷$#'ï$u‘„4ßd#v’W¢ÙÙv∑Ññ6¥G%7uÖgñ4ìtÁ§÷‰óáÖGS5gñ≈ßós73udt∑ó•VßFß£vßÖ$•tcUß$§ïÉ&≈&#4$î¥áU#uTFV%WutñÖ6G§’Ñs4Ù˜vÙÖC∑3s7¶’fÑUDîV¥î§#eîóß¶fCTV¥&ñF«î◊ï‰§dVˆÜ“µÖ•D§¥«ñ•5É¶7U•ìÉD∑wßdÙ∂ƒE’ïus6ƒ÷'ÑÛ£7ñì’≥eD‘£%F‘SEÜñˆCFWfÛßÖî’dÜÙTd&¶Ù∑ñÂßßstv3sï6÷FÑÜtî¢∂6e6vÙÂóVïˆvµóf‚∑§ƒÉ7fcd«÷ıÉt‰§Gf•$&„7£E"ˆÛñá7ácÑUCVßSD‘SïVˆ%ßCD‰∂W3v”≥et“ıÛ'sï'W&f77∑3Cótv≈$g#d◊5v5îsf”«FGÖ4÷ïs#Ö&‰SeTÊFÖdÛC5U7î£%SóTF◊$Ê$≈UtW2Ù&$ÜuÑ$V6u•dóî4%d”u#√4‘Áó$‰átî÷«S36î≥Ñs$ıñÊ∂Êˆ6÷‰gÜW&UÉCÖCCSÜÁe66∆‰$7%%u3V≤µß5ìf£F«gEG3ñ÷√$&F6˜76‘ˆtd3"∑e#SÜ«¶«CtDue&Fá6Ùg˜tTÁU§5¶¶¶‰d5dÉÖT6∑Ö•wóÖì7dß%f‘‘’5tb≤ÛV•t≈uwWÁ7ß7wßEeˆÚ¥4ıe#Vßñ„$5ñÙÖF$4˜¶$÷4¶3vsUvß√$e&ÜˆácfvÜó2≥UWUVC$î∆tßCTg¶ÑGtÙEg#s#Vìce•4∑•¶£eV4$ßG§C•4≥ì'7t3É3VWñ≈ß6Ê'CeV#FGG&á&∑D§uUUßßfˆ”«V÷ïd'Ñ£#ïÜ”ñßvsñïáÜÊ÷î¥∑ï£í∑ƒtF¶w$¥ÉWÖÖVCT3ó6g4≥fîu£WƒìTSÉTÁÉR∂≈ÑƒµV∆g•√uV”¥Svv÷$'tñ÷C#6µï6ƒcUÑ'35gWUttTf¥÷Uet≥DVï4%dñ¶Ù∆«V∆V”t5óÇ≥îT≤¥◊d7Guv5ñdáfucV5Ñ’ïW§RıVñ√óf7ï53S4£t'd¶GïVDÁsóñáWî£%áïGF'DñuÑóñS$%á&Ñ¥&î§‘Eı%Ü∂5gñìD%R≥&FÁDÜcU§Frıv÷&Ñ$Ù‘≥WìTñ2Ûv§‰ï÷¶§ÑTDveìîÂßEó&Uß#%3%eÑ§ÛeÑ6˜Fñv∂¶∑§ÑÜ¶#áF&ÊµVÛ%D§«ßFîƒ∑Ñ§≥WáGeƒÁ'rµVÜÖu'§&ˆ∆¢¥£4∑w£VÖD#VÛGgÑÁdáf§«§t„"¥d◊F≥¥sCEdV7wótı$Ù∂cÑáFˆDÊ’s&&5¶tÊ≥GUV„&˜Wıß#r˜U§sï3UV‘≥36VÁƒEwñR∂gTıEUíÙB∑'áóï3V5§G3T§2˜tß£≥5wg∑uÇıf&‚∑D∆ìÜ÷f‰á6gÖß¬ÛV≥ï$gVevÙDÜ¶¥G‚ˆe3áf∑¥‘∂5SFgf∑Éó$d•îìÑ“∑¶4&¥Vµ•ìcDdG◊%7TÜ¥’sóeDWÑÖfg"≥5v‰Á£DˆÊ«s'rµS%7UGT'v5f≥6ßVáwC&‘µ4ßt&6u§îuˆVáDÙ√U&ıS#gıU•ñÖv„dSDƒñó#cVó¶v„6FvSñÖt§ñgsVUw&∆¶„cófˆesÖev'óßEïóuCsìfÜ¥„U7dƒDTSÜ6GÉñ≈Ü§&√gVF≥Gdƒ‰'ógeîT≈DGîe•ïcV˜4¥÷ñ≥óÖ&√tFv5f&ñ∆§ßìV&4$T&$&Ù≈dÂ¶’F6„cG'ìÑ”F§$Âu%5ƒc”¥óTt§¶∆GfewïwÖƒ%Ö&vFsdÊß6fóÑ«eTÖƒ«t'U§Cî¥CÖ6◊dFd7F&5$f≤ˆ˜sVTtr∑ß5Ñ•ïEE%6ÛGï"≥ñWï£"ıF÷wEf¥÷TwÜ∂F•fì6µGf¥ÂW6≈£‰Ê«Ü%îu&£µÉuTììeDtáf‰í≥7T£ÖÑVTGv‰"∑á„îG5¶&∂FÜrˆ’§ÙUVÁ£vƒÁ§ßT#Wì¥∆«§&GW£fSîwÑı•Ñ•UsCG'&$◊Rµ•'£#FÙV•#’C&Áá7ÜE5f#TfVVƒ3g$w%'6ÖSTî%vÖî√&µe4&tT'VV‰fGw"ˆ∆∆’edfVWEßvTµ•5tT≥T≈W&∂$sV%''&'§WÖuÑ$t4”ÖV«CwuÑ”sw5ïÉ&÷∆”6∑Ñµc6VÊµî‰•4«VˆÑßár∑áìó5ñw§Fı'Ög4g54gîˆ„&ˆ‚¥ñvî∆B∑DTÛFÜƒ#Ddgïó7ïÑáUS4‘SGUU‘Fƒ#7£'îrµsU$ìTS'62ıÉedó•$7Ü$'¶tC'D«UV£4’&≈cóg%4ñfV£f«ïÖÑÁtV‘◊&Ö5ı'Ee&F◊§ñÖÑ÷fƒCUtÑ&$Â§Ú∂‰5Dds6£∑5ßtıEv∑DÉd∆cDu#E◊¶DWsTƒñ•7ï#v„áWF3ñÜ∑CSW¢µ&%w§Tóî'wÜ¶¥ÉìeF≈óì6¶dvıDuì44îˆ÷Ct3%v•$ñÑ≈ñ&v∂D÷£ñÖÖs#u'¶Gßv˜î÷%§d‰∆∑b∂√V¢ÛTb∑á4g$¥Ê‰fï'e7'§∆≥TÜVÜˆ$◊&%Wî∑'ñÊ∆÷∆wî”óî∂4ÁvvÖ3VT•§uU•dÛ'G#cTì3Éî§gt7%'5ììdvT≈§∑fÜfîñˆ'%ï6&cU4”scÜïv$§TgVÂ7&'D˜Guîñ6≥STƒ7dƒ‰$¥F≤≤∂'Sîst#TG◊Ü5WTeFßcT£UÑ≈$‘s4Ü◊$VáDñƒƒµt∆Ê„ñ˜î∂ï6ıñ‘ßW•CGtF&í˜VıñDUUÑƒDÑ‰◊%ìñTˆƒ∂%5T4’ïñge#”63‰vFd'GF∆ñV'TÜfttC'ÉE6∆ïu£T¶f$ß#GF∑GEsÜ§ÙVTTguE$ÜáecF&VáTCVÚ∂ÜˆñT§fR∂≈seFD&73&Ùt&óW5ÑóßG'ñ2ˆï#Ü¥C5ÉE%fÜ„dwD%£676¥∑É64vGdƒ‘áÜ„◊3v5F£F7ÜµS5&‘g4&„FˆTGDÂ%v÷∂‘Ùìï7Fƒ•%Ü$Û4ïá%ÜWó•7Dt'tÛ«ìV«WÜïuáí∂ññ•wCÑ”uED„Öv«V$µÜ≈cdïGóÖ%T∂Ê„e¶Ú¥◊ï4Á5V¶£eTEï7îV≈gÜ£4¶Ú¥3%Ñ§÷∑É6c5w57F¶F∆≥ƒ6Te'ñfD7U§GT"∂≈Ñ∆3'îVtÜvSuUeEVcETñ$£GvCÑîdFGT'Ü$”S4u∑S4#sG%Su3#7DSÑÜ˜ás6W$∆ˆáGEf¶vUtïcá6ÁF÷ñEñÑguV÷vdïÜwEÁïudıTƒfÊ˜ßG¶ˆG3ÉñßtÖßV„÷÷≈&ïUD%4Ù≥áCvFÊ‘≈7T÷£TwÉÛe•§T7tˆe3Gó&ev’5"∂dV6ƒóT∆”7D¶fñˆÑññÊGeÉ'u2ÙtÜáeT∆˜uwW%'ñc5§t7ñeó$ÁcÖV§áeT∆≈Ü¶ìîóî÷D”cgv¥wRÛgÉ&UtÖïgßW¶£eóu§∆ÙcVV÷Âdµfßrˆ$&˜'EógñÛD‰∑'guf5§„'eSÉ7E∑ÉTF¶„7S£ÑUeUW&í∑ñ≈Üf%Dƒf$d2¥svEî$wñf&&'wÑ&'¶ÉCu•fÊîGw#‰ƒ76tìuß˜uáEÜgFd¶'ñıî#î¥óT•gÜvó7VwdFˆv7VWEtfÑóßG7$••£«d$∂6‰ÉcwtßÜ◊SÇ¥‰&Ü£V«Ü&∂W¢∂w§µÖ&dógF¶◊óÛEgDñD≈Gf≈CGeÜ∂'4§„ÜµtÉìÉd∂ó§∆√T‘Ñd«7d√ECU6∆∂wfƒ„V‘ß7v&Êt„tvÑ£ï&«3óî∂eWñ≥GßuCue'∑cÑU4ÂwD3tWßÉñwÖ•Wdcc”7#4ßDìáß63ßf≥EV¶ÁTìgGEvÂd◊gVg∆wgìÑvìw•v∑V&ÁßGv4Ñ&$ÑÜW6”6£u$Edc#wd#Wuî5§eÜÙ‘Ñvgu£ÖÇ¥ÊfÑÂÊ£#d÷”ïññáw√î∂ìtddgVÁvSuS4¶&6Se£îáWE6ït£VˆîFu§$F4v¥vˆTï£5¶4¶¥ÉWVT”CÑ„cÉìó7•7gîıt•ÜÊEf#gÜ$ì”DD•Û6ÊEGßñóÖCFcTÊ∂˜E¶6≥uwsE¶6∑Cá$ÁU£uìCDvWSv“˜d∆s6ÜtuDUf$£EVeRı6Ûfƒ„ÖÜ6¥§ïe§7U"ÙFÂeÜ„ïî•ßWñì7t•s'svecgg∂ì%Ñïg∆6«ï3TÊ§îfµdÊıÉÊÙ#ñ•F¶eTó7gƒF#2ˆ‰d&¥∂∆tósEîîÁááï6SîÙƒ¥ßdƒV'ñV˜4Á&&cÜ5%sfó¶∑g3wVTî¶$óuT'u7Ñˆ6ñ‰Etƒƒî‘Ü¥VÁE5SfUf6U$ÙÁñrµîtÖÖEDÖFe$’5Âì4§‰Ée&£fî’Éf˜4óT≈óÖ#wt•ïG&56≥B∑DT#áÜ‘ÊáÖÊ∂‘µDc7óDcv˜D÷ß%vƒ§∆îVµßÜ∆Ê&≈&%G6gÖîÙdeGT§ÜÂdCf≈vÑíÙ÷4ïí∑7GÖ45#5G6≤∂wñ%Ñ3f∂Áì5§≥G•eT&¶’ÉeRÙ”ÑÂá4«ÉÜ∂¶ÊG•5sd$6ıñ¥vµ%efSu“Û'wv∆u4FuVˆád§••tVe6µU%4Ê52ÙÁïìt”WtƒñıÉfñ¥Wt∂EáTïÜ¥7Á5v'f∆¶3&ˆÉï%ÜGu6óg%tu7uV§Ñ‰ƒî‰÷«C4V$Ñ6f«vSá◊dGìSóî˜%WÜ‰sñî”Tî≥î’e&6î•ÜU&sd$Â7Ü„ï%Sug≥gEsÉÉÜ&áßGt5s&dƒïv3t≤≥ñ“ıv’gf7ÑÉñ'bÙ••'Tgó6‰#tUVG÷‰3VƒÚ∂%îC4‰¶Ft√4DF$ï4vßSußw’t£UñR∂Üˆ◊%tfÛFÜ∂óî4‘«UCî¥√ÜWvS≈wCfÑ‘3F∑vTf$Â§$∆îsF'ñ∆î#&‰t5Ccv%W4#î≈EáDÊ‰E5ñf£'Ç≥ñEtC4‚˜t'$¢ÛW%cgïgcÑ6f„ócÑî¥îƒ3dU#≥Öµ#TÁ3cvÉv6CcÑwS'v≈ÖD§5&§sîÁgF£uóß¶◊Dˆ'#VC6fñVsÖT¶3&t„¥F£edÂf%gwîfÊîÉ&á&d$¶ıá&7ïsÜ˜deg7#f¶∆ïsV4”UÑsv≥ìgb¥FïG¶3EefCT7ïrˆ∆˜ìT£f÷‘U§uEt7ì&ï$ówïíı7#G'eóÑD6«4b˜tDFµ'U't∑d„4UgïµuWTıÑ§ˆSDsCDÜVá%EdwdÂV«3uáìÜUB¥f‚¥∂˜s5óUv’G§d'Ñfuñ%CñÉìDsdu•¶TFñî$ecdÜÁ4‰‘ñ«ñ∂Ù7óÜ‰÷uÉÉwáu3d4”DDDì6Gf‰∑ó‰ÑÇ¥∂V‘Ce6eT§fÑ÷«t"∑fÜ¶%•6ó4g6ı¶’¶µ&É4ÜVñd¥”$”7%V3St6Ñ≈3Üv∆ƒV'∂ÁUó&74¶G&v≥î65VtÊñ∑Ut∆óFÑÙìÖñ6◊''SSÖ5&ı¥ÂïE§gd£WÖc6ı5c¶Û$fv˜¶3∆£$ìv6%%fGw'6ñÉs£S%Ç∑dñ˜Gv≥CDeu&6‰&Ùvv7Üßñ3DDƒv•ñgV≈eBµuS4∂4’%V%5$ß¢¥«u%FßDµV6√%V&3R∑á'v≈e6'cCF÷$DÉóUóuFÑsGUfÉED%£6≥á¶45g¶Ñ'F¥ÑÂÇˆátïvƒd5fÜ∂‘÷3’Ü≥UE6∑ñ've6FµóDT4E#ÜV’sÜµîee'«F‰TuÑeF∂∆∂◊&ı6∂ˆı&6&ïÖE•ìT÷3ìF#VE4%§∆3S6Ê¢¥¢ıWr˜ócG£ÖvEñT≈3î„DDÙv∆«ud4¥ceWÖt‰6§îïñˆƒ∑WcF5ucîÙBÙì5GáñE#FeSGv§vbıg¶£GuñìU$ÂwS7d•Dˆ•Ñ%î5T„ádÑ'ÖcÜ∂∂GsÜ3á¶¢µ¶Ê&É'ávFß¢Ù„áw6∂µsÊÑˆ˜É%fƒ7§ÛÉuDFDîÙVDˆc'WßFD≈ñ”ÜdF˜fî3Éb∂•3Eódd”$’îÙ"∑T≥ì7V&ˆïssD£4Cî’f∑%v6ñuue$tuCñß6eCrÙ”c÷fï$£ut•§f‰3V4˜dFRµ6gïgF%d£$µTb¥óóD•ßì%Tït6¶5'¢Ùˆ£u7§GîßßTÙ÷§ßáDí≥√îßfÙ•§vî$îıdîÑDˆV‚∂‘á£FuT66ƒ"ˆ≈$ñ‘á7'ßÜv≈•$ÜF§tEE4tÑÙF¶◊dƒwïµîÖSÖS£ˆ§%vóÜó§3vˆßT$ïñ4ÁWá•'5E¶∑6£Ü¶ÊñîìvDóÉVˆÜ„%Ñµ#ñ•tñ’fîC#G‰‰Ê7É6$et•Ö4£UGÑeÑ¢∂ƒƒutÙsD'ïtvVƒñß&≥#&îUÜ◊§Ê¶5"∂≈6tÁ4uV˜Efv∆4÷Ñ≤˜fGñÛÉv•uVñf‘ÁdÖ•ƒƒ6ÑvgEµÜÂ75%%cD‰≤¥#sì'ßwWîµ$◊#'6w§46SWÖ'3ñ%î%$V∂CTñ5&tT6sTî∆É3áU¶%ß%7¶«4f∂≥ÉñCF6∑Ù§óc'•cµV«TÁ56gEÖ%stV'TóusìG§fD∂ıtÂ'dt3t„Â5sU'%•ì%TgvG$◊SVˆ”6F∂¶•eFWîÁììdwEì6ÊÜCñìu§s4≥$ˆ7&'7CSñìc%t’r¥•ì$V÷fñu≈≥DRı6ıs¥cñ˜v2˜Öcu%4fG6∑§÷S6√‘$ßÜ≤∑v5sV6ˆ%e6’ÖR≥ïíµ36vsˆ&Ù’&¥•gSf„'%&îÂñ¶¶ñuv6&îC‰ÊÙµÑƒWñı&∆ßCRµì5ÑßıV˜GCÑ‘"ıu7W„ÑÜ6¶s∆w2∂DS'CWWD•4dáïß£ñ«§vWD„áñ‰ÖeD≥fÉÉe'îFµT§‰4ìVCd7Tˆ„≥CEßá6'CÑ’7&ÊÑSÙßG'6Uï§∆T÷”D∂∆S”CT$d5EV„4‰r≥T÷∑g&wEFStÉsV◊DS%wî55Ñ«GñıC∆GÉóág'•gˆıDGF¥§eT'uìÑ¥466Á%Dr∂Ñf„&tSGï¥á3t“ÛCÖtb˜DÁÜ√CïsvCgv4Ñ4’S&vSgd÷utf∂¶∂F‘ÛfeïVe¶3F'76Á§6‰÷óÜÁCtvv§DVÑUg4ód≈&¶¥ótÖC'g44wá¶&Ùe&√STtˆU«uSGÜ¶ƒT&E5dDïuñ4c6WVGßÇ∂§t7ƒ§ÁdƒST∂¶§Ü3∆42µßDï¶ÜávS’&§%˜54•F’s¥îÙÙE&∂7ˆ6Ù5§'t„eïváf§Ñ”$óÉáTÛWdÑÖßSV¥∂Ê3Gvg4#7fÖ≥óGE&∆ÖÜ56§ó&á76T4¥4’4¶◊Ég˜Euv6ˆDVF£dsdµSGÜ∑7&µ6«4≤Ùdu%Ö6”$‘v4Tvv∆4ˆï4ï#tv˜§bıƒ¶Á%EwñáfTtc4U&ÊfáWw≈Ví∑3Ç≥ïV”F3U£3SudÙı&îCÖ2≥'ñïs%Ugï4”óv¶ÖTıd£TÊS4gìßññV§6∑SÜÜÉdCÂV$îïgvÂv‰•ñ‰‰ìñ◊f˜'ó§∑dµóGßDÂSe§ìc4Gîƒ«eDáSñuV%w£Ñıì$∆¥f’&Ú∑óD&G§c∑óGw∆Êı˜Ee&egCvîÙÙ∆W£EF5ßÖ◊#6sáTfµîáv5óC¥5&∂Ü∆FÊfÙGî%7•uóá4F£46˜&d◊ÉuU62ıF§%áˆ§∑ÖUó'ÜßCD§f£U%ÖÑ§V∑6Sv5CîF‰Ödß"ıdÉÖïvGÜÑuƒ’¶6cw¢≥ıwñw3STÜ‰ıu5'5îÑt“ıÜˆc$fıï5W•'ñV6Vñtµ'GáßßRˆ÷ƒÁ3v•5uU%ÑÑ≥fg¶≥á2ÙDáÖ¶«eg£ág§Ê˜ÉVVS√wßwÑ&îÙı¥∑#E5'tF∂sTˆ5ïÉeós5ßECÛcEÉGÙÁTÉÖetS'C3U"ÙRÙ‚Ù«'Ér˜ó4d‰%ì37v≥#7ÇÛDfFÁ7$$áDÖfvñƒTáá¶u£cG•V%wóCµ$c6µ5¶F‰Ûscó6gFUww4îñ&”V‰ƒT«S4CU‘ÛDáB∂ƒ'£#dÊÙd§GWñìC'#£r≤˜tF•w4#cv‰µst«u#Ñ≥#V÷≥'Ü§÷UÑtî∂ÊßÁB∑F%7¶GbÙFÙut$dD∂Öñ‰'¢ÙgvV&TÜ‘TUÜ≈6‘Tï¶˜6ÜC37ÜÊ£eUF%áCáµ'ÉV∂V§DeC4ììfƒ#GudÂÑugF∑fsVÂ3Fî„‰'4t“Ù‘EvìáÖÊcfîgóuw6∆Ûóî≈5''VïCFrˆîóÉUwDß#uu£îÁrÙ„ue¶ìÑÑ”cgG$ñUóÑuEÜñ¥„'¶63WuîUótD«¶ß3v7&¥F£'ÊDƒ∂√fd∂4U£eS&Ê≈tíˆóe6Rıu£vÊF4F≥W6$ÛVÜ«UG34˜t'Ö$‘&¶µÑ÷ÑÉı44#VdU4D§ÑÂ6UGñßEuîáE4d¥∂≤¥u7Vµeóñ‘î÷UeìgWtÙ◊wdávD‘g&˜3#Tv4÷uÊD‘VÛuT∆¶&ßñWDd«ñV'É'6Ù‘Ü◊FÑtCñ¥ƒ‰$áGUt%áv√$3ï%ÜwE§f∑ßS46¥Áb∂ÙÊGÑt≥3&v„sE3Gd∆§¢ˆ#ïv%Ü4"˜ÜıECvı4E¶„ñ•47É57ìFÛáÜÊ5F„c≥'EsásñVSïv¥ìFÛ$√TWÖ4∂F∑&$%§ïó¶∆tı§ÑÖVó&g5V•ÑSó3áCFD¥ÛÖ#cV5§ƒgD§ÙF÷ßECÑ«óWóÉeÑv”Ut¶'%G∆d•vÁ˜v„V&T&#ÑcDÖW&"ÛVb¥fE6F7uGd&’Éıbıì√dGî•ÊdìSf«'ñS57îuS$“ˆ÷4vÖ§3"≥ïwódTF5%§’•V∂ñÖ••T«4Üuî6î§∆6&d÷vdF÷Ü&ıÜ«duáT•&£uT◊3„Ñ2ıcr¥u$DtÜ4ÜtÊßCìfƒÜ5'É$áv5DÊ∆ïtuáT¥cUwTrµSï"Ùecñƒ$ÑF∑§TF≤µs7cî∂á¶≥÷ı&vtˆeCCwS$5ñF‰ı'¶ÂW&ˆ∆3$U÷∂∆V’#ádÜ&#S546∑7wós"˜ßÖfî∑ñÙ◊W§ÑV∆DƒDÜ3#G$•SuÑ%$Öß£6≥‰§%U•d§ï§ß•E4≥óW6§F4CU¶ˆ’D§Ê¶ïDE£dî”îÉñˆ•ußcVñd‘W%&‰î•£4C##ógeG7áf÷µ‘'us$EáCîEg7ßó$vfs%f£Uóv¶∂2ıí≥§v56&ÑßF¥t7$&VÉó2≥ñVF∑E7VT&∆T‰÷%£GC$ÁîÖ£eTvƒÁdƒ§f6ÑwV5î#6VÁCt7eñFGg'É$V«cá¶ugR¥ˆv˜Ö%gVÑÜ7îµ&vw#bÛÜs#"¥4∂óóECós'¶ÊwT46µ§%6ïwUFÁì4FEGÊsñ∂6Êcî¥ñUeáU$f¥¥∂√tdˆ5gccE¢∂Rı7&%Üt‚Ù˜vGÉee˜vDGÉt6sî’£ïî4ß'îf◊tÙÙµ#gµ6ßSTìeîÂÖÜCÜìáDóG‘Sgv∂vF6÷÷≤¥36Ûî‰gf∑W5ßEñd≥5§∂V◊DÊÛÉV¶Öe∑tTV∂$Ûîìî∂ï5%6B¥wî6s6Gc'v•á5sÜ6≥FÁ%DìceU¶V‰'Ü¥’&‰d√ïá6¶Fîì#3E§WRµíÛEWÉStDÉ'ïÑD$ÖVfïUß$∑u¶F6‰uuUí≥óEñ&îßì&7ó4T¶UF&ßc3eV‘ÊÁVG£Vt§4#ÜfîîtîÖíÛ3√&e§uï£C4¥f'óTgc6ÙÙt£37ï&D7t'4cóc3eTgÊÂVïUñ6˜ìÇ∂∆ÑïDÖ%•#edtı#îˆƒ'$ÊFf76&Çı3u¶§%VV‰ÖVfg%sSuueñ∂∆ïg4e•5cV"Ù£G#SsBˆód∆eUWT≈ìF¶d‘Vv∂6D“ˆfÂeU%5uE£c3'Vf«d5&cCGSSv•&d◊FGv≈ï&ˆWí∑DóDÉ∂F&cDÚ∑F÷4”ETÑóÉñ6Cìg'e$áVñƒ3ucWt"ˆ•6DfßF÷≈¶ñ6‰îıG••ß¶≥‰§¥‘¥ÖSCïáí∑t÷5T4”Ö•ßtìÜ≈W¶∂f3Uñ¶µ¶∂≥#wcttó4ÁV6e6∆V¥÷¶ˆsÉÑ˜î’'s5D‰ÜîÉD˜Öuu3WÑƒSUñ&¶tDÂ5sñWdìGCSs$ÛdÉ&≥Ñ≥%'ów%s'3VîuTrÙìîîvV∆eDgfC3ÙÜ5'ggs6”wTıÙEÉ∑¶•áóñ&cDDıCT‰g'¶wufC$•§tf§ı6Gˆ’UD∑s6gE3'ñîñ&5%E44îDÜóÑˆgáT∂&ìS4‰7ïtuT¥”$3DÑÜ¶ÉgV≈F5TFÜ$¶4d4Âóv∑í˜ñı5wÑ«ñ#EccT£vTt◊óïCîµ$„C3CVdµuÑÙET•6óWìWf#tS5w6Ê◊V'fw6◊7tW4îÙv∆¶$Û3dUVÛ6”Wd§CÑµ4ÁU&µS#ÜVT≈√Eet$√eÉ◊2Ù2Ù”vgwGSu£bı6sîGC6£t’uï4V5ßÜ÷wdsvs‰‰≥ÁóFìÉEuSWD$$ufî÷Ö#%ÑÙµDóCtıTÑWî˜D∂ıÑS''ÜïD7sWß∂$v∑§≥Wt¥î'g§d§Ött6VdÙ#EF¬˜t$”§¥FÊTGÖÑ¶43Uáìcí∂7&&ÊtWWÉe66¶∂c&cìseW7Cv#EWÜus%#ó6˜îtÉÉgÜ√§á$C6∂Ù7V46√áDÑ5gññ$s$ÜÙÑde&wDtgEugEe∆≈ïÜ&”ÉBÙgUVC&Wc&CÜ˜WDÁUìeuUcsîß≤µ•#BıïñFG•t◊63Üw£DÙC$Ê≥WVÁGD¶≥Ê‘Ü√#f∆¶áU4g$dÁ7C6Cteîµ'¶≥íˆîÂ£≥F%FGSeUñ∆%VCf‰v5•c”w$ñfß¢¥∑Uß&ìGT§ßÜW4„v«6'f3'ÑÙÁÛááfswr∑4•óv$VÊ2µW&◊DfEEdDÖ§¥¥îÁîT$ÑÂv¶’áSñvñs%%¶ìcGf“Ù#'§G%FÜfdB¥TµÖÜ4ÚµÑTÑÂ«73Öîó4•ñî‘$SDî≤ÛSV&C4ïGìsv√CefTìuetÑßáî4˜c'#%ft§d’§ßïF∂eGeGƒ#$Á7óG•sdµÑ∂¥ggueÜfïïÂñwt4‘¥Û3cdó&%5ÙÁßvcÑ¥v’5sefï‘ßìÑá#ìf5T§Áóóñƒ∆’4ƒ%#ó˜F'GgñVTµÖ3ff57CW≥D∆‘u§‰Ùw6•Ñµdïd‰6∑4¶F&#$G£tvá≈&∆É3t“∂∂WccD§≥ÖUsñÁtÁtı5TƒµfÂá•˜t„WÑÉsóeÑµ5§s7Eïı¶≤ˆ≈SU•D6”$ÂF£ef$4§tì$F◊#%4◊DDÜ≈Êµv◊ñ÷v&4dÉFEgfGtñÉ¥6f$ßÛ$4ÁUV«cî˜C555t≥D¶&4◊"∑E◊6Ñ≥T∂'Ñîîcd‚¥ƒ&3Uí∂ÊfÊvcÜ≈"Ù÷DU'¶tDD«cTße§Û‰ıTîÛˆµG4Csì≥v4fóÑßáuwïUTî¶EgEÑ$EWdı6FÂ5ı'ñU6WTµeÑW'tV¥óutí∂˜Éî≥$w¥Ñ£Sv55¶§Ù'É§eß$Ê6˜3ñ◊6∑SEîSf∂≥ñ3ßCeUeGÑÖ•&ÛÇ¥√f••3DÑßUóDƒD”Üî§√w6¶s„ÑÊ$ƒ‰ìá4ƒ¥wvW•Sfó7&Ê$UtDcÑVÊ≥ÛWu$•cs'6•4u¶6„ñÉv'ìîáE$Átñ∑wÉWÖCtSuGB≥4dT◊f#WeFsÜÜÂu5§e¶ï&v3Ü3%V7GcVÙ66DeTÑÂÉ"∂¥36uuufó•§ÑîóÜ”7t‘V76Ve4ÛƒVGñ6≥B∑vƒÁF&Ñu£vÜ∂g&Ê§e§Ç∂¥47ßCVd∆#óVC#64÷fC4áì6”V∂Üw3w63B≥T∂dEvÊtvFÙÑƒßÜÊ5duV6ÛDG$≥fEV”#Ñá•Gt∆%«GÑ3D‰T«6”6UG"ÛuffSd$7ï¥3eó¶∆≈ÉV¶◊EV÷§Áv«6«&ÖÙ$s§ÉTEDìvîÁÑ∑d7fw#SF5î„eÜî6∆$∑Ü4ß7§v¬¥D∆’su&Ê√'Ñ'G¶6cESVgt§Ü7U√cEdÑ"∂f4B≥îˆ&e'Ù∆¥4Ê’î◊T7fvg#g∆∂‘µf’ß7cDî'7%áudÂ#G$µsU4µ6÷É'V‚µ¶'t¶tÜ§Â≈7ñ◊Dt6˜uîvÛffuïu5$Á$SñÊvvEÖ$”R≥îe5t‘t'E$∑óáGg3ìÜ∆áî#˜5Ü≈W•DÁDectF6tÑEd÷ı355%¶5ÖEvî”tc#G£V”tÑd«VV◊&&÷T3vÜƒïDßÑ‘‘VSG≤¥◊GÑ‚¥óUïGwìCfcÑ∑Ç∑3$ÁG'&d5tˆÊUÑDƒW§◊SFcwc”Wñ£wDßvÊïCSt¢¥ñF7F#&UfD◊T•ÖeSá5'#Ü§Sï5Cîµ%r∂É4gSuFÉT∂‰3wGtÂ≈E56f∑'3f≈r∑c'Ce§7GgDsGFÊ∂vFf6e7v§∂'ó¶GW#Ê¥ˆ•áFóCV7ßftc56ÜvÛUÑÙÙEDÛS6∂5$$¥FÖv&sTvcs&∂ƒEÖedFÖsDÖá%gÜî”ïtuD§u35SG•$óáÉ%G7c5%3ócóvv52µ§S#££˜≈S%t’Ö7&’'T„3VGSïˆ’cV”$óÇ∂'e§74÷ñwáÙˆg¶DEWU„ìf∆≥d«ïtt•DS5Üg•cÜ$f‘∂ƒ5√$Ñd&ì'SWó§¶ÖìvF§ïsTtóîÁeÜ6%Vƒt¬≥ds4DWÉì5cîU6%TvTsD§ÛCÜeïEv”3vDdSeE'Ù‘6ÖÜuV’T3gST∆vFácDÉìfÁñµt‰3SV∂tÛ•F'FcîßE•ñ¶¢ıt7ef$ásDs6∑UcÜñ6&4‘“µuC‰ÊG4’îe¶evEáD≈sdÁSDƒ≥t√ïGC&FdÙÉtvî”Ù«fdÜ4'Tˆ˜#36∑WsÉG•áï4¬∂∂wGE¢˜µuf§3sugñGvïÉ7îˆ„Éc&fá'Ñ∆#3ì#óDñG&d˜ß5566ß§gfwVÁv%Vtse7ßv£FÖ¢˜t&«'s4C2ˆÂÖe¥◊gì&$óó$∆√Ü6¶¥7e§§•£3îÊ˜Ö3U£ñ£EÜññdÙSÜcEÑáefwu•'fÙÜVSuVuìG•U3óñ∂Ü6sñÜ¶µ&Û$óî'ÖUïeeó7îDßßÖ4ÖV∑eîÜ§WÜ&33edÙVVÛr≥ñDƒ§¥áÜóu∂∂÷µ$T∑‘G•áS‘dÉfñ˜tµ$u6Vî∆¥«Üñµ'ÉÑáÑï¶6∆‰ƒ‰Ü‰ïvÙv'•GwE4î∆f¬ˆ≈4f£TµD◊6¶&6gU5DÛ6◊"Ù£"∑%•UeWR¥6ƒñ◊√$ì%GñddTáÊñ§¢µ4∑%tF'îWÖÖFßñ¥ƒÜµóÂ6◊4d”vf•ïSwE'ñ%ñcÑR∂«geg4Esv∑5GñfV«WµV∆TÙÙÊ‘’î∆#GuCsSc543#57tS'VÂ%E45ˆıf‰•cïÉc&&ƒï¶ÜU''ÑufwvsÑÉeTg3ÉÛCD¥∆‰§î∂≤ˆVî5DDÉÖµu•§S&∂¥vgEf‰uuÑgdßD«VÜ∆îá%3WvvfìóG'35ó4f6£ÜÜñV’sv5g%Ü$rˆv∂∂ñ∂•Wtî$Ùu4VD”U$&SG6%ÇÙt’g%ßÑ∑V”#ásÜïTT∆ÑF¥ÜBµV6tTF‰‰≥f5Ñdeáv•5Ö'f∆ïUS#Ç˜£îE#d$§«∆Ùï¶ávfV”FñµGtá#Ùt3&%ïfÁÉFÛgÜ•4Û4ƒVD∂vVá#TµS55f∆fDƒ√ufd§s≥FÜ£4D≥dcD«GÉ#wSïuÖg$‘dEìGßÖfÑ∆wUá4#WóvÖÙÖGE3T£$W6ÛG£tv÷7GF£V∂g6Ù‰ñv∂É7VÚ≥îïd¥ÛÙ¶wS&«ì"ˆÂá3US«fßf6Ödód’ÑvgÑó¢µÉVÇıvµá¶∆4SS$7ó£#FÙÊD÷Ö6&T'ÜÁDµáî§t•$3'Ü∆UEUÑe4D≥eTgí∑ñÖîïDGDeg%ñ$•6ìCuWv≥óW6eÂ3&vd’3GîG$f¶‰tEgUugvıÉñï3T7ñ&F≈DD&”4&u&&#t#Su6G¶∆3E$eRÙEÑ7Fvgßó3DF&3d◊t∆∂'TÚ¥µÜ$ß&táFÛVdÁìT$eUÖvvgT∆ñUVî„eE#3Ñ÷Sd$G£4Âu4÷tÑî3ÉWtS5g3EG§Üw£4÷¥◊%wß4”ÑÑeáóu'ÖtsuVñî∆îs'd√4«5T˜FUwìu§&%óóVT6¶Ñg$ÁÖCíˆ5C7#'67U§bˆW%'dÊ◊Ñ÷sóÇ∂”&∂∑÷rˆ≈eggów¶ftÑdCU&¶EÉVc$¬ÙWÜ≥TVÙ#5ßÜ§ıÜ∆ñ&ì3GßCïuÑˆC3∆3#dV7îV‰§DÜ≤ıvÉáCGßUVµïÖD∑DñÁSgdCT¶ÉÉD§ÛtµsTt'Ö“∂‘’4ıs'VfƒÑ‰wCWG£S6÷t$íµ57v$ñ¶&∂µV¬Ú∑óvf÷%SÜFv√WD%DTVf‰ÑÙ÷ß%5£Eu£&¶¶6%Gw•ßñWFUsTÁ7ñıÑ≥weS$µ%Ü÷’Ü6¥EÑTfßTÜÂóñÉT‰‰¶deEág$geWGCÑÛD§ótïßÜÊó4Bı574Á˜f˜&áÜïÉîÛCÖót≥∑7áF#fu&V&Âe4uîS&rˆ6Bı4‰≈V∂6VÁvVW%$‘’§§¢˜ñÙÊ£îÙGÙ'G%gÜ∑V◊UDW•t¥$v¥ñ«îd$î$£dEWDCE«CîVµsCwÑÖ¶‰ƒ&rıTDt6T'î#sBıSó2∂óÉ#t$&#Ñ£dác'$≈'¶&#gr∑&fd”á4ñEÑ◊&ƒîßtd∂ßu3R≥CÜÂ§ı#gT„$÷ecÑÉ˜vcG•ÖcÉrÛe&Tóßî‰‘ÇˆµcCáï&‚ÛD§¬ÛÑÉïCï%%%ñ◊stg&vÊ¥˜ñSV˜7usWî&∂D∂ˆ7ÜváEìÜïSÜƒVñÖÑƒíÙÊ4§7uVS7ï'Ñ‘•C¶ˆ‘Ù§sUV5Vñ&∂¥G3Üßñ4≈V∂¶6≥ÜF∆¶•ÑÙ÷3îîÁÑdîstTF£$TUT§§‘#áeD5Ù÷s3ewÖÜ∆V3ïU§ƒî§Sˆ$‰tc%4‘÷ƒeßìUÜód«U$gD'V‰Ù◊ïVÊUf47$ñıÖÜ‰e6ıSï#Vˆ¥∆ÊvSîdı5Gvó6§Ñ'”EV∂¥Sñ∂4Tß£3s‰ˆ4Ñ‰Desá6uìFˆÙ5ÖÑááwDGßádƒÇ¥7sUÑáwV«cTf§∑á∂$Ñ≈cDÊ«§GVÊ#É5ß%ñ§uVUvU'áCE$DdW§‚Ù466f#dG#”ÑCVd÷Ê¥#v%7íÛDFÙ≥ÖrµW3Vótd¶§ıÑ'îµCc7&§u§îÜ##'îVßF•vD¥s6Ö§CUuusBµ&CF«WDÑ≥ÑgÑÑu§ÁñÜ≈Tf£u§É&Ù«tgcïóñˆ∑6ıF”v$V¥G7VgìÉß„66‰ìóDvµ'í¥3$F≤˜t#FSátáG¶§ƒUówfwU&∆S3c5'DˆáE3Vv¶á3÷77ï4EDtvG§fÑtÖ6ƒg§‰6∂sáÇ˜e&G$ˆ§îD35f$ıgG'ñ∑Ü∆$uFGf$v’fóñsïÙ3íˆ’sDftîÙ¥ï£óT∂'f÷ÉD•f56dv7î¥“ˆ•tUV‰DDß#ïUÉUgó'ï#7÷WUg%4ÙG%Üñ‘'eF÷ßVñ¥wá5U¶'s7dß∑Ñ¥Ê”V6≈óEñ6'3Ùu§T˜ucC7s4egïE%'dóßÉ3V«ww54&£fñ÷wóVCƒGw£d%UÉUìÜcFñ«et#t”Ñ$÷Ùñdñß¶£cÉCtF&GdÂc#ìC¶¶V3W&T¶Gf‘√6ı$∆&ÉF¥G•ÜucóÇı7«f∂BıSî%Éìf≥#V√%V¥ÙG£î∂¶Ê∑cÜdVRÙVƒ§Ü&EC$Â'TÂRÛÜÛ5ìDìeV÷É4óf√w7TÛFÉt≥D§÷sñE¥£ñ∂UvÜ‰fE'F÷cVWv˜Tµ¶£ÖD##ufÂßE&¶eóvVÉTdÊ$≈eFáñ7#¶ÙÜE$Ù÷7'7gdî«V$D$CósFSE'TÉ6ÛuFEßdñwÑWC43Ü∂Ù’ìGÖCE%SÉ%U¶$§ƒdñ÷T'ß¶‰d˜&îÂ7á§GVÜ4fVƒ√wîî4•∂sw3$∆ÙF÷¥Gwdïd£"Ù≈ÖWß5á˜îvÂóóeG%Ü∑4DƒSÖá#áD‘É7Éd∑'SÉ'$d§v4gïÖCîVeee'd«GeWu•”CWSwD•ñ≈#EFutÊ¶§t˜DEÖ•fññW&ÂW•45cd$EV%wßd5§£d•T#ó7cU'ïSµRˆáÑñ$vSE6F’&ı6’Ü$gî÷FgìÉ5ÖÜ47S4u&sÖf‚Ùv$$‰ÑvÁtï£á§£Üı∂E÷∆sÙCW¶ÜDt’ÉvÁ¶etÂ%ÖG$uuDî7F64Éd73U¢∂ìî”wóÙ„'#eCFsÑgr¥£îóTÜvv¶td¶TW7ìÇµvSD$Ñîfe«SSî«WódÁFf“ÙF√î∆ctƒ∂f¬ˆÊ„ññìá3rÙ‘”Dcñ6˜Ç≥ìv˜4„&2ÛïdÇˆ“˜tD7VÙD„sw¶b˜t'"˜t≥fÉEßµdÇ˜UÉÇÙíıv#6$ì6∆ÁeSTÊñÙÖìÖTÑ‰Ù¶‰Fuctìw§îd'&%Ñ‘ñƒñˆ◊•TtU¶ˆï¶t$‰eCV6T#uVv'¶w5d‘Ê◊UdÁñ5d&&¶64dóìCcîGñT4Ù¶£fÖU•ñı÷v3ƒ¶5R≥Sï4◊$ÜÊB∑DÊ¥«6∂÷’ÑuÙ‘eD§ó¶5ów¶#7•eFt”áTÑ‰&ÛóîU'3F'&5D«Cï'áÖgFDƒ“¥dd’î≈ggîE5ÖÛ3ñÊ•Gu§∂«ßwgEdƒ%4„#V∆eF≥¶5∑ìteîftˆ46î«CìóR∑r˜t&„g4vÂ6$&&˜Üf5fÑDw§EóÑ«F∆«¶„óÜ3$WGW&4∆Ê∂ˆf#sFUGÇ∂”5c5tÇ∂FF%v˜SáUgCáWîˆ„'ìTD≥&“¥D¶U&Eß$uDïv√3t&Êu£Ccó4É7$≥6Êì3GS¥WTB¥Ñƒs6≈6‚¥¶V÷6c7÷uÖáEìVf¶ˆ÷ÇÙf£ïT≥ìÜG4ÑÊd∂¶Ùwdgñ§÷∂ÂEÑ∆V¶G•eUu6Ñ∆∂GÉD∆˜ÂG∆$ı5áV‚Ù˜4”ÑÁ&c4gîtctñd¬˜E••w%fÛïáCUï§•§65%∆Ü¥D§§íµUe£Dw3V'gsf∂∂uf√&ÊDÜ„É‰&ıE'VósDstˆ4√î∂TTÜ§¥∂W3EW$•eE3CDdV¬˜gáF&v÷”&&CÖïÜ§"ÙÁ¶¶sîßSïGSÑCEá5Ñ‘˜DS$fv«&$ƒTG¶¶5EcñÁg„FÂóW¢∑EtóWó§C˜'6ßEVWTTÑƒÑ‰e•§#vT‘7FÜƒudˆC$ˆÂ7V$7sW4Ü&¶4ÛïUVı•dDGB∑Dt÷&√ñÖV3FGT4∑d‰vÜ∂&µí∂ÁE&ï4F'ñî∑fsÑU$DSScT∂Ù˜t∑5fvU%ÑˆÛfG$dÁu&Fd‘ıEebµì&£eUeó47Éd‰%&‰≥„TƒUw7ówÜÙìáÜ∆ÉìdgWÖ5˜Öfññ'T„sóvı••óÑU&Ü“≥Vˆ$‰wg$£wgV&ácÑDÖîá§6cuVDC5ÑÁEñÖßs§áîÜµV£5sFˆ&ï§∆DdwÜ5î6sÉÂD„'f∆î¥ew¶Êˆì5S$˜§÷«t‰≥C'CDfEÖ’î’45gCó#gdsÑ◊6ÜágFó5uDˆT÷F•Eg£Tgó§∂Öe&u6‰§î£t72˜%&«SuáïfF¥$$÷§gUVf'cóÑµ'#d∑'&Ê¢¥÷∂¬˜eá£Gssî≈ìS4C#Cs&%Ö&√ïT√tTcìÉóñîgsut„'3wñ∑F‘Ü54ÁudáeFîEVÜUvÙDWTudtÁT4ˆt§áeUì$Ê◊fGÁ5SCÜˆTßó4fÑ◊cÖ#e#”É6≈§S&‰áı77ßíÙ§WÑC4sóßìÑï≤˜%FTsfET4sDîÜDCıSÂ4¥cEÑá6•4§îÑE4Ùˆ%7Ü‰Ñá&&ñµv≈Ü¥’gT4”GÉÛSsGîñï'#ÜìUdUDˆSd∆≈£Ö7ï∂§ecDÑd∆&‘óVóv6¶◊U2ˆ’t#îıtÂ&5vV'¶◊ßE•V≥6∂WCfÊÛuóîTW4ˆÁee•&‘'f¶ÁeS&î6¥∂•£CìgT‘‘'f6¶„7$ÖÊgáßñu'5ì‰g∑îÑ÷£WÜß%$„‰wcFßDÂGC≈ñ∑îÑóî∂ïuóñƒ4Ñ%V$Öv≥6ó•&ƒˆ∑•ÑUWñ&ÉVÊ¬≥%#ÉfGtg•Ñsî”GîBÙv∂cÜcÂ•EÑˆ◊Ö2¥CRı•'SÜ6µV5D5¥4cG$ÊTßDwGdUg4«dsb˜Cï$µ'D÷tÑ˜vÊıCtSÉïgeÁ&gácÑ∆UádfF&v„eó$fsDSÖñTcïDge3óÑD¶√E§ƒ%Ü≈√uî3Ñvwó÷√v"∂sÖS'7ÜÁF√6ÉÜfñd‘FÛótFßñEBÛÜ’ÇÛÜ◊W&&”TG2˜ìÜ6c&%cácd”f‚Ù$‚Ù2ıR∂ßGódEñîıG¶µÊÁs34tıwñGEFU7Ñ3FƒD«ÉeUñtÑÉá¶§‰∑%Ö#s%D‘◊u§dÑ∑3vW%Tf√SuV'ñ∑CÁdÙ6”3UÜ6∂cÑ§ßf‰≈£S•Ödt√'dƒu#fıc5Gv≈475cv5C5Er¥7§ıeîSTeewv∑WCgï6UáDá÷t∆«g4‰∂„∑¶G#&t∆eCTıdEUG6ı3%#U¶'wevî£TÁÑµ5GÑîı&£'É˜SS•d¶Âtî's4Ñ£3ìeFsF&ñ÷ÜìÖ∆÷F&îƒÚ¥ñ¶4¶tGî#tvƒÁcG'T3∆ß¥˜Ft˜7ïïîTáE‰ÁsF¥g#∆WñEÖñÉVV‰dw76∂6Áñ§ì5TˆF7§v’w¶Ê£„Eg$ıs&7Ö7ÑÁUUóv˜C'SVˆÉT◊56t‘’¶ıG6&TVT‰de§ñWÉ6&îóG6fsDÉ&˜óu•#C4ÜßµTE£f$‰§gWÑ«áv6÷”&√$g§$4c6DıFµd§£ST∂CáGÜTu76%Ü%4µßó53ñcS«ed&Áe¶dfSîUÑ&Áñ§≥§§«ìVÁWeß"¥#46áVsGD∆T%¶6r˜ó&ˆ#UF4÷gfµWC%„%Ù∂á£V6•&‰ÜW$‰î≈sáƒDÑÂ7F&‘f˜tÙı#s&S3ÜGV7"≥îSEÑ•wÑ∂Uïî”2ıD§t§Â3U&µ§g4WïV„'#Swv∆ÜDÙó¶ï5u6«áWuFtÜrı7fı•GF4ÛñáUÜˆf¬ÙWáÖtcuÖd§ñ••v÷'fC•◊ÑïF¥TÙCÉ"ˆ3#4Á3tGu5Fáïgá'c$ÜÊt≈T√cCV÷∆T¶≈4ñVÚˆÊ'#óT“˜wT˜5tV«GfƒDì6$5f¢Ù$«ìD§‰”ÛGTB¥Uí˜ñc6c%&◊ugtD‘6wáGÉñ‰'fñ£FÑ7Uvˆ6„Ê§ßGîÖñÁóïeD‰w√îÙ74ñ•T„5W%5usñı§GeStG§«DƒDu%$D◊Vó3Vï&Ü∑ewd$D¥Ù%%Tc÷#3FCvÛsÑÑÑ‰ñdÙdu'wñÜógìf◊Wó%§µuÉDDeEV∑"ˆÖTeVµßvVƒÖÖ%E•§&ÂÂFGFÛW'îT74ï7dóuÑu6∆ßTˆá##''ñµ5EóStWT5v&§e£5d••ñufÜ¥ï%6•cU¶•ì∂Ts%ßìÜ˜•fVEß3dıs¶∂Ö&É677t∆ıÛTdÛFCguî•Ü∂7GìE$ı#GgfDïÉ$eg˜$Dƒ„∑%&ı¥ó&á"¥¥5î‰¶$˜Ud∂v§∆£3ó6WÉcó5Fµ&6ñ4Fƒg¶’F‰ˆVrıV2ıCugdRˆÖ3v„∆E£eUDSdµvWßT÷∑7VU7c$Ü„$ó$áTfTÛTÁ&’uV&ìÖßwÑıGÉvß6Vd‰‰”%DÖG∑5&eÑÉR˜tóáEßgB˜$usï75&‰gw4ÁV%V%tD≥Tˆ4ÂVDÛáÜıwïGñtïÉ'ÖÖÖ&7îV£Tïî¥ˆT∂ïtsV'GVTU'TvS&îW§f«¶¶#Vg≥CeT„áWÜ&∑Eƒd”DÉÑí∂ƒFuVÂF3Ü”ÜD¥5cót∑DÁ"µv&Ö§T#Dñ$DfV∆√vvß&§∂√StÊÑáƒ5dìdgVT∂3#ßï'Wñ£dDÂ¶”UV∑47î∂cfStñƒˆf‘v‰cTˆcE6óT2∂6„$FˆˆÁG%e7sd„s$ÛÉ'u§óÜñƒ˜ñÉCñ•îÜWf’‘‰µ%r∑73t#CÑ«ÜtDÂCï&∆Êƒƒ”Uïîîìeî‰•2≥ááìÜd‘G¶‰ÂfcÙ∆í∂5u$∂¶t&ıECT‰•TƒGváî4sUUUÑÑ3&ˆ«4Áávg¶cu√Ü¥ıáv6F•5%W3CD6%îW4”«U4Ù'£'eó7ÖîDdÂñ∆F≤µRˆW÷F3&’Éf«§≥Ê¥vÊµWvñ§$µ§ÙµC&‘ìC5§‰t§∆DßóìT'ÑFÑu'íµ§î¥‚¥“˜tEf“ıïcFUñÊ4ÇÙ◊óVˆÖÉ%"¥D¶”4Ê«EìÜÊ∂§∑ïUìÜˆµß”uTfUóÉìg&Â5#t'&”gÜ£Ñññ◊VµÜ«&Uv‘4’VÂÑ‰¶'w&sB≥FfT∆ñVD¥§eó76’#7áUÑuCóÖ3óv≥f≈•gÉ&‘ÖW&WóV∂∆◊V«ÑƒîV§’#EfvVáÉî÷eïfvceîƒ%es$áuáÑ∆$ƒµ÷Êv∑wu%&≤µì4sGt•$˜6&&≈¢Ùsf#F”'$§ïVµußîdF&3Ttˆ6sB˜tcu4‰V%5ó$ˆ%fÑ¥T∑dw'ÜVñ$'ïuóF§£v¥Cc∑áó5wá&w3d∑Â%w%WvÊ÷ñ÷÷¬∂gïß¢∂ß˜FE&TÉñ3Ñˆ÷5∂Ü“¥cïD÷V‰£d7fÙv„eß˜Gw'óF∆eGcT∂∆fˆV≈5Ef'tT∑R¥ÜßTf§ˆ6cwˆ≥3er˜t'§G§w£cTÖîáf¶Ê÷˜vóCFdí∑3f◊GV3E##SWvÊÊ∑7Wf§‰∑Ü5&v‘áWD◊Dsß#UÛ"∂£'ÖUì%T4eîuV&$ECtUÑvÙ#vó¶”#$ßs'FVˆ∆G$T∆g§uDÉsvÑÜGñ6vÊtv‘˜#6ñU'E'VWTµ3ìÉft&GcÑˆƒ£ÜÑ‰ÖdßÑ√Cwv#E•tıVSïÖsÑáÑ£5Ñgus≥tcó"µs%T÷e3%%Fó¶£Ç˜’e•GßÉdEÑ•óR˜îv∂wì$ïßá5ßeVˆ'eCv6tCUV¥ÛV3DD6‰S&ÂwVµtdßßWÉ7s'TÁ'vVC&GvıÖ%ÑÙ÷ñS'F'ñ$«ñ'ufv‰'c&WÜ«Wó£"≥£WÜsÉ&µ7ñ•WgC$ÑÜu•d«Vññ¥£f§Ûtˆ6÷≥t§sw¶3ÖîóñTÜ∂∂7óÉUge6á£rˆW%%ßóÑ∂µgó§tÂgÑ#Év◊dßEÊÜÉV◊wÙG3cÉï¶cgÑÜ§r¥GÑïT#&£&«vïTì3'dvgtÖfˆ√3î∆‰’#ìˆ”7CWì%%5GsF¥„F‘§gTFÊ¥ud≤≤Ûe£G£ìcGñÊµrµ«ññÁïuW¶5§ìÖƒsDµ§‰UwuódÂD%ó¥Tì$‰F•ˆFßW&DÙTsv'v∂«ïU•2¥54UÜ◊∆Ü∑Ü◊¶V47eìF˜ód$etS$"µ5T’î6§£c§ˆñï«u«sWVÑVd√É74É#ÉTñÑgïEC¥ó6≥ó‰ÊDd5fısTEDïGvT∂s$á&sá5fƒ÷&ñ&F÷ÉvÖ%gDecvT‘ì4îß÷6u•ìÖev'ó¶ÑÑUfwwßáwÖßtCñw¶gV≥gƒ•3Ü7Ñ¥"µ≥î÷#ïv∆ìáî&t7wáÉ$áeu&SVÛW’5ï62∑%VÖTßñ‰Ö5WwUC7cÜ¶6á$ÁDß7Ñ∆‰4¶≥WïGcfD∑Ñw7wÉfß•C&‘4Dós$÷e6ìt‰U4ñdg§÷î∑sá5ñ4Á%$V∆Âó6áUñ¶wC6¥ÑÉv÷÷∆’4FTvñ≥óU%§∆4‰2ˆ≈&v&u447f$fF%#4V«wf‘ˆıÖ¶¥dˆ3ÜevsïßUß%d•ÑD∑ó$∂ÁóGñ6‰ÖG%E4§ó'T$¶ÁC%'5îsÖßÉfS#óíÙ‰ÙfSsT#ïWTî4WÜ6ß&ñ∆§¶Ö∂ÜìïWC6'4ÁuìU§◊6WD≥wTÛ#4‰§r˜sWƒCfUVGT‘"∂£6'ìWUï£%•C%í˜tt≥VÂÑSVîÉE%á6¶ÊwWì7Ñìásî÷∂tDC$'ñcì$t5CEÑ7#v£D&t∑5e'§Ñƒ’GÑ∑î765ó$£d¶Ñ§fáî&ß5%4≥Ñ”√T∑Ö•fU◊Ù’•v3Cádt4Ñd£Tï•§ÜDcïCïì∆ƒ≈7f'Ñ‰µÖßós4eññFÙ¢µí≥VUñ$µG•¶Âe44Ce4ÛGSv˜$$ÜîeÜ&ds4∆B˜e◊6á$µ&‰ît„sCGß•B∑áC•6£Ü£u≈¶EW4ìU$∑$”ÜßîÑÑ≥vU'Ç˜3ˆÉ¥%îf%7á§Êuf¬Ûd˜«5”Ét◊îÛDïÜ&‰§óÜ„f5g&Ss6‰’$ƒ’ÜfFµßuE$ìGuóWg•fd¥svÑ◊6Ö4‘‘6ƒ÷∂“Ù7wÉFÙ≥34ì4‚∂ƒc#T7gCvß%GufFï$Ùı5ñÙvtu§“∑$‰áÖávƒ∑wÙCCVÙvGñw3ì&efñ£t44á§gdñT5'¶÷óá¶‰%7C#v7D%ávCÙ6„ucÇÛeVfVÛ$E§√U&ÑwTïíˆ’Ù∂Ñ¶5'îµ#óı•ÁT‘Â$Vï%Üá5edˆ‘fWg676ÑÙ‘Cáb¥'bıÑóD¢ÙñcÉ%Gs2¥óÁ%4sWCU§∆67&≥WßSïá4µ%îW$ÜEÖ$ìfE&„eÉ&ˆ3á◊ßì7#ïRˆñów3îÙ%ÜV34g6Üñ≈¢¥’§¶ˆÖß4v6µ2∂7Ñt÷¶§dvw'$d6£5V4sïWñ§¶tSÉó'ÉÜ”w4eDf∆td£T$ÖSÜD≈ï#eß§f¶TtsfT’s¶î÷ˆ4ÛCtÉ'SGG&‘t%ßìg7ï§ÙGï#uf%§ÊEÜó3G7Öá§‘f£"∑FDgCî¶e6%f∂¥≈•ñ≥Ñ„ï%SÖ•Ñ%#4¥÷Ê«î6D˜f&Ü¥CVvîÉVì5UT£FÉET‰V’sFV'ì4ßóUF≥ÜGT∂÷∆Ê6f7d¶D∆tSÑ÷fƒÉeW3Ög&EÜ√4uì5Váe6G'wC$ÑuCSuß◊TU%w3U5Fîs$˜&Âw%ï3%gó3#ˆ¶%Ñ#"˜ET«&¥W#7CFCìcÖ‰«Ù÷6f÷¢∑ñìî≥wcGGD˜&%WCD§‰ñ∂∆§6µ§£Sfsìfó&ÛÉñ«&≈W¢˜Ü˜§gsáfƒ˜ÖVFáDÂ‰Âï$∑≈îîáˆT¥f4Ù÷ì6◊ÑvGSÖ¶˜C&•s5«ñd◊gîSTÂ57uf#Rµñ∑4'wT$∆Ñ$÷7ˆ÷T∂∑&gs%Ég¶∂¶uW#≥îgd¶ïVÊ∂6vñ’÷∆E3Ö4&wí∂‰£edñıugWUt6’4÷4ÑÉ&≈d¥'VˆîÙ¢µ4'É7ìÖÜ'§cóvÉGìWt37∂≥Dd¶ÁV%'&&∆$Ü“ÚÙówgeFñV4∂ÑVsW6$Ûd˜ÙgU&„ÖDWS3ÛÉófV˜3D÷∆¶Ê§%á¢¥GR˜tE$∆Ú˜vcÉñ6gÉfT≥4ˆ∑6fÜeRıÂ¶FDı£T$ó4∆wıSD$Ü63RıGî∂c7GFce&5'3Ö#4÷∂'TCDƒÜÇ∂Ñe7%E7ïbÙTßwVƒt∂e∑s7Cvî%gÉSg5÷D∑'F'F¥÷§∂ñ¥SDÑdµîÂ5Wîˆuf«Ñ¶§Ù¥ñv∂ƒ¥4U¶≥óSC5§◊Udsì6ñÊ÷∆ßÜ£ó‰Uu£3D2µíÛuF◊du53wï%$73G&Ù¬¥‘•ÜEd„63Fî§CDÂF˜ïìÇ≥îÛv$◊áñ5VÉcf˜ñ’S4bÙ§&÷SF÷&ÊıFuW'gdSµuì•&ÊÛvv∂g4∂˜cV##V√7ÉuuGGSeT∆E√Vf∆§5Ù%'&uevƒ‚∑áUVf¶Gï'VF&∂µï54ï•wÜ∑Ê2ıìóƒ'∂îEÑVvt•&74ÉtBÙFÙßDW∑TTtÊ§fÊc2≤Úµeñ¶ód•3ÉsEÑá¶T÷£ñT’TÑ◊6÷ÉT‘Áet"ÙÜ&wtfd÷ƒïV∑6ßñv4É'áv¶Cv4’¶ìeDeG£uwîˆÂF≥fßF¶EsD«óVÙ4≥$&sî65W«6Ü§eßµÑîÙÜ$DÖ6ì'îˆ≈UóñUÜ∆tóT«C5FrµuWîC4¶ˆR∑SwìÜf¶w‰s$ÊfÑtïñfîU§£uóÁT„tuó'¶§§#eWW•f£fUv§3fá∑FÁÖv«d’$áD&”7óTsu£fFSd„G£4”óîeìCW5≈¢ˆÂVtDÙµV•DáÜ§Á∑#EU7$TìÜ5u%465TÜ6&«dî∆§∂ÉF¥ïf£e&≥î÷ß"∂≈d◊D”d£eee%sfEÉb˜¶s67SD§ïv§≤∂∑'D't”Gßî∑V'•Dód•'Ñƒ∑ñ‰◊$u§§#cCeßîB∂ƒìîS‘≥S÷%Ftes#ì#dÑá6WF˜v"ı#GTÂcÖµ7ÜµcD∆Ñ§Ö¶“∑wÜ£&ˆ∂7£d’d∂ÂSGÉfFÖvµtw&√EeÜFwevÊßdóetÛEeCWïEÖ3&∂Gf$∑4s‘Ù‘WVÁd¶Ü7¶6Ö'áv≈sGÉáEîˆ'72≥ó¶§«f«ÖCef5ÑÑÉF‰eDc4’•UwF'•£Ö&Á¶eï6&∂Ê¥$tÛÉÑ÷÷Êî‰ÜTñ$˜%£D¶$‰7Ff£ï5c•$÷Ö47tƒÊ„cdñ√cÑßT£CU'D£î4V%6ˆóï4Ê§wß4î#fƒóÜ∂3V5f∆∆5sGf∂c&V”$vÂ3'Fˆ∑ñsCWÖßÑtu£vD‘á%d÷CtF34U¶ñ§Ñá¶3DßE&ÊÜ∂uVÇµ%$Uñ3ì&egì%Ö4’§65ct4r¥√dÑe7EÖF#TdS"ˆ√sìUÜ÷îeuW5•á7Gî”SsßSáß„UW&ìÉ'î‰t&táDwv•UñìC6Ê‰‰˜WóF$µVıT”ñîFv‚∂FEdï5îD&WVˆ‰&÷%cÜÁ•%¶ıv”ñ7Ñá•CGƒÜ'ágñg%4ÊD÷fÑ„3íÚˆ"ÛÖdd5Bı3ÉWuìF£5É&GÖóáf$ısñ7dîÂVÜEC4Ádƒ$ï•S&§tóñusñfD≈§S6∆«ÉgóDwCSÜG5•4uDÙvˆ3Wd4√&„ñó#546˜$7áCuewcv‰óVïU'4&4CWVRÛ˜tTÑñ%VdTÖVsóW£uVñ¥tÑt4÷∂ñÉ6‰Ñ∑îTÙ„d∑÷EFósGEñıd¶ñ%î$t"∂%Ù‘GT¥ÉsT•CÉ%Uv≥7ï%rÙfîvv∂ƒVgw•ñ‰$sB∂ƒwsg¥≈¶ÊÊµ£5SVÜ¥ÖWs¥«gÑD¶#4ƒÊ5B∂Ü”7GdÑß£&ÙvgÖ¶eCeD§F7î∑ïá§ì6§ÛGÙ¶÷√Vï%Ç˜wWì4GÉ6sW6&S6¬Ù∆%Gï7vÉE4ÛSf‰ÖSìee53%ÉF«F'#ˆ∆‘∑óvUcsñÜ%%3gSV5F’Vî÷t¥F‰îr˜&„î¥cÑ∆ìWgf∑STì&∂E5Ö•T$sÜÙFÊ¶§„T≈fDT∑6£#rÙ¢µ&'&Ggñuî∂GÉ&tîÑ§≥Có£ñfá%5ód˜GfWÜt‘ñuDï&w4fƒ$Ücf◊DÖGGÖCUîî¶&7t‰«#5DÂÜTıT§v¶Wd∑‘6GcÙ√ññEcÑ•'d&gìEFFìtstsvıÉWWñ4SÑCfññ”•FïdW§b∑eTuTFÁEÊ¶$‘•«óuñtT%&∆wcÑ§$ácsá7D%ftÉ$îtá%eÑˆ4‘ˆ§Vv62ı6∑7DeEUG&UuÖt«s6ìu6”4#&‰≈V$$∂¥∆dF≥TîsCEvîìîvuSv‘t&¶7á•Ü√ußÜ˜TduF‰≈¶$ÑdWsì&ıu4∆Gg#V¶5£d6wswCe4ÚıwfE#G§∆Dv§ÑvV≈t§§Ñ‘U%'¶¶÷¥‰t÷ı'ìEáVîÊTeubÛUeEE√4'd”uS&4d6seU4ì∑u34Ù∂÷˜í≥5gïóCÖ7fuÑuF‰áe#íˆ3d£c4&ñ§¥t£î£uUF&Öî≥'G33STd◊V’§ß¢ÙìFî33îîˆV§Ê$‰‘‘6Ö£tf∂&Ê÷Év4&Û6&∆á6”u$vÙÉcv≥D4FC4d6UF’F‰ÂGUe§óv3t÷ƒcDìf¶gÖ$ƒó76%ïVfƒÑ¶ıcS∑5DñÉ'Cñ‰ˆcs◊ÖÑ7Çµ4áñÁ§Ö6v&“ˆ¶Ês%5&áïF¶tÑvE¶TguGTÊ•∂’GÇµÑı'$ó6“ˆ&ß36áUï4ÑUÉsÖefVˆw4Ñ¶2ÛìáWáGïÜı'EGÑd3udï§U‰f‰÷#Wîˆ¶eDÉîc6ÁF„$ÁïSïÑ'£îC≥ÜÂsf4∑v•ñßÉGR¥∑D¶∆ƒ∑suuÑ3tÛCSTeT÷÷ƒÑ∑#U%ñ÷'ógTÉ6&gÖ”ÉTıUC£eT∆g•sá66ñ$‘b¥dÜ6sïB∂ÉRı7&&Rµ§∆ÜÙ$Vdƒ∆$R∑vg•ÉìÉ«$ÁTÜ&îtdÖßF≥ï'¢Ù∂÷e$wUïÜ„4cìW£&ƒ7g7T&ñı5£Ü¥µÑ&ïñW4≥4Ù∑6ßF„335Ñ3uUV4esfóFÂ§µf÷d∑CÜt2ˆ∆ı'É#ï£U&‰ÂÉ”eÖTgdƒÁu%tÜ’&3DáUñ‰‰ïeSWdváFÙfTÁÖ≈Ñu‘Ù‘Eì3DÊe#CCddÁ$#Vd§Dt‘ÉÖ„$áVFBı%£F'DßÉF£F∂◊Vóg%ßï&‰'Ü£fGìï∑¶î¶6£G•Fˆ57EF%Ö5#Ç≤ˆÛ¬∑''D«•dñ÷÷∂’ïbˆ∆§¢Û'5cïïVóßÜ≥óG√FÉÑ£5÷Âd‰u&ìUfìÑ4«C4GÜ§ìEÜ÷√ß∑'fÑ«Gd„S&Uïíıb˜7BˆR˜Ü˜FÜÜ%D≥Gb¥≈CÉîÊefdÉÇˆ3Có$UT‘ïÁ•3evU5uTˆÉbıw∆≈gTïfEt§‰DsF’uTóF˜e•'ˆ§uÖìd◊64T≤µÑVÙ$u§˜%Ñwß3c&˜TÜ&T÷ÑÁgñ„$‰GÉfvì&$4ñÊVV3GßîÛƒƒgñ&Éwd∆ƒ§s5GC&≈Cî∂6vÂV≥Ç∑sf%e÷t’D£UîU§%#ï$ı&§t∂∆'ïî&¶ñtCuW¶táˆ5¶Ù4≤¥FÖTñ&gV%§ï&vtÑÑÑeÉ3¥ÊîvÑ4ıd≥Dı4G¶≥µ4GsÖìtÑˆ∑SÖcvµ%#v3ÙîáÑ„W7ÉGáá•uìsVßV%£6§sf‰Ê∂∑3Ñ&dˆ’E$ó7îÂÖÉfÊ„Ñ$Ê¬¥ïîó&∆4ÙÂtC%Rˆ§√esb¥∂µEóÖC£'FÚˆîcuT3'VgÜS3ìgî≥7r∑îÊ∂Ê„dv∆∑CCW6V÷FµVñßtˆÙdfD§$◊VT¥§S5óáÉuó•W§wGí¥34◊ÇµfEÜU$ÇÛ'6csgufedcóvUuUw£Dáe∂«ìT’fGÖgVµcU§ñ§≥wtÛ$FñáE'5ìGd∂v‰ˆGV5fƒáfáWwÜfB∂UÖ3e§SÉïcáff§•§ÑÙ∑W&Û&«îb¥Éá3C2µÑÑ«Ev÷V’v¶îus6U•V≈£ÜÛÜ‰ñıESîwg¶ÂWß%v§eWTîóìgCv≥gt∆FF≈6ÁF√4ß$”§∑5DR∑&ÖìU4ÚˆWvÁÑ∆4ƒS$F4√Uîó§≥tCeıWgìGÖÜFÛUf6$T≈óïGBˆ«tµFß∑%GSÜCDdse•GïÜtıE'3d4gTÜÑwfÉïßdƒgÑ§Ñı5d¥T&ïìó6ññ$ˆSCµì$fáWB∂6w‚≥ÜDCótv’6ìF’§£Ñ∆Ö2≥”$√v¥GEÉGsñ3&÷’sFñuT§Êñ∂G¶„'E7ót˜c6DƒÉá6C$Áìñ∆«&ƒfD¥D≥v5î"˜w¶Ê≥ïFˆ«&%á44îÖ√áT•d§ÇµîÜ$eßeÉï&§WS&Êµ¶Úˆ«ì6ıSóC6dd%¥î§∆”tg'5ñ3EeÜÖSDvgñ˜RÙ&¶eï£'É7#ÇÚÙV%dÖÖT∆§rµìudıG¶„4Ü%ñD◊T≈g£W4tÂ&ƒtîá5C3s'VˆDs÷4WÑTµ#Ñ‘§7ÉÖÖ'sÖE34VUwï¶6≈c7GDÉdFv£s‰uÖógf#ìuG#%'ñÉdÙ÷£6Âvî”V„ÉßîGDt%FÜD§w$”$’ÖSt6≈îór≥TÙ&≥ÖdÙ∑u¶◊5V≥¥”Ufƒ∂wgÖwGV•wv¶‰ÑÊU$◊&wt¥fÁcGT7GÖST‰d∂÷÷5§ßD6UÜ∑d§≈ñsucf3˜5ñuì'fñsGD˜F∆∆T÷7Fñ£DÁDtñ6%W•„4∆WF§ÊV∑U§4”Ü‰Ât∑'¶÷˜#ásGñîvS&Sv£sUÜıV◊T∂∂E%$4#V∂¶ˆV˜T÷≤˜◊V≤ÙDvf«fñ’µeF#D≈$§Vwsw44ˆÑ≥Ñ6Û7•ìVÚ∂S5FCófÖ¶E6ƒ∂%6£dGìdTÊ≥£Ç≥U4≈ÜVWc'F÷µtïUF≥á6«¶d3vu6ÊVt%GÜ≥óƒ„Ñt£W$¶ÜtGDEßá£áß•6UÖá÷∆'t‘Ñï&µÑîîß¶•ÊD«$gcU7D◊ñwFv√ñ∂§£cÖU6¶5v◊3CBıuT«Ö§FÊScEVÜv˜Ür≥&f#eW&∆∆ÑÊ∆∆óñtV&5§"≥F%g&5'ïÖ&v∆Âf„f¢Ù’WWE&í¥¶µ••d4DG4˜c∂Ú∂ƒFƒ√4Ê%CfUÖt3∆îV&EV÷≈#VˆsÜ&ı‘„4&˜wWFsEsgUVdÙ„v‰ı4∑¶C7FÊ’Ödc#Fv∑tt¥bÛ&Ú≥$«ï•¶∆Ö¶˜&Ñ5ÑƒVÁgÉt6Ù¶˜ev¶¬ˆ‚¥ìfucv‘•wT5Ö¢ıF$óuîÁ£e6ı#ìd∆÷ßSF◊FÉV∂%§uTáUGáÜ§ó¶Ê£'DCV≥Ü6ıDñîuñ77v&§t4Ñí˜áVfSE∂˜sÉ6Ö3#DDE§s6£cññÊƒufDuU§•%‰76F˜¥¥‘sd4%ìá6g#$d√ïv‘«6§4÷£VDµ¶dD”$∆#Ñ“ˆÊ≤ıBˆÊtvñDF%6gÖßGdÊ≥ó•F3î5c7¶dƒ¢¥2ÙF∂¥ScgÜd$∂É'vÛ5Vv∂W6cEg&§DDÙÂFìTD¶%îtÙ4∑6Wßvˆóuu5U$§•ï&ñ◊ó•UssVb∂ós&˜áî˜cG∂¥‰Á5"˜t#£á'CÉcT«$¶$Fu"ˆñc5Cî¥Uí∂cÂñ•Dˆ4Üƒ6√F«7ÑsÉFfvtu7FßCuW7Vìw$tU•dÖìuf¥t÷Rı33f≤¥¶tDewv∂˜ï6gtGe3&TUáV◊óñW4«UVáìR∂weìE√6√sÑ«Üd√V6áC4∆wUe•dÖÑ˜$WC$D∑§e§ÜT÷≤ÛseuÜ•t4£VˆG£SGáDuFvR˜t$ˆ¶◊6G¶$Ùó§î¶¥≥%∑Étáád¶ıu§w%vÑV¥gwUsñıW&≈4•F∂◊eï&‘‰∆E5§7§¥Ùî#ógE&£4gd$ƒf∆DfÂïñ•Sïucó£deî&6&4¥4Ñ¶sdƒ¶ÂvßìE¶wV∂&&c$ÑVÛïˆ5UD◊Ü’5w•#DdcfdfÖFÖdÑÉ'#5Sud¶&5C#D4Êñ§µ'§”wC4¶÷EC$ƒ’&ˆìsFƒ∆Á3c7G£ÖD∆4÷d≥ïß¶tGewáUî∆SwD„uÜ7Ùµî§ó$£f§&62µ5f4Ü'V4DˆÑ•ïßEU7VìGCÜÂtcóvñTd¶'Ö¶’eó$§Ñf'Ñ•FsG#S6ÛSìó5Ugd§wuï§∂„VVWFe3uó#ÖG•$¥Üƒ◊¥«‰ÉWáîVïSCecr∂£ecw4”S4≤¥CE#fsóu•wV”&∆V¢ˆ¬≥2≥îµvTñEbÛBı&'£Ü'óWf∆'c"˜îÂ£5ÇÙ%G$ÁFE'Éfd˜áv¶GCïsá'SSïtÊÙÑˆ5ìeegˆÁe4FGf√¶îıtEFÜ6∂g%tìR∑ï§∂dBÙ«ÜDÁ$áuSc4«G¶5¥§«6W2∂Ñ7ñg5gTdˆceÙˆ¥Ú˜t$÷≥áwFCf£ÖDÉUv&Góá¶áWsWîFÁe6%SîS„v∂îÛFîD5&F§◊wv%GtCsócósÑ‚ÛF$ƒÁWï5Ñ÷tÚ∂§÷Á'uCí¥∂Ñufµ£U'ws÷Ûf√%ñVW4∆≈eá4◊FVÜVusVu%$Twïs&«2ˆ¬ÛÑV≥óf3#uu'wV√#ÉEßÜÁC#b˜tïÖv’ÉóáGf'W¶Êtî&≥ïBÙ«6§ÂìeFE3ï3F5D3UVu%'ñ∂ïñÊ§$$vU#îÙCìfÖìV&∆Ñ&DeeÑ∑UÖƒB≥4UìE'trµ5GÉádáev§˜'ß≈£FuW5F&uf¶∂gC£$˜g∑ÊU%u¶≥áU•¶≈STÉtBÙ˜DáVìvD≈VìÉF£T4£¢≥5ÜÂFßFñƒD•É75&6„î7ÜEE3vd„î5C%îıFÊ≥ï#W•#v5Ü∂#7§‰tó6£D§Ù„TÙÁU65î£W”ó5§‰ÊÑ§ÊˆÙƒV’f≈óU“ÙÁ£uìñS#4Ü¶á&E'uwßVµïtÙ◊7"∂v∆t÷2∂≥ï4&‰&ˆ„FƒeeGVÇı%v2≥WT∆e3EÉUu¶Wv§≈E3r≥u¶§∑§§Á%ìó6E#ï'î∑•ÜrıÖß'SvÊCuuG£uówG'4W$◊UTïDv∂µ"¥Ü&”C7î∆Ü∆•ßuF7d§¶#$Ñet∂∑$¥ı£Ö'FÁƒÊ≥3%ßv&d¶Tïd¥˜%&¶t£ÜÉf∂≤ÛEWóDÂïgteuîÛg75§ÖÜ„fGcî≥6ÁT$$ád4•óSSîGU3ó5eF#f7GïVÊÜ≥F§F&Â%f#R˜t'Áñ’cU'6v”sÁF3%óS7TÁ≈4÷Gñ«E$É2∑'EñÊd§D¥∆uñ$ÑÙÁEÖE##óf$&ıî„TCï√tdßs'órˆfÙ∆vEgÜ«Tµ•dSu•$Fß%6Tî•Áñ%CuWóG'Dï¥ï'ÖUc%f#ED3$DDeDÛ2ˆVu§«w2µCsß'’Ñ•sáv•§÷'3v§d•ñD¥FßUìt‚ı'6«§Uó£e6T∂«SDñUsìfSñ¶√DeT4d•&•wdïÜ§÷ÉGtCsµutf3Fde'¶¥÷ÛvTT∆#cFóDvDÖ¶vıÑDT«wVR∂twB¥ƒóu&&§Wî§ı7'DTıct%FÁ6UEsc¥„Su¶ıd£7f≈v'≤¥≤∂ccD∆5#GG4T§WTÊáßvsd%g£w"ÙìáV6≤¥FÚÙ4≥g3ï7ïWñTï•§4esî∑wdí¥ubıWtácufV¬∂∑4¶ÊUST'¶É$îƒD&§‰∑á6v%ó•5E$µs6't4"µáGî¥≥Fd#%E%EsÖEÑCusF6∂3ñWvıUÑ¶ÂG'§f&WtÚ¥Á§f&V7ßU57ÑD‘tî#tCñ5VÜwT«EóñeD¶Ft„vcwÑ∑D˜ßÖÜV÷ïá•G6•d÷5£D'É2Ù•U§ÉEßUT•tÙÂ5&ƒsî$Ñt‘VE"ˆ„4ıÖ%¶ágEgÜ÷§«w&F&∑U§f∂##u4TÛ∂§ó¢ÙG'„µTµwÜ3S'óï&%sGñs6B¥˜eF÷‰„uíµeóáÑ7Ü7UÜ'tÁìCdFÁWEe5$§˜'ÉT’6¥$57#íÛÑUß÷‘6ÁEÖ#dƒ‰«bÙñ’ßñ•5t§Ñî∆ÊÁ6V‰dTß√W'á•sóv∂5§§SdÙs5ìóÉW¶'d5v∑D¢ı4CS4F#7¶„$ÑÙ≥frÛáîÙ'Uñwát÷∂Gï˜t‰fÜ«d&„g¢∂Ñc%"¥"ˆ&TÉF$s5wáî˜E&‰ñîÛddˆgEEs$vÑµ66§ÜWVñw3TóìDcd'óc&ïsWUÑñ÷wf'Ö¶ÑóÑïÑDîcfñÁ•s&‘w§g§ƒG4V‰$ïÜ◊D«EuÖUwTWTñ‰tÖáe"∂ı•5v$s&„UUì&∆T”ÖfÑÁ4'∆˜ó6ñ«t∆&%E”E◊ÑCfegf«6T∆∑&3Üe6ìw4Ù«swD«7ÜfÇˆì'cVC#ságEwÖá6UD◊gÛDVÜvT#ìeÑt7•76ebÙB¥÷„TT”v‘TdÖÉáñá4fgV$%6ƒƒîuTÊ≈$DÂWáeD„V£T§Ö&≥G£ìgFeVˆí≥e4‘V„Ég't¥Ü§¶5Tƒï3FU3SÑÂ&‘”6îñ7t≥F'ÖvCÑ¶c√V«&esvïW7Ö&4Uîv4ÖgG&Seß&U%&∆ƒïÜVµVVááscT∆W•$ÊÉ%fÛÑ£óÇ≥ï&4Üƒ‰c5F‰Ê3EÜ2ÙÉÇÙ‘˜6$◊óî#v≈DUgwgí˜#s˜DƒgÜ&˜$µ”v7GuCrˆV≈ìÉ5ñvîïî∂‰Ü‘Dev#TcÉó4÷˜ñf#î¥ƒÑUD◊f§≥ñF÷˜5D¥6∂ñ%53$tîı'B˜t#î’t‘&É&¥FáU&Á˜á$£&¬µñı#U4Vá£dÊÙ¶ÛÜ∂î%f∂ñµÑ§ßFf£ó5&◊4uFG§ıv6áCD§ÑñTeÉEVtìî˜4ÂeU7Ç∑&#Âw§tÁf”ggµÖgw66¥T÷TÖ¶ef˜ñ#TEgÜƒudìÑ“¥Ü$∑wDwVˆÛV§EÑïÇ¥w#wSF&6ñGsE6Áï%÷ïÑ≈#ÜóD≤≥V¶¥˜ÜeCeWáFı£w•ß46&¬∂$¢ˆ¥¥ƒÑs44“≥W•g&ƒ„T¶ìvdÑñ#ófñfwcD%ÖdƒD≥"¥"µFCw•GÖv’Ewóñv˜§„EßñÑ§#ïñ¥G&Êñ¬ˆÉ5cwSïs35Ü◊óUÉVe3#3v%Ü•wd'$gDFv’ï44ñîı34ÙÁ7Ñ$¢∂‰óîıá•ECî„gsóC6ÊGó£%V$§S%b˜3W6&§5ßì$7&3ñ3ÜCÖñ∂≥G3ócgV„÷Ê«ñ≥ÜEÙU£îwGîU#v&VÊ≈ñµ'D¥7wïF¥î‘DtÚ∂5U•¶fEw3wGdEUì4∑îft‘¥"ˆî≤∂cg$∆”v¶áD«vvïÉÖÑñ#Üvd‚ıFsCsÛıÑ∆ì7BˆÉïftuÑ„u§∂ß6‰'¶÷∑Üw$‰Fdwd’É2∑cTv∂ìÖ5V∂StÙóáÉDGñ∆u4C3f‰ıRı7U5E#Gw£#gwß§∂t$ît&Á&§Ñe£V&‘ÉFıÙ&wÉSïÇ¥ÂgG'•tcá5VÜ£áÑfGebÙF§íˆ÷G5tıF#îˆ3D‰Á§÷ÖïóÉ£í¥¥√ÑD$f&'£47Ü‰ñÑgu&§ì&Êß&¶¥SÉÂg¶GDf3&Ü¢ÛÑóÖgt«we¶3GUß£eVgr¥F«WÉ£ñg˜EFß££'%fDfñ∆#ÑÊVñ˜Gñ≥áGsFC∂U§ÑTììÑÉ$tCs˜RÙD◊ó#ÖDsá&ßî54Êî4ÁáßU'¶∆weDÊecîTV6ÜáT‰ƒGÜï$§D4t∂ÁF«WdÖñD¥áSwñSw4•îÜ∆f6ÛFƒF%$F∆6‰áÉuSvá¶Ü•Sg%ñ≥gV„$Ád'GDÜFV≥áDW6Á#7î¥◊TCgVVát5g5¶EWV$Ö$•ñwóî∑dá¶ì3v‰‰∂D#Ü&◊•vcGeFÜC&ıî÷‰dfd35g&3'ew$TSE$ıÉ∂ˆ•U¶g2∂v•D&&ÛcVDˆvG4Ád§•CuWÖ&£&C4$6îuáìÖ7VwáWñT4µs3Ö'Ct•ïáUv¥ÂTFÊC$$ÉÜ&•U£∑ñ##&ˆW√eW¶≥wDÊˆÙˆ'6ƒ∆•ÑdsÖcÑ∆cTîƒ÷T„GáÉuWsìÖt¥d§ß6≈ÁU£ïágÖvEsñ%#54ˆW¶≥TF5¶#'•#îƒÊ3%ßUwUesUdÙ#ìfñÁutƒ¥cVµÉtD3tÛUFd¶ñ÷÷‰f‘Ü‘ìtóuE5$ÑÜ‘ñ§&î÷∂î„W4«UÙ∂ƒWÉáìFˆD#Cñ‰∆§Â7E••ó¶÷≥≈Fv7Vc6ÛuGG%ïì£SµóÜ¶î&cVß£sWî¥TÜ÷ÖUF§ó¢≥îS#gSCUÉe§dv#ìÜsáßát&ó§≈ïDDÛÜsÜ5wSÜÊ◊d≈s7ñ4÷Vƒƒuu5StıT%C#E4VÜÁ¶Át£Ü3d◊C4÷Öt∆FófÙ˜5u&ÙìCÖ•§dñEC#wF’¶ÁáÉf¥„4'¥sg'ñ$e¶«DsÜ˜$T∂¶î∆’u4gµEEcÜ≈ï$tï•&v£'ÑÖî••6¥GáT#e•÷≤ı6î≈E§«VdcTsUF&«WÖìóƒ'&#ıu$2∂ßd§f¥¥&∂v≈tFÛ&C6§$É«wïßñvóÜUw˜îeîDí≥î'É$∑áÇ∂'EV√"µ¶3DÂ&4‘gC6÷Fî5áóƒ∑DU3DáñG3Vá6E6’¶ƒ∆5£FßátEwÜ%5ït$•T«ÉvCgGDı#á'D6tÉWg%F%tÜá&ı&ìÑïÜ#DÊD$¶Tï•WdÙ‘wDFˆV√fGttÙ5óóeF÷2ˆW$îóïc%§$DFrıw∑•$UG¶ß'UVó§v'ÂFGs7tuówT§‘VD6u#uïsUÜñWT≥V&«uG£ÜdÁ¶¶Ù∑3'DµD”$FsW£ïWWñv≥Cñµ5ec¥V&≈cRÙF$ÑÂGVÑììuv‘•ï§Ö6ıÖ%ï$ƒ£V∑3%GF$t%V§Ñd§WSWÙı5Ü$Ñe'ï#Gñ’%∂”É4U¶3uUFsñÉgß$VGd6&ìGDc%§ƒCîˆ“ˆ÷Öt'%eF∑VT4wßtµ¥ßïEïC'63Ffdtd÷V3ÉîµFTUÜD≈7$ƒfµC6Êñ«'áfóDÊF≈dCfµ•”í¥&ß%fG#Gìó#ßd‘eáóñˆïVf”f≥G¶÷√'5só$ÑÑñÛñSCD7ıcv3G•vV∑c5•VÖv2∂ˆ≈v6£VS&VfVÛU£ÜÉîcñg#ñÉ%§ƒ$ñ%4◊ï4◊SÜ∑#"ıvó'$•uD∆µïTîµVTDÂgVftfÜ6§¶ïT'vS$∂%ÉÜ$eµ•£5R≥îÖ6¶sT≤¥f∆Vˆ5Dñ˜ÑñÊdDFÇ≤µ#î%√6TƒWtf”$#óµîÚ˜E'÷ƒ§5'f5¶&4“˜„V&ı¶óìEÜ§•áí∂u7ß£ï#v#gÜ7u4U64TÑtdÙgÖ#ñÁgD¥CcÉv◊u7b∂DóïS6ƒgUdı#g66cS6óóÖDWf4'ÜÊÜVƒ◊5w•Cí∂§‰∂√UDÑwVÜU¶D”gW$wîƒ6ï£EfƒÜVƒÁSCGÑ’7ìáÖ6Ûf¶Tµód‚¥îWGw6e'ÁfT7Ö7ÖfìóÜ≈£g§∆7DÑ¶Gc'CEgVÁ63$∂&µgÜD◊u¶eSVfsSd74√FcÖ#fDÑDDÊf$íıÑ4t≥Üvß5EE7ìÜfD∆7eï$Û#E5§∑eVFî∂ÂÖ§fG4'$‰FDßErµ„«¶ß"Ù∑W$ÙGÜFÙuÙ”e&geÖeì6˜ág4ÁbˆÛÊWU%R∂∑ï%E5'î&4ˆÊdBı&fÙv„&ÊÜSV%SWÜgt§¶Tƒ§Ts'ó&∆3Cfv$eVDˆÂv”6§3F∑3u4t‰‰ïuvf∂ßCGGÉ'ÑƒDÙÛ66„'DÛÑVÁsìEUtsd‘≈Ü«¶7feÜ•FÜdÊEFuft‘Cd∂V≈TeáWG£Ñìf÷W#Üßrˆ6¶D•í∂UÙ¶ñdUÑÂgfíÙC4b¥¬¥ÉT◊cÑ2˜Ü3wgcefVÉgCUwGÖ4‰¶Üw$ÜcVñßT÷3B∑T≤≥5wFÊ#4Vf◊óïî£%4T√$'t÷cVñ˜fug¶U%Ñcv∂#US"¥¬≥BÛÖd£e%£2ÙeîetïvW•í∑cfÁw%ÙEóuÉÑFó3vVfƒ∆”V7UFF¶5dÑÙ≥w"Ûcg•î‘¶E3ıGd∑V4sUïóßd÷rµf4ı¶‰t≥5cgG7wds∑R¥„Ññ••7eWF6∆sîÂ%dF%Ñ∑ñ‘dìóßÜ¥Ü‰#u§d%vÁ&ÜÂ¶g3ÜSÖ#Fµ£#ñ◊5ß£ÑÂßß¢∑ÜFTD‰ÜwCu7ìá∆ßDÊ∂˜«ñTwï'ñ3ñ3˜D√ì6ÉÑÊDÑwßìdg3Cu3U$ÂcuSG&‘∂$ÛB∑í˜Vfc4'Tf’&tˆwßÖ&˜Ö4ˆ#wW3FƒßcÜf¥&”s7V'6dtDïïî4b¥Cñ5V√uÜsïudwó$ÊÁìí˜•g&îUñávS&4$ı&ÁFñv&ìtT#DGîwÉUw¶vevóT∂#feuÖgfÜóÑ£CD§ïì$∑U7SEóvv”U4ı&÷SRµ£ñÖV‰ÙFñìïìV§ó7Gdì#F&‘¥„d£wU4Û'C&DìÛí¥f5îìGGñíı$7WÉSu•fc4gs«¶‘Ñï'ÜsTîE§áC7¶Öc4¶DÂEî4ß4Áf¥DFßc'Dsg•$≥F’u$7TuTÁtÛ7E3FvÉï4tıWeW§&tGB∂‘ˆf≥∑¥≥#D%ÙgWtT•"ıFÁ”î¥¶F6ÙdEîFfï£dÑÖvÉvCT∆T√∂‘Ü$ƒï&ßóß$ß3WÜ$Ùw§≤¥SóVWDƒÙ376ƒ„FóV•&¶d¶4VD”Só§ÖUñ√U5É7$ßT◊Gîu6'C4ÂB˜&ïussá6$deV∆vÛ&c%7ñ$sáDfD§C63TDFó'&%t‰¥#WG$ı6tFñ≥∑vTf÷U˜ìîWW'É#áT˜7cT5Wv’£áD‰uV÷Ê≥&GgÛ3îFó#ÂV§7Fó3VósÜU4”DdÑ¶d◊¶t¬≤¥µó§ƒ‰”Gîs3•VıCD‰3#ÉtTßU¶twvWD¶F≈uUÉe7wóU6U%S¥vc¶ñìïót6c•ÜóVıóÜÊÙ%&÷∑îUsCî6%T‰”7îDìDÜW#5$¶vÊuV3t§Ê≈#sÊ3'§Ñ#VwTµGñì4s%E6ì%gñUS7Ü§óuw•d‘e#TG’ìîÂ5§Ñ'§s4îÜF«SÜs4√f§eE%Ñ$F2µ$37s4'ÉfTñ”Ctî&Ê„F#ıw&≈dÁ¥TÜ¶∂≥ÑD∂¥’§4F‰ˆf”Wvñ'áuá5bÙÂfGÑóìÑw#&6ˆı7vÇ∂dÂ7Ñ∆¥'36‘÷§5Su&v≈F÷’&÷§gUT◊Twt&sDd#4BµcfÜ¥‘Ft¶¢∂D34„t˜cÑsWs$˜ÑFDµ47Wg•3fÜ”ïTƒïGGÉììÇ≥ïF√vT∑ÑÜ¶ÛUÉRˆVsvïu#CóïÑ&&R˜có6ÊFıÜwî4ˆFÛ#W&d∆ßávW§‰Dìs4G4◊6FóGGÇ≥î$∆3$3sÉvÚ∂¶«4Ñe$c4e¥§w£U%Ñ%ÊÂE%&∂ßdƒı#4ıvf¶gî„6&%4G7¶∂FFñ∂’&∆•îÙóï#ïB≥G$«&˜ó¶$T∆ÖDwgV$ßî4”î≥3'7wv#76Â•ı#U•ïdÉÇ≤ı6µv÷SCT«6ˆ4$ñ’GVfcÑñg¶Ûîg46ág&¢≥Gì6SWDCUñ∆£#Ds4ˆ5WóCïFÊñ’“∂§•'£f4v≥WTTVÙ7ñˆÖSEìTácìgV∆Â5$$¥•7ÉB˜4G£f3Ü∂ıs7G•Ö¶˜&ecv6#6∆d¶¶î”U≥t≈ì55'7$&¶r∂Áñ¶«$St#ìEìT§∆‰ñ˜7f∂≈fÙıV$3ÉñVV≈5D”c5E'£e5w#dw7GìÉ∆v≈tƒg4fÖ•DƒB¥•≥RµWñCÖìG”w5e«ï674÷4WáF¶îÁ÷ÖtÙ5Tu”ótT‰sfñ∑ïfÊ$ÊsGT•ïì$ı3GÜñsïcó£e47U¶7&§óÜó&EGeUî∆uîgßDt’VßU$g∂UÜgîT4ƒ≈ìá5óÖE3EÖCµ§∆eı3fÜEC7'T≈uf§6Fˆì7îÑ£tÑìvCf•¶ÜD÷uÖW$tÑsF’‘'3#Ws5$dSgÜÛ¥¥3Ö3ññî$udt‘%'¶«U"≥ïUv√VgÜ∆•FUìD$E4§u&ÁtE6≥µFıóT◊∂ˆ7#3tE#FÊÁÇˆCìcg63&b∑2ÚÙïwWCt≈Ç¥sÉáÑsggvÊ‘c&dF&$Ö§Dï4DßEó'¶‰•fî÷ÊuggìG£•FF¶Wñ¶7TˆwÖt#Ö$gÑ¶Ùwñ÷u%Ü¥S#GÜ¥'t‘„Ù‘V‰ïGd”Ü'&5wEïfó§uówwsí∂∑TwßßgÑ4∂FFUctÖwR∂6'52∂"ÙvEc5gF&ÊÂÜ6µÜ∆fí∂$¬ÙvEÉ$„îd◊ÜTt6f’ìïVÖ£ut≈UìVˆ%tCU¥÷6wGt∂RÙßßîÛcµ&ÁÖF•4dc5óvÂC6÷6«§óß§Ev7fˆw7ï7óßDî36«B≥”Uuus&¥ıUïecUVS4‰∑FCˆ7wî∆√#d√îˆD••'6Û5§ƒvWÖÉFSw&cd∂d≤µág5u''Eí˜sÑ«ìcÖ%îVÙÜ∆U¢Ú˜F$6÷£#ÖF&∆77c$¶ì$Vs4§√f£'Ut„F¢¥ñGcEf≈6&V£Ç≥s4r∂DÁGuˆìd¥twCÑ2ıe¶Ñ•îfF¶vR¥”TvSï§3e5îì¥∆ÉÉï¶'fdÙ#s£Ö%Öc4&6dB∂tó¶d¥wÜµ¢˜wEE7ÑU%'454’•ı4E•£vá≈ÑD≥óîµ5GîÉ'"µîTCeìóg%Ü√UGd§£e£&¶r˜#'GÜ%6ˆ«Ñ“≥ÉáTecî5%vˆ&fÛî∂¶vÊT"∑eÉî¥VeVd÷∑Gá''’DÙ&∑ñ&4VV≥ÖT«&◊î65á64E7TgñîÁï6SGWD≈3wEìv◊áVótÑï6F˜ñWeCdv∆Ê§GwÁÜßdvïï§Ú¥’£'#Ç≥Áñ•ìÜD≥v∑á7íıcV#d¥√FÜ$cE$ñÛÜ˜s4ñ6¶sCó£Ö7S#eTáWîóEE§ÊÑá&¶4&v6•cGïsóV's§77'ÜÑÁ3f≤∂ÛTv3RıÜóÂ'DÜî37G&&ˆ˜ñGîó§t&£"˜Ñ‰ƒƒ«DÊ4óÉ'ï7í˜t6SB≥eue3F§◊ßS#%&4ır≥55EvÁS$vÛ'6C&∑uñ6%5gïsfFWá#STáD‰3ÖF„WÉfóT÷4ÉïCìcuáÑáWT%óïE'57wï34F6ÊtGeSGìñ§”ÖV˜ÉÉ$3U&Ûu'&‘Ùfd’TÙ‰Uf#∆S3fñß%3wSV&ueDìV√4SGÉîCeEsÉW5¶§ñU5VGÉ&ì¶∆vv•D÷ts65ttÁgfÁ∂÷7ÑµÜ’£ïßDıu##&sW•&«§∂TDßv6á◊6Gï”e£eg&î¥3áFs6ddVáñ§Csg£d&ÙßGît≈4wóDf∂Ê≥‰◊'Ü4√3sÙ•§tÜ√SWÖ$÷tv√&£∆Ef„á%Ü◊d∆ƒ4&ÁSÜ«ßeUcvTïf§3óßñ&¶ÁSï4f&˜ßñ∆6d«îsc∆334¥÷ÑtÑßÉï%gáTÖv7§¥ÊÙ#SïváE6ÜóT¶¶6˜s6D65eÖ¶Û&≈§ˆñ¶∆¶ï÷‰ñ&ÊßEc$VÜ&TG£#ïvı$G¶&F≤µTF‰vÊıgìTˆFÛf'WDñƒßdD˜dÂ3#5$ñ’tÙÂÜ«&Gd«%7Dv2≥ccÑ3∂ÊÁ6tı"∂$§6¥÷gvóÑD#ct%4$ıT‘§«5e¶7¶∑5áÜ∂¶W§Éc„ÖÑ¶$µìßUîge7eFÊ∂6÷’cE¶¬ÙÊuÜVÛF£3ÖîeUfD$¢¥ƒds#Á#WîÙÛ&7C%dE¶%É«V7óTÛïc6Ê’Ö6‘4¶‘3ñ3Wsfd3S%vDcvF65§CÖ&TßSf4v«ìït„5••'EÜ≈Wd’43TVT‘’§CdUSW4t&tUósìGîd¢Ù‚≥µCÖ¶4î„á‰ˆU#$ÉSgSU54Ê˜ó&uv£f„eóñ≈§á¶VwgÑe¶á&÷◊ßC6µu"ˆ∑Tó¶§É#ìeFCÑ•£eÑÊ&Üd’Vtu6ı◊ce¬ÙUe•GÑFC6µc&µî≈6Öf∑vT‘÷4ÑÉÖG7Cd6’W¥svÜ6t‚∑7%4ìvÖ¶¶Á•÷‰§#D'ßv6SïS&GÜ3#f≈Ñ„ÑÙÜˆ∂4g3R∑TBÙïV5E§ƒdÑÑs&‰ÉFÛv3Tî‘Ü„î’Tá∆4Bı6EdÇµ£ÜsF#7t÷4CuTìd4Vƒ√Ûv√#á3'ñE•F¥£í¥∂≥$˜£#D%V∑#3CsìÑÛg#Ö$VÙ≈ñdÙ‘áGÇ∂wtfD‰‰¥ìóTîWssÉñ◊V§#6$ì$‰’ßÖGF∂µßwvÑ"ˆ•d◊4◊%4U&sî'T§ó◊ßcC¶˜&ïîe§wvt#FÛïvß'DWU4e§ów§∆ÂÑ∆∑T≈Wï$∑˜uCÉî√w•%v∆∑ó7utGT4∂wîñ∆G5ìîóÑug%ñï34Dñ•W$•'W7d&”r˜rµ¶sf7óï6‘ìvÙdt÷f%EvCÑ∆TdÊC%guß$v5'F«'C&f'&µg3V&TÛGTDvÑ’ì5óñ’#î”ÜñÊÊrı4ñ•ß•ÖEFÉTff&v£í≥VÙ«%WgïÜñ∆÷£6Rµî÷BÛÑ5Wß¢ıáíÚµwFEÉ3FSStgEÖeïíÙ&ÊbÙ4GÑ¬˜bÙuÇ∑Ü≥ñ&óCUf÷îÁS$¶«wcEóFˆ◊C7wF&gv˜ñd7ïsáÜƒ§«Û6áñ3W£c¬≥2¥ÁC¶≈T√$D'$ˆTÙ‰VáG$fE∆’§ïóÉóÜ&‰FÙ'ï6ÙveÜwG£îˆ≈F‰u6UUcî∆%e§eg•ÖB¥ñeï%£&u6VGuìv§ó£4Â¥eg•C'3ßD≈óf∂d∑u#U&DÛÑWE$Tv’ugáG∆∆÷¶µWf%5'ìTñßÜ¥ÜBˆÂá◊gwf√u$d§V‚∂ßñG6uìUcGÉ7•56T4Ü’f##U‰•fá7ß$ïuˆÑÜÉs%Áevµ4¥ó#U§•ÁgÖ%VGdñ¶÷DdáSwÉsÉf‰§§sSÖf¶v£'ÖDïF÷Ú∑¥'dF«'≥5Vî54ÂÑ4F'ScÉßF%3ñ∂Uµ'efÜ∂Áñc'7Écg6vu§W$SÑÑd„vBÙ∆∂Có¶We£Guvˆƒßó£ÜÛñ≥í¥gßWw%TÜó#e7§cF√î3CcGsÜ$˜áßEÑdG•Tï•Ü÷î§ƒ£•Uvó$3rıV£W&◊3WfÊ’Ñ7Wv≤˜ßS¶$Áñ√Ñ’3WñU#óîV◊6∑F˜6Ù¶Uc&&CVÑ≥ïsG•gìf≥G4tgì%'ßSá$£d∆Êó“ˆ‰£dƒárı•ÑÉdC5VF&¶≥Esdf’ßCf5îˆS&c'Ü%'G$gT•3tF56ı$ÛT£fór≥Ñï¶îVF¶tÊ≈Éd£6ı6ee$f4§Ê$‘VÉá4Ö¶Ê&sññS66∆∑fe2µÑDTgí∂6¶dó7'"∑u3w£UUrÛÖÜG£r˜t4t¥É˜Ñ$V∆ágU’u4•e•ógìÜ‰ı#îÙˆg7•VEd6wfr≥%’Vv%uGsìÉñVƒ∆Ffv∆‰7Fc5«t4G§Ü“ˆÜ$$”'Vó•'ì%u&32˜f¥ˆ√”'cwW¶‰∂∂Ö5euDu#îˆg't¥óg&b¥c7•Ö7Ü$É'W7&WeV«t“∂≤˜T∑îˆ∆ƒgc6VÂ’§uCÜ≥dTVeÑìG£ñ£36§%Ü∆“¥áFsvÊ≥tUóFÊÁ&¶ı%Td∆¶∑c&3$ÊïfB∑e§sv§‘Fcsá¶cgGDˆd4ÁDÊV%WWS&%tÙG¶Âvg6‘GÑ6÷ˆv£#svÊ§∑Ñ∂É#TF‰§$ÑÜV’ÜÉcW%ÑÁ¶35VÁd¥#erı6ƒÉs%&ÊcÑ£U&«w£fÜ$◊6$%£sGÜÛd%G7Ü‰ìñ•#óÜ∂C4dáVEu§◊#V’U&#3„uówvÙÜ'§ˆ$$4÷f3î%¶'Öc6ı§Üñóñd«Éáï'•#CÉÑÜ‰˜≈•3ìr∑WF§∂¶ÜóF≥C§6÷v$∂¶¶¥6‘55'4&vg¶ˆìD‘Öeu76«ñ¶’TÂáñ3ó7dGïDÜgDÖ6îee¶«ttƒ◊s4fU7Vwî¥Ö∂ÊBÙ∑%ìV6§$Ùµ$ÜÜÙwStd5FtD#uT"ıd∂≈CUv÷CVÂîFÁ%dÜ◊TFv÷áï6$∆FF≥ÜÜt≥e§ótg%W§cT∂¥VG•óT66CgSG7&¥CñuEg¶ƒƒDÜ5's&ÉÜ„7És5E%dw3DÂF∂¶ñÊî‘gTvtÑdµD•ßñ#váG$4÷‰dßd&'&•ÖÜÊÊ2ˆWd”&tt”˜cñFìÜs#uÑs%'áEágFcÑótÛ%4∂∆%Ö•ƒu5uáóBÛFcÑCá'CsÜS•ïï£Fó7î√wW•§„d'Éc%WFÁ#7ÜÁeït¥uTg&≈óós$‰∂‰vb¥gßgf7Öá66ÊÊUTÖ‰fsEÜfˆ6Tı6&DîìE%6˜wsVˆv◊utfÜCˆU¶’dU&5ÑÖïUÜ#dÊ#65EÑS¶îD¶«îduÑÉb≥wu%7•ÜD∂sET≥4veïfF'te•gF˜s§vGßì6f÷¬¥îwìV∆ñïw¶îˆ¥VwtÁd≥Dt’f√ñ'6CWf∑Ñïu5Ñ∑¶ewGGß$D7'§÷Ñ∆˜Dw&DEu£ÂWcv÷•Ü’ïÜñıñUECÖV≥7Rˆ‰&≈wT§‰Ê∆ÑSgî«7r¥s5ßî˜vf4F÷ıÜWF∆%ì4íÙT∑Âî6GT’¢∂Â4¥”î∑¶∂gìvÛv˜d4ƒfÖwî”V$t"ˆÂ4EVDñ÷áV¥∂áG6”u∂∂µßÜÁBˆ•V∂E'ÛÑ§ˆdD4≈Etì∆6'gÜ§'á£3óˆÉ#u'etGdDƒÊÊ4∑vv43t•W6ÑÖFWÜ&62ˆgewfTÛ$¬Ù$¥T#ÑCótÚÛtw¶∑Fe$áì£4‰¶&µÑ÷◊ÖÉ#twî#eVEìwd‘”Ü˜áE'¶÷∆÷◊U§∆fS4£$V≥ñSî„u§e¶¶&T4F∂DÛ£ñ‰÷£UóC6îµs&∆gìvE&uì#6&vSeugU≈ÉUTÜ%ß£VÁdDˆ3Ü&◊6÷$∆&‰5fÑF6V∂¢Ùue$ˆ∆‚∑EgF'#GßógÖe5Wñd√ggìvg#£'f˜¶¶‰Ñdg3C5F%3∆∂≥vUÑgW∑UWcgUî„EtF&#ìcfƒÊßÜîÙ˜ñÜ¶Á5¶ìgÑ¥ÑßTìÉWá£''¶∑ÜÂ$ÂFg¶ïóî'•ew#'Ñg≥ìÜ∆∆óßW&◊ìÖs3'ÁîÜ£e§ß#$eîáT≈Ö7DóWWVÁ•$¬˜6d‰wıEóì7T÷U4cuVÜáD«e&dVìf£Ñ‰≥V¥Ü≈UßótÛÑeÜ#tEïSÉ%G'DÊ‰FWáD∑5¶7Ü'4Á4$ƒE4÷¥EˆV4ƒ$≈UgVC6’#fd§7¶¶r˜$µ7Ü7D≥e•§’e"∂ƒuÑÊ÷¥Êı4áïcf4v¥ˆ∂F∆7ì4wc6«#ÑµÜ∆T∂t√∂«eGCï#g#sí∂ƒ„#ÖetˆıtÛuDÉ7¶Â£cñc'ß$&uó•tıT∑$SfÜCg5su%FuîÜ∆4F&v„ìfWÖ$√UuFtFgF'&„G#ÑñV"˜t'Rˆá•DDf’wÖ4áf”#tU##'î’sf‰&≈TÖEd÷ˆVµ343us#EìÜ4C7˜736∂Ü$td's£wáßGV%$'Ñ‰∂Û3F≥dDÂ&'vîˆ”Ésvƒ5%∆CÑw3ïñ÷ïu%wCGÖ§ÜdÙ„5ıC#%§Ê≥£4ì$ftáìîCvCÉ'$vÂs¶'d‰3DW7&’D•ïßáSBıU£ìd√ÑáuwVÙµó&á3◊tÖîU§Çı7T◊ï36dtd6„ÜFvCóÜ6VµUît∑î"¥•r≥$√Vtñ‰6¥§wÖTSï6F4Gc#5gSñ63T$f4≥6gßCVgcsCB≥ïßVW¶vSd$î∆6∆Û&5CvÁF„eS5D∆VwewádÑD#t≈Cv“ıÖ§7%4'T•St∂˜£í∂66e6rÙS&¥&v¥ÁÑóG§vÜgîÁásVU"˜wˆÛñ¶%áÜ∂%Cv∂Ü≈U•dCñ4”3sB≤∂FT¥î‰◊dÂe3ñ„GîtT∑CGïdÖáVgECCîı3U&d£gd3óUáÇˆ5T§∑ïïtÙEßgvıfï7cvGf#eTÁ£gG◊GwG$W%7óÑ’dE4SÜWtÜ6GgÖ$‘„7ì'f≈ÖVSUV√D∑#fcÇ∂Rˆf◊#sÖtgÜ$3E4Ê∂‘74fıUñÁ62˜gÖ•É3v7ÜFcRˆu£ó'îWáGV‘F&Ê¶¥5•&¶∑Ce#ïWDÂñd$vfìuÙ‘uW#6Êv„vcwsófEÖÑFÛÜt≥4&47G¶¥ÑÖGˆ≈wSÑıEW6GßTV&v∆ÛTñ¶v3î∂ƒcU•3Ö6§Ñˆ2ıv∆F«FF%áîÑÙGEÑsF¶∂GTˆS'#cîÑ”ñ∆¥◊µ¶ÑÉ4TDá£#SG£îµáîg'ß•«t≤≥UÑ•ÖÑÑÉc˜4Â¶w6%ÉCÙ§î•4D¶tÑ#UÉ&˜4÷‰f$∑áV§Ü∆÷Á4∆÷≥Vß5F≈óÜ∆÷ƒìW£uSTW'V‰'v6¥Ö‰ƒï§ñ&ñT'îÜƒUñ&T't”ó◊G&ß£DGWñecáWvˆ¶∂EG•GttsT£G#7óuc6÷Ü¥ÛCTÂvV7sîdd∂¶s¥57¢∑&%fÖñu§eW$gßWUceE4v∂¥G£572Ù√u6ÛfEUÑÁw&#6futC#"µeì$’£#Wï#vfV≥Ü7áf7d#w4VïÖñÊñı7UUW5'ìó§”ÜSÑtÁewó¶ƒÁîV&WD√v73wáı7eÑ‰Su6¥Ü√r∂Gev‘Ü≈vÛÑfFÜÙVSó&'¶ÖDÑÖ'Tˆ6b≥#fÊÛ&˜á$„Ü'•E6¥e6&GGñ∆f3Sff'#ìd≥esuEDÂ¶∑W"ˆ∑6§«dóìÖ£Gt%VE#sS%UÉGÑ∆##'vásS$c2∂Ú˜ìfe6ÛEE$Ù«fÜgweFÜ6’'W$ÖF∑DEUÜ6f’6$fñTƒƒ§u4ˆÇÙ∆≤Ûvá•EE''ì3sEvS3á&’FóïÑ÷4≥v‘áF∂¥TCtFÁE%£ÑÛ$¶E•Ü◊óƒUïÑDá55'ÉóD∑D∆∂‰Á"ÙFñ∂∆s$Â%Ö§FÉDEs≥ÉìCÉe3%3îtV&'£ñ◊'4gDñïïtƒÛ#$6ÁTÙ&÷ì$ñsfÖ7§‘ı&tTµ#rı7ïVÊñƒ◊T7ÖF∑"ˆÉñ¥F§‰¥Û%5#tfE77gwÉˆ'DÛT3TˆSïÖsó¶UsáÜ%Ü$F¶3Ub˜tÉeó'ñv3tîÊ◊&¶Éßáî”ÖíıGefwdÁî’Ü§'§∆vVv§£ñÖCÜÙdƒEuWTuUÜ§µìeóß6Û#vUb∑eÜ„s§ÊSTs'eDÛE&ÙeVW#cWß£ìc$cìá∑f%§u4F‰'áát&◊5á÷≈Ñ”óÑƒìUÑv4µdñ#'£4É'îÂáwTÊ”ìGFìeÖ•ïÜ∆d‰74ÉEìf6B¥Cß#ÑSfîGóìTî∑á•&‰'ì4ìóï&ÁÁ4ádƒ6U5%tD◊Ñ•îÙÙF≥D#6f&¢Ù&ˆ’t∂U4ñ‘•U5î∂'ßTÑ£Tñc'ßì%77¶‰≥ñ§Ât&∑UfUÑG•Dï4ÙWt’£dCR≥ïD∆uóÑ∆6∑•ññƒság'EGß¶„fDET•CeÑ&ÁCwgt3d‘‘RıC"∑gEDÖ3uD‰ÑDƒDñÉ5•¶«usñÉvfg§‰ˆv◊Tßw§Üı•§ß%#4f¶G4eD•ñ≥SìÜÂˆv¶cÜgáU'∂#Vd∆ñ∂îÛD∂VV˜á¶‰'$Âs&≈46T¶ñu4Ùí∂Ù∆∆óseót&¶‚Ù∂£uÖTÂ7•§ƒsD≈&¬ı$d¶stuóUC7¶≤ˆÂGrµF‘ÂówÖ6rµ'&$ƒÂßácSáSÑCR∑Dc#STÜƒïtˆV¶DµÖv«Ñß5ÑUÑÛEE#Vì#t¥Vµ§DÂ5&”'áár∑ÜƒDvd•£V’Ñƒ∆t¥#óóUDGófD÷¶¥V%∂ÖV◊S4t•Öï§#Uf¶¶CógCï7CvU%ß'T÷≈Vf4ñ√î∆£tvÂGwótW&«É&sF3óc7'‰g4”c4t#W◊óÛw%gñE≈4wñEGU2µf‚˜&6c4ÊUÖv≥&C6FddUdƒBı•7ÜV‚˜t"∂Â6ïïÑÛtÊTá•DÂ§ÖS3teuTEVÑ÷gìñU&"ÙD÷d≥dáEWß4Û∂#&Öß&Ü˜Ññeg•T÷f¥wT≈GÜ7&‘«í∑rı˜FSïV”cÖwGÜµÜµÜ∂∂fíµ§ÉÜ„uWÑ6Ö&£'#v÷µF§«D‰4ÖWFWWsEcCuVG6Ü„USñï4Ù4ˆ≈ógÖFCgCF∂ÂcW#eU&Úˆ√v∆£#sóeÉdSñVSñ'eT‰§«rµ&5î÷$∆£ßT¥∆Á4ÙE73”5dÜWî5&≈u6Êá£#46Fß•TßfsîFe'ıÑu¥’¶'G§RˆµáÖìV£'ÜóÜÖ'îsïÑvSSSsGÁv√f$&Fíµ$6•4%CWD∂£7£í∂’V÷ì$fÁVÁì&Ü„ÜÊ$ıóS$%tÉVfg%UCFg4ìwìE§c&Ùe&∂¥áîÑˆUVÇ∑e6Ù¥ÙEVÁ%ì%&'u¢˜Ñ¶%4ß6∂5%∆ÊÙ÷§$•¥‰§ñ$sTcSW∂FwßÜsDÙC2∑TÙ≥5g£EE3wVÑóßî§¶vßïÖìu&∂63ñ6WÜÙÛC”áGdÂ'ááî∆£Öu%'Üv2ˆÙÛW‰cñ√5B¥ìá%TR∂4t«Dìw£Fs#á6663%§√tÙ’§ı$ÊTƒ&S$˜ˆá§Ùv•ÑtUV∂3ÖìW&c66∆≈ßßd¶D‰Sá$uf4¶„cDÖw5FÛñ'%TÁGdGF4Ü4s7F‰∂‘’î‰6ƒÉDˆ≥Ñ◊USsì∆ÖîSÑwÑ¥ˆ∑vÉ6∑&sEÁg¢∑EÁß$„îód44W4„UVußÉf6ßEtEFÁT#VµÑTFó&t%Fv„ï63ÖV%4¥4’%wCFT‘U•fÜ§'v4Ñ£fD”Â#DÁÉ#Ñ§ƒñƒgFd‰ˆíÙu'6ıî”t∑tÉït≤ÙáEFÂGdT5C66V√'3g6ÙıtîÙ&ßGv3VÙ≈f%ET∆„V«F§§î∑TÙgßt4ıB˜W•fÊvutT6ìC4%¶„ÉF¥÷Û4Ê§vf63í˜%5ÑGu7c%vC$ÂßÉ∂eFdB≥uSF≥&‘•V∂§6Ut&tÊsñfÙ÷ÁfÂv”dá&√53#ñ∆Ú≤¥3D∆≈¶6tñT‘∆«3T'uófw%uVÜfUr≥Use5î§•SDÑÉîÊe$‰ád£#Tµ7áCCDfVtÊ‚≥VD4G##ufáFd£SGwD‰Á«cRˆÂß„ÑïvG•§ï¶Ü”ÜÙdÊ∂Öîá¶eUT$&Û&7GFGg∂$ˆbÙw•&¥„vE'6ˆ¶µÑñßïdˆ4¬Ùƒ‰5sá3tWV&wñtı4u¶#rˆßd'îffÂñSìUu&ñîñ¶&£§¥Uïw&ÙóÉ6ˆt5V∂óÑFµó#sWî∂’UTFsWUe#ñ%ÜdóST≥F∑Ñó&≈45ßÜó3ñFï43Ñ£Éd‘Û5ÑîEwV§rˆˆµe6WuˆUÖft∆¶D’ìƒ√•Ùf∂VTEC«ó54f«&UÜ¥„%¶44«GEv◊ó%DTt&ÜßFµc%¶s4óVf&4¥∆≈5tÊÜ∂‰ÖîSóD∆∂ÊF$5WTÛFÖ'V•Ü£ÜSñVwÖıvñÑî#îısSSìgWeó&F˜ït$tˆVf#7„ÑÙ¥evóWwVVeGñ5Vî∂«VñìF∂ußÖdV∑§¶¥∑UEf˜VÛT’ñ$ÊVÖV≥T•$47óS'4ıñgvï7fCˆ%ñ”e√v5'gD∂ß4d$3î¢¥≥Sáïv«ïtî§ÊF¥«%ÑîìUfutˆ4ócVÜ¥'cÑÑÊW'vd5Ût≤ÛV’t√ñÉ7%d¶«ETT5&¥∑Ç∂6Ùtñıs#sE3T4÷î‰wcWT5Cóf√v«îd’•§fgT÷'&SEt”Ugf‰'îuDeì7Ög◊V„f„ÑDıßw&&V∂TˆT#4Êó&ìgd≈£%Üá6V∆«î‘G#SFˆÛï§«cUuF∂gÖ£ó3ìfÑ„E'TUWG•Weî˜5gCï&DW§µuß5•≥3Gƒ&ˆG£T≈'•Ö◊uÜT÷ÜgñsÉU73ÙµÖ5Fı§¶§$s7§”cÜv¥4Gw#SÜUw7¶DDÑ76‰%¶î&£ñ§cSt¬∑ESf„dtGcFf∆tµ$‘¶„W£áuVf64ÉuV&ıÜÉEsÜ£4‘Ûì$¬∂˜ñ6•5µEv◊WdCÜ¥4u$Â6”sÛ&Ñ%gîˆge∂◊Üµ¢¥WW$56§6¶É¢≤¥tÑîuÙE$dÑ&ïÑwí¥tód§t36B∂s&£7e3•U§ÑUîáí≥ue¶57áw&î’£ñ√óìµ$Ê‘«373ıfC6≈vƒÙógÑ¶ÂcVÑá¶Ü6&¢˜v˜TÊÉÖ#ÖÂT4¶µî§∆tµCr≥VÙ∆Uîñ§T3á7T7Ö%ÑuTˆW∂≈Ñ#4≥t¶CD∑5tGáUccGÜµßÉ66ÖgÜ7Uf¥FtVÑG4$Ût£ó•DÊ4ıìsB¥∂∂tîÙ„$ı'G§Gît√T÷§◊îÙÁT÷§ÖVcUcwVÂÜ◊5F”6ßtguF‰t&‰Ér≥î√4óÉ%gv&d4„'C&FÚÛ‘«Û#E4ÙGt”6¥¶•f≤µD„7EÖUD'£6∂µ¢∑§µ6¶áÜµfTd∑Ùcv’á§ıwSv’F5C&ı%ówvß•wÜóWßUV÷Öfƒ∆6÷îìTgÉˆs$uWdó4≥uddUsÉµtdFˆV455FwV3wwgEÜı%45óïv’D$ïñ6ñÉ6ƒ•ñÖGÖÜ§˜§ıuí˜ßÜ&¥§µCótV§g3cd«v7GWï'uEıcót4ec6‰ˆ3$Ùf≈TµóVÙ£6SîD«F2∂Ue¶ó≥î’t≤¥ñtÁ¶%'Dß65ßuÑñ¥4«URıg6GT'£#CuctS$Ù«•Ü7dÜÜ∆G¶∆uÙ66eCu£cfµUgVe&&ÊáU§Á&3D£URÛÇı7S't∆&U4&≥CvGuÖSÉÑcÁD≈'á4ß4có§∆u¢µï£SóVvÊGCuw3ÜÁTîìTÉsìgfwTó%§$ƒß£Vd∂ÖF¶ˆ2˜'ÖfG¶D≥#fÛ4&5%ît&v4ÑÖGEVÊ§$t6∑Gáu•EÜDVSF∆42µï%6¶∂∆£e4÷VˆgFñvE6tó46∂∆áUWv¶◊Üµ£&µîˆ6S6V‰„3Vñ˜ïFV≈Ü¥#'6áîÙı$ÂsdÁCv4Ûf„á§sdƒ'wU£SWß•◊733F’dÂ67UV£S'≥gUD$4DdwÑ§$á¶FtCób∂f∆BµD6Ê’GÜÑUD¥cÛtFG£î#ñ∂í¥ñD7Cv«§ìGóSF≈$dáóWÖ62˜ß$&ˆTÜÉá4◊ïE7erıìÉEˆ3GDìeárıu#W2Ùñ≥EìÑ4≈§u£%îVv∑6cì7EbˆÜ”≥$¥•t≈ïFÖ•d¶gÜvÂß•ÑW'ïwïD%•DïìuDì7UFrÛÜ¶ñÊV≥fsÜwDÜìeîƒÑìUv4F„#eí˜tFVáıÜ≥swd∆ˆ5t˜DGGìwÜ£E'ìU§$Ñ6£STóvTırÛ•3ïCuf«deÜ$WÑîD∂∂∂Ê‰ÑÑu'•5EîÜDf∂ÊTtˆ£Ü#ïÑÙ÷¶sñS57CÙggfÑ§÷vîVGßWt’íˆÁîÙ∑3Ö˜dtÊ6„ì6ÛuCC4∑7•#TßuuD∑F‰T‘GeîµdóÂe5ñ%ì5V3t#Öîd5tw$g÷ñ4'GrÙ‘¥∆Ê‰&wUf∂CdsñÛVGWc&Ú¥‘Ê¶ñ√dî”U˜¥ˆñ◊óDdµg4‘f•4T6ÉV&Ê4ß'ìWTÊ‰ÉÙ£vu¢ˆÂ4eef¥¶SñïuuDv5d&Â5Dƒµ6s7f‘uTáeEG&fD43CV$EFÑtT”Tƒ∆&Ê§É&ˆ˜tuF‰ÊT∆&Ñ‘UU$'v5Uñ≥î%3'ï4ƒó7ÑÛ∆§%ÑÉÉevÑƒÁ¥4e&t‘ˆEÜ%•uñ∂≥Gw$íˆ∆≥ı•E$c3Ñe'Fˆ%”74&ÁCvgd˜CVÜîÂ4∑UTt§$§Dî57ß6∆sÜîeï•S'Ww”6V”6•§◊4µáUvC#ee%¶tˆÂ5d5tîtÑDÊS'#sb≥Fƒuï5U¥÷ÊÜñSÖf’cvSV&5$TF'ßñS3Ùd≈ÖE§∆w7wwßW∑Ü¶ßˆ¶÷÷Cá2˜t#ÑˆßîÖ§î34Ù÷f¬∑Vf«6«•5v¶√4V¶7Üñ&¶rÛr˜t&'ìîÜT“Ùv$ï'Ü6Cd%%uU‰$áCï%t”%ETÂd„ñ'ñÜîtÙìV6w6táìStV¶óD≈ßÉ5Sgv#4ÙwS%î◊•§≈îîFÁ4÷3fCeÑWV˜SÉ$‘dF’VÊWÜv‰ÜV˜ìT«Vß6≈$„ÉáD3gì43T’V∑$Ußt‘f$á4%#ÜÇ≥6cÜT≥Ü≈v'5#ìÖ£í¥˜DuwV’ÜóT∆ƒßÉ64D6¶cíˆ$Ö˜%#W3DgSÑÉWVÖV¶cSÉñïG$ÜÊÜ∆VvÁ$÷√#ñÁ$÷ˆ$e≥V§ıÑtÁUv#3DÖÑÖv’ó47£î≥$Vs7ï4¥ï•TÑí∑sî÷§ìóÁd••$ÛÑ∑5£&ÑD4¥ÂGCó£"∂ƒ‰‰CScV˜3t≥FTc"ÙVSCD’"∂‰'£4Ñáe%V”wá#vıEgeUSvÑ6%%¶&∑vCdÑE#V$ïìCdÉeñˆì2Ù≈4U§ÑsT4á£gcìDdWg£$÷£#DV¥%GGÉfcGcfe7f%wìá∆∑$S4∆vu£f≥ó¢ˆ•D¶6Ñ•Ö&ƒáftC3US'óÑ&ót#4ˆ‰ÉáÖ5•v≈cT44÷&•'Cñtó•ED”T$ıf3G∆g£GS%s5&§ÜvVuSe7wEÑfñ√Ñg6¶ìFñD#V‰ÜFÜÑ≈ÉóGDcÖG665vcÑv÷¢Ù∆Ev√6&µg&BµÉUWgcf”vg•f'w¶#Ü¥∑•%óvÛñ6$¶‰‰¥vGÖcÉfÁµf„D‰&∆cFcSUßß¶óVˆáóUDW•£4gGwf‘U'&≥ógT¶ˆ∆&4ˆ≈SÖu«Üñıßw¶ˆ≈Üƒ#Ögw&vñwU§&65T6ßDñÉ&‰es#tÙ4dDD‰ƒƒvF5ïîU%§ÁuW4Ù#D÷∂§Ât◊óVîuUÑV•ìFÙˆ&UGTds4ìï6sWCUÑdó3‰V∑d'S4TF∑C#ñt¥uETïì$36É$Üt√#ìÉÑÊ%BµStÙÁÑ#dGcuñÙWt˜7§sD§G£3óvßF«ef6≤µeSr˜•G5§uñG∂Gñ„ó§#ñvgìd$7V#ìfWwTs%fıî5£B∂§Cát«&ó4áFˆCÜßU&≥VUD¶ïÖìñ‰f'W$gVÑÊSfá≈ÜGÂECFT#¥sï¶d&ÊE¶ÊVá•ìG&tÑD∂4„v3váÖ6Ûf∆EtcsÑˆîÙfF4¶ÊÑ3Dˆ6uóñc6ÚıS'g$dóGÑµC&%f£4Dß¶∂Gge3É$∑§ï¶ˆ”6&÷Û6ÜG4e'î÷§ÖÜ„ñr∑¶Vˆ§%cÉÜÛìÖC$˜54''67B˜&guf•Uvß•#u£t≤¥Wßîˆ5&S%Ew#¶¥ÁVó3UFs$íµ5'¶ÂE6ìf≈sÉáÑñwÖSÑÑdÛ≥&dGVƒ≈í˜î”vFTsïG4•óEGV‰UD¶ßìCUìDˆGÑı4#î”CFgU§¶'v¶Ü•¶ƒ≤ÙTó&«C$ıF¥ó£ˆ“˜TágƒG¶7dóÜıf«GEUtV¥ƒıSFî¶£'Ü∂3W'•WñßÛfóíˆˆ$ásU∂$îG§EcÉSdF◊FeñTîÂ7%ñdd$ñ5&µ•5ógu£WvV$÷4¥t√ßñ‰ÖwVÁD£Dd˜Uuìwt#gÜ„óT◊#UEeEG$v”Ñ&«á%EÖWóÉ#Ü¶∆d‘óì7ñWÇıUWß4ƒ4Wt5dóßTˆTtÉás$◊#'7VT“ˆîÑuc4÷g∂w%&6Ü∆ÖfÛˆ‚∑áÉuUtÑ«óñ«¶UÑe&óT˜s◊#3D„GvWÑdÊı•U•ï$Áî˜ˆV•u‘Ù÷∂FÖÖ%Ñ&‚ÙTÜ‘Gó$¥∂F”'¶ƒî∆«CF&îá•CÇıCeTÑÖ•F’Ûgg%$6¥§¥ÖÑ§D##U4f¥UïfñîóUTÙ”ñÊ•w4ÙFıáEStue7Ö√Â7C•îìCucTCUT«5wáìñÑ£Ut4TÜµd¥ƒÚˆñˆsTÖDe6§F&ugfUdF&Ûtá•t#CdC7'''dU≥á3T$ÛvÁµ§îÉáe√Wv˜dƒ’ÑD÷’tßñ≥átGÁG7§ïGs5$U•6DeeF•ïcc∂ßÖD◊îÉÁED≥g4D4ÊÑtCf47W5∑5¶£É#CÁ◊%Ñ˜DßcT§¶T≤≤¥d5sCCuUsá$∂óÖ$‘574Áá6F„Uu§¶tc$D%U‰ß’gf7Ñ”Vı§◊Cet5£GÙvïF‰5ÉT6eUVv∂∂F'D7$˜$ï'Dsƒó¢Ù3ósD¶¶55sEµdsWÜu§t'£$Éd◊EìvÂDáVE∑Ñ‰wT÷Ê˜§R˜Gß•4Ö'eW&ìVG$Ù∆&$µv¶ÊÂ•Fv‰£cCìf35G∆ÉñfÙ‘ñ&3#'4„U§VÖ◊ÑÖGìñ£cÉısóG&T‰∆7Vî≥Dt35&UB≥îe≈v‘áCóud5tˆFÙ£TÉ%ggD&T˜65•V’ÜCgT'îˆ„'∆TUD#3%îtáÜ3GvwF‘ì3ÜÉÑV‰$v3ñ£d∆T&îCf’Uî$îÇ˜Euá4Â&ï'wWwóSTtˆS&4ìtF÷„Á$Uf'ß7÷63EeV˜F∑EE$ttdî«Fß£ÖcÖCWVWrµvìî”Öct¶D«E$ƒcW5D§bÙ6÷g¶cw¶ßóÜ£Ù&Rˆá'F'TÛÖdı%&≈D3Ù◊VÜg∑#36Üˆ√ï#Ü∆vÉ%‰dó§ƒ∂f'u%˜tE6'FÂßDÙ§d£fá6•E7gáG¶SVïcCvï5s65•fÂUfcEt#óF6fîÜCW5ì7î’ìá#ó5eÜƒµ6∆ÑÖF%&7ñî”wßeB˜#Ñvß2Ûeg%Ed«T≥W%Gñ˜G6Ü≥Ées2≥f‰„6Fv”G7íµ¢¥ÑÇµí≥ñ%5FÙÇ∂ìg&&V"¥¬¥b¥áBÛÑbÙ∑E4≈3c3¥§c˜&Bˆ“∂"∂#∆ee6s#7î3÷”≈Sv¶Ç˜7¶eáVµwC6'Ö4ƒ÷îgî5gGU4÷D’T√EìsFÁSDÜ§•UVÛcD∂§vT÷5fıñ#F3wîîóÑ«D$¥Ù„#CdÑÖUóF£Ñƒ÷«áÊ√'Ü•Fˆ˜î35SÑá∑FS4'ÖT«C7tg¢ıñct#F6c#3áfÁw§ßvd≥#ı&‘7C$ÛeSÑ∆ó2¥«u6%TV‰‰s$&E6G¶≥ÖVßGfE%u#4dówuevß%eó6&÷&÷∆«F4dÊÙµßßÖ'5E54¥≈W§˜6îvá7gvT∂µ5C6ıe7uñ6÷îV∑u&÷µd£ÑS5Ñîsf˜6ñ&UgÑTÙ∂„Vd÷µVÖ&Êuáï$WñEı6S37ñ‰≥R≥G$§w∑¶ñáï#WV5VóÖf5w4wïTÑÜ'Ñu¥¢∑E§∑î’#ucW$e4E43U•ñ«ÖGßVÛñßÖfWáUß5”&¶Ê„''&Âdfvsá'6fEá4Ù«$vTÑßïcÖáE4fñS4√dfWSf763eÜ46«wìvî«ï&≈#ìgßC6Ù„•DvTóVUuV≥ï%555c%óóóáÑµuÜ3v&ƒ6¥GÁ&÷∆◊áó&ïñCV≥4¶Ù46gcÇ∑E∂∂ˆ≥Ê¥’$”7$v„&•u6ÑB¥∆¶sTtÚˆV¥Ággót„SuïTÑÙ5á£Öb∑EÉó•gFetUñ6Öuuïí≥ïÜßb¥CT$ÛÇµtvcV£3ó5T‰ÖUd∂V„µ•3sT$ÂÑÛ%gÑÛd˜5%TE√Öß£∑Fe"Ù5g„GÑTÑïdÖ&’ñÊ'ï5ïUfˆV√eVıS5UÉñÊ§∑¶≈4&rıGFïsS#Ñ6ıfugÑw&6¥ÑÑt˜dV§áFCF∆&$≈§g6ÜC&G$'GV∂$•VtEñ4DìfÜWás4¥ƒÙ7SCT∆§ÑvS$∑&î#%d$Ûv&‰ñftı#•Ü√t˜Fƒ‘ót5f$w§Ö$#7§÷§g5vU6îuá•ÜfîïUÑ≥DƒóÜsóf‘ˆ„2∂ı&ÑñµSC#WÑ≥$4GÉ˜VG3&’&§Ûìt4&we¶3TFsWî÷F£'•F‘TÊ%sÜ5t6d§Û4÷˜îÊ•£S6S6Ê£$ÁÁ7ñsÑ˜ÖÑƒwdf4U§&Ù≥tƒSWG&‰VgˆÂ3u§tßVvcuF%Wñ”G‘÷á55'Ñ5fU4˜Ü˜2ÛîCFÜıS6ev√ÉóE6gìñˆˆó£◊ï6Uv¥≥FˆÖg7&«Gñ¥Wcdów•6ƒg£ÖÉïá%vˆ÷¥B∂uÖñ¢Ùg¶¥eeóÜ&”ófR¥≥Üï%4óv•ìfFu#sóCg64cf'áSáuó7É"µtÙÛîGWgdÙÖÉ7'ÜGtV6ev¥6∆µñ÷¶¶î«ìáÛ55Ö«UD¶5¶'SîEGî‰ì6‰◊$DÖñT¥fe•TWv¥óvVá#Üó&ıv6Ü÷Ù$•¥$%ìweGwD∆Ev•Fr∂4áEUîßÜTWd÷4∑eD#sßTÂ¥ÁTcEÑïìÖñ§gáv„Wñ”%5u4§«SgT◊Ñvd”tÖV£'Có%#$s6vv¥∂§ìÉ∑V3ófVt¶ÛVÁS73$ƒ§ÑF¥%u$uÑ≥ÜUsD¥$c7•î%"≥GÉe7dt7ÉT’•5E£vWuÜBˆ%#'ó§ÑTtcSfDEVE5WDƒ¥÷tGót‘CDFÁSvT4¶&td§5¶$≈î•g&Ñfr¥∑C§∑fáegt&ß&ó$t÷ÜC∆óFD‘CÛvÑT’Uî’§∂‰tTc7$ñTƒ∆T3Fµu#2ÙCávƒ'T£CCGÖvÜU#sd‰ß'du7&vv$CfÁ6¶ÊóF'TgÑ◊tÜ∑v$§sV¶‰ó£Ù◊•£Ñˆá7U7ßîïìr∂%&'&dwáÉfÁu6VU÷fDfÚˆñ‘2∂§WSFÊ7UduCe#3cÉ#ßÖ¶eÜVˆ≤µ6ˆ£ïuGvÙîÛ5ÑÂÑ4Ê&SW&w#T§ƒ¶¥‘Ù'vS56wÜ÷∑ßÂÉFUWV√f÷e$ìñ&ñ¶ßóıCñT√W∆¶U'Éf6gÜ3‘≈GÖdsc¥Ü‘Át443#tCu¶˜%6dfG"Ùf§F'6”î‘ìÜ¶‚µdeggV3ïuì&ˆ◊ï556µ5g&ÙtÙ¶UTVÂáÖ2≥◊ß£Ñ∆%vÛáUÜF÷ƒw#gfGFD3Ú∂óC7ÖíÙ√3ïu'CFˆ•CïF≤¥ñ$ÊÖñ6wñ£D£T‰ßïFT6ƒÖ3#gGí∑u&ƒÖ5DfDˆÜWg•”#wcÙÛÉÖ&«E¢ÛeÇ¥§cU7g£f≤Û&f#sÖUg'WgÑtî#wìwÜ¥ƒ6ìWñRµˆ%Ü«fc6Ê÷FC'ß4îóCVìUWá¥Ù4#u'ßîÛD‰F”ÜfDÂEEdˆ5Swcñ£dBısFÜóD∆ıÖE2Û&◊u"∂«c'Öww3îß§√Ö#$ß¶sÉRˆˆ7g$ED«‰‘5'vÛÜÙTñ&G§ÑÙˆgeÉcucEVµ4îÑ≈ïevD„cc≥B˜ÉrÛf%á£'$5•tìÇÛïcRÙDÇ¥R˜eÖeóv2˜e#ÑgGD&¥“≥ÖD¥wóT∆Cì&áFñ¥≥v÷V”∑GD‰Tv3ñfWµ4Û7gV„vÊWßáÑT◊f'&V5î3Tîñƒ#ÙÙdcS#£Ut¶‰4÷Êµó65Efìv¶ó&∆§Ö6îeuWî’6∂FV&Ü5dGVsSvñ¥7óóGß¶£eed∑du¥≥$C4Â&TÊ5T‘ƒvT%§∑gßÖU'Ö'6«W7&ÖÑ'ggf¥„E&D‰#Uu5&t„'£sF$Ê&˜$&6∂‰∂ÊÛ%§ÑÂ6ÁFCÜS'ı’ìDófÊSTñóEUÖ2∑&§áVÙ‰ï‘ÊìDD¶∆Ñ#Wuf÷Éw˜§∂7E3Ñ‘É'î§fWï7Ñ÷‰ı6tÊ%tÜµeÑÜÜîES&Gí¥GU÷d•áC''Ö#Ñ≈ÑÜ∑F4¥'EF¥„ÖÖÑWF‰ìEÑ÷ÑìCìÑG%á’§£óóÑeCVeU4îÛ$Ûî¶Úµß‰ÑU¶4F&«6«cVÖÜ75óï$ÇÙîˆgf÷v•îÊEÖ5E%4∑54DwwÉñV3ñc4vßd£7UTcÖvïîı÷„#Uá65Vg5£Uv’£&C&Öf$ÖVcÜóT∂S≤Ù£V#WCF¶6¶5Ö7∑gÜ∑35SuDá¶ñìutTdwîc#r¥∑Â'5v§D'F≈§á§◊ñgî'ïu5uWEer∑e‰S$÷vvï∂¥g4ÁDuÉecVGv”fñóVÑvGñ£'¶‰dGÖÑ34∑dáS7f≥EG3dßcÑcÜÉs#ñî÷ó4'Sfáf&&Vî«ñÚ¥6Sb≥4ó'ï&Öv$tGtsóÁD¶uó7î√≤≥‘5EU7ñTddÜ≈4ÑƒfTß5•VßW∑E#•ïGdÙ§T$÷vSEÙ§d÷$≥6vÊÑW‰•ÉUTìEÉî##&TuG•$§t$tBÙv‚≥w'Ö$6≥v∆áÖ•wwd'Ù„áC#%≥WU3UG%4î•ï%áÑV'dïıF”dC7îuGìEf¶£gC%£eÉgÑÜ44c•ñ63á'ñ'D¬≥f•%vGñ6ScÑÉc#t&ßÙ◊'ñ’£w76ó6ÂDBÛCÂá7Ü‘#'"¥îS4f6≥≥%eDr≥≥Wî’£6fsTvÊÂÂr≥d÷5ñß¶vg%TÖÖ$∑e2ÛóóvÜ‰G&ÑÉE§7F¶£É3E%fV%5D§E§ÙÛì&‰÷f˜dt§ƒÊ¥÷Â$∑6ÜÂñß§ñî4v$sWD˜‘Ûî‰cÜ§#scGU¶Ñ˜ñ„•VÊ'ÜóeïV∆∂E7sf≥Éw˜CV‘∑‘ıS4•ˆgEgÜ∆µ4ïÑvRÛÑG•DTÑÜ'v∆w37V«sGtÊÖ7737svrÙïg’vD”EÛ'•cáf“µTbÙµcVˆsfáFcf5t¶∂ï%T3uG63∆#uwE#S&6v§¥‰«E˜Ss'átˆt§u#4ÊÂUwFÙì76&VftV3#Dá6TGGñc7#Wg◊v&ïÖEìï6∆u¶gsÉUîÑ§ı5Fµîd&”ÑrÛEÖCSv'á£ÇÛf’ìÜfEvWÉ2∂óïí¥•¢¥§r˜7£ót¥≥•gfó%Dáït◊Éó≥ìRˆ”uÉE&ÛdU#£4îsÑ&5ìb∑&sÉñfV≥&ÁwñTÜ'á£ñ«6«Wf«r≥uîÑ¶$DÉ%4ÙEd5ÑSá&Ûv◊U÷e„ìTìv≈Ü«Ûeg‰U#&Ùóg¶cuÙVfVñ%2ˆ÷≈£UF4√U53V¶óÉÉ2ÙÂv4w%£É6√¢Ú∑"Ù¢∂ìÙ'VÖwBˆC"∂”6∂%fıóU'uF§#Sf∂3W6eSÑóßE§4vÁ&F∆„Ö''DU§£îı3T÷î§î6«G¥FÁ÷Ü•DÚ∑G%3ÜÜÖcGec&TÛs'É'Ü§Ö%#D3ÑÚµUDf7ïÜßu%vìÑµGáWáÜÜgE∆á$”ì6$ïSe$Ñ≥w§uîƒ¥ÛDW6§Gv5ˆíˆ∑gSVcÉTdÊÊÚ∂÷ÂdF5ÑÁUuóÑÑ•§Á¶fÙµìgFG'Ce¶ßñ§∆¶cUáí∂‚¥«#sï3u¶£GSfƒÁUcábˆuÉáıˆE&S7d«Ñ¶«TTF$ì$sÇÙC4Ü4GE54ƒgGìáÖ6“µWcî$Ö£d¥ƒ3fÊDe%f∂3wstÛv6‰T'É§$áEÉ%∂¢¥áÖ÷ÖsÑwG•'î¥$SdÊ≥t#ÜıS7VvG¶$ˆˆƒ6√6Ûe%3u§5'FV¶„ÁCtÑÊe"ÙG3F◊CC43#Ee'wîF˜EVG$‘«ÇıWìdUSı$Áóu7W%ÑıTÇÙıwW6¶£dáÑÖ•ï6'ïÑW'4Cá˜¶ÁÉóÉÁìsÑ’$wwcT7U7cÇˆvEß6&∂ı4¥‚Ù’U'ÉsÑ„U$edî•§«'ßVÂdbÙ§ƒ¶tRıC4e£g§fÊGTV%î£TÉÖw7tt÷˜Csc6‰Ñ#TÂ£$4tı"∑DÉ#Ü∂GTÁSfï&∑ó•DfDCdµe6TC6ˆÖ•c"˜tDv∂¥cÖ3$T∆e£DD¥µSe§ïìs£cî¥4”fßUt£F˜Tuî◊d‰ÙFF%%ñ6ßEÖes#sf∑cátˆˆ∂ÂSñˆE4ÙñUF¶„î∂ˆ∂c6ñ¥ˆ≥ñìTDBˆ≈Cƒ∑Ù≈#tÑDÊ¶µeF7•ˆ’uGsì'FWwV’ÉFÜ≈gïttˆ„•V&îîtƒÑ#ïÑìußÜñ¶‘5ÑG÷∂tÉg%Vf£FÛE$ß#fUcìG$ßEññÑß3Ñ‘î7ÖÜïTF7ï%u§Â6vÊñSU5¶∂µ&ßc2ÙÊ∂C˜ìñÁCTv∂ÊÂ$3UVsïCˆSggv”$Ê”á7'tdF¥’uvV‘¥s7ñ&Á&3∆ÉT6%ÖT∆E4ß'ñE‘Ñ∆#Ü£r˜6V¶„ÖetÊ¶FUu£#á6∆3EÊS5îSvtDÜf‰cFÜáWDƒ5$ìF4&5£÷Wñ∆g6‰'áì'v∑UìD≥4u56góF•Âfá'ìÑs67íÙD#ñ«6"≥fÙ•ódƒ∑TÁñ∂¶v„cìÉt≥VóTußvÙ∂7#sCv3î≤µÜbÙV¥4≥Vó3vwdt§'EVvV∂‚Ùf&∆T¥ó3e$5#$tı#î”ñ•&≈ñ’óVÛÑgcv&Â§U'îÖñıÑ3GÉWUBÙÛD‰ÙÊáß4Ù#ÑtµE§‰ˆï4µÜóßÑ◊cágñììFFuu$$ï3S&sDÉágñdı7≈GñÉf‘Ñ¶4∑áÇ≤ÙdT§£ˆsÑe4dfc&∂ƒGïEÉóF4‰‰wU'c"∂dVt∆¶∆ïc3ó∆îv∑FE¶Ê§á7íÙîÛR∂ƒwguGÜñ6¥’seíÙ∂fW7f%áß4µt$6rˆ‚Ù√î#s&Ê∆¶Ê§SDïî„áf¬≤˜T∂E5•'SóïÉD∆ï÷Ùîˆ◊7u4TvrÙ’óÜvÂcv7ìtî‘‘SFWÑ3óV∂&vScÁEgWìDut•4‘GEFñ7tDÉ'ÜEÑgVCgV‰‰F◊•#UÉ4ÖFdTÜ◊•Ü«á6ìv‘«G7R¥÷t∆∂&GeÉcó£4dÁ&7Cát¢≥ïe35SóÛ$◊ï%ÑG§◊÷ÉCWótóÇ˜6óWDD%5WÖÑ¶D$•G6◊eV∑6d$ßDÙ„6∂5£dvÜ'S¥RÛgF&6d§§Éáíˆ˜f‰ñîV3Çı6˜£&”sU#ó4ÑsóÉîf‰∆57'c"˜ó∑WtµñÛc7ED‘‘GdƒÖStw%Üß6'§óñ'vïTEsUDDVÇ≥TƒG'&Á6ÛÉwßS3CcwS6Wı¶µ'vG¶Ö4‘ˆÊó&îÂTFwG3tÑ≥îÛîÙ6«V§∆w¶fî∂4Ü≤∑tˆC4Ufd‰«ìgDwRÛc¥∂µ≈'6∂5UábÛ7∂∆T≈î£wSÁ$'eu'sÜ6Â•45“∂ƒFÇı&¶¥ñ'TUììv«ßeSud%ìïÉìT'Vı6≤¥GCñGDg4ÛÁ£'Ü6∂î„V6s$Ùv§ƒft“≤¥Ùˆƒ¶#2ı3É5ÖV6‘„3ìvS3≤ÙÑfg«u"ı5¢¥áFf£fw7sá"ıv£ì7fWtÖñFfWf“Ûî∆5ÜÖfdWgÜ÷ñÇıcí∂≥w‰T‘Ñ4∆ïVÜW$SÜ3óDˆ«•¶CÑ‚˜t4ßDÁÙTÖEDgTÙ”w7&£eìwÉïCV„FFñ«evµ2∑áURµñìV'óCı4”u4≤∂÷cµ6Êñìáf%•§V∑sÜ6cTÁ∆ïuFuó£ñßÉÑïEÜ64T&ÁTì4Wî÷¥ıv£áfÊ÷6§ß#dÜˆfÜ6Tw'Öw&eWñ'ßîÁ6∑∑776Ud§$'t÷tFGÖ7&¥cÜ3ÖG5Rµ§ß√b˜tˆ‘Ec%ááWDv”uv≥ÑCVÊ‘¶ßÜ≤˜ß$¥vdV%Ü«3ÉóD'WTGud√T2≥uß£4≥Üßeá%sev≥sUÜï$&tUCW£s3fR∂wV√f≥6∑64g¶ï%§„'ÖGGÉ7vT÷Ff•u3ï&ÜTCdg'wgì4áíˆ£ñfDr∑3vw£33Ös$4•tGU$áCSv¶sCG˜•V#Ö4ÛÑ£ádÙEt∑eÖc7ñ∂¥V¢∂D§√ñcóÉv◊E"ı'&'GcÑ¥Á•ÖS3á3wáDwµWTfr≥56‰∆$Táî•ßÜf#6¢∂gTˆDCcS3v‰îtósD∑6fECFñ§gTCU%ï§É£ıÖ%CDE'ÑuGÉVs4‘ÛW%FTdóVv∆«UgáTì&r≥ÜÑÜ≥TáÑ≈u3'óÉT2˜t4Ç¥#cfßfïï'ÉSfgEÖV3Wß£V„SWGdÁñ¥WRµ$GdD„•5%f÷Û5GUîu4Ñ≤˜ÜeÑÖv∂∆√FßCr≤ˆ7¶ìTF‘„%á7eÑ§‰Ü3áCódÁFñÁ4gW§É$#c‰ˆEe£ÙG§•îE«wg§£gB≥F‘√53óî‰ñsTf‰∂VÛ'îSî÷ÁÙvDÜµTÙó4ñ‰Üƒˆf‘áfÁeU¶&îÊˆ5'vƒ„7GÜ„cGˆ4◊TrÙ&E7ñdE5'Ö«T6áuCî%SDÂ¶vÖáïfdDD¶”Wvf#sdß'4Eîwóf‘µsEñ£"≥î≥w•uñ&SV÷ñïVÙWÖTí∂r˜eWßGuwîcW64wRÙT3#BÛg£ÖcÖÉWóíˆÜSñd÷'ßÖ£FÉcEÖ&D4„GD¥Ü4&∂„VFvFtá£î6gCÛE3Ös6gwgwW∑wí˜tGÖñ’BÙÂe2Ù“ˆıCÜÑG#˜F„ÜVcˆ¥wUßuE&E&Ü6≥÷D„Wî‘Cµ••t6÷ßáuîÁV”'ót’§ßìC4∂TsF∑SÜíı6«¥µ%ÖWC7#É4÷$&ñV˜FUDÑÖïU£3Ü∆’eGÖGßìGÜ3Fˆ∑v≥#S4áı%gg6◊#G%U’dîD£T◊$dtÙGîGTB≥îñT˜ï◊VÖÜSf”UóuS5$dıufì3VÉ'$ñTìñS'ÑÁGDóïÖ‘gv÷Uw£ˆg%wWbÙGWsÙc6§ó'&≈•f•eU$∆b≤Û$„37F”G§cU¶§•V≥C6∑ıF≈5‘§"∑wW6Â6Twì∑¶'c4÷ß6ñ%Ñ•ñ'R¥∂Ü6ßñ∂$ƒ„sSfß#í¥E„7CFDD˜$ˆÙDefƒ$ÖSñÇ∂‰Öw##sfñÊ¶ïT‰3tVÜƒÜf˜eT£vDµdÁw76÷√5T•f˜tÁTdsVvg˜Ted§ı#4vÁ#%FÖìT7$vUt3ñT¥≥Ñî∑U6ávVU"≥ÑÂDÊÖÖSóuî•T‰Ùı'É#Rˆ5á6¥gñ∂µcTSt≤≥4$ßï#ó5îf%Guá%FÜ%§¶d÷§£4ƒv˜ß£îˆÂDvÂs¥ÜñD”Eg%4‘≈Gt«óÜ6VdÑTV’cíµ4'TÖ&gC"≥îbÙ"Ù54‰v'4÷”Eïf675&tS5v£Wd§'sÖU§∆¥‘'ï'ß£˜t#W6∆óU§∆S$VµsDUE$ÙÑˆ3U6∂∂7ÖßsUd¥eWVÛf§ñˆwVÛñ¶ïVUáó'á¶v6F5óî∂f«÷«3ÖTGÜÑeßF˜s%63Ç˜cÙ&Ût‘%v∆u¶t¶vı¶Û%VvECóu'•F•FıWî5óìÜd$’ıTF∂3R∑E5v6≈EeG&DÙÁ˜%Uv√w≈w£3WfÜïu¶R˜¶d”7Úı6«CÜd¥#uVe$F∆Ê$∑GTÙ%§«4ñ4ïd$ıD∂Ê'tÙïd%ìî¥¥ÊÁUÂf¥ìEÑdñsuÜtsáEeÑ◊sGìwTì£&≈&ß65W§ÁVıÜu•E7í∂ñî#4UÑE$§ßEgïW3ìVó£TÖ6w'S%#VBÛsf54ìfÙÖC'Öñ§ñ”Fg¶ÙV∑•6ìÑñ˜C$Dt¥ßF√át∑ÑÖg5§ìbˆc$ee§'ÖU3GGñ3É§‘ìµ£&∑ñ≥FFt¥¢¥«Cvd¶5Vw37U•ÑFáUˆ¢µ4«ïóñ4áU%G∆S&‘’¶7fwf%cVe7%&D‘÷ÑÑÙ¥g#c6îÛTı4‘∂Ñ‰5ÉóD§CÑ∆D§Ûósïv'¶7gÑ‰&§Ùd∆Ê‰‰ïG˜d£Ñ&≥vÛ#gfdƒ∑$„∂’#≥&T•íˆÖvµVtDì&ÂÑuTÊ&îó6«$’66ı6u$ı3v£v3ß$Ü„$5eÑ'£ìe'ÖCD∑EÉS$˜$cUw3¶√ÉWGsáÑ%fedb¥GCí˜ìí¥d‘Ú˜¶&&'FcóT≤¥Û4UF§÷ßïU§&á≤µSDsvßc&ˆßssG3"∂£WcîT÷gw77&V$Ñ«SîDá$¢ˆCEU£fsñTE&W4‘'"ÙD¶ó«&gvU¢ÚµCwñ˜'%wÇÛSÖÑeD&EÉw#EÖ3CCF˜&∆ÑcV5áCvRÙÊeF◊6ñƒÁ"Ùó'ñ%uuÑ6∆µ£wf√$BÙFó4Ö£d§ß"ˆ¶∑'Êï#edÁU4’§¶#U66ß'vgFuSóg5&÷T#gS#'ïudfS&5d√VVÊÉÖ5áfî≥73&≈∂∑s3w7Ñt”Gáîı%s7Uï£CTó$%Ü$Eó§ádÜ'£ñ˜&TWdGVvTg#Éd&&Ud√fd◊W3w‘ÜW6§‰≥Ü#T'u#‰C#t˜•2≥5#ÖF√V¥fÑ∆¶‚≤˜t3FÇ˜73ï7dƒµsgVıÖFdtóGîÜdvS7T∑ÜV◊wóÉ'5W$•UdóRˆ2ˆ$&ßB∑F$«Ñƒ¶F«73T§GVƒ«ìUìD≥WîVÂ76fVS&≥6¶‘≈ñÑı§•&6≥Ñµ3ó#'$◊6ÛfÁv’6áedß$cv§£WU¶d≥á¢˜ECáFeEd%d‘ÊÁcSF'g'dg§∆"Ùït„#w“ıÇ˜%á¢≥wEg¶C'f‘B˜t5¶f”St6„6ÑÛdÁG'4«S"˜Ff≤˜fd«óT'u&«TCî¥Ö5Öó"ÙcgE¶ı£CÑÁıf6„&u7FT‰t•7U5G4ÖÑ§Ê't5'vÛd’6Ü§áìWñ∂Cfgv◊Vfï£U76t÷V∆#u%ß'%CG&ìVEF≈eî˜eDvGD”Ü£Öfˆ≈de§6îT£fcÑDwW§îßî≥g‘áE"µd‰vGTDed$3Et◊6ˆ4§Eß£ßÖv√óÜw$ƒˆ∑≥T•ßu¶TGs&fWf’ÜÖáÜdf3#ñ‘≈gFÁ&‚¥îı&ß&tC7áÖÉW£ßÂÑtÊwu5•6•£cG£$ó‰uVTC&ÁÑ≈EsGÑ§&”ïuFf§∂ÊF¶ı#ìÉu¶ˆd‰Uc¶sDÙˆÛCf5d7óU¶'ìC$∑ÖîGó¶&Ç≥CfÊßá4√ÁBÙCfÊ¢µáeW5&’&¶÷Tát6îsgóD‘T6¶¥gî¥3Ñ∂TTƒÙÛetÂ¶Ê÷Â6DTıuf≥Cïî#4ác$u%%sf"˜√F∑Fîeî34&«T$ñ”EßuÛ4TT∆î4÷¥Ü•fÙ≤¥ÖCÑ‘&£î’dt‘„4ïÖccí¥áÉÜ§Ùr≤ˆ„ÑDsgdÇ∂É&5UñíÙ2Ù3"∑cágÑÜV¥VV˜Ö3f‰ììuVµfsuuUñ6uîÑ$ı÷F•ÉTÑ&tW#ß„îÜ∆‘ÂvÉì&5tBÙsˆì&W"¥¶’Ü∆£ìf”f◊óGdgDƒD’¶d3ÖÜT≈tïÑÁ#T‘¢˜7b˜Ücwc64ÛFñ◊5Üá≈TïÑ§óvsD¶µVS5ˆ6S3s&"¥FEFÛ%£ï%ÜT¶”'$&¥rˆ‘§Ù’£fÁ#v3ñóWÑµf◊CVˆƒƒ«rˆst„'%ó2ıwT≈f÷‚∂∂ó¢¥¶ƒ˜tCUE§§B˜t7#UÛfìUg$µEìeÜVÖu%¶ÉÜ∑dÑˆV∂’µ£≈&&Vuf‰¶∂ï&uuu6∂„áuTÜsF$‰f¶vı∂uì≈ßvÛd7WïGt∂«E%6Ê&%§«d4ÛdÙÛvsá#FÁwD&∑#S3GìÑT≈ï$Öd‰∂tVw36«ß7ï6Gï&‰§'#deóV#î4Û6Wï6v•î˜ßÜ£ÑUí∂ƒ‰¶&∆∑fTÉc'•'£ÜSbµCÉvÉGg7Ed$ÜFU$T$‘7Tue6&áá¶µVñcFt6ÑGU§DîÜ¶$4‘#ñ5îÊcîF÷¶TßD&≥Ñ£d‰TÂáDÖ5&ÛE4d”bˆ’ÜÜttóï4”ÉTt”ÑñáCïìÑˆÊ5#4Dó$UÑf‰◊$≥u#Wu5StBÙ7Â6sÑ‰áÜs∂ÉÖ£f’U3%u#uBˆÁTFT•¶∑7'V%V&ßTÛ$C$ıG•w2ˆˆSÖt√Ö£ÑÜEs3G7fÛÉ2¥&Ü•gT˜$r˜tE6Â6√Öu3d¶gFÉó•¢∑¶sÜsìÑF#3ìcfáßvÜGÉcîg#EeVóE#VµVµ$§÷ÖdÙÛ#4ÖtÙ¥$'GßñßdVb˜4GUt◊$∂g£ÑÉ$‰ñı•Ü÷∆î%fññˆˆ3vC4'ñUÊ”íÙÜ57áwá’tTÜ&f‘ÙˆWT¥ˆóStEfD2ÙgwÜÊTV∑vá3D≥ÉEñSî7óßì%c∆ït$6ÜÉáF∑FƒıU£cE$"ı7'TG§∑ïsd≈ÖÖv&GF•&$V7D§UÜ‘•á5F§ßÜ‰tÙ∂SeEßñÛfßíı74'4&ì7f∂GcÑ6t‰ÁTf÷î◊5%u˜vF6ı7WtDs6∂4ÜˆUvˆ¶F¥EE§Ñ¥fƒìGÜ¶„ñSVóUDsCÖïï$$Dƒg¶ó&ìávÙÑÉ'∑•6'4§Éd4ıb∂ï•FgWv”&¥4D$Öw"ıD¶ÜvVƒG$6GevÉw∂ÙF'f«tc3Ü#v•v'Sññ«SdıFE≥EÑD÷ıîV§óßÜv5¢∑d''FcÖáf∆V”VEDñG4ÑÑˆb∂fd$∑É&∂4ws5WGSt‰f4≥ß£ÉD§áTsVÜ÷∂V£ì$ıWW•g§ÑdïîÜÉáÜÖ•Fw5FÜÁECWwt∑Ö”áVeCT÷‘E6gáF$'Ü◊$wdˆvµg∆Uñ∂t¥¥eT6g&¥Ü‰Âcf&5EÑÁdÜ5î¥Ü∑667&ßBˆ¬∑E#T‰6ÂEßÉ%B∂‘#îÙÜñ¶∆√Dîı5ˆc”GTv÷ß§ÑcÉcDtWî&ßEá6C•¶µñtÁEÛR≥5Áá7u#u§ï§÷ÜÜµ£B∂ÉW“¥&˜Uƒ≥7d≈Ts7V§Ü¢ıbÙ‚∂÷GÜF∆%ïC'T∂ÙtÜs4Ugtîá"ı6˜Ñï3ñ777¶≈sEuìïv"¥wd„§ÛUT#Wt÷‰ew&vˆ§'ñeVFµ'¶6î∆5gv6‰áEU∂5ïìb˜t6¥UsBµV'3Wg#&Û6V’wñîÙF$ìáT¶ev”T%U§$ßì$∑ïÉîì'Et5ñveWu§Vfd§3Ö£î6ßVV‰É•GfÑf•%b∂GówÜƒFWßf%SecÑ¬˜%Dge∆d¬∂÷'Ffìv%SG&ˆÑd√UÇÛ4ÊRÙ√ecîı#∂Ûuf◊DU«Ö56„§r˜§ıGÉîˆ‰ÊìG&ˆvUfF∆Ü§óñssñc"ı6îó3fñî‰F¶≈UáÖcGÖÉv‘≈SïWR˜t¬˜6˜fµ%bÙµïî≈Uá¶4ÊGñfñ∆dƒ˜¶ÖFv§ìGCGV%6$e¶Ù¶§◊7g%UáÖVECó5•Öd6cF«T¶D≈vT4t“µs#Ñ$'S6eCñS4ÑdÁUvU∂D≥7óVƒ§¶4sS7ÑÖÙeÉÑˆEV÷Üc˜t'"ˆd¬Ùcrˆ&¶ñ§ìï%2∑Gvótµ#µßwÖ4§ÛCáîµfd∂ïÜu$Ç¥√áìÉÉîˆc¶gf%w%∆gUDÊ§µsv„Wt“ˆceSf”'§Á3Ñ„$∆6∆áFÜ6«6∑W6dW$CV¥DD%óìGs&5îáÖÜñ◊¶Ü≥Üˆ$v¥ì7%6ÛfS4ß7Vıs&ñT6%óïGecÑVÁfµìcÉ¶fwEódƒ≥F¶$¥U47DÑÑÙ÷‰ßı$∑Rµefñ≥Ùı7DCÖUGT§v∆¢Ù5á$£fC%U¶ıáuÉF7U¶dTc7g'Tƒts5t¥‰$Ç˜$GïGWtÁ$&3GáÉfÜ÷•¶%u3&Ê÷◊C6¥VÑ&ÂÑïR∑Öá÷“ˆu$óD˜3ß3T•CÖ$ìÛÑ„$áSud%#T%Éf”'%5C'óßR∂f#5ì3ÖTV„4µtW¶UsÑ∆Üı$$÷GeìÖ§Ù˜F&'svÙVVseÑÖîSUß•5¢ÙÂu£ÑÛ5'F'ïS&ÉCÉ2∑ñíıÙ≈É•wr¥÷$u§ïÚ∑•gV≈%7£v‰FT≥6÷3ñ¶gdï4Fµ§fEcÑtÁbÙÊ”E'§£áVgw£Ñí¥6D4”ìsSFU«gwÑññbÙÊ’&¶v„cGtÛefD∆ït7tTÁDSÙ6$Ñ§ÛvG4ÑÑÉ‰∑DÊ÷∑CC¥VÖ&FµWR¥∆GÉñTı#óT∂#'ßÇ∂6∑∑§¶∑áÙ'Fvr˜TEÖgEï#vÉG'tÂÖßVs&ÁdD&#VF’Vuñ4≥uf3ï6Wá¢∂≈S5c√ì&áD£64T'6ß"∑EÖ6ïuï#6Fvˆ¶§'§¥ÊÙ§ucf2ˆeáfó3WˆîµEF&¶óFTf«£V3ñ3SBˆ‚∂‰et•3T÷Vñ√'£CtÁ#D6∂¶„≥Us'V≈S#d&44Â7&Wd3ÜÊ¶ÙEwGF&‰#&dgíµctwf≈v≈É‘Âì≥Sí∂¶∆¶U$Ü≈cì%g¶w&¥Áñ3TtsG#dE•Ñ≈4G't’U6ñUfwÖgDìEsv“≤Û$á5gÜD¥÷UC$¶Úˆñ∂B∂wÑd‰CÖóˆVóv∆4”sîceeïD‘vvá67U%∑wtÁcGf5¶î#"ˆ&D#ñï£g6∑%D∂Ñ¶%sv‰∂§DFÚ∑EerˆñµuFìEs4%fÁìGÉvGcev&SDsñ&‘#ó≤ÙEîv∆Ê«5gÜ£c∂wßf'eV$Û7d‰„$$≥C6£$á•ct‰GCEer∂÷îÊÁ„5ñ7wîUStÜ¶%F%s4Éï¶ÁñïïßT•ÖWdÑììfE5Ct∑GVáG&∑F‰¥ƒ«eSD≈ßótï#G6ïV‰ıuf6ECó%Ñ∆TÙ”GUgw4$¶6§∆'f%#ñF¶6&&˜É#Ù‘ÚÙ&ƒ'ñ7GîwÉ"∑ávÙ4£v&f'76ñá6¶¥Êß#7gó%'sî÷„vñ”Ös&ÁÜµc2ÙuVˆ√e2∂∆cs2≥ñìïìÖ&TVdVCSÑ√GcÑ6V”3S6¶÷Ö£%VWvgÚˆseEu§§«•3CUìUeF√µU¢ˆVw$Û6∂«g$V‰ßSÉFu%7„#eìSsï%ì∑¶ev£Ê£5≥G#&%EÉVˆU&bÙu'cd%Sì2Ûs#ìeß¢ˆÙFv∑SrÛSì≈Ûu6Ü%D‰‘Êßfó•SD7FÉÉUïu$#v&dƒÇµeñe#t≈ÜDs„ï&É3îïf“ÙVñ&v6FV÷T≥ïW5§îÂáEñE46Ù◊Dw$íµ#Vµ§DÉóƒcCUt6£FÇÛÑß'&•GwÖÖ6#b∂Â&‘¶d%FWf«e••&∑TìÜ¥¬Ù∆÷ìvì¥ÑÉóT§&‰§u7ñGv&Cî¥6¬˜s'Ö¶WñfÙv„6FÑ√UF”$”t∑ÉGvT6’#îDF6ÁeÜ˜7#dÜ%£6W√$E§◊#F‰Ñˆ3SDfG3'£DÊ‰w5cñÛF√ÜR˜t7ád6¥’4&&TF∂É4tÂ&vµî$¢ıá%G6îeT7Ü∂tduVW&¥STˆgÜTVÙ≈¶ˆï•’Ñá#Üıî$EîƒÉdv‘î’ßVfuóB≥U≥Wuı'£tÜÊ÷§∆îß¶W&«Weï§eßÖ$drˆÂ'GVÙ≥DßÖ2≥6ñ÷îÙ3&esF#UcGv$‰‚≥TswcÑìtß4§S4É‰«"≤ˆE’ïîßvˆÑtD≥TsïvfÁá•vWeÜ%á•'f¢≥d∑vR≥r¥≈Dcìóï'$§¬ı3ïgVˆ£Ññd∂Ü∆cÑÉñ&b¥É&á¶Ù#6’ïÑ∂&GïGávÙÖ4b˜t#UÑfgìSF3ÑÂÜfñìDfˆñ‘‰D∑vU5t”EVv4Çˆ•4≈ÜÁá§ß£Fñ•T∆%ÖV&ÂEtÊ”d∂&VTıf&4F’•cTˆ66fˆÛEEsñUGBÙGÉî¢ˆcuRÛÑv„îw4ÜÉ56ˆF&„„VÛT÷dF‰¥bˆ%¶≥Uñ§ıì•3áS6ÊT44DVµ¶2ˆ‚≥F5¶6∆ñ•ceD«ïÜƒ£ìî#óî¶uîÖd#VvtWE5T5gd÷F√UÖîÙ˜DE&˜óTÖGñáV&4C∂≈á£4%dT§'3EVDµ$u6VTSÜ4ïv646&ÜÂï46cScÙî¶7•7#Vwtt#FÙ3•§£áss&µÑstgóW%ÉÖáÑ◊6'7ìS6t‚µd§‰◊#%&ÂÑ∆ÊÙV$ßU6WácF5$’F•≥WW%f4f'îÉñÂ÷GÑÊfáÜÜ•Dv767G¶¶ñµFó&6√áT‘WsGÖt3ÖdÑÁ˜tgV‘wUcEWñdÙ57VfdıEsfÙf«7u3wwÑ«”Sîîˆf•eî6FE”g‘„Ds#4VWîgT§&§£4¬Ùïï$Öv˜îÁ'vƒ§ıW2Ú∑r≥wF%E6%Bı6Ñî•C'TG%f”&u$dá§ñíˆïÙ4÷rÛUfÁdfgÖw&∂G&EvµV7•ÉF#ÖÜggRıR≥eu§£Ö3efEw6∂∑cÑd≥ï7Wrˆv'g£#ó$ÙuÖ£'g§∂#Wïcg'vßt∆S3√T$ótWñ&ï4÷ÁtÙcbı£FıeeÖ#UgFDˆv5&u44Ù63UVtDu6f◊ìîVu3Öf#$vT•DUG4csÜ¥GÁ&„c¥∑D«Ss5RÙÊƒ÷R≥"ÙSî¥„'É5C'áî¥S#'•S&‘∂§D÷√r˜ÜdÇˆÙGGw∆Üñd¶¶µt•t∆ÛST∆6¥Dv4á4ÚˆVÂvu4Ê7¢ˆì&ÉÜîµvµí∑VVÛìÉñ6ev∆◊$¶##6”ÑÊCGá6Éï4"¥Ù÷§ácÜ∂SîÁDßD«SgEï'ßñ˜cÑrÛuÉì2ˆ≥eEWó&≈GUÉFg¢ÙTÂñ¬ˆ7f&„Ds7CwF∆§ñì'Usb∂«fWdfV5UC4UƒÛD«DGGßîÙ'Ü„eTÖóÜÖß¶ìvÙ%É$cóÑ§∆§tÙ6We6ß&˜Ut’VGcVÜ≈VÜÁw¶§%R∂‰vT”c4ıñ‰t’•ï3FcÇÙCñÜ‰VDˆ6ìF÷Eƒ6Ñ7‰$vRÙÖ7&tÊ7sE•$Sñ≈§f#îÖDìr˜T¥7G%ÖW%#Ö&V$¶∆ÂGí¥CÉvgßÑ≈¶ˆß§§dóÖ§ñÜ#∂GGsr˜EDdıUóv√6≈îE&Tg"≥GSEìw•§v§‰gTñ•F≈Ñ#'54“≥BˆÂv∑7•¶áVTî¢∂≈¢˜uD¬ˆÙV6Ê√Fñ∆GñáÇµCıÜ„óÁ%ßÜ§%fWf•#e'§wfƒtÁ6∆wc$ÛñÂÖe£U3óÖÖdóÉóÇ¥„îíÛcWÙÑ‰fCÇ˜t3ïBÛÑÉEtƒSóf¬ˆ‰¬∂Wá¢Ú∂£BÛvƒ∑¶CÑ#ÑfÜcf≈ÑESSîvfˆcáïÉF§GwcÉÉ5˜#d#ErÚ≥gb≤ıÇÙ˜W'«∑§ÛÜ2≤Úı∂%s2ıÑ¶"˜t%r˜tDV∆EÖfDıSd3vfÑıCgf“µE$Dˆ„$îÊ"µgb≥ïÑf£DtıïcEU§Ö&TÜcU6cT¬ÛfÖd¬Ùv£ógVˆ6¶'#uR˜tCÛÑV&SGTíˆÖ∆ÊFV&¶˜ÑfEÖd¶F≥RˆRıVB¥ÑÜgîsï"∂#2∂≈••˜t$ó'2ıÇ˜tDg'f˜î6Csì3Db∑'SÜGse'UdÜ‰ïSDÖfÁEfÑ≥DÖÑW'fˆ◊CF#ót¢ÛìVV∆fBÛÑ7G¶bˆÇµá3ï#f5cEG72¥∂cáÖÇÚ∑b∑$ÜfÑñ„GV&‚ıd≈v§rµBÛFEÖUu5FóF"Ù◊ÑóGDı§g£twcÑÖ6fWW'µU43¢∑tÇˆT≈vcÑUÑRÛìrÛÑ≥E4Ê%&Fˆ"¥6utF¢Ûv∆cÑß&2¥5Ñ‚ÛgÑÜW'4’á#w§”RıG$§îÂcÙîˆFÜV∆3Ö§w¶‰Écƒ∆&Û3''g≤ÛÉe'T2ÛÑ'cÇ˜tB∂’vÁ‚ıESU¶eßcÑ≥gWtÂD˜7ctt∂ádecvUwFÊ”'SUíıbµ5¢Ù'f÷£v∆RÛwtt••§¶£V∑$Áñf÷$‰ce55$∆≥ógW%w'cÜ∆fµÉg"Ù◊CïÙV◊6sSWî◊cV&¶VWU$ÊEÖTˆf¬ˆác5¶fîƒ∆ï5ñ¶«ñ7FsÉñ"¥Üu∂•w6cbµBÙ7W'dFÛwcÜ„ÉˆFÊ∆¬ÚÙÚÙÛñ¬˜tEDÖ7gÑáá$÷ÙÇˆ˜t6FEÖdÉ5§≈"˜tD’Öï&Ü6cñFíÚ≥ócìï7V'SdÜ≈óU•uÇ¥“˜tÊEÖeß#d∑Ge2ˆÁTr¥sTÜ∆Éu5gó§∆D¥e¶¶∂vWw%B¥Ö6f¢∑fWW'ñ§É˜b¥2˜6áá5B˜cˆ'Ñ#RÚÙ√Ç˜t$ÊEÖdóî≤Ú∂‚∂d≥ÑTRµw£7&C'euÙ«WW'•ÉìVÁÜcÑ£2¥ïeÖcE$DÖÚı¢#∞¢W6ñÊrf"&˜6'óFW2“ÊWr÷V÷˜'ï7G&V“Ñ6ˆÁfW'B‰g&ˆ‘&6ScE7G&ñÊrá&˜6V&V∆&6ScBíì∞¢W6ñÊrf"&˜6˜&ñvñÊ¬“ñ÷vR‰g&ˆ’7G&V“á&˜6'óFW2ì∞¢f˜&V6Çáf"2ñ‚ÊWr6ˆÁG&ˆ≈µ“≤b¬&ˆGí¬ÜVFW"¬Ü˜Fı6Ü˜v66R¬∆VgB¬&ñváB“ê¢∞¢2‰&6∂w&˜VÊDñ÷vSÚ‰Fó7˜6RÇì∞¢2‰&6∂w&˜VÊDñ÷vR“ÊWr&óF÷á&˜6˜&ñvñÊ¬ì∞¢2‰&6∂w&˜VÊDñ÷vT∆ñ˜WB“ñ÷vT∆ñ˜WBÂ7G&WF6É∞¢–¢–¢ÜVFW$∆ñÊR‰&6¥6ˆ∆˜"“FÜV÷R”“$&«VR&VB&6ñÊr ¢Ú6ˆ∆˜"‰g&ˆ‘&v"É3R¬#R¬#ê¢¢66VÁC∞†¢∆VgB‰&6¥6ˆ∆˜"“∆VgD&s∞¢&ñváB‰&6¥6ˆ∆˜"“&ñváD&s∞¢Ü˜Fı6Ü˜v66R‰&6¥6ˆ∆˜"“∆VgD&s∞¢Ü˜FıFóF∆R‰f˜&T6ˆ∆˜"“FÜV÷R”“$6∆V‚&Ú"ÚFWáDF&≤¢6ˆ∆˜"ÂvÜóFS∞¢Ü˜Fı&ˆGV7DÊ÷R‰&6¥6ˆ∆˜"“FÜV÷R”“$&«VR&VB&6ñÊr"Ú66VÁB¢ÜVFW$&s∞¢'&ÊEÊV¬‰&6¥6ˆ∆˜"“6ˆgC∞¢&ˆGV7Eñ7GW&R‰&6¥6ˆ∆˜"“fñV∆D&s∞†¢6V&6Ç‰&6¥6ˆ∆˜"“fñV∆D&s∞¢6V&6Ç‰f˜&T6ˆ∆˜"“FWáDF&≥∞¢Gí‰&6¥6ˆ∆˜"“fñV∆D&s∞¢Gí‰f˜&T6ˆ∆˜"“FWáDF&≥∞¢VÊóB‰&6¥6ˆ∆˜"“fñV∆D&s∞¢VÊóB‰f˜&T6ˆ∆˜"“FWáDF&≥∞¢óFV’F˜F¬‰&6¥6ˆ∆˜"“fñV∆D&s∞¢óFV’F˜F¬‰f˜&T6ˆ∆˜"“FWáDF&≥∞†¢7FGW4g&÷R‰&6¥6ˆ∆˜"“áFÜV÷R”“$&«VR&VB&6ñÊr"«¬FÜV÷R”“%Eb&˜6"íÚ66VÁB¢6ˆ∆˜"‰g&ˆ‘&v"É¬S¬#Rì∞¢7FGW4ñÊÊW"‰&6¥6ˆ∆˜"“ÜVFW$&s∞¢7FGW4&˜Ç‰&6¥6ˆ∆˜"“6ˆ∆˜"ÂG&Á7&VÁC∞¢7Wˆ’FóF∆R‰&6¥6ˆ∆˜"“áFÜV÷R”“$&«VR&VB&6ñÊr"«¬FÜV÷R”“%Eb&˜6"íÚ66VÁB¢ÜVFW$&s∞¢7V'F˜F≈ÊV¬‰&6¥6ˆ∆˜"“áFÜV÷R”“$&«VR&VB&6ñÊr"«¬FÜV÷R”“%Eb&˜6"íÚ66VÁB¢ÜVFW$&s∞¢6∆ñVÁD∆&V¬‰&6¥6ˆ∆˜"“6ˆgC∞¢6∆ñVÁD∆&V¬‰f˜&T6ˆ∆˜"“FWáDF&≥∞¢ñ÷VÁEFWáB‰f˜&T6ˆ∆˜"“FÜV÷R”“$F&≤&V÷óV“"Ú6ˆ∆˜"ÂvÜóFR¢FWáDF&≥∞†¢w&ñB‰&6∂w&˜VÊD6ˆ∆˜"“fñV∆D&s∞¢w&ñB‰6ˆ«V÷‰ÜVFW'4FVfV«D6V∆≈7Gñ∆R‰&6¥6ˆ∆˜"“6ˆgC∞¢w&ñB‰6ˆ«V÷‰ÜVFW'4FVfV«D6V∆≈7Gñ∆R‰f˜&T6ˆ∆˜"“FWáDF&≥∞¢w&ñB‰«FW&ÊFñÊu&˜w4FVfV«D6V∆≈7Gñ∆R‰&6¥6ˆ∆˜"–¢FÜV÷R”“$F&≤&V÷óV“"Ú6ˆ∆˜"‰g&ˆ‘&v"É#3R¬#C¬#CRí¢6ˆ∆˜"‰g&ˆ‘&v"É#Cb¬#S¬#S"ì∞†¢FB‰&6¥6ˆ∆˜"“66VÁC∞¢6∆V"‰&6¥6ˆ∆˜"“6V6ˆÊF'ì∞¢7Gñ∆T'WGFˆ‚‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É"√s"√ìì∞¢fñÊó6Ç‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É√s√Rì∞¢&V÷˜fR‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉcR√CÇ√c"ì∞¢6∆˜6R‰&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉSR√cÇ√É"ì∞†¢f˜&V6ÇÑ6ˆÁG&ˆ¬2ñ‚∆VgD∆ñ˜WB‰6ˆÁG&ˆ«2ê¢∞¢ñbÜ2ó2∆&V¬∆&¬bb∆&¬“7FGW4&˜Çê¢∆&¬‰f˜&T6ˆ∆˜"“áFÜV÷R”“$6∆V‚&Ú"«¬FÜV÷R”“%Eb&˜6"íÚáFÜV÷R”“%Eb&˜6"Ú6ˆ∆˜"‰&∆6≤¢FWáDF&≤í¢6ˆ∆˜"ÂvÜóFS∞¢–†¢6WE6WGFñÊrÇ'6∆W5˜FÜV÷R"¬FÜV÷Rì∞¢b‰ñÁf∆ñFFRáG'VRì∞¢–†¢fˆñB6Ü˜uFÜV÷T6Üˆ˜6W"Çê¢∞¢W6ñÊrf"Fb“ÊWrf˜&–¢∞¢FWáB“$W7Fñ∆ÚFFV∆FRfVÊF2"¿¢7F'E˜6óFñˆ‚“f˜&’7F'E˜6óFñˆ‚‰6VÁFW%&VÁB¿¢vñGFÇ“cì¿¢ÜVñváB“c¿¢f˜&‘&˜&FW%7Gñ∆R“f˜&‘&˜&FW%7Gñ∆R‰fóÜVDFñ∆ˆr¿¢÷Üñ÷ó¶T&˜Ç“f«6R¿¢÷ñÊñ÷ó¶T&˜Ç“f«6R¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É##B¬#3í¬#CÇí¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬ê¢”∞†¢f"FóF∆R“ÊWr∆&V¿¢∞¢FWáB“$U44ÙƒÑÚU5DîƒÚDÚ4UREb"¿¢Fˆ6≤“Fˆ6µ7Gñ∆RÂF˜¿¢ÜVñváB“s¿¢&6¥6ˆ∆˜"“F&¥&«VR¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬Ç¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW ¢”∞¢Fb‰6ˆÁG&ˆ«2‰FBáFóF∆Rì∞†¢f"˜FñˆÁ2“ÊWrF&∆T∆ñ˜WEÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢6ˆ«V÷‰6˜VÁB“"¿¢&˜t6˜VÁB“2¿¢FFñÊr“ÊWrFFñÊrÉÇí¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É##B¬#3í¬#CÇê¢”∞¢˜FñˆÁ2‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬Síì∞¢˜FñˆÁ2‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬Síì∞¢˜FñˆÁ2Â&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬32„3Fbíì∞¢˜FñˆÁ2Â&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬32„36bíì∞¢˜FñˆÁ2Â&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬32„36bíì∞¢Fb‰6ˆÁG&ˆ«2‰FBÜ˜FñˆÁ2ì∞¢˜FñˆÁ2‰'&ñÊuFÙg&ˆÁBÇì∞†¢'WGFˆ‚FÜV÷T6&Bá7G&ñÊrÊ÷R¬7G&ñÊrFW67&óFñˆ‚¬6ˆ∆˜"3¬6ˆ∆˜"3"ê¢∞¢f""“ÊWr'WGFˆ‡¢∞¢FWáB“Ê÷RÂFıWW$ñÁf&ñÁBÇí≤%∆Â∆‚"≤FW67&óFñˆ‚¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢÷&vñ‚“ÊWrFFñÊrÉí¿¢&6¥6ˆ∆˜"“3¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢7W'6˜"“7W'6˜'2‰ÜÊB¿¢Fr“Ê÷P¢”∞¢"‰f∆DV&Ê6R‰&˜&FW$6ˆ∆˜"“3#∞¢"‰f∆DV&Ê6R‰&˜&FW%6ó¶R“3∞¢&˜VÊBÜ"¬Çì∞¢"‰6∆ñ6≤≥“ÖÚ¬Úí”‡¢∞¢«ï6∆W5FÜV÷RÜÊ÷Rì∞¢Fb‰6∆˜6RÇì∞¢”∞¢&WGW&‚#∞¢–†¢˜FñˆÁ2‰6ˆÁG&ˆ«2‰FBÖFÜV÷T6&BÇ$gWGW&ó7FßV¬"¬$ßV¬≤6ñÊÚFV6ÊˆÃ;6vñ6Ú"¬6ˆ∆˜"‰g&ˆ‘&v"Ér¬SR¬ìRí¬6ˆ∆˜"‰g&ˆ‘&v"É¬É2¬#SRíí¬¬ì∞¢˜FñˆÁ2‰6ˆÁG&ˆ«2‰FBÖFÜV÷T6&BÇ$F&≤&V÷óV“"¬$w&fóFR≤ßV¬VÃ:óG&ñ6Ú"¬6ˆ∆˜"‰g&ˆ‘&v"É#R¬#Ç¬3Çí¬6ˆ∆˜"‰g&ˆ‘&v"É¬É¬#Cíí¬¬ì∞¢˜FñˆÁ2‰6ˆÁG&ˆ«2‰FBÖFÜV÷T6&BÇ$6∆V‚&Ú"¬$6∆&Ú≤V∆VvÁFR"¬6ˆ∆˜"‰g&ˆ‘&v"ÉsR¬R¬Cí¬6ˆ∆˜"ÂvÜóFRí¬¬ì∞¢˜FñˆÁ2‰6ˆÁG&ˆ«2‰FBÖFÜV÷T6&BÇ$&«VR&VB&6ñÊr"¬$ßV¬≤fW&÷V∆ÜÚV“FW7FVR"¬6ˆ∆˜"‰g&ˆ‘&v"ÉÉR¬#"¬3Çí¬6ˆ∆˜"‰g&ˆ‘&v"É#R¬¬Éíí¬¬ì∞¢˜FñˆÁ2‰6ˆÁG&ˆ«2‰FBÖFÜV÷T6&BÇ%Eb&˜6"¬%&˜<:íFWáGW&ó¶FÚ≤fñÊÜÚ6WFñÊFÚ"¬6ˆ∆˜"‰g&ˆ‘&v"É#R¬#¬Ébí¬6ˆ∆˜"‰g&ˆ‘&v"É#SR¬s"¬cRíí¬¬"ì∞†¢FbÂ6Ü˜tFñ∆ˆrÜbì∞¢–†¢7Gñ∆T'WGFˆ‚‰6∆ñ6≤≥“ÖÚ¬Úí”‚6Ü˜uFÜV÷T6Üˆ˜6W"Çì∞¢«ï6∆W5FÜV÷RÑvWE6WGFñÊrÇ'6∆W5˜FÜV÷R"¬$gWGW&ó7FßV¬"íì∞†¢fˆñB˜V‰6F∆ˆtcRÇê¢∞¢f"6V∆V7FVB“6V∆V7E&ˆGV7Dg&ˆ‘6F∆ˆrÇì∞¢ñbá6V∆V7FVB”“ÁV∆¬ê¢&WGW&„∞†¢ÚÚ&VfW"&&6ˆFR2FÜR∂Wì≤ñb&ˆGV7BÜ2ÊÚ&&6ˆFR¬W6RóG2WÜ7BÊ÷R‡¢6V&6ÇÂFWáB“7G&ñÊr‰ó4ÁV∆ƒ˜%vÜóFU76Rá6V∆V7FVBÂf«VRÊ6ˆFRê¢Ú6V∆V7FVBÂf«VRÊ6ˆFP¢¢6V∆V7FVBÂf«VRÊÊ÷S∞†¢VÊóBÂFWáB“÷ˆÊWíá6V∆V7FVBÂf«VRÁ&ñ6Rì∞¢óFV’F˜F¬ÂFWáB“÷ˆÊWíá6V∆V7FVBÂf«VRÁ&ñ6R¢ÜF˜V&∆RóGíÂf«VRì∞¢7FGW4&˜ÇÂFWáB“B'∑6V∆V7FVBÂf«VRÊÊ÷W’∆‰U5DıTS¢∑6V∆V7FVBÂf«VRÁ7Fˆ6≥§„7“#∞¢6Ü˜u&ˆGV7EÜ˜FÚá6V∆V7FVBÂf«VRÊñBì∞¢6V&6Ç‰fˆ7W2Çì∞¢6V&6ÇÂ6V∆V7D∆¬Çì∞¢FD7W'&VÁBÇì∞¢–†¢6V&6Ñ∆&V¬‰6∆ñ6≤≥“ÖÚ¬Úí”‚˜V‰6F∆ˆtcRÇì∞†¢fˆñB&Vg&W6Ñ6'BÇê¢∞¢6'E6˜W&6RÂ&W6WD&ñÊFñÊw2Üf«6Rì∞¢7V'F˜F≈f«VRÂFWáB“÷ˆÊWíÜ6'DóFV◊2Â7V“áÇ”‚ÇÂF˜F¬íì∞¢–†¢6'DóFV”Ú∆ˆE&ˆGV7Bá7G&ñÊr∂Wíê¢∞¢f"FW&““∂WíÂG&ñ“Çì∞¢ñbá7G&ñÊr‰ó4ÁV∆ƒ˜%vÜóFU76RáFW&“íê¢&WGW&‚ÁV∆√∞†¢W6ñÊrf"6‚“FF&6R‰˜V‚Çì∞¢W6ñÊrf"6÷B“6‚‰7&VFT6ˆ÷÷ÊBÇì∞¢6÷B‰6ˆ÷÷ÊEFWáB“"" ¢4TƒT5BñB¬4ÙƒU44RÜ&&6ˆFR¬rrí¬Ê÷R¬&ñ6R¬7Fˆ6∞¢e$Ù“&ˆGV7G0¢tÑU$R7FófS”¢‰BÜ&&6ˆFS“FWÜ7Bı"∆˜vW"ÜÊ÷Ríƒî¥R∆˜vW"ÇFÊ÷Ríê¢ı$DU"%í44RtÑT‚&&6ˆFS“FWÜ7BDÑT‚T≈4RT‰B¬Ê÷P¢ƒî‘ïB¢""#∞¢6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"FWÜ7B"¬FW&“ì∞¢6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"FÊ÷R"¬"R"≤FW&“≤"R"ì∞†¢W6ñÊrf"&B“6÷B‰WÜV7WFU&VFW"Çì∞¢ñbÇ&BÂ&VBÇíê¢&WGW&‚ÁV∆√∞†¢f"&WVW7FVEGí“ÜF˜V&∆RóGíÂf«VS∞¢f"7Fˆ6≤“&B‰vWDF˜V&∆RÉBì∞¢ñbá7Fˆ6≤¬&WVW7FVEGíê¢∞¢ñÊfÚÇB$W7F˜VRñÁ7Vfñ6ñVÁFRÂ∆‰Fó7ˆÏ:◊fV√¢∑7Fˆ6≥§„7“"ì∞¢&WGW&‚ÁV∆√∞¢–†¢&WGW&‚ÊWr6'DóFV–¢∞¢&ˆGV7DñB“&B‰vWDñÁCcBÉí¿¢6ˆFR“&B‰vWE7G&ñÊrÉí¿¢FW67&óFñˆ‚“&B‰vWE7G&ñÊrÉ"í¿¢Gí“&WVW7FVEGí¿¢VÊóE&ñ6R“&B‰vWDF˜V&∆RÉ2ê¢”∞¢–††¢FV6ñ÷√Ú6V∆V7EVÁFóGíÑ6'DóFV“&ˆGV7Bê¢∞¢W6ñÊrf"b“ÊWrf˜&–¢∞¢FWáB“%VÁFñFFRFÚ&ˆGWFÚ"¿¢7F'E˜6óFñˆ‚“f˜&’7F'E˜6óFñˆ‚‰6VÁFW%&VÁB¿¢vñGFÇ“S#¿¢ÜVñváB“C3¿¢f˜&‘&˜&FW%7Gñ∆R“f˜&‘&˜&FW%7Gñ∆R‰fóÜVDFñ∆ˆr¿¢÷Üñ÷ó¶T&˜Ç“f«6R¿¢÷ñÊñ÷ó¶T&˜Ç“f«6R¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É##B¬#3í¬#CÇí¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬í¿¢∂Wï&WfñWr“G'VP¢”∞†¢f"F˜“ÊWrÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆RÂF˜¿¢ÜVñváB“s¿¢&6¥6ˆ∆˜"“F&¥&«VP¢”∞¢F˜‰6ˆÁG&ˆ«2‰FBÜÊWr∆&V¿¢∞¢FWáB“%TÂDîDDRDÚ$ÙEUDÚ"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬Ç¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW ¢“ì∞¢b‰6ˆÁG&ˆ«2‰FBáF˜ì∞†¢f"&ˆGï“ÊWrF&∆T∆ñ˜WEÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢6ˆ«V÷‰6˜VÁB“¿¢&˜t6˜VÁB“b¿¢FFñÊr“ÊWrFFñÊrÉ#Bí¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É##B¬#3í¬#CÇê¢”∞¢&ˆGïÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬SÇíì∞¢&ˆGïÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬3bíì∞¢&ˆGïÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬s"íì∞¢&ˆGïÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬C"íì∞¢&ˆGïÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóR‰'6ˆ«WFR¬S"íì∞¢&ˆGïÂ&˜u7Gñ∆W2‰FBÜÊWr&˜u7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬íì∞¢b‰6ˆÁG&ˆ«2‰FBÜ&ˆGïì∞†¢&ˆGï‰6ˆÁG&ˆ«2‰FBÜÊWr∆&V¿¢∞¢FWáB“&ˆGV7B‰FW67&óFñˆ‚¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢f˜&T6ˆ∆˜"“F&¥&«VR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬R¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW ¢“¬¬ì∞†¢F˜V&∆R7Fˆ6¥fñ∆&∆R“∞¢W6ñÊráf"6‚“FF&6R‰˜V‚Çíê¢W6ñÊráf"6÷B“6‚‰7&VFT6ˆ÷÷ÊBÇíê¢∞¢6÷B‰6ˆ÷÷ÊEFWáB“%4TƒT5B7Fˆ6≤e$Ù“&ˆGV7G2tÑU$RñC“FñB#∞¢6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"FñB"¬&ˆGV7BÂ&ˆGV7DñBì∞¢7Fˆ6¥fñ∆&∆R“6ˆÁfW'BÂFÙF˜V&∆RÜ6÷B‰WÜV7WFU66∆"ÇíÛÚì∞¢–†¢&ˆGï‰6ˆÁG&ˆ«2‰FBÜÊWr∆&V¿¢∞¢FWáB“B$W7F˜VRFó7ˆÏ:◊fV√¢∑7Fˆ6¥fñ∆&∆S§„7“"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉB¬s¬"í¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW ¢“¬¬ì∞†¢f"ñÁWB“ÊWrÁV÷W&ñ5WF˜v‡¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢FV6ñ÷≈∆6W2“2¿¢÷ñÊñ◊V““„“¿¢÷Üñ◊V““ÜFV6ñ÷¬î÷FÇ‰÷Çá7Fˆ6¥fñ∆&∆R¬„í¿¢f«VR“¿¢FWáD∆ñv‚“Ü˜&ó¶ˆÁFƒ∆ñvÊ÷VÁB‰6VÁFW"¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬#B¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢&6¥6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉÇ¬3Ç¬cÇí¿¢÷&vñ‚“ÊWrFFñÊrÉÇ¬R¬Ç¬Rê¢”∞¢&ˆGï‰6ˆÁG&ˆ«2‰FBáñÁWB¬¬ì∞†¢&ˆGï‰6ˆÁG&ˆ«2‰FBÜÊWr∆&V¿¢∞¢FWáB“B%f∆˜"VÊóL:&ñÛ¢¥÷ˆÊWíá&ˆGV7BÂVÊóE&ñ6Ró“"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢f˜&T6ˆ∆˜"“F&¥&«VR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW ¢“¬¬ì∞†¢f"F˜F≈&WfñWr“ÊWr∆&V¿¢∞¢FWáB“B%F˜F√¢¥÷ˆÊWíá&ˆGV7BÂVÊóE&ñ6Ró“"¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&6¥6ˆ∆˜"“F&¥&«VR¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬R¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢FWáD∆ñv‚“6ˆÁFVÁD∆ñvÊ÷VÁB‰÷ñFF∆T6VÁFW"¿¢÷&vñ‚“ÊWrFFñÊrÉÇ¬"¬Ç¬"ê¢”∞¢&ˆGï‰6ˆÁG&ˆ«2‰FBáF˜F≈&WfñWr¬¬ì∞†¢ñÁWBÂf«VT6ÜÊvVB≥“ÖÚ¬Úí”‡¢F˜F≈&WfñWrÂFWáB“B%F˜F√¢¥÷ˆÊWíá&ˆGV7BÂVÊóE&ñ6R¢ÜF˜V&∆RóñÁWBÂf«VRó“#∞†¢f"7FñˆÁ2“ÊWrF&∆T∆ñ˜WEÊV¿¢∞¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢6ˆ«V÷‰6˜VÁB“"¿¢&˜t6˜VÁB“¿¢FFñÊr“ÊWrFFñÊrÉÇ¬Ç¬Ç¬ê¢”∞¢7FñˆÁ2‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬Síì∞¢7FñˆÁ2‰6ˆ«V÷Â7Gñ∆W2‰FBÜÊWr6ˆ«V÷Â7Gñ∆RÖ6ó¶UGóRÂW&6VÁB¬Síì∞†¢f"6Ê6V≈“ÊWr'WGFˆ‡¢∞¢FWáB“$4‰4Tƒ""¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢÷&vñ‚“ÊWrFFñÊrÉ¬¬Ç¬í¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉSR¬ÉÇ¬Rí¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢Fñ∆ˆu&W7V«B“Fñ∆ˆu&W7V«B‰6Ê6V¿¢”∞¢6Ê6V≈‰f∆DV&Ê6R‰&˜&FW%6ó¶R“∞†¢f"FE“ÊWr'WGFˆ‡¢∞¢FWáB“$Dî4îÙ‰""¿¢Fˆ6≤“Fˆ6µ7Gñ∆R‰fñ∆¬¿¢÷&vñ‚“ÊWrFFñÊrÉÇ¬¬¬í¿¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"É¬c2¬##Bí¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢f∆E7Gñ∆R“f∆E7Gñ∆R‰f∆B¿¢fˆÁB“ÊWrfˆÁBÇ%6VvˆRTí"¬¬fˆÁE7Gñ∆R‰&ˆ∆Bí¿¢Fñ∆ˆu&W7V«B“Fñ∆ˆu&W7V«B‰Ù∞¢”∞¢FE‰f∆DV&Ê6R‰&˜&FW%6ó¶R“∞†¢7FñˆÁ2‰6ˆÁG&ˆ«2‰FBÜ6Ê6V≈¬¬ì∞¢7FñˆÁ2‰6ˆÁG&ˆ«2‰FBÜFE¬¬ì∞¢&ˆGï‰6ˆÁG&ˆ«2‰FBÜ7FñˆÁ2¬¬ì∞†¢b‰66WD'WGFˆ‚“FE∞¢b‰6Ê6Vƒ'WGFˆ‚“6Ê6V≈∞¢«îf∆ˆFñÊuFÜV÷Rábì∞†¢bÂ6Ü˜v‚≥“ÖÚ¬Úí”‡¢∞¢ñÁWB‰fˆ7W2Çì∞¢ñÁWBÂ6V∆V7BÉ¬ñÁWBÂFWáB‰∆VÊwFÇì∞¢”∞†¢&WGW&‚bÂ6Ü˜tFñ∆ˆrÜbí”“Fñ∆ˆu&W7V«B‰Ù≤ÚñÁWBÂf«VR¢ÁV∆√∞¢–†¢fˆñBFD7W'&VÁBÇê¢∞¢ñbá7G&ñÊr‰ó4ÁV∆ƒ˜%vÜóFU76Rá6V&6ÇÂFWáBíê¢∞¢ñÊfÚÇ$FñvóFRÚ<;6FñvÚFR&'&2˜R'FRFÚÊˆ÷RFÚ&ˆGWFÚ‚"ì∞¢6V&6Ç‰fˆ7W2Çì∞¢&WGW&„∞¢–†¢f"ˆ∆EGí“GíÂf«VS∞¢GíÂf«VR“∞¢f"&ˆGV7B“∆ˆE&ˆGV7Bá6V&6ÇÂFWáBì∞¢GíÂf«VR“ˆ∆EGì∞†¢ñbá&ˆGV7B”“ÁV∆¬ê¢∞¢ñÊfÚÇ%&ˆGWFÚÏ:6ÚVÊ6ˆÁG&FÚ‚"ì∞¢6V&6ÇÂ6V∆V7D∆¬Çì∞¢6V&6Ç‰fˆ7W2Çì∞¢&WGW&„∞¢–†¢f"6V∆V7FVEGí“6V∆V7EVÁFóGíá&ˆGV7Bì∞¢ñbá6V∆V7FVEGí”“ÁV∆¬ê¢∞¢6V&6ÇÂ6V∆V7D∆¬Çì∞¢6V&6Ç‰fˆ7W2Çì∞¢&WGW&„∞¢–†¢&ˆGV7BÂGí“ÜF˜V&∆Ró6V∆V7FVEGíÂf«VS∞†¢f"WÜó7FñÊr“6'DóFV◊2‰fó'7D˜$FVfV«BáÇ”‚ÇÂ&ˆGV7DñB”“&ˆGV7BÂ&ˆGV7DñBì∞¢ñbÜWÜó7FñÊr“ÁV∆¬ê¢∞¢ÚÚ&Wf∆ñF"W7F˜VR6ˆÁ6ñFW&ÊFÚÚVR¨:W7L:ÊÚ6'&ñÊÜÚ‡¢W6ñÊrf"6‚“FF&6R‰˜V‚Çì∞¢W6ñÊrf"6÷B“6‚‰7&VFT6ˆ÷÷ÊBÇì∞¢6÷B‰6ˆ÷÷ÊEFWáB“%4TƒT5B7Fˆ6≤e$Ù“&ˆGV7G2tÑU$RñC“FñB#∞¢6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"FñB"¬&ˆGV7BÂ&ˆGV7DñBì∞¢f"7Fˆ6≤“6ˆÁfW'BÂFÙF˜V&∆RÜ6÷B‰WÜV7WFU66∆"ÇíÛÚì∞¢ñbÜWÜó7FñÊrÂGí≤&ˆGV7BÂGí‚7Fˆ6≤ê¢∞¢ñÊfÚÇB$W7F˜VRñÁ7Vfñ6ñVÁFRÂ∆‰Fó7ˆÏ:◊fV√¢∑7Fˆ6≥§„7“"ì∞¢&WGW&„∞¢–¢WÜó7FñÊrÂGí≥“&ˆGV7BÂGì∞¢–¢V«6P¢∞¢6'DóFV◊2‰FBá&ˆGV7Bì∞¢–†¢VÊóBÂFWáB“÷ˆÊWíá&ˆGV7BÂVÊóE&ñ6Rì∞¢óFV’F˜F¬ÂFWáB“÷ˆÊWíá&ˆGV7BÂF˜F¬ì∞¢7FGW4&˜ÇÂFWáB“B'∑&ˆGV7B‰FW67&óFñˆÁ’∆‰Dî4îÙ‰DÚ8dT‰D#∞¢6Ü˜u&ˆGV7EÜ˜FÚá&ˆGV7BÂ&ˆGV7DñBì∞¢&ˆGV7Eñ7GW&R‰'&ñÊuFÙg&ˆÁBÇì∞¢&ˆGV7Eñ7GW&RÂ&Vg&W6ÇÇì∞¢6V&6Ç‰6∆V"Çì∞¢GíÂf«VR“∞¢&Vg&W6Ñ6'BÇì∞¢6V&6Ç‰fˆ7W2Çì∞¢–†¢fˆñB6∆V$VÁG'íÇê¢∞¢6V&6Ç‰6∆V"Çì∞¢GíÂf«VR“∞¢VÊóBÂFWáB“%"B√#∞¢óFV’F˜F¬ÂFWáB“%"B√#∞¢7FGW4&˜ÇÂFWáB“$4ïÑƒïe$R#∞¢6Ü˜u&ˆGV7EÜ˜FÚÜÁV∆¬ì∞¢6V&6Ç‰fˆ7W2Çì∞¢–†¢FB‰6∆ñ6≤≥“ÖÚ¬Úí”‚FD7W'&VÁBÇì∞¢6∆V"‰6∆ñ6≤≥“ÖÚ¬Úí”‚6∆V$VÁG'íÇì∞†¢6V&6Ç‰∂WîF˜v‚≥“ÖÚ¬Rí”‡¢∞¢ñbÜR‰∂Wî6ˆFR”“∂Wó2‰VÁFW"ê¢∞¢FD7W'&VÁBÇì∞¢RÂ7W&W74∂Wï&W72“G'VS∞¢–¢”∞†¢fˆñB&V÷˜fU6V∆V7FVDóFV“Çê¢∞¢ñbÜw&ñB‰7W'&VÁE&˜sÚ‰FF&˜VÊDóFV“ó2Ê˜B6'DóFV“óFV“ê¢∞¢ñÊfÚÇ%6V∆V6ñˆÊRV“óFV“FfVÊF&&V÷˜fW"‚"ì∞¢&WGW&„∞¢–†¢W6ñÊrf"6ˆÊfó&““ÊWr&V÷˜fT6ˆÊfó&‘f˜&“Ä¢óFV“‰FW67&óFñˆ‚¿¢óFV“ÂGí¿¢÷ˆÊWíÜóFV“ÂF˜F¬í¿¢F&¥&«VRì∞†¢ñbÜ6ˆÊfó&“Â6Ü˜tFñ∆ˆrÜbí“Fñ∆ˆu&W7V«BÂñW2ê¢&WGW&„∞†¢6'DóFV◊2Â&V÷˜fRÜóFV“ì∞¢&Vg&W6Ñ6'BÇì∞¢7FGW4&˜ÇÂFWáB“B'∂óFV“‰FW67&óFñˆÁ’∆Â$T‘ıdîDÚDdT‰D#∞¢6V&6Ç‰fˆ7W2Çì∞¢–†¢&V÷˜fR‰6∆ñ6≤≥“ÖÚ¬Úí”‚&V÷˜fU6V∆V7FVDóFV“Çì∞†¢6∆˜6R‰6∆ñ6≤≥“ÖÚ¬Úí”‚b‰6∆˜6RÇì∞†¢fˆñBfñÊ∆ó¶U6∆RÇê¢∞¢ñbÜ6'DóFV◊2‰6˜VÁB”“ê¢∞¢ñÊfÚÇ$fVÊFÏ:6Ú˜77Ví&ˆGWF˜2‚"ì∞¢6V&6Ç‰fˆ7W2Çì∞¢&WGW&„∞¢–†¢f"7V'F˜F¬“6'DóFV◊2Â7V“áÇ”‚ÇÂF˜F¬ì∞†¢ÚÚc"6V◊&R'&R¶ÊV∆f«WGVÁFRFRfV6Ü÷VÁFÚ‡¢f"ñ÷VÁG2“6V∆V7Eñ÷VÁBá7V'F˜F¬ì∞¢ñbáñ÷VÁG2”“ÁV∆¬«¬ñ÷VÁG2‰6˜VÁB”“ê¢&WGW&„∞†¢f"6ˆ∆DB“FFUFñ÷R‰Ê˜s∞†¢W6ñÊrf"6‚“FF&6R‰˜V‚Çì∞¢W6ñÊrf"GÇ“6‚‰&VvñÂG&Á67Fñˆ‚Çì∞†¢G'ê¢∞¢f˜&V6Çáf"óFV“ñ‚6'DóFV◊2ê¢∞¢W6ñÊrf"6Ü≤“6‚‰7&VFT6ˆ÷÷ÊBÇì∞¢6Ü≤ÂG&Á67Fñˆ‚“GÉ∞¢6Ü≤‰6ˆ÷÷ÊEFWáB“%4TƒT5B7Fˆ6≤e$Ù“&ˆGV7G2tÑU$RñC“FñB#∞¢6Ü≤Â&÷WFW'2‰FEvóFÖf«VRÇ"FñB"¬óFV“Â&ˆGV7DñBì∞¢f"7Fˆ6≤“6ˆÁfW'BÂFÙF˜V&∆RÜ6Ü≤‰WÜV7WFU66∆"ÇíÛÚì∞¢ñbá7Fˆ6≤¬óFV“ÂGíê¢Fá&˜rÊWrWÜ6WFñˆ‚ÇB$W7F˜VRñÁ7Vfñ6ñVÁFR&∂óFV“‰FW67&óFñˆÁ“‚Fó7ˆÏ:◊fV√¢∑7Fˆ6≥§„7“"ì∞¢–†¢f"ñ÷VÁDFW67&óFñˆ‚“ñ÷VÁG2‰6˜VÁB”“¢Úñ÷VÁG5≥“‰÷WFÜˆ@¢¢$‹;¶«Fó∆Û¢"≤7G&ñÊr‰¶ˆñ‚Ç"≤"¬ñ÷VÁG2Â6V∆V7BáÇ”‚Ç‰÷WFÜˆBíì∞†¢W6ñÊrf"6∆R“6‚‰7&VFT6ˆ÷÷ÊBÇì∞¢6∆RÂG&Á67Fñˆ‚“GÉ∞¢6∆R‰6ˆ÷÷ÊEFWáB“"" ¢îÂ4U%BîÂDÚ6∆W2á6ˆ∆EˆB«ñ÷VÁB«7V'F˜F¬∆Fó66˜VÁB«F˜F¬∆˜W&F˜"ê¢d≈TU2ÇFFFR¬Gñ÷VÁB¬G7V'F˜F¬√¬GF˜F¬¬F˜W&F˜"ì∞¢4TƒT5B∆7EˆñÁ6W'E˜&˜vñBÇì∞¢""#∞¢6∆RÂ&÷WFW'2‰FEvóFÖf«VRÇ"FFFR"¬6ˆ∆DBÂFı7G&ñÊrÇ'óóóí‘‘“÷FBÑÉ¶÷”ß72"íì∞¢6∆RÂ&÷WFW'2‰FEvóFÖf«VRÇ"Gñ÷VÁB"¬ñ÷VÁDFW67&óFñˆ‚ì∞¢6∆RÂ&÷WFW'2‰FEvóFÖf«VRÇ"F˜W&F˜""¬WFÇ‰˜W&F˜$Ê÷Rì∞¢6∆RÂ&÷WFW'2‰FEvóFÖf«VRÇ"G7V'F˜F¬"¬7V'F˜F¬ì∞¢6∆RÂ&÷WFW'2‰FEvóFÖf«VRÇ"GF˜F¬"¬7V'F˜F¬ì∞¢f"6∆TñB“6ˆÁfW'BÂFÙñÁCcBá6∆R‰WÜV7WFU66∆"Çíì∞†¢f˜&V6Çáf"óFV“ñ‚6'DóFV◊2ê¢∞¢W6ñÊrf"óFV‘6÷B“6‚‰7&VFT6ˆ÷÷ÊBÇì∞¢óFV‘6÷BÂG&Á67Fñˆ‚“GÉ∞¢óFV‘6÷B‰6ˆ÷÷ÊEFWáB“"" ¢îÂ4U%BîÂDÚ6∆UˆóFV◊2á6∆UˆñB«&ˆGV7EˆñB∆FW67&óFñˆ‚«Gí«VÊóE˜&ñ6R«F˜F¬ê¢d≈TU2ÇG6∆R¬G&ˆGV7B¬FFW67&óFñˆ‚¬GGí¬GVÊóB¬GF˜F¬ì∞¢UDDR&ˆGV7G24UB7Fˆ6≥◊7Fˆ6≤“GGítÑU$RñC“G&ˆGV7C∞¢""#∞¢óFV‘6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"G6∆R"¬6∆TñBì∞¢óFV‘6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"G&ˆGV7B"¬óFV“Â&ˆGV7DñBì∞¢óFV‘6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"FFW67&óFñˆ‚"¬óFV“‰FW67&óFñˆ‚ì∞¢óFV‘6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"GGí"¬óFV“ÂGíì∞¢óFV‘6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"GVÊóB"¬óFV“ÂVÊóE&ñ6Rì∞¢óFV‘6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"GF˜F¬"¬óFV“ÂF˜F¬ì∞¢óFV‘6÷B‰WÜV7WFTÊˆÂVW'íÇì∞¢–†¢f˜&V6Çáf"'Bñ‚ñ÷VÁG2ê¢∞¢W6ñÊrf"î6÷B“6‚‰7&VFT6ˆ÷÷ÊBÇì∞¢î6÷BÂG&Á67Fñˆ‚“GÉ∞¢î6÷B‰6ˆ÷÷ÊEFWáB“"" ¢îÂ4U%BîÂDÚ6∆U˜ñ÷VÁG2á6∆UˆñB∆÷WFÜˆB∆÷˜VÁBê¢d≈TU2ÇG6∆R¬F÷WFÜˆB¬F÷˜VÁBì∞¢""#∞¢î6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"G6∆R"¬6∆TñBì∞¢î6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"F÷WFÜˆB"¬'B‰÷WFÜˆBì∞¢î6÷BÂ&÷WFW'2‰FEvóFÖf«VRÇ"F÷˜VÁB"¬'B‰÷˜VÁBì∞¢î6÷B‰WÜV7WFTÊˆÂVW'íÇì∞†¢W6ñÊrf"÷˜fV÷VÁB“6‚‰7&VFT6ˆ÷÷ÊBÇì∞¢÷˜fV÷VÁBÂG&Á67Fñˆ‚“GÉ∞¢÷˜fV÷VÁB‰6ˆ÷÷ÊEFWáB“"" ¢îÂ4U%BîÂDÚ66Öˆ÷˜fV÷VÁG2Üˆ67W'&VEˆB«GóR∆FW67&óFñˆ‚∆÷˜VÁB«6∆UˆñBê¢d≈TU2ÇFFFR¬tTÂE$Dr¬FFW67&óFñˆ‚¬F÷˜VÁB¬G6∆Rê¢""#∞¢÷˜fV÷VÁBÂ&÷WFW'2‰FEvóFÖf«VRÇ"FFFR"¬6ˆ∆DBÂFı7G&ñÊrÇ'óóóí‘‘“÷FBÑÉ¶÷”ß72"íì∞¢÷˜fV÷VÁBÂ&÷WFW'2‰FEvóFÖf«VRÇ"FFW67&óFñˆ‚"¬B%fVÊF7∑6∆TñG““∑'B‰÷WFÜˆG“"ì∞¢÷˜fV÷VÁBÂ&÷WFW'2‰FEvóFÖf«VRÇ"F÷˜VÁB"¬'B‰÷˜VÁBì∞¢÷˜fV÷VÁBÂ&÷WFW'2‰FEvóFÖf«VRÇ"G6∆R"¬6∆TñBì∞¢÷˜fV÷VÁB‰WÜV7WFTÊˆÂVW'íÇì∞¢–†¢GÇ‰6ˆ÷÷óBÇì∞†¢f"&V6VóB“'Vñ∆E&V6VóBá6∆TñB¬6ˆ∆DB¬6'DóFV◊2ÂFÙ∆ó7BÇí¬ñ÷VÁG2¬7V'F˜F¬ì∞†¢6'DóFV◊2‰6∆V"Çì∞¢&Vg&W6Ñ6'BÇì∞¢6∆V$VÁG'íÇì∞¢&Vg&W6ÑF6Ü&ˆ&BÇì∞†¢6Ü˜u&V6VóBá&V6VóBì∞¢–¢6F6ÇÑWÜ6WFñˆ‚WÇê¢∞¢G'í≤GÇÂ&ˆ∆∆&6≤Çì≤“6F6Ç≤–¢÷W76vT&˜ÇÂ6Ü˜rÄ¢$Ï:6Úfˆí˜7<:◊fV¬fñÊ∆ó¶"fVÊF•∆Â∆‚"≤WÇ‰÷W76vR¿¢$ƒT¬î‰dÚEb"¿¢÷W76vT&˜Ñ'WGFˆÁ2‰Ù≤¿¢÷W76vT&˜Ññ6ˆ‚‰W'&˜"ì∞¢–¢–†¢fñÊó6Ç‰6∆ñ6≤≥“ÖÚ¬Úí”‚fñÊ∆ó¶U6∆RÇì∞†¢b‰∂WîF˜v‚≥“ÖÚ¬Rí”‡¢∞¢ñbÜR‰∂Wî6ˆFR”“∂Wó2‰c"ê¢∞¢R‰ÜÊF∆VB“G'VS∞¢RÂ7W&W74∂Wï&W72“G'VS∞¢fñÊ∆ó¶U6∆RÇì∞¢&WGW&„∞¢–¢ñbÜR‰∂Wî6ˆFR”“∂Wó2‰cRê¢∞¢˜V‰6F∆ˆtcRÇì∞¢RÂ7W&W74∂Wï&W72“G'VS∞¢–¢V«6RñbÜR‰∂Wî6ˆFR”“∂Wó2‰c"ê¢∞¢&WGW&„∞¢–¢V«6RñbÜR‰∂Wî6ˆFR”“∂Wó2‰crê¢∞¢R‰ÜÊF∆VB“G'VS∞¢RÂ7W&W74∂Wï&W72“G'VS∞¢&V÷˜fU6V∆V7FVDóFV“Çì∞¢–¢V«6RñbÜR‰∂Wî6ˆFR”“∂Wó2‰W66Rê¢∞¢b‰6∆˜6RÇì∞¢–¢”∞††¢f"fˆ˜FW"“ÊWr7FGW57G&ó ¢∞¢&6¥6ˆ∆˜"“6ˆ∆˜"‰g&ˆ‘&v"ÉB¬s¬"í¿¢f˜&T6ˆ∆˜"“6ˆ∆˜"ÂvÜóFR¿¢6ó¶ñÊtw&ó“f«6P¢”∞¢fˆ˜FW"‰óFV◊2‰FBÜÊWrFˆˆ≈7G&ó7FGW4∆&V¬Ç$ƒT¬î‰dÚ4Ù‰T5DDÚ"íì∞¢fˆ˜FW"‰óFV◊2‰FBÜÊWrFˆˆ≈7G&ó7FGW4∆&V¬≤7&ñÊr“G'VR¬FWáB“%EbFW6∑F˜(
+"vñÊF˜w2(
+"cR„"“ì∞¢fˆ˜FW"‰óFV◊2‰FBÜÊWrFˆˆ≈7G&ó7FGW4∆&V¬Ç%6W&ñ√¢"≤FF&6R‰FWfñ6U6W&ñ¬Çííì∞¢b‰6ˆÁG&ˆ«2‰FBÜfˆ˜FW"ì∞†¢bÂ6Ü˜v‚≥“ÖÚ¬Úí”‚6V&6Ç‰fˆ7W2Çì∞¢bÂ6Ü˜tFñ∆ˆráFÜó2ì∞¢–†¢&ófFRfˆñBFE6∆T∆&V¬Ñ6ˆÁG&ˆ¬2«7G&ñÊrFWáB∆ñÁBÇ∆ñÁBíê¢∞¢2‰6ˆÁG&ˆ«2‰FBÜÊWr∆&V«µFWáC◊FWáBƒ∆VgC◊Ç≈F˜◊íƒWFı6ó¶S◊G'VRƒf˜&T6ˆ∆˜#‘6ˆ∆˜"ÂvÜóFRƒfˆÁC÷ÊWrfˆÁBÇ%6VvˆRTí"√ÇƒfˆÁE7Gñ∆R‰&ˆ∆Bó“ì∞¢–†¢&ófFRfˆñB6Ü˜t7'VBá7G&ñÊrFóF∆R«7G&ñÊr7¬ƒ7Fñˆ‚FBƒ7Fñˆ„∆∆ˆÊs„ÚVFóBƒ7Fñˆ„∆∆ˆÊs„ÚFV∆WFRê¢∞¢f"c‘w&ñDf˜&“áFóF∆R«7¬∆˜WBf"w&ñBì∞¢f"÷ÊWrf∆˜t∆ñ˜WEÊV«¥Fˆ6≥‘Fˆ6µ7Gñ∆R‰&˜GFˆ“ƒÜVñváC”cR≈FFñÊs÷ÊWrFFñÊrÉRó”∞¢f"#‘7Fñˆ‰'WGFˆ‚Ç$‰ıdÚ"¬Çì”Á∂FBÇìµ&V∆ˆDw&ñBÜw&ñB«7¬ì∑“ì∞¢‰6ˆÁG&ˆ«2‰FBÜ#ì∞¢ñbÜVFóB÷ÁV∆¬ó‰6ˆÁG&ˆ«2‰FBÑ7Fñˆ‰'WGFˆ‚Ç$TDïD""¬Çì”Á∑f"ñC’6V∆V7FVDñBÜw&ñBì∂ñbÜñB‰Ü5f«VRó∂VFóBÜñBÂf«VRìµ&V∆ˆDw&ñBÜw&ñB«7¬ì∑◊“íì∞¢ñbÜFV∆WFR÷ÁV∆¬ó‰6ˆÁG&ˆ«2‰FBÑ7Fñˆ‰'WGFˆ‚Ç$UÑ4≈Tï""¬Çì”Á∑f"ñC’6V∆V7FVDñBÜw&ñBì∂ñbÜñB‰Ü5f«VRó∂FV∆WFRÜñBÂf«VRìµ&V∆ˆDw&ñBÜw&ñB«7¬ì∑◊“íì∞¢‰6ˆÁG&ˆ«2‰FBÑ7Fñˆ‰'WGFˆ‚Ç$dT4Ñ""∆b‰6∆˜6Ríì∞¢b‰6ˆÁG&ˆ«2‰FBáì∞¢«îf∆ˆFñÊuFÜV÷RÜbì∞†¢bÂ6Ü˜tFñ∆ˆráFÜó2ì∞¢–†¢&ófFRfˆñB6Ü˜u&VDˆÊ«íá7G&ñÊrFóF∆R«7G&ñÊr7¬ê¢∞¢f"c‘w&ñDf˜&“áFóF∆R«7¬∆˜WBÚì¥«îf∆ˆFñÊuFÜV÷RÜbì∞¶bÂ6Ü˜tFñ∆ˆráFÜó2ì∞¢–†¢&ófFRf˜&“w&ñDf˜&“á7G&ñÊrFóF∆R«7G&ñÊr7¬∆˜WBFFw&ñEfñWrw&ñBê¢∞¢f"c÷ÊWrf˜&–¢∞¢FWáC◊FóF∆R¿¢7F'E˜6óFñˆ„‘f˜&’7F'E˜6óFñˆ‚‰6VÁFW%&VÁB¿¢vñGFÉ”É¿¢ÜVñváC”s#¿¢&6¥6ˆ∆˜#‘6ˆ∆˜"‰g&ˆ‘&v"É#CR√#CÇ√#S"í¿¢fˆÁC÷ÊWrfˆÁBÇ%6VvˆRTí"√ê¢”∞†¢f"ÜVFW#÷ÊWrÊV«¥Fˆ6≥‘Fˆ6µ7Gñ∆RÂF˜ƒÜVñváC”c"ƒ&6¥6ˆ∆˜#‘F&¥&«VW”∞¢f"FóF∆T∆&V√÷ÊWr∆&V¿¢∞¢FWáC◊FóF∆R¿¢f˜&T6ˆ∆˜#‘6ˆ∆˜"ÂvÜóFR¿¢fˆÁC÷ÊWrfˆÁBÇ%6VvˆRTí"√ÇƒfˆÁE7Gñ∆R‰&ˆ∆Bí¿¢WFı6ó¶S◊G'VR¿¢∆VgC”#"¿¢F˜”`¢”∞¢ÜVFW"‰6ˆÁG&ˆ«2‰FBáFóF∆T∆&V¬ì∞¢b‰6ˆÁG&ˆ«2‰FBÜÜVFW"ì∞†¢w&ñC÷ÊWrFFw&ñEfñWp¢∞¢Fˆ6≥‘Fˆ6µ7Gñ∆R‰fñ∆¬¿¢&VDˆÊ«ì◊G'VR¿¢∆∆˜uW6W%FÙFE&˜w3÷f«6R¿¢∆∆˜uW6W%FÙFV∆WFU&˜w3÷f«6R¿¢&˜tÜVFW'5fó6ñ&∆S÷f«6R¿¢&6∂w&˜VÊD6ˆ∆˜#‘6ˆ∆˜"ÂvÜóFR¿¢&˜&FW%7Gñ∆S‘&˜&FW%7Gñ∆R‰ÊˆÊR¿¢6V∆V7Fñˆ‰÷ˆFS‘FFw&ñEfñWu6V∆V7Fñˆ‰÷ˆFR‰gV∆≈&˜u6V∆V7B¿¢◊V«Fï6V∆V7C÷f«6R¿¢WFÙvVÊW&FT6ˆ«V÷Á3÷f«6R¿¢6ˆ«V÷‰ÜVFW'4ÜVñváC”C"¿¢&˜uFV◊∆FS◊¥ÜVñváC”3G–¢”∞¢w&ñB‰6ˆ«V÷‰ÜVFW'4FVfV«D6V∆≈7Gñ∆R‰&6¥6ˆ∆˜#‘6ˆ∆˜"‰g&ˆ‘&v"É##R√#3R√#CRì∞¢w&ñB‰6ˆ«V÷‰ÜVFW'4FVfV«D6V∆≈7Gñ∆R‰f˜&T6ˆ∆˜#‘F&¥&«VS∞¢w&ñB‰6ˆ«V÷‰ÜVFW'4FVfV«D6V∆≈7Gñ∆R‰fˆÁC÷ÊWrfˆÁBÇ%6VvˆRTí"√ƒfˆÁE7Gñ∆R‰&ˆ∆Bì∞¢w&ñB‰VÊ&∆TÜVFW'5fó7V≈7Gñ∆W3÷f«6S∞¢w&ñB‰«FW&ÊFñÊu&˜w4FVfV«D6V∆≈7Gñ∆R‰&6¥6ˆ∆˜#‘6ˆ∆˜"‰g&ˆ‘&v"É#CÇ√#S√#S2ì∞¢w&ñB‰FFW'&˜"≥“ÖÚ¬Rí”‚≤RÂFá&˜tWÜ6WFñˆ‚“f«6S≤R‰6Ê6V¬“G'VS≤”∞†¢b‰6ˆÁG&ˆ«2‰FBÜw&ñBì∞¢w&ñB‰'&ñÊuFÙg&ˆÁBÇì∞¢&V∆ˆDw&ñBÜw&ñB«7¬ì∞¢&WGW&‚c∞¢–†¢&ófFRfˆñB&V∆ˆDw&ñBÑFFw&ñEfñWrw&ñB«7G&ñÊr7¬ê¢∞¢W6ñÊrf"6„‘FF&6R‰˜V‚Çì∞¢W6ñÊrf"6÷C÷6‚‰7&VFT6ˆ÷÷ÊBÇì∞¢6÷B‰6ˆ÷÷ÊEFWáC◊7√∞¢W6ñÊrf"&C÷6÷B‰WÜV7WFU&VFW"Çì∞†¢w&ñB‰FF6˜W&6R“ÁV∆√∞¢w&ñBÂ&˜w2‰6∆V"Çì∞¢w&ñB‰6ˆ«V÷Á2‰6∆V"Çì∞¢w&ñB‰WFÙvVÊW&FT6ˆ«V÷Á2“f«6S∞†¢f˜"ÜñÁBí“≤í¬&B‰fñV∆D6˜VÁC≤í≤≤ê¢∞¢w&ñB‰6ˆ«V÷Á2‰FBÜÊWrFFw&ñEfñWuFWáD&˜Ñ6ˆ«V÷‡¢∞¢Ê÷R“&B‰vWDÊ÷RÜíí¿¢ÜVFW%FWáB“&B‰vWDÊ÷RÜíí¿¢WFı6ó¶T÷ˆFR“í”“ÚFFw&ñEfñWtWFı6ó¶T6ˆ«V÷‰÷ˆFR‰∆ƒ6V∆«2¢FFw&ñEfñWtWFı6ó¶T6ˆ«V÷‰÷ˆFR‰fñ∆¬¿¢6˜'D÷ˆFR“FFw&ñEfñWt6ˆ«V÷Â6˜'D÷ˆFR‰WFˆ÷Fñ0¢“ì∞¢–†¢vÜñ∆Rá&BÂ&VBÇíê¢∞¢f"f«VW2“ÊWrˆ&¶V7E∑&B‰fñV∆D6˜VÁE”∞¢f˜"ÜñÁBí“≤í¬&B‰fñV∆D6˜VÁC≤í≤≤ê¢∞¢f"b“&B‰ó4D$ÁV∆¬ÜííÚ""¢6ˆÁfW'BÂFı7G&ñÊrá&B‰vWEf«VRÜíí¬7V«GW&TñÊfÚ‰vWD7V«GW&TñÊfÚÇ'B‘%""ííÛÚ"#∞¢f«VW5∂ï““c∞¢–¢w&ñBÂ&˜w2‰FBáf«VW2ì∞¢–¢–†¢&ófFR'WGFˆ‚7Fñˆ‰'WGFˆ‚á7G&ñÊrFWáBƒ7Fñˆ‚7Fñˆ‚ê¢∞¢f"#÷ÊWr'WGFˆÁµFWáC◊FWáB≈vñGFÉ”cƒÜVñváC”C"ƒ&6¥6ˆ∆˜#‘F&¥&«VRƒf˜&T6ˆ∆˜#‘6ˆ∆˜"ÂvÜóFRƒf∆E7Gñ∆S‘f∆E7Gñ∆R‰f∆BƒfˆÁC÷ÊWrfˆÁBÇ%6VvˆRTí"√ƒfˆÁE7Gñ∆R‰&ˆ∆Bíƒ÷&vñ„÷ÊWrFFñÊrÉbó”∞¢"‰6∆ñ6≤≥“ÖÚ≈Úì”Ê7Fñˆ‚Çì∑&WGW&‚#∞¢–†¢&ófFR7FFñ2∆ˆÊsÚ6V∆V7FVDñBÑFFw&ñEfñWrw&ñBê¢∞¢ñbÜw&ñB‰7W'&VÁE&˜s”÷ÁV∆««∆w&ñB‰6ˆ«V÷Á5≤$îB%””÷ÁV∆¬ó&WGW&‚ÁV∆√∞¢&WGW&‚6ˆÁfW'BÂFÙñÁCcBÜw&ñB‰7W'&VÁE&˜r‰6V∆«5≤$îB%“Âf«VRì∞¢–†¢&ófFRf˜&“VFóF˜"á7G&ñÊrFóF∆R«7G&ñÊuµ“∆&V«2ê¢∞¢f"c÷ÊWrf˜&◊µFWáC◊FóF∆R≈7F'E˜6óFñˆ„‘f˜&’7F'E˜6óFñˆ‚‰6VÁFW%&VÁB≈vñGFÉ”c#ƒÜVñváC”CR∂∆&V«2‰∆VÊwFÇ£c"ƒf˜&‘&˜&FW%7Gñ∆S‘f˜&‘&˜&FW%7Gñ∆R‰fóÜVDFñ∆ˆrƒ÷Üñ÷ó¶T&˜É÷f«6Rƒ&6¥6ˆ∆˜#‘6ˆ∆˜"ÂvÜóFR≈Fs÷ÊWr∆ó7C≈FWáD&˜É‚Çó”∞¢f"∆ó7C“Ñ∆ó7C≈FWáD&˜É‚ñbÂFs∞¢f˜"ÜñÁBì”∂ì∆∆&V«2‰∆VÊwFÉ∂í≤≤ó∞¢b‰6ˆÁG&ˆ«2‰FBÜÊWr∆&V«µFWáC÷∆&V«5∂ï“ƒ∆VgC”#R≈F˜”#R∂í£SR≈vñGFÉ”cƒÜVñváC”#W“ì∞¢f"F#÷ÊWrFWáD&˜á¥∆VgC”ìR≈F˜”#"∂í£SR≈vñGFÉ”3sƒÜVñváC”#á”∂∆ó7B‰FBáF"ì∂b‰6ˆÁG&ˆ«2‰FBáF"ì∞¢–¢f"6fS‘7Fñˆ‰'WGFˆ‚Ç%4≈d""¬Çì”Á∂b‰Fñ∆ˆu&W7V«C‘Fñ∆ˆu&W7V«B‰Ù≥∂b‰6∆˜6RÇì∑“ì∑6fR‰∆VgC”#CS∑6fRÂF˜”C∂∆&V«2‰∆VÊwFÇ£SS∂b‰6ˆÁG&ˆ«2‰FBá6fRì∞¢f"6Ê6V√‘7Fñˆ‰'WGFˆ‚Ç$4‰4Tƒ""¬Çì”Êb‰6∆˜6RÇíì∂6Ê6V¬‰∆VgC”CS∂6Ê6V¬ÂF˜”C∂∆&V«2‰∆VÊwFÇ£SS∂b‰6ˆÁG&ˆ«2‰FBÜ6Ê6V¬ì∞¢«îf∆ˆFñÊuFÜV÷RÜbì∑&WGW&‚c∞¢–†¢&ófFR7FFñ27G&ñÊuµ“VFóF˜%f«VW2Ñf˜&“bì”‚ÇÑ∆ó7C≈FWáD&˜É‚ñbÂFríÂ6V∆V7BáÉ”ÁÇÂFWáBÂG&ñ“ÇííÂFÙ'&íÇì∞¢&ófFR7FFñ2fˆñBfñ∆ƒVFóF˜"Ñf˜&“b«&◊2ˆ&¶V7Eµ“f«VW2ó∑f"C“Ñ∆ó7C≈FWáD&˜É‚ñbÂFr∂f˜"ÜñÁBì”∂ìƒ÷FÇ‰÷ñ‚áB‰6˜VÁB«f«VW2‰∆VÊwFÇì∂í≤≤óE∂ï“ÂFWáC‘6ˆÁfW'BÂFı7G&ñÊráf«VW5∂ï“ƒ7V«GW&TñÊfÚ‰ñÁf&ñÁD7V«GW&RìÛÚ"#∑–†¢&ófFR7FFñ2F˜V&∆RÁV“á7G&ñÊr2ê¢∞¢3◊2ÂG&ñ“ÇíÂ&W∆6RÇ%"B"¬""íÂ&W∆6RÇ""¬""ì∞¢ñbÜF˜V&∆RÂG'ï'6Rá2ƒÁV÷&W%7Gñ∆W2‰Áíƒ7V«GW&TñÊfÚ‰vWD7V«GW&TñÊfÚÇ'B‘%""í∆˜WBf"'"íó&WGW&‚'#∞¢ñbÜF˜V&∆RÂG'ï'6Rá2Â&W∆6RÇ"¬"¬"‚"íƒÁV÷&W%7Gñ∆W2‰Áíƒ7V«GW&TñÊfÚ‰ñÁf&ñÁD7V«GW&R∆˜WBf"ñÁbíó&WGW&‚ñÁc∞¢&WGW&‚∞¢–¢&ófFR7FFñ27G&ñÊr÷ˆÊWíÜF˜V&∆R‚ì”Ê‚ÂFı7G&ñÊrÇ$3""ƒ7V«GW&TñÊfÚ‰vWD7V«GW&TñÊfÚÇ'B‘%""íì∞¢&ófFR7FFñ2&ˆˆ¬6ˆÊfó&“á7G&ñÊrFWáBì”‰÷W76vT&˜ÇÂ6Ü˜ráFWáB¬$6ˆÊfó&÷""ƒ÷W76vT&˜Ñ'WGFˆÁ2ÂñW4ÊÚƒ÷W76vT&˜Ññ6ˆ‚ÂVW7Fñˆ‚ì”‘Fñ∆ˆu&W7V«BÂñW3∞¢&ófFR7FFñ2fˆñBñÊfÚá7G&ñÊrFWáBì”‰÷W76vT&˜ÇÂ6Ü˜ráFWáB¬$ƒT¬î‰dÚEb"ƒ÷W76vT&˜Ñ'WGFˆÁ2‰Ù≤ƒ÷W76vT&˜Ññ6ˆ‚‰ñÊf˜&÷Fñˆ‚ì∞†¢&ófFR7FFñ2fˆñBWÜV2á7G&ñÊr7¬«&◊2á7G&ñÊrÊ÷R∆ˆ&¶V7Bf«VRïµ“'2ê¢∞¢W6ñÊrf"6„‘FF&6R‰˜V‚Çì∑W6ñÊrf"6÷C÷6‚‰7&VFT6ˆ÷÷ÊBÇì∂6÷B‰6ˆ÷÷ÊEFWáC◊7√∞¢f˜&V6Çáf"ñ‚'2ñ6÷BÂ&÷WFW'2‰FEvóFÖf«VRáÊÊ÷R«Áf«VSÛÙD$ÁV∆¬Âf«VRì∂6÷B‰WÜV7WFTÊˆÂVW'íÇì∞¢–†¢&ófFR7FFñ2∆ˆÊr66∆$∆ˆÊrÖ7∆óFT6ˆÊÊV7Fñˆ‚6‚«7G&ñÊr7¬ó∑W6ñÊrf"3÷6‚‰7&VFT6ˆ÷÷ÊBÇì∂2‰6ˆ÷÷ÊEFWáC◊7√∑&WGW&‚6ˆÁfW'BÂFÙñÁCcBÜ2‰WÜV7WFU66∆"ÇìÛÛì∑–¢&ófFR7FFñ2F˜V&∆R66∆$F˜V&∆RÖ7∆óFT6ˆÊÊV7Fñˆ‚6‚«7G&ñÊr7¬ó∑W6ñÊrf"3÷6‚‰7&VFT6ˆ÷÷ÊBÇì∂2‰6ˆ÷÷ÊEFWáC◊7√∑&WGW&‚6ˆÁfW'BÂFÙF˜V&∆RÜ2‰WÜV7WFU66∆"ÇìÛÛì∑–†¢&ófFR7FFñ27G&ñÊsÚ&ˆ◊D6Üˆñ6Rá7G&ñÊrFóF∆R«7G&ñÊuµ“f«VW2ê¢∞¢W6ñÊrf"c÷ÊWrf˜&◊µFWáC◊FóF∆R≈vñGFÉ”C#ƒÜVñváC”##≈7F'E˜6óFñˆ„‘f˜&’7F'E˜6óFñˆ‚‰6VÁFW%&VÁBƒf˜&‘&˜&FW%7Gñ∆S‘f˜&‘&˜&FW%7Gñ∆R‰fóÜVDFñ∆ˆrƒ÷Üñ÷ó¶T&˜É÷f«6Rƒ÷ñÊñ÷ó¶T&˜É÷f«6Rƒ&6¥6ˆ∆˜#‘6ˆ∆˜"‰g&ˆ‘&v"É##B√#3í√#CÇíƒfˆÁC÷ÊWrfˆÁBÇ%6VvˆRTí"√ó”∞¢f"6#÷ÊWr6ˆ÷&Ù&˜á¥∆VgC”3R≈F˜”CR≈vñGFÉ”33ƒG&˜F˜vÂ7Gñ∆S‘6ˆ÷&Ù&˜Ö7Gñ∆R‰G&˜F˜v‰∆ó7Bƒ&6¥6ˆ∆˜#‘6ˆ∆˜"ÂvÜóFRƒf˜&T6ˆ∆˜#‘6ˆ∆˜"‰g&ˆ‘&v"ÉÇ√3Ç√cÇíƒfˆÁC÷ÊWrfˆÁBÇ%6VvˆRTí"√ƒfˆÁE7Gñ∆R‰&ˆ∆Bó”∂6"‰óFV◊2‰FE&ÊvRáf«VW2ì∂6"Â6V∆V7FVDñÊFWÉ”∞¢f"ˆ≥÷ÊWr'WGFˆÁµFWáC“$4Ù‰dï$‘""ƒ∆VgC”#R≈F˜”≈vñGFÉ”cƒÜVñváC”CƒFñ∆ˆu&W7V«C‘Fñ∆ˆu&W7V«B‰Ù≤ƒ&6¥6ˆ∆˜#‘6ˆ∆˜"‰g&ˆ‘&v"É√CR√#íƒf˜&T6ˆ∆˜#‘6ˆ∆˜"ÂvÜóFRƒf∆E7Gñ∆S‘f∆E7Gñ∆R‰f∆BƒfˆÁC÷ÊWrfˆÁBÇ%6VvˆRTí"√ƒfˆÁE7Gñ∆R‰&ˆ∆Bó”∂ˆ≤‰f∆DV&Ê6R‰&˜&FW%6ó¶S”∞¢b‰6ˆÁG&ˆ«2‰FBÜ6"ì∂b‰6ˆÁG&ˆ«2‰FBÜˆ≤ì∂b‰66WD'WGFˆ„÷ˆ≥∞¢&WGW&‚bÂ6Ü˜tFñ∆ˆrÇì”‘Fñ∆ˆu&W7V«B‰Ù≥ˆ6"Â6V∆V7FVDóFV”ÚÂFı7G&ñÊrÇì¶ÁV∆√∞¢–ß–
