@@ -72,10 +72,6 @@ jobs:
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_lic_ai_conversa_v10_210.ps1"
 
-      - name: Corrigir resposta e diagnostico V10.213
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\corrigir_lic_ai_resposta_v10_213.ps1"
-
       - name: Restaurar dependencias LIC AI
         run: dotnet restore LIC-AI/LicAi.csproj
 
@@ -105,7 +101,7 @@ jobs:
           if (!(Test-Path $setup)) { throw "Setup nao encontrado" }; if (!(Test-Path $package)) { throw "Pacote nao encontrado" }
           $packageHash=(Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
           $ErrorActionPreference="Continue"; gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null; $ErrorActionPreference="Stop"
-          $notes="V10.213: correcao do ciclo de resposta da LIC AI, maior sensibilidade do microfone e diagnostico visivel de falhas GPT/voz."
+          $notes="V10.213: correcao do ciclo de resposta da LIC AI, voz continua e UTF-8."
           gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes $notes
           $manifest=@{Version=$env:UPDATE_VERSION;PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE";Sha256=$packageHash;Notes=$notes;DownloadUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:SETUP_FILE";Mandatory=$false;Message=$notes}|ConvertTo-Json
           $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest)); $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"; gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.213" -f content="$encoded" -f sha="$sha"
