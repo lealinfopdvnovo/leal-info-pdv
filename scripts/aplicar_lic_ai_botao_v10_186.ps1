@@ -89,6 +89,21 @@ $insert = @'
                     MessageBox.Show("LIC AI nao foi encontrada nesta instalacao. Atualize o PDV e tente novamente.\n\nCaminho esperado:\n" + licExe, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+                // Encerra somente instancias antigas da propria LIA que ficaram invisiveis/travadas.
+                foreach (var stale in System.Diagnostics.Process.GetProcessesByName("LicAi"))
+                {
+                    try
+                    {
+                        var runningPath = stale.MainModule?.FileName;
+                        if (string.Equals(runningPath, licExe, StringComparison.OrdinalIgnoreCase))
+                        {
+                            stale.Kill(true);
+                            stale.WaitForExit(2500);
+                        }
+                    }
+                    catch { }
+                    finally { stale.Dispose(); }
+                }
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = licExe,
