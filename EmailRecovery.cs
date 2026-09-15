@@ -48,6 +48,24 @@ public static class EmailRecovery
         return(Get("smtp_host"),port,Get("smtp_user"),Get("smtp_ssl","1")=="1",Get("smtp_from_name","LEAL INFO PDV"),!string.IsNullOrWhiteSpace(Get("smtp_password")));
     }
     public static bool IsConfigured(){var s=GetSmtp();return !string.IsNullOrWhiteSpace(s.host)&&!string.IsNullOrWhiteSpace(s.user)&&s.hasPassword;}
+
+    public static async Task SendBackupAsync(string zipPath, CancellationToken cancellationToken = default)
+    {
+        if (!IsConfigured())
+            throw new InvalidOperationException("Configure o SMTP em Utilitários > Recuperação por e-mail antes de enviar backups.");
+        if (!File.Exists(zipPath)) throw new FileNotFoundException("Arquivo de backup não encontrado.", zipPath);
+
+        var s=GetSmtp();var pwd=Decrypt(Get("smtp_password"));
+        if(string.IsNullOrWhiteSpace(pwd)) throw new InvalidOperationException("A senha SMTP configurada não pôde ser lida neste computador.");
+        using var mail=new MailMessage();
+        mail.From=new MailAddress(s.user,s.fromName);
+        mail.To.Add(s.user);
+        mail.Subject=$"Backup LEAL INFO PDV - {DateTime.Now:dd/MM/yyyy HH:mm}";
+        mail.Body=$"Backup automático e consistente do banco de dados do LEAL INFO PDV.\r\n\r\nComputador: {Environment.MachineName}\r\nGerado em: {DateTime.Now:dd/MM/yyyy HH:mm:ss}";
+        mail.Attachments.Add(new Attachment(zipPath));
+        using var smtp=new SmtpClient(s.host,s.port){EnableSsl=s.ssl,UseDefaultCredentials=false,Credentials=new NetworkCredential(s.user,pwd),DeliveryMethod=SmtpDeliveryMethod.Network,Timeout=30000};
+        await smtp.SendMailAsync(mail, cancellationToken);
+    }
     static string HashCode(string code)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("LEALINFO-RESET|"+code)));
 
     public static (bool ok,string message) SendResetCode(string q)

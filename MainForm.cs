@@ -21,6 +21,8 @@ public sealed class MainForm : Form
     private readonly Label lowStockLabel = new();
     private readonly CancellationTokenSource navigationListenerCts = new();
     private bool navigationListenerStarted;
+    private bool automaticBackupCompleted;
+    private bool automaticBackupRunning;
 
     public MainForm()
     {
@@ -31,6 +33,7 @@ public sealed class MainForm : Form
         Font = new Font("Segoe UI", 10);
         BuildUi();
         RefreshDashboard();
+        FormClosing += MainForm_FormClosing;
 
         Shown += (_, _) =>
         {
@@ -560,7 +563,8 @@ public sealed class MainForm : Form
             {
                 AddMenu("Alterar tela principal...", () => { if(mainScreenPicture != null) ChangeMainScreenImage(mainScreenPicture); });
                 AddMenu("Dados da empresa...", () => ShowCompanyRegistration(false));
-                AddMenu("Backup", Backup);
+                AddMenu("Fazer Backup", () => _ = BackupAsync());
+                AddMenu("Restaurar Backup", () => _ = RestoreBackupAsync());
                 AddMenu("Configurações", OpenSettings);
                 AddMenu("Usuários e acessos...", () => {
                     if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode gerenciar usuários.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
@@ -615,7 +619,8 @@ public sealed class MainForm : Form
         AddTool(bar, "ORÇAMENTOS", "quotes.png", OpenQuotes);
         AddTool(bar, "TELA DE\nVENDAS", "sales.png", OpenSales);
         AddTool(bar, "RELATÓRIOS", "reports.png", OpenReports);
-        AddTool(bar, "BACKUP", "backup.png", Backup);
+        AddTool(bar, "FAZER\nBACKUP", "backup.png", () => _ = BackupAsync());
+        AddTool(bar, "RESTAURAR\nBACKUP", "backup.png", () => _ = RestoreBackupAsync());
         AddTool(bar, "CONFIGURAÇÕES", "settings.png", OpenSettings);
         AddTool(bar, "SAIR", "exit.png", ConfirmExit);
 
@@ -2464,10 +2469,81 @@ private void ApplyFloatingTheme(Form f)
             "Configurações",MessageBoxButtons.OK,MessageBoxIcon.Information);
     }
 
-    private void Backup()
+    private async Task BackupAsync()
     {
-        try { Database.Backup(); Info("Backup criado com sucesso em:\n" + Database.BackupFolder); }
-        catch(Exception ex){ Info("Erro no backup:\n"+ex.Message); }
+        if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode enviar backups.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        try
+        {
+            UseWaitCursor = true;
+            var zip = await DatabaseBackupService.CreateAndSendAsync();
+            MessageBox.Show("Backup enviado com sucesso para o e-mail configurado.\n\nCópia local:\n" + zip,
+                "Backup concluído", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show("Não foi possível enviar o backup.\n\n" + ex.Message,
+                "Erro no backup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally { UseWaitCursor = false; }
+    }
+
+    private async Task RestoreBackupAsync()
+    {
+        if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode restaurar backups.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        using var dialog = new OpenFileDialog
+        {
+            Title = "Selecionar backup do LEAL INFO PDV",
+            Filter = "Backup do PDV (*.zip;*.db;*.sqlite)|*.zip;*.db;*.sqlite|Todos os arquivos (*.*)|*.*",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        if (MessageBox.Show("A restauração substituirá os dados atuais pelos dados do backup selecionado.\n\nUma cópia de segurança do banco atual será guardada antes da troca. Deseja continuar?",
+            "Confirmar restauração", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+
+        try
+        {
+            UseWaitCursor = true;
+            await DatabaseBackupService.RestoreAsync(dialog.FileName);
+            automaticBackupCompleted = true;
+            MessageBox.Show("Backup restaurado e validado com sucesso.\n\nO PDV será reiniciado agora para carregar os dados recuperados.",
+                "Restauração concluída", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            Application.Restart();
+        }
+        catch(Exception ex)
+        {
+            MessageBox.Show("O banco atual não foi substituído.\n\n" + ex.Message,
+                "Falha na restauração", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally { UseWaitCursor = false; }
+    }
+
+    private async void MainForm_FormClosing(object? sender, FormClosingEventArgs e)
+    {
+        if (automaticBackupCompleted || automaticBackupRunning) return;
+        automaticBackupRunning = true;
+        e.Cancel = true;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await DatabaseBackupService.CreateAndSendAsync(timeout.Token);
+        }
+        catch(Exception ex)
+        {
+            try
+            {
+                Directory.CreateDirectory(Database.BackupFolder);
+                await File.AppendAllTextAsync(Path.Combine(Database.BackupFolder, "backup-errors.log"),
+                    $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {ex}\n");
+            }
+            catch { }
+        }
+        finally
+        {
+            automaticBackupCompleted = true;
+            automaticBackupRunning = false;
+            BeginInvoke(Close);
+        }
     }
 
 
@@ -5418,5 +5494,4 @@ f.ShowDialog(this);
         return f.ShowDialog()==DialogResult.OK?cb.SelectedItem?.ToString():null;
     }
 }
-
 
