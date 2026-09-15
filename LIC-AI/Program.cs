@@ -22,7 +22,8 @@ internal static class Program
         var memory = new ConversationMemory(Path.Combine(appData, "lic-memory.db"));
         var secrets = new LocalSecretStore(Path.Combine(appData, "settings.dat"));
         var client = new OpenAiClient(() => secrets.GetApiKey());
-        var engine = new ConversationEngine(memory, client);
+        var navigationClient = new NavigationAssistantClient(() => secrets.GetApiKey());
+        var engine = new ConversationEngine(memory, client, navigationClient);
 
         var voiceOnly = args.Any(a => a.Equals("--voice", StringComparison.OrdinalIgnoreCase));
         Application.Run(new MainForm(engine, secrets, voiceOnly));
