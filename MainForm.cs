@@ -21,6 +21,8 @@ public sealed class MainForm : Form
     private readonly Label lowStockLabel = new();
     private readonly CancellationTokenSource navigationListenerCts = new();
     private bool navigationListenerStarted;
+    private string lastAiNavigationCommand = "";
+    private DateTime lastAiNavigationUtc = DateTime.MinValue;
     private bool automaticBackupCompleted;
     private bool automaticBackupRunning;
 
@@ -109,10 +111,49 @@ public sealed class MainForm : Form
         }
 
         command = (command ?? string.Empty).Trim().ToUpperInvariant();
+
+        // Descarta comandos repetidos enviados em sequência pela mesma resposta/conversa.
+        if (command == lastAiNavigationCommand && DateTime.UtcNow - lastAiNavigationUtc < TimeSpan.FromSeconds(2))
+            return;
+        lastAiNavigationCommand = command;
+        lastAiNavigationUtc = DateTime.UtcNow;
+
         WindowState = FormWindowState.Maximized;
         Show();
         Activate();
         BringToFront();
+
+        var screenTitles = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["PRODUTOS"] = new[] { "PRODUTOS" },
+            ["CLIENTES"] = new[] { "CLIENTES" },
+            ["FORNECEDORES"] = new[] { "FORNECEDORES" },
+            ["SERVICOS"] = new[] { "SERVIÇOS" },
+            ["ORDENS_SERVICO"] = new[] { "ORDENS DE SERVIÇO" },
+            ["ORCAMENTOS"] = new[] { "ORÇAMENTOS" },
+            ["FLUXO_CAIXA"] = new[] { "FLUXO DE CAIXA" },
+            ["HISTORICO_VENDAS"] = new[] { "HISTÓRICO DE VENDAS" },
+            ["TELA_VENDAS"] = new[] { "LEAL INFO CONECTADO - TELA DE VENDAS" },
+            ["USUARIOS"] = new[] { "Usuários e Níveis de Acesso" },
+            ["CADASTROS"] = new[] { "Cadastros" },
+            ["AJUDA_CADASTRO"] = new[] { "Central de Ajuda • Cadastro" }
+        };
+
+        if (screenTitles.TryGetValue(command, out var titles))
+        {
+            var open = Application.OpenForms.Cast<Form>().FirstOrDefault(form =>
+                !ReferenceEquals(form, this) && titles.Any(title =>
+                    form.Text.Equals(title, StringComparison.OrdinalIgnoreCase) ||
+                    form.Text.StartsWith(title, StringComparison.OrdinalIgnoreCase)));
+            if (open != null)
+            {
+                if (open.WindowState == FormWindowState.Minimized) open.WindowState = FormWindowState.Normal;
+                open.BringToFront();
+                open.Activate();
+                open.Focus();
+                return;
+            }
+        }
 
         switch (command)
         {
@@ -5494,4 +5535,3 @@ f.ShowDialog(this);
         return f.ShowDialog()==DialogResult.OK?cb.SelectedItem?.ToString():null;
     }
 }
-
