@@ -8,10 +8,10 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.199: botao LIC AI futurista, sem fundo quadrado.
+        // V10.201: botao LIC AI HUD futurista, formato horizontal.
         var licAiButton = new Control
         {
-            Size = new Size(132, 132),
+            Size = new Size(210, 86),
             Cursor = Cursors.Hand,
             TabStop = false,
             Anchor = AnchorStyles.Bottom
@@ -23,55 +23,51 @@ $insert = @'
         void PositionLicAiButton()
         {
             licAiButton.BackColor = Color.Transparent;
-            licAiButton.Location = new Point((ClientSize.Width - licAiButton.Width) / 2, ClientSize.Height - licAiButton.Height - 10);
+            licAiButton.Location = new Point((ClientSize.Width - licAiButton.Width) / 2, ClientSize.Height - licAiButton.Height - 18);
             licAiButton.BringToFront();
         }
 
         double licPhase = 0;
         licAiButton.Paint += (_, e) =>
         {
-            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            e.Graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
-
+            var g = e.Graphics;
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
             float pulse = (float)((Math.Sin(licPhase) + 1.0) / 2.0);
-            float cx = licAiButton.ClientSize.Width / 2f;
-            float cy = licAiButton.ClientSize.Height / 2f;
-            float d = 92f + pulse * 4f;
-            float x = cx - d / 2f;
-            float y = cy - d / 2f;
+            var body = new RectangleF(12, 13, licAiButton.Width - 24, licAiButton.Height - 26);
 
-            using var glow3 = new Pen(Color.FromArgb(25 + (int)(pulse * 25), 0, 180, 255), 18f);
-            e.Graphics.DrawEllipse(glow3, x - 8, y - 8, d + 16, d + 16);
-            using var glow2 = new Pen(Color.FromArgb(70 + (int)(pulse * 50), 0, 220, 255), 9f);
-            e.Graphics.DrawEllipse(glow2, x - 4, y - 4, d + 8, d + 8);
-            using var glow1 = new Pen(Color.FromArgb(210, 45, 235, 255), 3.2f);
-            e.Graphics.DrawEllipse(glow1, x - 1, y - 1, d + 2, d + 2);
+            using var pathHud = new System.Drawing.Drawing2D.GraphicsPath();
+            float cut = 18f;
+            pathHud.AddPolygon(new PointF[] {
+                new(body.Left + cut, body.Top), new(body.Right - cut, body.Top),
+                new(body.Right, body.Top + body.Height / 2f),
+                new(body.Right - cut, body.Bottom), new(body.Left + cut, body.Bottom),
+                new(body.Left, body.Top + body.Height / 2f)
+            });
 
-            using var outer = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(x, y, d, d), Color.FromArgb(0, 235, 255), Color.FromArgb(0, 65, 190), 55f);
-            e.Graphics.FillEllipse(outer, x, y, d, d);
-            using var mid = new SolidBrush(Color.FromArgb(3, 18, 50));
-            e.Graphics.FillEllipse(mid, x + 7, y + 7, d - 14, d - 14);
-            using var inner = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(x + 12, y + 12, d - 24, d - 24), Color.FromArgb(15, 92, 190), Color.FromArgb(1, 18, 55), 90f);
-            e.Graphics.FillEllipse(inner, x + 12, y + 12, d - 24, d - 24);
+            using var glowWide = new Pen(Color.FromArgb(35 + (int)(pulse * 25), 0, 210, 255), 14f);
+            g.DrawPath(glowWide, pathHud);
+            using var glow = new Pen(Color.FromArgb(125 + (int)(pulse * 80), 0, 235, 255), 5f);
+            g.DrawPath(glow, pathHud);
+            using var fill = new System.Drawing.Drawing2D.LinearGradientBrush(body, Color.FromArgb(8, 44, 82), Color.FromArgb(2, 12, 30), 90f);
+            g.FillPath(fill, pathHud);
+            using var edge = new Pen(Color.FromArgb(240, 55, 238, 255), 2.2f);
+            g.DrawPath(edge, pathHud);
 
-            using var ring1 = new Pen(Color.FromArgb(235, 50, 220, 255), 2.0f);
-            e.Graphics.DrawEllipse(ring1, x + 12, y + 12, d - 24, d - 24);
-            using var ring2 = new Pen(Color.FromArgb(130, 90, 245, 255), 1.2f);
-            e.Graphics.DrawEllipse(ring2, x + 18, y + 18, d - 36, d - 36);
+            float scanX = body.Left + 20 + (float)((Math.Sin(licPhase * .7) + 1) / 2) * (body.Width - 40);
+            using var scan = new Pen(Color.FromArgb(80, 120, 250, 255), 2f);
+            g.DrawLine(scan, scanX, body.Top + 8, scanX, body.Bottom - 8);
 
-            var arcRect = new RectangleF(x - 7, y - 7, d + 14, d + 14);
-            using var arcPen = new Pen(Color.FromArgb(245, 80, 245, 255), 4.5f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round };
-            float spin = (float)((licPhase * 32) % 360);
-            e.Graphics.DrawArc(arcPen, arcRect, spin, 72);
-            e.Graphics.DrawArc(arcPen, arcRect, spin + 180, 72);
-
-            using var gloss = new SolidBrush(Color.FromArgb(42, 255, 255, 255));
-            e.Graphics.FillEllipse(gloss, x + d * .24f, y + d * .16f, d * .40f, d * .13f);
-
-            using var font = new Font("Segoe UI", 15.5f, FontStyle.Bold, GraphicsUnit.Point);
+            using var dot = new SolidBrush(Color.FromArgb(80, 255, 185));
+            g.FillEllipse(dot, body.Left + 18, body.Top + body.Height / 2f - 4, 8, 8);
+            using var font = new Font("Segoe UI", 17f, FontStyle.Bold, GraphicsUnit.Point);
             using var textBrush = new SolidBrush(Color.White);
             using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            e.Graphics.DrawString("LIC AI", font, textBrush, new RectangleF(x + 8, y + 8, d - 16, d - 16), sf);
+            g.DrawString("LIC  AI", font, textBrush, body, sf);
+
+            using var subFont = new Font("Segoe UI", 6.8f, FontStyle.Regular, GraphicsUnit.Point);
+            using var subBrush = new SolidBrush(Color.FromArgb(145, 220, 245));
+            g.DrawString("ASSISTENTE INTELIGENTE", subFont, subBrush, new RectangleF(body.Left, body.Bottom - 17, body.Width, 12), sf);
         };
 
         licAiButton.Click += (_, _) =>
@@ -95,4 +91,4 @@ $insert = @'
 '@
 $text = $text.Replace($anchor, $insert)
 Set-Content $path $text -Encoding UTF8
-Write-Host 'LIC AI V10.199: botao futurista transparente com aneis neon aplicado.'
+Write-Host 'LIC AI V10.201: botao HUD futurista horizontal aplicado.'
