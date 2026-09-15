@@ -8,7 +8,7 @@ if (-not $text.Contains($anchor)) { throw 'Ponto de insercao LIC AI nao encontra
 $insert = @'
         Controls.Add(menu);
 
-        // V10.205: botao inteiro reposicionado abaixo do nome.
+        // V10.208: esfera inicia conversa por voz sem abrir janela.
         var licAiButton = new Control
         {
             Size = new Size(210, 210),
@@ -100,7 +100,7 @@ $insert = @'
             {
                 var licExe = Path.Combine(AppContext.BaseDirectory, "LIC-AI", "LicAi.exe");
                 if (!File.Exists(licExe)) { MessageBox.Show("LIC AI nao foi encontrada nesta instalacao. Atualize o PDV e tente novamente.", "LIC AI", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = licExe, WorkingDirectory = Path.GetDirectoryName(licExe) ?? AppContext.BaseDirectory, UseShellExecute = true });
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = licExe, Arguments = "--voice", WorkingDirectory = Path.GetDirectoryName(licExe) ?? AppContext.BaseDirectory, UseShellExecute = true });
             }
             catch (Exception ex) { MessageBox.Show("Nao foi possivel abrir a LIC AI.\n\n" + ex.Message, "LIC AI", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         };
