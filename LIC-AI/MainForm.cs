@@ -26,11 +26,13 @@ public sealed class MainForm : Form
     private bool _voiceMode;
     private bool _recognizing;
     private bool _processingVoice;
+    private readonly bool _voiceOnly;
 
-    public MainForm(ConversationEngine engine, LocalSecretStore secrets)
+    public MainForm(ConversationEngine engine, LocalSecretStore secrets, bool voiceOnly = false)
     {
         _engine = engine;
         _secrets = secrets;
+        _voiceOnly = voiceOnly;
 
         Text = "LIC AI";
         StartPosition = FormStartPosition.CenterScreen;
@@ -42,7 +44,24 @@ public sealed class MainForm : Form
 
         BuildUi();
         LoadHistory();
-        Shown += (_, _) => { EnsureApiKey(); InitializeVoice(); };
+        if (_voiceOnly)
+        {
+            ShowInTaskbar = false;
+            Opacity = 0;
+            WindowState = FormWindowState.Minimized;
+        }
+        Shown += async (_, _) =>
+        {
+            if (string.IsNullOrWhiteSpace(_secrets.GetApiKey()))
+            {
+                if (_voiceOnly) { Opacity = 1; ShowInTaskbar = true; WindowState = FormWindowState.Normal; }
+                EnsureApiKey();
+                if (string.IsNullOrWhiteSpace(_secrets.GetApiKey())) { Close(); return; }
+                if (_voiceOnly) { Opacity = 0; ShowInTaskbar = false; WindowState = FormWindowState.Minimized; }
+            }
+            InitializeVoice();
+            if (_voiceOnly) await ToggleVoiceAsync();
+        };
         FormClosed += (_, _) => DisposeVoice();
     }
 
@@ -292,6 +311,13 @@ public sealed class MainForm : Form
             using var doc = JsonDocument.Parse(_voiceRecognizer.Result());
             var heard = doc.RootElement.GetProperty("text").GetString()?.Trim();
             if (string.IsNullOrWhiteSpace(heard)) return;
+            if (heard.Contains("encerrar conversa", StringComparison.OrdinalIgnoreCase) ||
+                heard.Contains("parar conversa", StringComparison.OrdinalIgnoreCase) ||
+                heard.Contains("desligar lia", StringComparison.OrdinalIgnoreCase))
+            {
+                BeginInvoke(() => { _voiceMode = false; DisposeVoice(); Close(); });
+                return;
+            }
             _processingVoice = true;
             BeginInvoke(async () =>
             {
