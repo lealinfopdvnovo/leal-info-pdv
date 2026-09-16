@@ -9,7 +9,7 @@ namespace LicAi.Core;
 /// <summary>Conexao persistente de voz-a-voz com a OpenAI Realtime API.</summary>
 public sealed class OpenAiRealtimeConnection : IAsyncDisposable
 {
-    private const string Model = "gpt-4o-realtime-preview";
+    private const string Model = "gpt-realtime-2.1";
     private static readonly Uri Endpoint = new($"wss://api.openai.com/v1/realtime?model={Model}");
     private readonly Func<string?> _apiKeyProvider;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -65,7 +65,6 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             sessionCts = _sessionCts;
             socket = new ClientWebSocket();
             socket.Options.SetRequestHeader("Authorization", $"Bearer {key}");
-            socket.Options.SetRequestHeader("OpenAI-Beta", "realtime=v1");
             socket.Options.KeepAliveInterval = TimeSpan.FromSeconds(20);
             _socket = socket;
         }
@@ -86,19 +85,30 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             type = "session.update",
             session = new
             {
-                modalities = new[] { "audio", "text" },
+                type = "realtime",
+                model = Model,
+                output_modalities = new[] { "audio" },
                 instructions = SystemPrompt,
-                voice = "shimmer",
-                input_audio_format = "pcm16",
-                output_audio_format = "pcm16",
-                turn_detection = new
+                audio = new
                 {
-                    type = "server_vad",
-                    threshold = 0.45,
-                    prefix_padding_ms = 250,
-                    silence_duration_ms = 420,
-                    create_response = true,
-                    interrupt_response = true
+                    input = new
+                    {
+                        format = new { type = "audio/pcm", rate = 24000 },
+                        turn_detection = new
+                        {
+                            type = "server_vad",
+                            threshold = 0.45,
+                            prefix_padding_ms = 250,
+                            silence_duration_ms = 420,
+                            create_response = true,
+                            interrupt_response = true
+                        }
+                    },
+                    output = new
+                    {
+                        format = new { type = "audio/pcm", rate = 24000 },
+                        voice = "marin"
+                    }
                 },
                 tools = new object[]
                 {
@@ -123,9 +133,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                         }
                     }
                 },
-                tool_choice = "auto",
-                temperature = 0.7,
-                max_response_output_tokens = 80
+                tool_choice = "auto"
             }
         };
         await SendJsonAsync(session, cancellationToken).ConfigureAwait(false);

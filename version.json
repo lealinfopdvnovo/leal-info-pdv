@@ -1,6 +1,6 @@
 {
-  "version": "10.243",
-  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.243/Setup_LEAL_INFO_PDV_V10_243_FINAL.exe",
+  "version": "10.244",
+  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.244/Setup_LEAL_INFO_PDV_V10_244_FINAL.exe",
   "mandatory": false,
-  "message": "V10.243: nova LIA por voz em tempo real, com streaming e interrupcao instantanea."
+  "message": "V10.244: LIA migrada para a OpenAI Realtime API GA."
 }

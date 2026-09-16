@@ -1,6 +1,6 @@
 {
-  "Version": "10.243",
+  "Version": "10.244",
   "PackageUrl": "",
   "Sha256": "",
-  "Notes": "V10.243: nova LIA por voz em tempo real, com streaming e interrupcao instantanea."
+  "Notes": "V10.244: LIA migrada para a OpenAI Realtime API GA."
 }
