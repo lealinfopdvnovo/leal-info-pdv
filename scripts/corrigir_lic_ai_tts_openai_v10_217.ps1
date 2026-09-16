@@ -22,11 +22,24 @@ $new=@'
         catch(Exception ex)
         {
             await WriteLogAsync("ERRO TTS OPENAI: " + ex);
-            MessageBox.Show(this,
-                "A LIA gerou a resposta, mas não conseguiu reproduzir a voz.\n\n" + ex.Message,
-                "LIA - Saída de áudio",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Error);
+            try
+            {
+                if (_speaker != null)
+                {
+                    _speaker.Rate=3;
+                    _speaker.Volume=100;
+                    await Task.Run(() => _speaker.Speak(text));
+                }
+                else throw;
+            }
+            catch
+            {
+                MessageBox.Show(this,
+                    "A LIA gerou a resposta, mas não conseguiu reproduzir a voz.\n\n" + ex.Message,
+                    "LIA - Saída de áudio",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
         }
         finally
         {
@@ -46,60 +59,43 @@ $new=@'
         var key=(_secrets.GetApiKey() ?? string.Empty).Replace("\r",string.Empty).Replace("\n",string.Empty).Trim();
         if(string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("Chave da OpenAI não configurada.");
 
-        using var http=new HttpClient { Timeout=TimeSpan.FromMinutes(2) };
+        using var http=new HttpClient { Timeout=TimeSpan.FromSeconds(30) };
         http.DefaultRequestHeaders.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",key);
         var requestBody=JsonSerializer.Serialize(new
         {
-            model="gpt-4o-mini-tts",
-            voice="coral",
+            model="tts-1",
+            voice="nova",
             input=text,
-            instructions="Fale em português do Brasil, com voz feminina natural, acolhedora, clara e profissional.",
-            response_format="pcm"
+            response_format="mp3",
+            speed=1.15
         });
         using var content=new StringContent(requestBody,Encoding.UTF8,"application/json");
         using var response=await http.PostAsync("https://api.openai.com/v1/audio/speech",content,cancellationToken);
         var audioBytes=await response.Content.ReadAsByteArrayAsync(cancellationToken);
         if(!response.IsSuccessStatusCode)
             throw new InvalidOperationException($"OpenAI TTS HTTP {(int)response.StatusCode}: {Encoding.UTF8.GetString(audioBytes)}");
-        if(audioBytes.Length<2) throw new InvalidDataException("A OpenAI não retornou um áudio válido.");
+        if(audioBytes.Length<128) throw new InvalidDataException("A OpenAI não retornou um áudio MP3 válido.");
 
-        await Task.Run(() =>
+        using var mp3Stream=new MemoryStream(audioBytes,false);
+        using var reader=new Mp3FileReader(mp3Stream);
+        using var output=new WaveOutEvent();
+        var finished=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        output.PlaybackStopped += (_,e) =>
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            using var waveStream=BuildPcmWave(audioBytes,24000,1,16);
-            using var player=new System.Media.SoundPlayer(waveStream);
-            player.Load();
-            player.PlaySync();
-        },cancellationToken);
-    }
-
-    private static MemoryStream BuildPcmWave(byte[] pcm,int sampleRate,short channels,short bitsPerSample)
-    {
-        var stream=new MemoryStream(44+pcm.Length);
-        using(var writer=new BinaryWriter(stream,Encoding.ASCII,true))
+            if(e.Exception != null) finished.TrySetException(e.Exception);
+            else finished.TrySetResult(true);
+        };
+        output.Init(reader);
+        output.Play();
+        using var registration=cancellationToken.Register(() =>
         {
-            int byteRate=sampleRate*channels*bitsPerSample/8;
-            short blockAlign=(short)(channels*bitsPerSample/8);
-            writer.Write(Encoding.ASCII.GetBytes("RIFF"));
-            writer.Write(36+pcm.Length);
-            writer.Write(Encoding.ASCII.GetBytes("WAVE"));
-            writer.Write(Encoding.ASCII.GetBytes("fmt "));
-            writer.Write(16);
-            writer.Write((short)1);
-            writer.Write(channels);
-            writer.Write(sampleRate);
-            writer.Write(byteRate);
-            writer.Write(blockAlign);
-            writer.Write(bitsPerSample);
-            writer.Write(Encoding.ASCII.GetBytes("data"));
-            writer.Write(pcm.Length);
-            writer.Write(pcm);
-        }
-        stream.Position=0;
-        return stream;
+            try { output.Stop(); } catch { }
+            finished.TrySetCanceled(cancellationToken);
+        });
+        await finished.Task;
     }
 
 '@
 $t=$t.Substring(0,$start)+$new+$t.Substring($end)
 Set-Content $p $t -Encoding UTF8
-Write-Host 'TTS da OpenAI V10.217 aplicado.'
+Write-Host 'TTS OpenAI tts-1/nova com NAudio assincrono aplicado.'
