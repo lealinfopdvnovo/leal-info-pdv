@@ -2,21 +2,22 @@ $ErrorActionPreference='Stop'
 $p='LIC-AI/MainForm.cs'
 $t=Get-Content $p -Raw -Encoding UTF8
 
-# Aguarda o Windows encerrar a gravação antes de finalizar e enviar o WAV.
-$t=$t.Replace('    private DateTime _lastVoiceUtc;', '    private DateTime _lastVoiceUtc;'+[Environment]::NewLine+'    private TaskCompletionSource<bool>? _recordingStopped;')
-$t=$t.Replace('            _microphone.RecordingStopped += (_, e) =>'+[Environment]::NewLine+'            {'+[Environment]::NewLine+'                _recognizing = false;', '            _recordingStopped = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);'+[Environment]::NewLine+'            _microphone.RecordingStopped += (_, e) =>'+[Environment]::NewLine+'            {'+[Environment]::NewLine+'                _recognizing = false;'+[Environment]::NewLine+'                _recordingStopped?.TrySetResult(true);')
+# Para a captura sem depender do evento RecordingStopped do driver de audio.
+# Alguns drivers nunca concluem esse evento e deixavam a esfera azul para sempre.
 $t=$t.Replace('        StopRecognition(false);'+[Environment]::NewLine+'        await SendStatusAsync("SPEAKING");', '        await StopRecognitionAsync();'+[Environment]::NewLine+'        await SendStatusAsync("SPEAKING");')
 
 $stopAnchor='    private void StopRecognition(bool turnOff)'
 $stopMethod=@'
     private async Task StopRecognitionAsync()
     {
-        var stopped = _recordingStopped;
+        await WriteLogAsync("Finalizando captura do microfone.");
         try { _microphone?.StopRecording(); }
         catch (Exception ex) { await WriteLogAsync("Erro ao parar microfone: " + ex.Message); }
-        if (stopped != null)
-            await Task.WhenAny(stopped.Task, Task.Delay(1500));
+        // Dá tempo para o ultimo buffer chegar, sem aguardar indefinidamente
+        // uma notificacao que depende do driver instalado no Windows.
+        await Task.Delay(180);
         _recognizing = false;
+        await WriteLogAsync("Captura finalizada; preparando WAV.");
     }
 
 '@
