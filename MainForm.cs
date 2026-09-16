@@ -30,7 +30,8 @@ public sealed class MainForm : Form
     {
         Text = "LEAL INFO CONECTADO - SISTEMA PDV - V10.134";
         WindowState = FormWindowState.Maximized;
-        MinimumSize = new Size(1200, 720);
+        // Mantem o PDV dentro da area visivel tambem em monitores menores.
+        MinimumSize = new Size(900, 600);
         BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
         BuildUi();
@@ -39,6 +40,8 @@ public sealed class MainForm : Form
 
         Shown += (_, _) =>
         {
+            MaximizedBounds = Screen.FromControl(this).WorkingArea;
+            WindowState = FormWindowState.Maximized;
             StartNavigationListener();
 
             if (GetSetting("company_registered", "0") != "1")
@@ -661,12 +664,12 @@ public sealed class MainForm : Form
         {
             if (bar.Controls.Count == 0) return;
 
-            int usable = Math.Max(980, bar.ClientSize.Width - bar.Padding.Horizontal - 4);
-            int each = Math.Max(88, usable / bar.Controls.Count);
+            int usable = Math.Max(560, bar.ClientSize.Width - bar.Padding.Horizontal - 4);
+            int each = Math.Max(58, usable / bar.Controls.Count);
 
             foreach (Control shortcut in bar.Controls)
             {
-                shortcut.Width = Math.Max(86, each - shortcut.Margin.Horizontal);
+                shortcut.Width = Math.Max(56, each - shortcut.Margin.Horizontal);
 
                 // Recentraliza ícone e texto conforme a largura real do card.
                 if (shortcut.Controls.Count >= 2)
@@ -1227,9 +1230,10 @@ public sealed class MainForm : Form
         bool hover = false;
         int pulse = 0;
         bool pulseUp = true;
-        string normalizedText = text.Replace("\n", " ").Trim();
-        bool shouldPulse = normalizedText.Equals("PRODUTOS", StringComparison.OrdinalIgnoreCase)
-            || normalizedText.Equals("TELA DE VENDAS", StringComparison.OrdinalIgnoreCase);
+        string normalizedText = text.Trim();
+        string comparisonText = normalizedText.Replace("\n", " ");
+        bool shouldPulse = comparisonText.Equals("PRODUTOS", StringComparison.OrdinalIgnoreCase)
+            || comparisonText.Equals("TELA DE VENDAS", StringComparison.OrdinalIgnoreCase);
         var pulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
 
         card.Paint += (_, e) =>

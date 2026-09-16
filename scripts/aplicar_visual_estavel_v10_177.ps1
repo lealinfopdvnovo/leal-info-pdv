@@ -24,9 +24,10 @@ private void AddTool(Control parent, string text, string iconFile, Action action
         bool hover = false;
         int pulse = 0;
         bool pulseUp = true;
-        string normalizedText = text.Replace("\n", " ").Trim();
-        bool shouldPulse = normalizedText.Equals("PRODUTOS", StringComparison.OrdinalIgnoreCase)
-            || normalizedText.Equals("TELA DE VENDAS", StringComparison.OrdinalIgnoreCase);
+        string normalizedText = text.Trim();
+        string comparisonText = normalizedText.Replace("\n", " ");
+        bool shouldPulse = comparisonText.Equals("PRODUTOS", StringComparison.OrdinalIgnoreCase)
+            || comparisonText.Equals("TELA DE VENDAS", StringComparison.OrdinalIgnoreCase);
         var pulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
 
         card.Paint += (_, e) =>

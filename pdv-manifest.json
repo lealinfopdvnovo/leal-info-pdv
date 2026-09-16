@@ -1,6 +1,6 @@
 {
-  "Version": "10.246",
+  "Version": "10.247",
   "PackageUrl": "",
   "Sha256": "",
-  "Notes": "V10.246: corrige os botoes Cadastro e Tela de Vendas para abertura direta."
+  "Notes": "V10.247: ajusta o menu superior e restaura os nomes completos dos botoes."
 }
