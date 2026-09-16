@@ -1,6 +1,6 @@
 {
-  "version": "10.245",
-  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.245/Setup_LEAL_INFO_PDV_V10_245_FINAL.exe",
+  "version": "10.246",
+  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.246/Setup_LEAL_INFO_PDV_V10_246_FINAL.exe",
   "mandatory": false,
-  "message": "V10.245: elimina a repeticao da LIA bloqueando o retorno do alto-falante no microfone."
+  "message": "V10.246: corrige os botoes Cadastro e Tela de Vendas para abertura direta."
 }
