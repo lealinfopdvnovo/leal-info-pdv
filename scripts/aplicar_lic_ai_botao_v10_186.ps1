@@ -137,9 +137,13 @@ $insert = @'
                     WorkingDirectory = Path.GetDirectoryName(licExe) ?? AppContext.BaseDirectory,
                     UseShellExecute = true
                 };
-                var launchedProcess = await Task.Run(() => System.Diagnostics.Process.Start(psi));
+                // Process.Start e rapido e confiavel na thread STA do WinForms. Somente a
+                // limpeza potencialmente lenta permanece no Task.Run acima.
+                var launchedProcess = System.Diagnostics.Process.Start(psi);
                 if (launchedProcess == null) throw new InvalidOperationException("O Windows nao iniciou o processo LicAi.exe.");
                 licAiProcess = launchedProcess;
+                licAiState = "STARTING";
+                licAiButton.Invalidate();
                 launchedProcess.EnableRaisingEvents = true;
                 launchedProcess.Exited += (_, _) =>
                 {
@@ -150,7 +154,28 @@ $insert = @'
                     catch { }
                     finally { launchedProcess.Dispose(); }
                 };
-                await Task.Yield();
+                // Se a LIC nao confirmar o microfone em 12 segundos, encerra a instancia
+                // invisivel e mostra um diagnostico em vez de deixar a esfera sem resposta.
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(12));
+                    try
+                    {
+                        if (licAiState == "STARTING" && !launchedProcess.HasExited && !IsDisposed)
+                        {
+                            launchedProcess.Kill(true);
+                            BeginInvoke(async () =>
+                            {
+                                licAiState = "IDLE";
+                                licAiButton.Invalidate();
+                                await ResumeRadioAfterLiaAsync();
+                                var logPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoConectado", "Logs", "lic-ai.log");
+                                MessageBox.Show("A LIC AI nao concluiu a inicializacao do microfone.\n\nVerifique a permissao do microfone no Windows.\nLog de diagnostico:\n" + logPath, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            });
+                        }
+                    }
+                    catch { }
+                });
             }
             catch (Exception ex)
             {
