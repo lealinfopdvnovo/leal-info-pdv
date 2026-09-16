@@ -1,6 +1,6 @@
 {
-  "version": "10.242",
-  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.242/Setup_LEAL_INFO_PDV_V10_242_FINAL.exe",
+  "version": "10.243",
+  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.243/Setup_LEAL_INFO_PDV_V10_243_FINAL.exe",
   "mandatory": false,
-  "message": "V10.242: limita a resposta da LIC AI a 3 segundos e usa respostas de uma frase."
+  "message": "V10.243: nova LIA por voz em tempo real, com streaming e interrupcao instantanea."
 }

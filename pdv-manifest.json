@@ -1,6 +1,6 @@
 {
-  "Version": "10.242",
+  "Version": "10.243",
   "PackageUrl": "",
   "Sha256": "",
-  "Notes": "V10.242: limita a resposta da LIC AI a 3 segundos e usa respostas de uma frase."
+  "Notes": "V10.243: nova LIA por voz em tempo real, com streaming e interrupcao instantanea."
 }
