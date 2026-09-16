@@ -79,6 +79,17 @@ $new=@'
             _microphone.StartRecording();
             _ = WriteLogAsync("Microfone NAudio iniciado: 16000 Hz, 16-bit, mono, dispositivo 0.");
             _ = SendStatusAsync("LISTENING");
+            var activeMicrophone = _microphone;
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(TimeSpan.FromSeconds(8));
+                if (_voiceMode && _recognizing && !_processingVoice && ReferenceEquals(_microphone, activeMicrophone) && !IsDisposed)
+                {
+                    _processingVoice = true;
+                    await WriteLogAsync("Limite de 8 segundos atingido; processando audio sem depender do detector de silencio.");
+                    try { BeginInvoke(async () => await ProcessCapturedSpeechAsync()); } catch { }
+                }
+            });
         }
         catch(Exception ex)
         {
@@ -102,7 +113,7 @@ $new=@'
                 double n=s/32768.0; sum+=n*n;
             }
             var rms=samples>0?Math.Sqrt(sum/samples):0;
-            if(rms>0.018){_speechDetected=true;_lastVoiceUtc=DateTime.UtcNow;}
+            if(rms>0.006){_speechDetected=true;_lastVoiceUtc=DateTime.UtcNow;}
             if(_speechDetected && DateTime.UtcNow-_lastVoiceUtc>TimeSpan.FromMilliseconds(950))
             {
                 _processingVoice=true;
