@@ -1,6 +1,6 @@
 {
-  "Version": "10.239",
+  "Version": "10.240",
   "PackageUrl": "",
   "Sha256": "",
-  "Notes": "V10.239: corrige o clique da LIC AI e exibe diagnóstico completo de inicialização."
+  "Notes": "V10.240: impede que a LIC AI fique ouvindo indefinidamente e força o processamento da fala."
 }
