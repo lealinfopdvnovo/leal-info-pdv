@@ -1,6 +1,6 @@
 {
-  "version": "10.241",
-  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.241/Setup_LEAL_INFO_PDV_V10_241_FINAL.exe",
+  "version": "10.242",
+  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.242/Setup_LEAL_INFO_PDV_V10_242_FINAL.exe",
   "mandatory": false,
-  "message": "V10.241: reduz a latência da LIC AI com captura curta, transcrição rápida e respostas menores."
+  "message": "V10.242: limita a resposta da LIC AI a 3 segundos e usa respostas de uma frase."
 }

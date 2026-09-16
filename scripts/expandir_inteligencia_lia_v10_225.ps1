@@ -10,6 +10,11 @@ namespace LicAi.Core;
 
 public sealed class NavigationAssistantClient
 {
+    private static readonly HttpClient Http = new()
+    {
+        Timeout = TimeSpan.FromMilliseconds(3000)
+    };
+
     private readonly Func<string?> _apiKeyProvider;
     public NavigationAssistantClient(Func<string?> apiKeyProvider) => _apiKeyProvider = apiKeyProvider;
 
@@ -25,7 +30,7 @@ public sealed class NavigationAssistantClient
         var now = DateTime.Now;
         var runtime = $"CONTEXTO ATUAL DO COMPUTADOR: data {now:dd/MM/yyyy}, hora {now:HH:mm:ss}, dia da semana {now:dddd}, fuso {TimeZoneInfo.Local.DisplayName}. Use estes dados quando perguntarem data ou hora.";
         var chat = new List<object> { new { role = "system", content = SystemManual + "\n\n" + runtime } };
-        foreach (var message in messages.TakeLast(12))
+        foreach (var message in messages.TakeLast(6))
             chat.Add(new { role = message.Role, content = message.Content });
 
         bool webSearch = NeedsWebSearch(last);
@@ -33,30 +38,48 @@ public sealed class NavigationAssistantClient
         {
             ["model"] = webSearch ? "gpt-5-search-api" : "gpt-4o-mini",
             ["messages"] = chat,
-            ["max_tokens"] = webSearch ? 80 : 48
+            ["max_tokens"] = 40
         };
         if (webSearch)
             payload["web_search_options"] = new { search_context_size = "low", user_location = new { type = "approximate", approximate = new { country = "BR" } } };
         else
         {
-            payload["temperature"] = 0.7;
+            payload["temperature"] = 0.2;
             payload["response_format"] = new { type = "json_object" };
         }
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(webSearch ? 28 : 18));
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(webSearch ? 30 : 20) };
+        timeout.CancelAfter(TimeSpan.FromMilliseconds(3000));
         using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/chat/completions");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
         request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseContentRead, timeout.Token).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+        HttpResponseMessage response;
+        try
+        {
+            response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("A LIA não respondeu em até 3 segundos.");
+        }
+        using (response)
+        {
+            string body;
+            try
+            {
+                body = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new TimeoutException("A LIA não respondeu em até 3 segundos.");
+            }
         if (!response.IsSuccessStatusCode)
             throw new InvalidOperationException($"OpenAI retornou {(int)response.StatusCode}: {ExtractError(body)}");
 
         using var envelope = JsonDocument.Parse(body);
         var content = envelope.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
         return ParseReply(content);
+        }
     }
 
     private static NavigationAssistantReply ParseReply(string content)
@@ -113,9 +136,10 @@ public sealed class NavigationAssistantClient
 
     private const string SystemManual = """
 IDENTIDADE E ESTILO
+Você é um assistente de PDV rápido. Responda em no máximo uma frase curta com foco em comandos operacionais.
 Você é a LIA, parceira de trabalho e especialista oficial do LEAL INFO PDV. Fale em português do Brasil de modo leve, amigável, prestativo, bem-humorado, informal e natural. Nunca seja rígida, autoritária, mecânica ou formal demais.
 O modo é conversa livre: responda assuntos de trabalho ou pessoais seguros, ouça desabafos, converse e conte piadas. Não diga que está limitada ao PDV. Para fatos atuais, notícias, clima, cotações ou quando pedirem pesquisa, use a busca disponível e seja breve.
-Responda sempre com no máximo duas frases curtas. Se a explicação exigir muitos passos, resuma e pergunte: "Quer que eu te mostre o passo a passo na tela de ajuda?"
+Responda sempre com no máximo uma frase curta. Se a explicação exigir muitos passos, resuma e pergunte: "Quer o passo a passo na ajuda?"
 
 FORMATO OBRIGATÓRIO
 Retorne somente JSON válido: {"mensagem":"fala curta","comando_abrir_tela":null}.
