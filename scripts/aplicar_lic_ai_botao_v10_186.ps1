@@ -12,7 +12,7 @@ $insert = @'
         var licAiButton = new Control
         {
             Name = "btnAssistenteAI",
-            Size = new Size(190, 190),
+            Size = new Size(210, 210),
             Cursor = Cursors.Hand,
             TabStop = true,
             Anchor = AnchorStyles.Bottom,
@@ -57,7 +57,7 @@ $insert = @'
             for (int i = 0; i < 36; i++)
             {
                 double a = (i * 10 + spin) * Math.PI / 180.0;
-                float r1 = 70f, r2 = i % 3 == 0 ? 82f : 78f;
+                float r1 = 78f, r2 = i % 3 == 0 ? 91f : 86f;
                 var p1 = new PointF(cx + (float)Math.Cos(a) * r1, cy + (float)Math.Sin(a) * r1);
                 var p2 = new PointF(cx + (float)Math.Cos(a) * r2, cy + (float)Math.Sin(a) * r2);
                 using var tick = new Pen(Color.FromArgb(i % 3 == 0 ? 210 : 105, 30, 205, 255), i % 3 == 0 ? 2f : 1f);
@@ -77,59 +77,33 @@ $insert = @'
             using var aiFont = new Font("Segoe UI", 20f, FontStyle.Bold, GraphicsUnit.Point); g.DrawString("AI", aiFont, textBrush, new RectangleF(core.Left, core.Top + 65, core.Width, 34), sf);
         };
 
-        System.Diagnostics.Process? licAiProcess = null;
-        bool licAiLaunching = false;
-
-        async Task RequestLicAiCloseAsync()
-        {
-            try
-            {
-                using var pipe = new NamedPipeClientStream(".", "LealInfoPDV.LicAiControl", PipeDirection.Out, PipeOptions.Asynchronous);
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-                await pipe.ConnectAsync(timeout.Token);
-                using var writer = new StreamWriter(pipe) { AutoFlush = true };
-                await writer.WriteLineAsync("REQUEST_CLOSE");
-            }
-            catch
-            {
-                try { if (licAiProcess is { HasExited: false }) licAiProcess.Kill(true); } catch { }
-                await ResumeRadioAfterLiaAsync();
-            }
-        }
-
         async void btnAssistenteAI_Click(object? sender, EventArgs e)
         {
             try
             {
-                if (licAiLaunching) return;
-                if (licAiProcess is { HasExited: false })
-                {
-                    await RequestLicAiCloseAsync();
-                    return;
-                }
-                licAiLaunching = true;
+                licAiButton.Enabled = false;
+                await Task.Yield();
                 var licExe = Path.Combine(AppContext.BaseDirectory, "LIC-AI", "LicAi.exe");
                 if (!File.Exists(licExe))
                 {
                     MessageBox.Show("LIC AI nao foi encontrada nesta instalacao. Atualize o PDV e tente novamente.\n\nCaminho esperado:\n" + licExe, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                // Toda a limpeza ocorre fora da thread visual. O PDV permanece responsivo
-                // mesmo se o Windows/antivirus demorar para liberar uma instancia antiga.
-                await Task.Run(() =>
+                // Encerra somente instancias antigas da propria LIA que ficaram invisiveis/travadas.
+                foreach (var stale in System.Diagnostics.Process.GetProcessesByName("LicAi"))
                 {
-                    foreach (var stale in System.Diagnostics.Process.GetProcessesByName("LicAi"))
+                    try
                     {
-                        try
+                        var runningPath = stale.MainModule?.FileName;
+                        if (string.Equals(runningPath, licExe, StringComparison.OrdinalIgnoreCase))
                         {
-                            var runningPath = stale.MainModule?.FileName;
-                            if (string.Equals(runningPath, licExe, StringComparison.OrdinalIgnoreCase))
-                                stale.Kill(true);
+                            stale.Kill(true);
+                            stale.WaitForExit(2500);
                         }
-                        catch { }
-                        finally { stale.Dispose(); }
                     }
-                });
+                    catch { }
+                    finally { stale.Dispose(); }
+                }
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = licExe,
@@ -137,31 +111,25 @@ $insert = @'
                     WorkingDirectory = Path.GetDirectoryName(licExe) ?? AppContext.BaseDirectory,
                     UseShellExecute = true
                 };
-                // Process.Start e rapido e confiavel na thread STA do WinForms. Somente a
-                // limpeza potencialmente lenta permanece no Task.Run acima.
-                var launchedProcess = System.Diagnostics.Process.Start(psi);
-                if (launchedProcess == null) throw new InvalidOperationException("O Windows nao iniciou o processo LicAi.exe.");
-                licAiProcess = launchedProcess;
-                // A captura do microfone e iniciada pela LIA logo apos o processo abrir.
-                // Mostra azul imediatamente; os estados seguintes continuam vindo pelo pipe.
-                licAiState = "LISTENING";
-                licAiButton.Invalidate();
-                launchedProcess.EnableRaisingEvents = true;
-                launchedProcess.Exited += (_, _) =>
+                var process = System.Diagnostics.Process.Start(psi);
+                if (process == null) throw new InvalidOperationException("O Windows nao iniciou o processo LicAi.exe.");
+                process.EnableRaisingEvents = true;
+                process.Exited += (_, _) =>
                 {
                     try
                     {
-                        if (!IsDisposed) BeginInvoke(async () => { licAiProcess = null; await ResumeRadioAfterLiaAsync(); licAiButton.Focus(); });
+                        if (!IsDisposed) BeginInvoke(() => { licAiButton.Enabled = true; licAiButton.Focus(); });
                     }
                     catch { }
-                    finally { launchedProcess.Dispose(); }
+                    finally { process.Dispose(); }
                 };
+                await Task.Yield();
             }
             catch (Exception ex)
             {
                 MessageBox.Show("Nao foi possivel abrir a LIC AI.\n\n" + ex.Message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
-            finally { licAiLaunching = false; licAiButton.Focus(); }
+            finally { if (licAiButton.Enabled) licAiButton.Focus(); }
         }
 
         // Vinculacao explicita do EventHandler; nao depende de MainForm.Designer.cs.

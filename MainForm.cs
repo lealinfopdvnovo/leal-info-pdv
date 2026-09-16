@@ -20,12 +20,6 @@ public sealed class MainForm : Form
     private readonly StatusStrip status = new();
     private readonly Label lowStockLabel = new();
     private readonly CancellationTokenSource navigationListenerCts = new();
-    private readonly CancellationTokenSource radioListenerCts = new();
-    private WebView2? radioPlayer;
-    private Button? radioControlButton;
-    private bool radioDesiredPlaying;
-    private bool radioPausedByLia;
-    private bool radioInitialized;
     private bool navigationListenerStarted;
     private string lastAiNavigationCommand = "";
     private DateTime lastAiNavigationUtc = DateTime.MinValue;
@@ -46,7 +40,6 @@ public sealed class MainForm : Form
         Shown += (_, _) =>
         {
             StartNavigationListener();
-            StartRadioControlListener();
 
             if (GetSetting("company_registered", "0") != "1")
             {
@@ -68,9 +61,6 @@ public sealed class MainForm : Form
         {
             navigationListenerCts.Cancel();
             navigationListenerCts.Dispose();
-            radioListenerCts.Cancel();
-            radioListenerCts.Dispose();
-            radioPlayer?.Dispose();
         };
     }
 
@@ -764,149 +754,6 @@ public sealed class MainForm : Form
         status.Items.Add(new ToolStripStatusLabel($"Serial: {Database.DeviceSerial()}"));
         status.Items.Add(new ToolStripStatusLabel($"V{UpdateManager.CurrentVersion}"));
         Controls.Add(status);
-
-        CreateRadioControls();
-    }
-
-    private const string DefaultRadioStream = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-
-    private void CreateRadioControls()
-    {
-        radioPlayer = new WebView2 { Size = new Size(1, 1), Visible = false, TabStop = false };
-        Controls.Add(radioPlayer);
-
-        radioControlButton = new Button
-        {
-            Name = "btnControleRadio",
-            Text = "♫  MÚSICA",
-            Size = new Size(142, 46),
-            Anchor = AnchorStyles.Bottom | AnchorStyles.Right,
-            BackColor = Color.FromArgb(4, 70, 112),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Font = new Font("Segoe UI", 10, FontStyle.Bold),
-            Cursor = Cursors.Hand
-        };
-        radioControlButton.FlatAppearance.BorderSize = 1;
-        radioControlButton.FlatAppearance.BorderColor = Color.FromArgb(0, 200, 255);
-        radioControlButton.Click += async (_, _) =>
-        {
-            if (radioDesiredPlaying) await StopRadioAsync();
-            else await StartRadioAsync();
-        };
-        Controls.Add(radioControlButton);
-
-        void PositionRadioButton()
-        {
-            if (radioControlButton == null) return;
-            radioControlButton.Left = Math.Max(12, ClientSize.Width - radioControlButton.Width - 22);
-            radioControlButton.Top = Math.Max(120, ClientSize.Height - radioControlButton.Height - status.Height - 24);
-            radioControlButton.BringToFront();
-        }
-        Resize += (_, _) => PositionRadioButton();
-        Shown += (_, _) => PositionRadioButton();
-        PositionRadioButton();
-    }
-
-    private async Task EnsureRadioInitializedAsync()
-    {
-        if (radioPlayer == null || radioInitialized) return;
-        await radioPlayer.EnsureCoreWebView2Async();
-        radioPlayer.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
-        radioPlayer.CoreWebView2.Settings.AreDevToolsEnabled = false;
-        radioPlayer.NavigateToString("<!doctype html><html><body><audio id='radio' loop preload='auto'></audio></body></html>");
-        radioInitialized = true;
-        await Task.Delay(150);
-    }
-
-    private async Task ExecuteRadioScriptAsync(string script)
-    {
-        if (InvokeRequired)
-        {
-            await (Task)Invoke(new Func<Task>(() => ExecuteRadioScriptAsync(script)));
-            return;
-        }
-        await EnsureRadioInitializedAsync();
-        if (radioPlayer?.CoreWebView2 != null) await radioPlayer.ExecuteScriptAsync(script);
-    }
-
-    private async Task StartRadioAsync()
-    {
-        try
-        {
-            radioDesiredPlaying = true;
-            radioPausedByLia = false;
-            var url = GetSetting("radio_stream_url", DefaultRadioStream).Trim();
-            if (string.IsNullOrWhiteSpace(url)) url = DefaultRadioStream;
-            var encodedUrl = JsonSerializer.Serialize(url);
-            await ExecuteRadioScriptAsync($"const a=document.getElementById('radio'); if(a.src!=={encodedUrl}) a.src={encodedUrl}; a.play();");
-            UpdateRadioButton();
-        }
-        catch (Exception ex)
-        {
-            radioDesiredPlaying = false;
-            UpdateRadioButton();
-            MessageBox.Show(this, "Não foi possível iniciar a música. Confira a internet e a URL da rádio em Configurações.\n\n" + ex.Message,
-                "Rádio da loja", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-        }
-    }
-
-    private async Task StopRadioAsync()
-    {
-        radioDesiredPlaying = false;
-        radioPausedByLia = false;
-        try { await ExecuteRadioScriptAsync("const a=document.getElementById('radio'); a.pause(); a.currentTime=0;"); } catch { }
-        UpdateRadioButton();
-    }
-
-    private async Task PauseRadioForLiaAsync()
-    {
-        if (!radioDesiredPlaying) return;
-        radioPausedByLia = true;
-        try { await ExecuteRadioScriptAsync("document.getElementById('radio').pause();"); } catch { }
-        UpdateRadioButton();
-    }
-
-    private async Task ResumeRadioAfterLiaAsync()
-    {
-        if (!radioDesiredPlaying) return;
-        radioPausedByLia = false;
-        try { await ExecuteRadioScriptAsync("document.getElementById('radio').play();"); } catch { }
-        UpdateRadioButton();
-    }
-
-    private void UpdateRadioButton()
-    {
-        if (radioControlButton == null || radioControlButton.IsDisposed) return;
-        if (radioControlButton.InvokeRequired) { radioControlButton.BeginInvoke(new Action(UpdateRadioButton)); return; }
-        radioControlButton.Text = !radioDesiredPlaying ? "♫  MÚSICA" : radioPausedByLia ? "♫  PAUSADA" : "■  DESLIGAR";
-        radioControlButton.BackColor = radioDesiredPlaying && !radioPausedByLia ? Color.FromArgb(0, 135, 105) : Color.FromArgb(4, 70, 112);
-    }
-
-    // O listener fica fora da thread da interface: uma conexão lenta da LIA
-    // nunca pode bloquear cliques, vendas ou o fechamento do PDV.
-    private void StartRadioControlListener() => _ = Task.Run(() => ListenForRadioCommandsAsync(radioListenerCts.Token));
-
-    private async Task ListenForRadioCommandsAsync(CancellationToken cancellationToken)
-    {
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            try
-            {
-                await using var pipe = new NamedPipeServerStream("LealInfoPDV.RadioControl", PipeDirection.InOut, 1,
-                    PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
-                await pipe.WaitForConnectionAsync(cancellationToken);
-                using var reader = new StreamReader(pipe, System.Text.Encoding.UTF8, true, 1024, true);
-                using var writer = new StreamWriter(pipe, System.Text.Encoding.UTF8, 1024, true) { AutoFlush = true };
-                var command = (await reader.ReadLineAsync(cancellationToken) ?? "").Trim().ToUpperInvariant();
-                if (command == "PAUSE_FOR_LIA") await PauseRadioForLiaAsync();
-                else if (command == "RESUME_AFTER_LIA") await ResumeRadioAfterLiaAsync();
-                else if (command == "STOP") await StopRadioAsync();
-                await writer.WriteLineAsync(radioDesiredPlaying ? (radioPausedByLia ? "PAUSED" : "PLAYING") : "STOPPED");
-            }
-            catch (OperationCanceledException) { break; }
-            catch { if (!cancellationToken.IsCancellationRequested) await Task.Delay(250, cancellationToken); }
-        }
     }
 
     private void ShowCadastroHelp()
@@ -2728,10 +2575,10 @@ private void ApplyFloatingTheme(Form f)
             Info("Dados da empresa salvos com sucesso.");
         };
 
-        var system = new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=2,RowCount=6,Padding=new Padding(14) };
+        var system = new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=2,RowCount=5,Padding=new Padding(14) };
         system.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50)); system.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
-        for(int i=0;i<5;i++) system.RowStyles.Add(new RowStyle(SizeType.Percent,17));
-        system.RowStyles.Add(new RowStyle(SizeType.Percent,15)); systemTab.Controls.Add(system);
+        for(int i=0;i<4;i++) system.RowStyles.Add(new RowStyle(SizeType.Percent,20));
+        system.RowStyles.Add(new RowStyle(SizeType.Percent,20)); systemTab.Controls.Add(system);
         Button ConfigButton(string text, Action action)
         {
             var b=new Button{Text=text,Dock=DockStyle.Fill,Margin=new Padding(10),BackColor=Color.FromArgb(4,70,112),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold)};
@@ -2745,31 +2592,11 @@ private void ApplyFloatingTheme(Form f)
         system.Controls.Add(ConfigButton("RESTAURAR BACKUP",()=>_ = RestoreBackupAsync()),1,2);
         system.Controls.Add(ConfigButton("ATUALIZAÇÕES DO SISTEMA",()=>UpdateManager.ShowUpdateCenter(f)),0,3);
         system.Controls.Add(ConfigButton("TUTORIAL DE PRIMEIRO ACESSO",()=>OpenFirstAccessTutorial(false)),1,3);
-        system.Controls.Add(ConfigButton("CONFIGURAR RÁDIO / MÚSICA",ConfigureRadioStream),0,4);
-        system.Controls.Add(ConfigButton("LIGAR / DESLIGAR MÚSICA",()=>_ = radioDesiredPlaying ? StopRadioAsync() : StartRadioAsync()),1,4);
         var systemInfo=new Label{Text=$"Sistema: LEAL INFO PDV   •   Versão: V{UpdateManager.CurrentVersion}\nSerial: {Database.DeviceSerial()}\nBanco local: {Database.DbPath}",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",9.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter};
-        system.SetColumnSpan(systemInfo,2);system.Controls.Add(systemInfo,0,5);
+        system.SetColumnSpan(systemInfo,2);system.Controls.Add(systemInfo,0,4);
 
         ApplyFloatingTheme(f);
         f.Show(this);
-    }
-
-    private void ConfigureRadioStream()
-    {
-        using var dialog = new Form { Text="Configurar Rádio da Loja",StartPosition=FormStartPosition.CenterParent,Width=690,Height=260,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false,BackColor=Color.FromArgb(224,239,248),Font=new Font("Segoe UI",10) };
-        var label = new Label { Text="URL direta do áudio/stream (HTTPS):",Left=28,Top=24,Width=600,Height=25,ForeColor=DarkBlue,Font=new Font("Segoe UI",10,FontStyle.Bold) };
-        var url = new TextBox { Left=28,Top=54,Width=620,Height=32,Text=GetSetting("radio_stream_url",DefaultRadioStream),Font=new Font("Segoe UI",10) };
-        var hint = new Label { Text="Padrão técnico: SoundHelix (CC BY 4.0). Para uso na loja, informe um stream cuja licença permita execução comercial.",Left=28,Top=94,Width=620,Height=44,ForeColor=Color.FromArgb(65,75,85) };
-        var save = new Button { Text="SALVAR",Left=493,Top=152,Width=155,Height=42,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,FlatStyle=FlatStyle.Flat };
-        save.Click += async (_,_) =>
-        {
-            if (!Uri.TryCreate(url.Text.Trim(),UriKind.Absolute,out var parsed) || (parsed.Scheme!="https" && parsed.Scheme!="http")) { Info("Informe uma URL HTTP ou HTTPS válida."); return; }
-            SetSetting("radio_stream_url",url.Text.Trim());
-            if (radioDesiredPlaying) { await StopRadioAsync(); await StartRadioAsync(); }
-            dialog.DialogResult=DialogResult.OK; dialog.Close();
-        };
-        dialog.Controls.AddRange(new Control[]{label,url,hint,save});
-        dialog.ShowDialog(this);
     }
 
     private async Task BackupAsync()
