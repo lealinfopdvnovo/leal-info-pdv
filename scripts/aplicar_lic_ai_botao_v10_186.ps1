@@ -77,33 +77,61 @@ $insert = @'
             using var aiFont = new Font("Segoe UI", 20f, FontStyle.Bold, GraphicsUnit.Point); g.DrawString("AI", aiFont, textBrush, new RectangleF(core.Left, core.Top + 65, core.Width, 34), sf);
         };
 
+        int licAiInitializing = 0;
+
         async void btnAssistenteAI_Click(object? sender, EventArgs e)
         {
+            if (System.Threading.Interlocked.Exchange(ref licAiInitializing, 1) == 1)
+                return;
+
+            var licExe = Path.Combine(AppContext.BaseDirectory, "LIC-AI", "LicAi.exe");
+            var logPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LealInfoConectado",
+                "Logs",
+                "lic-ai-launcher.log");
+
             try
             {
                 licAiButton.Enabled = false;
-                await Task.Yield();
-                var licExe = Path.Combine(AppContext.BaseDirectory, "LIC-AI", "LicAi.exe");
+                Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+                await File.AppendAllTextAsync(logPath,
+                    $"{DateTime.Now:dd/MM/yyyy HH:mm:ss} - Clique recebido. Executavel: {licExe}{Environment.NewLine}");
+
                 if (!File.Exists(licExe))
                 {
-                    MessageBox.Show("LIC AI nao foi encontrada nesta instalacao. Atualize o PDV e tente novamente.\n\nCaminho esperado:\n" + licExe, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
+                    throw new FileNotFoundException(
+                        "O executavel da LIC AI nao foi encontrado nesta instalacao.",
+                        licExe);
                 }
-                // Encerra somente instancias antigas da propria LIA que ficaram invisiveis/travadas.
-                foreach (var stale in System.Diagnostics.Process.GetProcessesByName("LicAi"))
+
+                // Processos travados sao encerrados fora da thread visual para o PDV nao congelar.
+                await Task.Run(() =>
                 {
-                    try
+                    foreach (var stale in System.Diagnostics.Process.GetProcessesByName("LicAi"))
                     {
-                        var runningPath = stale.MainModule?.FileName;
-                        if (string.Equals(runningPath, licExe, StringComparison.OrdinalIgnoreCase))
+                        try
                         {
-                            stale.Kill(true);
-                            stale.WaitForExit(2500);
+                            var runningPath = stale.MainModule?.FileName;
+                            if (string.Equals(runningPath, licExe, StringComparison.OrdinalIgnoreCase))
+                            {
+                                stale.Kill(true);
+                                stale.WaitForExit(1500);
+                            }
                         }
+                        catch (Exception staleError)
+                        {
+                            try
+                            {
+                                File.AppendAllText(logPath,
+                                    $"{DateTime.Now:dd/MM/yyyy HH:mm:ss} - Falha ao encerrar instancia anterior: {staleError}{Environment.NewLine}");
+                            }
+                            catch { }
+                        }
+                        finally { stale.Dispose(); }
                     }
-                    catch { }
-                    finally { stale.Dispose(); }
-                }
+                });
+
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = licExe,
@@ -113,23 +141,60 @@ $insert = @'
                 };
                 var process = System.Diagnostics.Process.Start(psi);
                 if (process == null) throw new InvalidOperationException("O Windows nao iniciou o processo LicAi.exe.");
+
+                // Detecta executavel que abre e fecha imediatamente sem bloquear a interface.
+                await Task.Delay(600);
+                if (process.HasExited)
+                {
+                    var exitCode = process.ExitCode;
+                    process.Dispose();
+                    throw new InvalidOperationException(
+                        $"A LIC AI abriu e encerrou imediatamente. Codigo de saida: {exitCode}.");
+                }
+
                 process.EnableRaisingEvents = true;
                 process.Exited += (_, _) =>
                 {
                     try
                     {
-                        if (!IsDisposed) BeginInvoke(() => { licAiButton.Enabled = true; licAiButton.Focus(); });
+                        File.AppendAllText(logPath,
+                            $"{DateTime.Now:dd/MM/yyyy HH:mm:ss} - LIC AI encerrada. Codigo: {process.ExitCode}{Environment.NewLine}");
                     }
                     catch { }
                     finally { process.Dispose(); }
                 };
-                await Task.Yield();
+
+                await File.AppendAllTextAsync(logPath,
+                    $"{DateTime.Now:dd/MM/yyyy HH:mm:ss} - LIC AI iniciada. PID: {process.Id}{Environment.NewLine}");
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Nao foi possivel abrir a LIC AI.\n\n" + ex.Message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(logPath)!);
+                    await File.AppendAllTextAsync(logPath,
+                        $"{DateTime.Now:dd/MM/yyyy HH:mm:ss} - ERRO: {ex}{Environment.NewLine}");
+                }
+                catch { }
+
+                MessageBox.Show(
+                    "Nao foi possivel abrir a LIC AI.\n\n" +
+                    "Mensagem: " + ex.Message + "\n\n" +
+                    "Tipo: " + ex.GetType().FullName + "\n\n" +
+                    "Executavel esperado:\n" + licExe + "\n\n" +
+                    "Log de diagnostico:\n" + logPath + "\n\n" +
+                    "Detalhes tecnicos:\n" + ex,
+                    "Erro da LIC ASSISTENTE AI",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
-            finally { if (licAiButton.Enabled) licAiButton.Focus(); }
+            finally
+            {
+                // O botao nunca permanece travado ou desabilitado depois de uma falha.
+                licAiButton.Enabled = true;
+                licAiButton.Focus();
+                System.Threading.Interlocked.Exchange(ref licAiInitializing, 0);
+            }
         }
 
         // Vinculacao explicita do EventHandler; nao depende de MainForm.Designer.cs.

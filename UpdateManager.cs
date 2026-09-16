@@ -11,7 +11,7 @@ using System.Text.Json;
 namespace LealInfoPDV;
 internal static class UpdateManager
 {
- public const string CurrentVersion="10.238";
+ public const string CurrentVersion="10.239";
  private const string DefaultFeedUrl="https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json";
  private static readonly string UpdatesFolder=Path.Combine(Database.AppFolder,"Updates"),LocalManifest=Path.Combine(UpdatesFolder,"manifest.json"),FeedConfig=Path.Combine(UpdatesFolder,"feed.txt");
  private sealed class UpdateManifest{public string Version{get;set;}="";public string PackageUrl{get;set;}="";public string Sha256{get;set;}="";public string Notes{get;set;}="";}

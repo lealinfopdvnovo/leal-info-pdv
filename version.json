@@ -1,6 +1,6 @@
 {
-  "version": "10.238",
-  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.238/Setup_LEAL_INFO_PDV_V10_238_FINAL.exe",
+  "version": "10.239",
+  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.239/Setup_LEAL_INFO_PDV_V10_239_FINAL.exe",
   "mandatory": false,
-  "message": "V10.238: novo conjunto de ícones 3D integrado ao menu principal."
+  "message": "V10.239: corrige o clique da LIC AI e exibe diagnóstico completo de inicialização."
 }
