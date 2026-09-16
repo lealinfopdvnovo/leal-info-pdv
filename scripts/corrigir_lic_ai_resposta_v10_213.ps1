@@ -4,7 +4,7 @@ $t=Get-Content $p -Raw -Encoding UTF8
 
 # Microfones comuns de notebook/USB podem entregar RMS baixo.
 $t=$t.Replace('if(rms>0.018){_speechDetected=true;_lastVoiceUtc=DateTime.UtcNow;}','if(rms>0.006){_speechDetected=true;_lastVoiceUtc=DateTime.UtcNow;}')
-$t=$t.Replace('TimeSpan.FromMilliseconds(950)','TimeSpan.FromMilliseconds(800)')
+$t=$t.Replace('TimeSpan.FromMilliseconds(950)','TimeSpan.FromMilliseconds(450)')
 
 # Patch robusto do catch de SendAsync, independente de CRLF/LF e pequenos espacos.
 $pattern='(?s)        catch \(OperationCanceledException\)\s*\{\s*Append\("LIC", "Resposta cancelada\."\);\s*\}\s*catch \(Exception ex\)\s*\{\s*Append\("LIC", "Não consegui responder agora\. " \+ ex\.Message\);\s*\}'

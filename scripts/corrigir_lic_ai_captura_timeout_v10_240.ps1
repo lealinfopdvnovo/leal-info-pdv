@@ -14,7 +14,7 @@ if($t -notmatch '_voiceCaptureSession')
     $t=$t.Replace($field,$fields)
 }
 
-# Arma um limite de oito segundos assim que o NAudio começa a gravar. O detector
+# Arma um limite de quatro segundos assim que o NAudio começa a gravar. O detector
 # de silêncio continua sendo a via normal e mais rápida.
 $startRecording='            _microphone.StartRecording();'
 if(!$t.Contains($startRecording)){throw 'Inicio da gravacao NAudio nao localizado'}
@@ -33,7 +33,7 @@ if($t -notmatch 'private async Task ForceVoiceCaptureAfterTimeoutAsync')
     $timeout=@'
     private async Task ForceVoiceCaptureAfterTimeoutAsync(int captureSession)
     {
-        await Task.Delay(TimeSpan.FromSeconds(8));
+        await Task.Delay(TimeSpan.FromSeconds(4));
         if (captureSession != _voiceCaptureSession || !_voiceMode || !_recognizing || _processingVoice)
             return;
 

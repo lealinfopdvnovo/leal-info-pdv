@@ -120,7 +120,7 @@ $new=@'
     private async Task ProcessCapturedSpeechAsync()
     {
         StopRecognition(false);
-        await SendStatusAsync("SPEAKING");
+        await SendStatusAsync("THINKING");
         try
         {
             if(_audioBuffer == null){_processingVoice=false;if(_voiceMode)StartRecognition();return;}
@@ -160,7 +160,7 @@ $new=@'
         using var http=new HttpClient{Timeout=TimeSpan.FromMinutes(2)};
         http.DefaultRequestHeaders.Authorization=new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",key);
         using var form=new MultipartFormDataContent();
-        form.Add(new StringContent("whisper-1",Encoding.UTF8),"model");
+        form.Add(new StringContent("gpt-4o-mini-transcribe",Encoding.UTF8),"model");
         form.Add(new StringContent("pt",Encoding.UTF8),"language");
         using var audio=new ByteArrayContent(wav);
         audio.Headers.ContentType=new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");

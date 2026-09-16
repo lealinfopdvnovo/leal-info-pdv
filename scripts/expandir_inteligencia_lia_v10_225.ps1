@@ -33,7 +33,7 @@ public sealed class NavigationAssistantClient
         {
             ["model"] = webSearch ? "gpt-5-search-api" : "gpt-4o-mini",
             ["messages"] = chat,
-            ["max_tokens"] = webSearch ? 120 : 80
+            ["max_tokens"] = webSearch ? 80 : 48
         };
         if (webSearch)
             payload["web_search_options"] = new { search_context_size = "low", user_location = new { type = "approximate", approximate = new { country = "BR" } } };

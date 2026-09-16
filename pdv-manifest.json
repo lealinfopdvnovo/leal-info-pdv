@@ -1,6 +1,6 @@
 {
-  "Version": "10.240",
+  "Version": "10.241",
   "PackageUrl": "",
   "Sha256": "",
-  "Notes": "V10.240: impede que a LIC AI fique ouvindo indefinidamente e força o processamento da fala."
+  "Notes": "V10.241: reduz a latência da LIC AI com captura curta, transcrição rápida e respostas menores."
 }
