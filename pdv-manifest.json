@@ -1,6 +1,6 @@
 {
-  "Version": "10.247",
+  "Version": "10.248",
   "PackageUrl": "",
   "Sha256": "",
-  "Notes": "V10.247: ajusta o menu superior e restaura os nomes completos dos botoes."
+  "Notes": "V10.248: normaliza a animacao de Cadastro e Tela de Vendas."
 }

@@ -1231,9 +1231,8 @@ public sealed class MainForm : Form
         int pulse = 0;
         bool pulseUp = true;
         string normalizedText = text.Trim();
-        string comparisonText = normalizedText.Replace("\n", " ");
-        bool shouldPulse = comparisonText.Equals("PRODUTOS", StringComparison.OrdinalIgnoreCase)
-            || comparisonText.Equals("TELA DE VENDAS", StringComparison.OrdinalIgnoreCase);
+        // Todos os atalhos ficam estaveis e usam apenas o destaque suave ao passar o mouse.
+        bool shouldPulse = false;
         var pulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
 
         card.Paint += (_, e) =>

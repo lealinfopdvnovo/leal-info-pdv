@@ -25,9 +25,8 @@ private void AddTool(Control parent, string text, string iconFile, Action action
         int pulse = 0;
         bool pulseUp = true;
         string normalizedText = text.Trim();
-        string comparisonText = normalizedText.Replace("\n", " ");
-        bool shouldPulse = comparisonText.Equals("PRODUTOS", StringComparison.OrdinalIgnoreCase)
-            || comparisonText.Equals("TELA DE VENDAS", StringComparison.OrdinalIgnoreCase);
+        // Sem pulsacao exclusiva: todos os atalhos permanecem estaveis e so reagem ao mouse.
+        bool shouldPulse = false;
         var pulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
 
         card.Paint += (_, e) =>
