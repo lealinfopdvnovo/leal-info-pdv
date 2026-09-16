@@ -68,10 +68,7 @@ jobs:
       - name: Inteligencia
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\expandir_inteligencia_lia_v10_225.ps1"
-      - name: Conversa continua e velocidade
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\corrigir_lic_ai_velocidade_continua_v10_222.ps1"
-      - name: Aplicar TTS OpenAI por ultimo
+      - name: Aplicar TTS OpenAI final
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\corrigir_lic_ai_tts_openai_v10_217.ps1"
       - run: dotnet restore LIC-AI/LicAi.csproj
