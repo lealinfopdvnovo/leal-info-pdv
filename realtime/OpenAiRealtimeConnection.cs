@@ -28,8 +28,10 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     private BufferedWaveProvider? _speakerBuffer;
     private Task? _receiveTask;
     private Task? _microphoneSendTask;
+    private CancellationTokenSource? _playbackGuardCts;
     private bool _disposed;
     private int _responseActive;
+    private int _suppressMicrophone;
 
     public event Action? Connected;
     public event Action? Listening;
@@ -175,6 +177,8 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     /// <summary>Corta a fala atual e prepara imediatamente um novo turno do operador.</summary>
     public async Task BeginOperatorSpeechAsync(CancellationToken cancellationToken = default)
     {
+        CancelPlaybackGuard();
+        Interlocked.Exchange(ref _suppressMicrophone, 0);
         ClearLocalPlayback();
         if (!IsConnected) return;
         if (Interlocked.Exchange(ref _responseActive, 0) == 1)
@@ -202,7 +206,8 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
 
     private void OnMicrophoneDataAvailable(object? sender, WaveInEventArgs e)
     {
-        if (!IsConnected || e.BytesRecorded <= 0) return;
+        // Impede que a LIA escute a propria voz pelo alto-falante e responda em ciclo.
+        if (!IsConnected || e.BytesRecorded <= 0 || Volatile.Read(ref _suppressMicrophone) == 1) return;
         var pcm = new byte[e.BytesRecorded];
         Buffer.BlockCopy(e.Buffer, 0, pcm, 0, e.BytesRecorded);
         _microphoneQueue.Writer.TryWrite(pcm);
@@ -270,6 +275,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                 var base64 = FindAudioDelta(root);
                 if (string.IsNullOrWhiteSpace(base64)) return;
                 var pcm = Convert.FromBase64String(base64);
+                SuppressMicrophoneDuringPlayback();
                 _speakerBuffer?.AddSamples(pcm, 0, pcm.Length);
                 Speaking?.Invoke();
                 return;
@@ -279,13 +285,16 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             {
                 case "response.created":
                     Interlocked.Exchange(ref _responseActive, 1);
+                    SuppressMicrophoneDuringPlayback();
                     break;
                 case "response.done":
                 case "response.cancelled":
                     Interlocked.Exchange(ref _responseActive, 0);
-                    Idle?.Invoke();
+                    ScheduleMicrophoneResume();
                     break;
                 case "input_audio_buffer.speech_started":
+                    // Eventos recebidos enquanto a LIA fala sao retorno acustico, nao um novo turno.
+                    if (Volatile.Read(ref _suppressMicrophone) == 1) break;
                     ClearLocalPlayback();
                     Listening?.Invoke();
                     break;
@@ -372,8 +381,69 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         try { _speakerBuffer?.ClearBuffer(); } catch { }
     }
 
+    private void SuppressMicrophoneDuringPlayback()
+    {
+        Interlocked.Exchange(ref _suppressMicrophone, 1);
+        CancelPlaybackGuard();
+        while (_microphoneQueue.Reader.TryRead(out _)) { }
+    }
+
+    private void ScheduleMicrophoneResume()
+    {
+        var sessionToken = _sessionCts?.Token ?? CancellationToken.None;
+        var guard = CancellationTokenSource.CreateLinkedTokenSource(sessionToken);
+        CancellationTokenSource? previous;
+        lock (_lifecycleLock)
+        {
+            previous = _playbackGuardCts;
+            _playbackGuardCts = guard;
+        }
+        previous?.Cancel();
+        previous?.Dispose();
+        _ = ResumeMicrophoneAfterPlaybackAsync(guard);
+    }
+
+    private async Task ResumeMicrophoneAfterPlaybackAsync(CancellationTokenSource guard)
+    {
+        try
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(8);
+            while ((_speakerBuffer?.BufferedBytes ?? 0) > 0 && DateTime.UtcNow < deadline)
+                await Task.Delay(40, guard.Token).ConfigureAwait(false);
+
+            // Pequena margem para o som fisico do alto-falante desaparecer do ambiente.
+            await Task.Delay(300, guard.Token).ConfigureAwait(false);
+            if (IsConnected)
+                await SendJsonAsync(new { type = "input_audio_buffer.clear" }, guard.Token).ConfigureAwait(false);
+
+            lock (_lifecycleLock)
+            {
+                if (!ReferenceEquals(_playbackGuardCts, guard)) return;
+                _playbackGuardCts = null;
+            }
+            Interlocked.Exchange(ref _suppressMicrophone, 0);
+            if (IsCapturing) Listening?.Invoke(); else Idle?.Invoke();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { Error?.Invoke("Protecao antieco: " + ex.Message); }
+        finally { guard.Dispose(); }
+    }
+
+    private void CancelPlaybackGuard()
+    {
+        CancellationTokenSource? guard;
+        lock (_lifecycleLock)
+        {
+            guard = _playbackGuardCts;
+            _playbackGuardCts = null;
+        }
+        guard?.Cancel();
+    }
+
     public async Task DisconnectAsync()
     {
+        CancelPlaybackGuard();
+        Interlocked.Exchange(ref _suppressMicrophone, 0);
         await StopMicrophoneAsync().ConfigureAwait(false);
         CancellationTokenSource? cts;
         ClientWebSocket? socket;

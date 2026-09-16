@@ -1,6 +1,6 @@
 {
-  "Version": "10.244",
+  "Version": "10.245",
   "PackageUrl": "",
   "Sha256": "",
-  "Notes": "V10.244: LIA migrada para a OpenAI Realtime API GA."
+  "Notes": "V10.245: elimina a repeticao da LIA bloqueando o retorno do alto-falante no microfone."
 }

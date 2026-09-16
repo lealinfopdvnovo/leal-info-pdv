@@ -1,6 +1,6 @@
 {
-  "version": "10.244",
-  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.244/Setup_LEAL_INFO_PDV_V10_244_FINAL.exe",
+  "version": "10.245",
+  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.245/Setup_LEAL_INFO_PDV_V10_245_FINAL.exe",
   "mandatory": false,
-  "message": "V10.244: LIA migrada para a OpenAI Realtime API GA."
+  "message": "V10.245: elimina a repeticao da LIA bloqueando o retorno do alto-falante no microfone."
 }
