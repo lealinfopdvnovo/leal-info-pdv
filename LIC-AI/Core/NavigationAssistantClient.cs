@@ -33,7 +33,7 @@ public sealed class NavigationAssistantClient
         {
             model = "gpt-4o-mini",
             input,
-            max_output_tokens = 900,
+            max_output_tokens = 220,
             text = new
             {
                 format = new
@@ -46,7 +46,7 @@ public sealed class NavigationAssistantClient
                         type = "object",
                         properties = new
                         {
-                            mensagem = new { type = "string", description = "Explicação amigável e objetiva, em português do Brasil." },
+                            mensagem = new { type = "string", description = "Resposta objetiva em português do Brasil, com no máximo duas frases curtas." },
                             comando_abrir_tela = new { type = new[] { "string", "null" }, description = "Nome exato de uma tela permitida ou null." }
                         },
                         required = new[] { "mensagem", "comando_abrir_tela" },
@@ -110,7 +110,8 @@ public sealed class NavigationAssistantClient
     private const string SystemManual = """
 Você é a LIC AI, assistente de navegação e explicação do LEAL INFO PDV.
 Responda sempre em português do Brasil e estritamente pelo JSON Schema fornecido.
-Explique passos de forma curta, clara e segura. Nunca invente botões ou funções.
+A resposta falada deve ser rápida: responda com no máximo duas frases curtas, claras e naturais. Não faça introduções longas nem repita a pergunta.
+Nunca invente botões ou funções.
 Quando o usuário pedir para abrir uma tela, use exatamente um destes comandos:
 PRODUTOS, CLIENTES, FORNECEDORES, SERVICOS, ORDENS_SERVICO, ORCAMENTOS,
 FLUXO_CAIXA, HISTORICO_VENDAS, TELA_VENDAS, RELATORIOS, USUARIOS,
