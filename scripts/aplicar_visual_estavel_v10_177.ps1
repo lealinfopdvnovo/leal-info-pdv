@@ -64,10 +64,31 @@ private void AddTool(Control parent, string text, string iconFile, Action action
             e.Graphics.DrawPath(innerGlow, innerPath);
         };
 
+        var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", iconFile);
+        PictureBox? icon = null;
+        if (File.Exists(iconPath))
+        {
+            using var source = Image.FromFile(iconPath);
+            icon = new PictureBox
+            {
+                Width = 58,
+                Height = 58,
+                Left = (cardW - 58) / 2,
+                Top = 5,
+                BackColor = Color.Transparent,
+                SizeMode = PictureBoxSizeMode.Zoom,
+                Image = new Bitmap(source),
+                Cursor = Cursors.Hand,
+                TabStop = false
+            };
+            card.Controls.Add(icon);
+        }
+
         var caption = new Label
         {
             Text = normalizedText,
-            Dock = DockStyle.Fill,
+            Dock = DockStyle.Bottom,
+            Height = 40,
             TextAlign = ContentAlignment.MiddleCenter,
             ForeColor = Color.White,
             BackColor = Color.Transparent,
@@ -106,10 +127,20 @@ private void AddTool(Control parent, string text, string iconFile, Action action
         card.MouseLeave += Leave;
         caption.MouseEnter += Enter;
         caption.MouseLeave += Leave;
+        if (icon != null)
+        {
+            icon.MouseEnter += Enter;
+            icon.MouseLeave += Leave;
+        }
         void Run(object? s, EventArgs e) => action();
         card.Click += Run;
         caption.Click += Run;
-        card.Disposed += (_, _) => pulseTimer.Dispose();
+        if (icon != null) icon.Click += Run;
+        card.Disposed += (_, _) =>
+        {
+            pulseTimer.Dispose();
+            icon?.Image?.Dispose();
+        };
         parent.Controls.Add(card);
     }
 
