@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Speech.Synthesis;
 
 namespace LealInfoPDV;
 
@@ -137,13 +138,18 @@ public sealed class LoginForm : Form
         };
     }
 
+    async Task SpeakLoginAssistAsync(string text)
+    {
+        try { await Task.Run(()=>{using var speaker=new SpeechSynthesizer();var voice=speaker.GetInstalledVoices().FirstOrDefault(v=>v.Enabled&&(v.VoiceInfo.Culture.Name.Equals("pt-BR",StringComparison.OrdinalIgnoreCase)||v.VoiceInfo.Name.Contains("Francisca",StringComparison.OrdinalIgnoreCase)||v.VoiceInfo.Name.Contains("Maria",StringComparison.OrdinalIgnoreCase)));if(voice!=null)speaker.SelectVoice(voice.VoiceInfo.Name);speaker.Rate=-1;speaker.Volume=100;speaker.Speak(text);}); } catch { }
+    }
+
     void BuildLogin(TableLayoutPanel p,Func<bool,TextBox> Box,Func<string,Label> Lab)
     {
         p.RowCount=10;
         p.RowStyles.Add(new RowStyle(SizeType.Absolute,30)); p.RowStyles.Add(new RowStyle(SizeType.Absolute,50));
         p.RowStyles.Add(new RowStyle(SizeType.Absolute,30)); p.RowStyles.Add(new RowStyle(SizeType.Absolute,50));
         p.RowStyles.Add(new RowStyle(SizeType.Absolute,28)); p.RowStyles.Add(new RowStyle(SizeType.Absolute,28));
-        p.RowStyles.Add(new RowStyle(SizeType.Absolute,32)); p.RowStyles.Add(new RowStyle(SizeType.Absolute,54));
+        p.RowStyles.Add(new RowStyle(SizeType.Absolute,40)); p.RowStyles.Add(new RowStyle(SizeType.Absolute,60));
         p.RowStyles.Add(new RowStyle(SizeType.Absolute,46)); p.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         var user=Box(false); var pass=Box(true);
 
@@ -152,7 +158,7 @@ public sealed class LoginForm : Form
         Panel ModernField(TextBox box, bool password=false)
         {
             box.BorderStyle=BorderStyle.None;
-            box.BackColor=Color.FromArgb(10,25,46);
+            box.BackColor=Color.FromArgb(8,34,62);
             box.ForeColor=Color.White;
             box.Margin=new Padding(0);
             box.Dock=DockStyle.Fill;
@@ -160,8 +166,8 @@ public sealed class LoginForm : Form
             var host=new Panel
             {
                 Dock=DockStyle.Fill,
-                BackColor=Color.FromArgb(10,25,46),
-                Padding=password ? new Padding(4,13,0,8) : new Padding(4,13,4,8),
+                BackColor=Color.FromArgb(8,34,62),
+                Padding=password ? new Padding(10,13,6,8) : new Padding(10,13,10,8),
                 Margin=new Padding(0,2,0,2)
             };
 
@@ -195,13 +201,9 @@ public sealed class LoginForm : Form
                 gp.AddArc(rect.Right-d,rect.Bottom-d,d,d,0,90);
                 gp.AddArc(rect.Left,rect.Bottom-d,d,d,90,90);
                 gp.CloseFigure();
-                using var glow=new LinearGradientBrush(
-                    new Rectangle(0,host.Height-3,host.Width,3),
-                    focused ? Color.FromArgb(80,235,255) : Color.FromArgb(45,112,148),
-                    focused ? Color.FromArgb(0,145,255) : Color.FromArgb(20,65,100),
-                    LinearGradientMode.Horizontal);
-                using var pen=new Pen(glow,focused ? 2.4f : 1.3f);
-                e.Graphics.DrawLine(pen,4,host.Height-3,host.Width-5,host.Height-3);
+                using var glow=new LinearGradientBrush(rect,focused ? Color.FromArgb(80,235,255) : Color.FromArgb(52,115,150),focused ? Color.FromArgb(0,145,255) : Color.FromArgb(25,70,105),LinearGradientMode.Horizontal);
+                using var pen=new Pen(glow,focused ? 2.0f : 1.15f);
+                e.Graphics.DrawPath(pen,gp);
             };
             host.Resize+=(_,_)=>ApplyRound();
             host.HandleCreated+=(_,_)=>ApplyRound();
@@ -214,7 +216,7 @@ public sealed class LoginForm : Form
                 var eye=new Button
                 {
                     Text="MOSTRAR",Dock=DockStyle.Right,Width=76,FlatStyle=FlatStyle.Flat,
-                    BackColor=Color.FromArgb(10,25,46),ForeColor=Color.FromArgb(90,225,255),
+                    BackColor=Color.FromArgb(8,34,62),ForeColor=Color.FromArgb(90,225,255),
                     Font=new Font("Segoe UI",8,FontStyle.Bold),Cursor=Cursors.Hand
                 };
                 eye.FlatAppearance.BorderSize=0;
@@ -245,7 +247,7 @@ public sealed class LoginForm : Form
         {
             Text = EmailRecovery.IsConfigured()
                 ? "Recuperação por e-mail: ATIVA"
-                : "Recuperação por e-mail: NÃO CONFIGURADA",
+                : "⚠  Recuperação por e-mail: NÃO CONFIGURADA",
             Dock=DockStyle.Fill,
             ForeColor = EmailRecovery.IsConfigured() ? Color.FromArgb(95,240,175) : Color.FromArgb(255,135,135),
             Font=new Font("Segoe UI",9,FontStyle.Bold),
@@ -255,7 +257,7 @@ public sealed class LoginForm : Form
 
         var enter=new PremiumButton{Text="ENTRAR",Dock=DockStyle.Fill,ForeColor=Color.White,
             Font=new Font("Segoe UI",12,FontStyle.Bold),StartColor=Color.FromArgb(0,205,245),EndColor=Color.FromArgb(0,92,205)};
-        enter.FlatAppearance.BorderSize=0; p.Controls.Add(enter,0,7);
+        enter.FlatAppearance.BorderSize=0; enter.Margin=new Padding(0,8,0,0); p.Controls.Add(enter,0,7);
 
         var help=new PremiumButton{Text="AJUDA PARA RECUPERAR SENHA",Dock=DockStyle.Fill,ForeColor=Color.White,Font=new Font("Segoe UI",10,FontStyle.Bold),StartColor=Color.FromArgb(28,70,110),EndColor=Color.FromArgb(7,28,52)};
         help.FlatAppearance.BorderSize=0;
@@ -263,10 +265,14 @@ public sealed class LoginForm : Form
         help.Click+=(_,_)=>OpenRecoveryHelp();
 
         AcceptButton=enter;
+        int consecutiveFailures=0;
+        Shown+=async (_,_)=>{if(!EmailRecovery.IsConfigured()) await SpeakLoginAssistAsync("Bem-vindo de volta! Lembre-se de configurar seu e-mail de recuperação nas configurações para manter seu caixa seguro.");};
 
         void Go()
         {
-            if(Auth.Login(user.Text,pass.Text)!=null){DialogResult=DialogResult.OK;Close();return;}
+            if(Auth.Login(user.Text,pass.Text)!=null){consecutiveFailures=0;DialogResult=DialogResult.OK;Close();return;}
+            consecutiveFailures++;
+            if(consecutiveFailures>=3){consecutiveFailures=0;_=SpeakLoginAssistAsync("Esqueceu a sua senha, chefe? Clique no botão de ajuda logo abaixo para eu te ajudar a recuperar!");}
             MessageBox.Show("Usuário ou senha inválidos, ou usuário inativo.","Acesso",MessageBoxButtons.OK,MessageBoxIcon.Warning);
             pass.Clear(); pass.Focus();
         }
