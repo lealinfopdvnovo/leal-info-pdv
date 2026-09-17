@@ -1,4 +1,4 @@
-Warning: truncated output (original token count: 77768)
+Warning: truncated output (original token count: 77781)
 Total output lines: 5710
 
 ﻿using Microsoft.Data.Sqlite;
@@ -97,7 +97,7 @@ public sealed class MainForm : Form
                     PipeOptions.Asynchronous);
 
                 await pipe.WaitForConnectionAsync(cancellationToken);
-                using var reader = new StreamReader(pipe, leaveOpen: true);
+                using var reader = new StreamReader(pipe, System.Text.Encoding.UTF8, true, 1024, true);
                 var command = await reader.ReadLineAsync(cancellationToken);
                 if (!string.IsNullOrWhiteSpace(command) && !IsDisposed)
                 {
@@ -108,7 +108,7 @@ public sealed class MainForm : Form
                         catch (Exception ex) { completion.TrySetResult("Nao consegui fechar essa janela: " + ex.Message); }
                     });
                     var response = await completion.Task.WaitAsync(cancellationToken);
-                    await using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+                    await using var writer = new StreamWriter(pipe, System.Text.Encoding.UTF8, 1024, true) { AutoFlush = true };
                     await writer.WriteLineAsync(response.AsMemory(), cancellationToken);
                 }
             }
@@ -3351,9 +3351,7 @@ private void ApplyFloatingTheme(Form f)
         grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(218, 239, 251);
         grid.ColumnHeadersDefaultCellStyle.ForeColor = DarkBlue;
         grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-        grid.DataError += (_, e) => { e.ThrowException = false; e.Cancel = true; };
-
-       …7768 tokens truncated…d(new RowStyle(SizeType.Absolute, 44));
+        grid.DataError += (_, e) => { e.Th…7781 tokens truncated…d(new RowStyle(SizeType.Absolute, 44));
         leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
         leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
