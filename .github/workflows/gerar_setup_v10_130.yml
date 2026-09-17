@@ -1,4 +1,4 @@
-name: Publicar atualizacao LEAL INFO PDV V10.267
+name: Publicar atualizacao LEAL INFO PDV V10.267 
 on:
   workflow_dispatch:
   push:
