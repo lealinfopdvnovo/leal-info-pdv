@@ -29,8 +29,8 @@ jobs:
           $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.268"')
           $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_268_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.267\.0</Version>') { throw "csproj nao esta em V10.268" }
-          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.267"') { throw "UpdateManager nao esta em V10.268" }
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.268\.0</Version>') { throw "csproj nao esta em V10.268" }
+          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.268"') { throw "UpdateManager nao esta em V10.268" }
       - name: Preservar visual
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_visual_estavel_v10_177.ps1"
