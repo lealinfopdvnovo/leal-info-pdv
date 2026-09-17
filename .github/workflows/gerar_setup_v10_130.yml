@@ -77,12 +77,6 @@ jobs:
       - name: Aplicar TTS OpenAI final
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\corrigir_lic_ai_tts_openai_v10_217.ps1"
-      - name: Estabilizar streaming de audio da LIA
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\corrigir_lia_audio_streaming_v10_249.ps1"
-      - name: Aplicar fila sequencial de audio da LIA
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\corrigir_lia_fila_audio_v10_252.ps1"
       - name: Aplicar motor OpenAI Realtime
         shell: powershell
         run: |
