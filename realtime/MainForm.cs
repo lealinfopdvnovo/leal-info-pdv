@@ -246,16 +246,18 @@ public sealed class MainForm : Form
         MessageBox.Show(this, ex.Message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 
-    private static async Task SendNavigationCommandAsync(string command, CancellationToken cancellationToken)
+    private static async Task<string> SendNavigationCommandAsync(string command, CancellationToken cancellationToken)
     {
         try
         {
-            using var pipe = new NamedPipeClientStream(".", "LealInfoPDV.Navigation", PipeDirection.Out, PipeOptions.Asynchronous);
+            using var pipe = new NamedPipeClientStream(".", "LealInfoPDV.Navigation", PipeDirection.InOut, PipeOptions.Asynchronous);
             await pipe.ConnectAsync(1500, cancellationToken);
-            await using var writer = new StreamWriter(pipe) { AutoFlush = true };
+            await using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
             await writer.WriteLineAsync(command.AsMemory(), cancellationToken);
+            using var reader = new StreamReader(pipe, leaveOpen: true);
+            return await reader.ReadLineAsync(cancellationToken) ?? "Comando concluido.";
         }
-        catch { }
+        catch { return "Nao consegui controlar essa janela agora."; }
     }
 
     private static async Task SendStatusAsync(string state)
