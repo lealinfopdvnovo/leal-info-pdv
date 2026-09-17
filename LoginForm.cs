@@ -233,9 +233,19 @@ public sealed class LoginForm : Form
             return host;
         }
 
-        p.Controls.Add(Lab("Usuário"),0,0); p.Controls.Add(ModernField(user),0,1);
+        p.Controls.Add(Lab("Usuário"),0,0);
+        var pnlUsuario=ModernField(user);
+        pnlUsuario.Name="pnlUsuario";
+        pnlUsuario.BackColor=Color.FromArgb(0,120,215);
+        pnlUsuario.Padding=new Padding(2);
+        p.Controls.Add(pnlUsuario,0,1);
+
         p.Controls.Add(Lab("Senha"),0,2);
-        p.Controls.Add(ModernField(pass,true),0,3);
+        var pnlSenha=ModernField(pass,true);
+        pnlSenha.Name="pnlSenha";
+        pnlSenha.BackColor=Color.FromArgb(0,120,215);
+        pnlSenha.Padding=new Padding(2);
+        p.Controls.Add(pnlSenha,0,3);
 
         var forgot=new LinkLabel{Text="Esqueci minha senha",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,LinkColor=Color.FromArgb(90,220,255),ActiveLinkColor=Color.White};
         p.Controls.Add(forgot,0,4);
@@ -257,7 +267,7 @@ public sealed class LoginForm : Form
 
         var enter=new PremiumButton{Text="ENTRAR",Dock=DockStyle.Fill,ForeColor=Color.White,
             Font=new Font("Segoe UI",12,FontStyle.Bold),StartColor=Color.FromArgb(0,205,245),EndColor=Color.FromArgb(0,92,205)};
-        enter.FlatAppearance.BorderSize=0; enter.Margin=new Padding(0,8,0,0); p.Controls.Add(enter,0,7);
+        enter.FlatAppearance.BorderSize=0; enter.Margin=new Padding(0,15,0,0); p.Controls.Add(enter,0,7);
 
         var help=new PremiumButton{Text="AJUDA PARA RECUPERAR SENHA",Dock=DockStyle.Fill,ForeColor=Color.White,Font=new Font("Segoe UI",10,FontStyle.Bold),StartColor=Color.FromArgb(28,70,110),EndColor=Color.FromArgb(7,28,52)};
         help.FlatAppearance.BorderSize=0;
@@ -266,7 +276,7 @@ public sealed class LoginForm : Form
 
         AcceptButton=enter;
         int consecutiveFailures=0;
-        Shown+=async (_,_)=>{if(!EmailRecovery.IsConfigured()) await SpeakLoginAssistAsync("Bem-vindo de volta! Lembre-se de configurar seu e-mail de recuperação nas configurações para manter seu caixa seguro.");};
+        Shown+=async (_,_)=>{await Task.Delay(700);if(!EmailRecovery.IsConfigured()) await SpeakLoginAssistAsync("Bem-vindo de volta! Lembre-se de configurar seu e-mail de recuperação nas configurações para manter seu caixa seguro.");};
 
         void Go()
         {
