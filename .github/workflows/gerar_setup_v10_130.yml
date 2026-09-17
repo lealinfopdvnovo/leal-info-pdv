@@ -1,4 +1,4 @@
-name: Publicar atualizacao LEAL INFO PDV V10.255
+name: Publicar atualizacao LEAL INFO PDV V10.256
 on:
   workflow_dispatch:
   push:
@@ -13,10 +13,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.255"
-      UPDATE_TAG: "v10.255"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_255_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_255_UPDATE.zip"
+      UPDATE_VERSION: "10.256"
+      UPDATE_TAG: "v10.256"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_256_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_256_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -25,9 +25,9 @@ jobs:
       - name: Preparar versao
         shell: powershell
         run: |
-          $u=Get-Content "UpdateManager.cs" -Raw -Encoding UTF8; $u=[regex]::Replace($u,'CurrentVersion="[^"]+"','CurrentVersion="10.255"'); $u=[regex]::Replace($u,'LEAL-INFO-PDV-Updater/[0-9.]+','LEAL-INFO-PDV-Updater/10.255'); Set-Content "UpdateManager.cs" $u -Encoding UTF8
-          $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw -Encoding UTF8; $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.255"'); $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_255_FINAL'); Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.255\.0</Version>') { throw "csproj nao esta em V10.255" }
+          $u=Get-Content "UpdateManager.cs" -Raw -Encoding UTF8; $u=[regex]::Replace($u,'CurrentVersion="[^"]+"','CurrentVersion="10.256"'); $u=[regex]::Replace($u,'LEAL-INFO-PDV-Updater/[0-9.]+','LEAL-INFO-PDV-Updater/10.256'); Set-Content "UpdateManager.cs" $u -Encoding UTF8
+          $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw -Encoding UTF8; $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.256"'); $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_256_FINAL'); Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.256\.0</Version>') { throw "csproj nao esta em V10.256" }
       - name: Preservar visual
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_visual_estavel_v10_177.ps1"
@@ -106,11 +106,11 @@ jobs:
           if (!(Test-Path $setup)) { throw "Setup nao encontrado" }; if (!(Test-Path $package)) { throw "Pacote nao encontrado" }
           $packageHash=(Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
           $ErrorActionPreference="Continue"; gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null; $ErrorActionPreference="Stop"
-          $notes="V10.255: elimina voz acelerada e cortes da LIA com fila FIFO sem descarte e reproducao PCM em velocidade natural 1x."
+          $notes="V10.256: fecha janelas sobrepostas uma por vez, da frente para tras, com confirmacao falada."
           gh release create $env:UPDATE_TAG $package $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes $notes
           $manifest=@{Version=$env:UPDATE_VERSION;PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:UPDATE_PACKAGE";Sha256=$packageHash;Notes=$notes;DownloadUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:SETUP_FILE";Mandatory=$false;Message=$notes}|ConvertTo-Json
-          $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest)); $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"; gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.255" -f content="$encoded" -f sha="$sha"
+          $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest)); $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"; gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.256" -f content="$encoded" -f sha="$sha"
       - uses: actions/upload-artifact@v4
-        with: { name: LEAL_INFO_PDV_V10_255_UPDATE, path: LEAL_INFO_PDV_V10_255_UPDATE.zip, if-no-files-found: error }
+        with: { name: LEAL_INFO_PDV_V10_256_UPDATE, path: LEAL_INFO_PDV_V10_256_UPDATE.zip, if-no-files-found: error }
       - uses: actions/upload-artifact@v4
-        with: { name: Setup_LEAL_INFO_PDV_V10_255_FINAL, path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_255_FINAL.exe, if-no-files-found: error }
+        with: { name: Setup_LEAL_INFO_PDV_V10_256_FINAL, path: SETUP_PRONTO/Setup_LEAL_INFO_PDV_V10_256_FINAL.exe, if-no-files-found: error }
