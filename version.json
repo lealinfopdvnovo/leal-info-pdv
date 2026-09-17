@@ -1,6 +1,6 @@
 {
-  "version": "10.254",
-  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.254/Setup_LEAL_INFO_PDV_V10_254_FINAL.exe",
+  "version": "10.255",
+  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.255/Setup_LEAL_INFO_PDV_V10_255_FINAL.exe",
   "mandatory": false,
-  "message": "V10.254: corrige definitivamente a protecao antieco da LIA."
+  "message": "V10.255: corrige a voz acelerada e os cortes de audio da LIA com fila sem descarte."
 }
