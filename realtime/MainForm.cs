@@ -252,9 +252,9 @@ public sealed class MainForm : Form
         {
             using var pipe = new NamedPipeClientStream(".", "LealInfoPDV.Navigation", PipeDirection.InOut, PipeOptions.Asynchronous);
             await pipe.ConnectAsync(1500, cancellationToken);
-            await using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+            await using var writer = new StreamWriter(pipe, System.Text.Encoding.UTF8, 1024, true) { AutoFlush = true };
             await writer.WriteLineAsync(command.AsMemory(), cancellationToken);
-            using var reader = new StreamReader(pipe, leaveOpen: true);
+            using var reader = new StreamReader(pipe, System.Text.Encoding.UTF8, true, 1024, true);
             return await reader.ReadLineAsync(cancellationToken) ?? "Comando concluido.";
         }
         catch { return "Nao consegui controlar essa janela agora."; }
