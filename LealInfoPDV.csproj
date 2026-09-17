@@ -9,15 +9,16 @@
     <AssemblyName>LealInfoPDV</AssemblyName>
     <RootNamespace>LealInfoPDV</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>10.267.0</Version>
-    <AssemblyVersion>10.267.0.0</AssemblyVersion>
-    <FileVersion>10.267.0.0</FileVersion>
+    <Version>10.268.0</Version>
+    <AssemblyVersion>10.268.0.0</AssemblyVersion>
+    <FileVersion>10.268.0.0</FileVersion>
     <ApplicationIcon>Assets\lealinfo.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup><Compile Remove="realtime\**\*.cs" /></ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.12" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
+    <PackageReference Include="System.Speech" Version="8.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\*.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
