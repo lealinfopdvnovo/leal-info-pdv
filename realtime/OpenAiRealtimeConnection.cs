@@ -50,7 +50,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     public event Action? Idle;
     public event Action<string>? Transcript;
     public event Action<string>? Error;
-    public event Func<string, Task>? NavigationRequested;
+    public event Func<string, Task<string>>? NavigationRequested;
 
     public bool IsConnected => _socket?.State == WebSocketState.Open;
     public bool IsCapturing => _microphone != null;
@@ -144,6 +144,18 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                                 }
                             },
                             required = new[] { "tela" },
+                            additionalProperties = false
+                        }
+                    },
+                    new
+                    {
+                        type = "function",
+                        name = "fechar_tela",
+                        description = "Fecha somente a janela ou modal que esta em primeiro plano. Use quando o operador disser fechar tela ou fechar janela.",
+                        parameters = new
+                        {
+                            type = "object",
+                            properties = new { },
                             additionalProperties = false
                         }
                     }
@@ -338,18 +350,25 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
 
     private async Task HandleFunctionCallAsync(JsonElement root, CancellationToken cancellationToken)
     {
-        if (!string.Equals(GetString(root, "name"), "abrir_tela", StringComparison.Ordinal)) return;
+        var functionName = GetString(root, "name");
+        if (functionName is not ("abrir_tela" or "fechar_tela")) return;
         var callId = GetString(root, "call_id");
         var arguments = GetString(root, "arguments");
         string? screen = null;
-        try
+        if (functionName == "abrir_tela") try
         {
             using var args = JsonDocument.Parse(arguments ?? "{}");
             screen = GetString(args.RootElement, "tela")?.Trim().ToUpperInvariant();
         }
         catch { }
-        var ok = screen != null && AllowedScreens.Contains(screen, StringComparer.OrdinalIgnoreCase);
-        if (ok && NavigationRequested != null) await NavigationRequested(screen!).ConfigureAwait(false);
+        var ok = functionName == "fechar_tela" ||
+                 screen != null && AllowedScreens.Contains(screen, StringComparer.OrdinalIgnoreCase);
+        var result = ok
+            ? functionName == "fechar_tela" ? "Fechando a janela em primeiro plano."
+            : "Tela aberta com sucesso."
+            : "Tela nao reconhecida.";
+        if (ok && NavigationRequested != null)
+            result = await NavigationRequested(functionName == "fechar_tela" ? "FECHAR_TELA" : screen!).ConfigureAwait(false);
         if (!string.IsNullOrWhiteSpace(callId) && IsConnected)
         {
             await SendJsonAsync(new
@@ -359,7 +378,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                 {
                     type = "function_call_output",
                     call_id = callId,
-                    output = ok ? "Tela aberta com sucesso." : "Tela nao reconhecida."
+                    output = result
                 }
             }, cancellationToken).ConfigureAwait(false);
             await SendJsonAsync(new { type = "response.create" }, cancellationToken).ConfigureAwait(false);
@@ -597,6 +616,7 @@ Fale sempre em portugues do Brasil, naturalmente, em no maximo duas frases curta
 Conheca as telas: Produtos, Clientes, Fornecedores, Servicos, Ordens de Servico, Orcamentos, Fluxo de Caixa, Historico de Vendas, Tela de Vendas, Relatorios, Usuarios, Configuracoes, Cadastros e Ajuda.
 Para mudar nome da empresa, telefone, CNPJ ou qualquer ajuste tecnico, use abrir_tela com CONFIGURACOES.
 So chame abrir_tela na primeira solicitacao explicita para abrir; se a pessoa apenas continuar uma duvida ou conversa sobre ajuda, nao chame novamente.
+Quando o operador disser "fechar tela" ou "fechar janela", chame fechar_tela exatamente uma vez. Use o resultado da ferramenta para confirmar em voz qual janela foi fechada.
 Nunca execute venda, exclusao, alteracao financeira ou mudanca de seguranca. Seja leve, util e direta.
 """;
 }
