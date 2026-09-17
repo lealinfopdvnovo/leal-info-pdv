@@ -1,6 +1,6 @@
 {
-  "version": "10.249",
-  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.249/Setup_LEAL_INFO_PDV_V10_249_FINAL.exe",
+  "version": "10.254",
+  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.254/Setup_LEAL_INFO_PDV_V10_254_FINAL.exe",
   "mandatory": false,
-  "message": "V10.249: corrige a protecao antieco da LIA e impede erros repetidos."
+  "message": "V10.254: corrige definitivamente a protecao antieco da LIA."
 }

@@ -1,6 +1,6 @@
 {
-  "Version": "10.249",
+  "Version": "10.254",
   "PackageUrl": "",
   "Sha256": "",
-  "Notes": "V10.249: corrige a protecao antieco da LIA e impede erros repetidos."
+  "Notes": "V10.254: corrige definitivamente a protecao antieco da LIA."
 }
