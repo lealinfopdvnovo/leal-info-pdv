@@ -10,6 +10,9 @@ namespace LicAi.Core;
 public sealed class OpenAiRealtimeConnection : IAsyncDisposable
 {
     private const string Model = "gpt-realtime-2.1";
+    private const int OutputSampleRate = 24000;
+    private const int PcmBytesPerSecond = OutputSampleRate * 2; // PCM16 mono
+    private const int StartupBufferBytes = PcmBytesPerSecond * 300 / 1000;
     private static readonly Uri Endpoint = new($"wss://api.openai.com/v1/realtime?model={Model}");
     private readonly Func<string?> _apiKeyProvider;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -319,6 +322,8 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                 case "response.done":
                 case "response.cancelled":
                     Interlocked.Exchange(ref _responseActive, 0);
+                    // Marcador de fim: libera falas menores que os 300 ms do prebuffer.
+                    _speakerQueue.Writer.TryWrite(Array.Empty<byte>());
                     ScheduleMicrophoneResume();
                     break;
                 case "input_audio_buffer.speech_started":
@@ -403,7 +408,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     {
         // PCM16 mono a 24 kHz determina fisicamente a velocidade nativa 1.0x.
         // Nao ha resampling, time-stretch ou qualquer alteracao de playback rate.
-        _speakerBuffer = new BufferedWaveProvider(new WaveFormat(24000, 16, 1))
+        _speakerBuffer = new BufferedWaveProvider(new WaveFormat(OutputSampleRate, 16, 1))
         {
             BufferDuration = TimeSpan.FromSeconds(30),
             DiscardOnBufferOverflow = false,
@@ -411,25 +416,43 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         };
         _speaker = new WaveOutEvent { DesiredLatency = 80, NumberOfBuffers = 3 };
         _speaker.Init(_speakerBuffer);
-        _speaker.Play();
     }
 
     private async Task SpeakerPlaybackLoopAsync(CancellationToken cancellationToken)
     {
         try
         {
-            await foreach (var pcm in _speakerQueue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            while (await _speakerQueue.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
             {
+                var pcm = await _speakerQueue.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
                 if (pcm.Length == 0) continue;
                 var buffer = _speakerBuffer;
-                if (buffer == null) continue;
+                var speaker = _speaker;
+                if (buffer == null || speaker == null) continue;
 
-                // Backpressure real: somente um bloco fica em reproducao. O proximo
-                // so e entregue depois que a duracao PCM do anterior terminou.
+                if (buffer.BufferedBytes == 0)
+                {
+                    // Jitter buffer: acumula 300 ms antes de iniciar. Se a resposta
+                    // terminar antes disso, o marcador vazio libera a fala curta.
+                    speaker.Pause();
+                    buffer.AddSamples(pcm, 0, pcm.Length);
+                    var accumulated = pcm.Length;
+                    while (accumulated < StartupBufferBytes)
+                    {
+                        var next = await _speakerQueue.Reader.ReadAsync(cancellationToken).ConfigureAwait(false);
+                        if (next.Length == 0) break;
+                        buffer.AddSamples(next, 0, next.Length);
+                        accumulated += next.Length;
+                    }
+                    speaker.Play();
+                    continue;
+                }
+
+                // Backpressure mantem aproximadamente 300-600 ms reservados, sem
+                // descartar blocos e sem acelerar a reproducao para alcancar a rede.
+                while (buffer.BufferedBytes >= StartupBufferBytes * 2)
+                    await Task.Delay(10, cancellationToken).ConfigureAwait(false);
                 buffer.AddSamples(pcm, 0, pcm.Length);
-                var blockDuration = TimeSpan.FromSeconds(pcm.Length / 48000d);
-                if (blockDuration > TimeSpan.Zero)
-                    await Task.Delay(blockDuration, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) { }
@@ -439,6 +462,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     private void ClearLocalPlayback()
     {
         while (_speakerQueue.Reader.TryRead(out _)) { }
+        try { _speaker?.Pause(); } catch { }
         try { _speakerBuffer?.ClearBuffer(); } catch { }
         lock (_playbackClockLock) _playbackEndsUtc = DateTime.UtcNow;
     }
@@ -446,7 +470,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     private void RegisterPlaybackBytes(int byteCount)
     {
         // PCM16 mono 24 kHz = 48.000 bytes por segundo.
-        var duration = TimeSpan.FromSeconds(byteCount / 48000d);
+        var duration = TimeSpan.FromSeconds(byteCount / (double)PcmBytesPerSecond);
         lock (_playbackClockLock)
         {
             var now = DateTime.UtcNow;
