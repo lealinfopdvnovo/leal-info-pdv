@@ -8,7 +8,7 @@ $new=@'
     public LoginForm()
     {
         Text="LEAL INFO PDV - Sistema de Ponto de Venda";
-        StartPosition=FormStartPosition.CenterScreen;
+        StartPosition=FormStartPosition.Manual;
         Size=new Size(900,500);
         MinimumSize=new Size(900,500);
         MaximumSize=new Size(900,500);
@@ -18,6 +18,13 @@ $new=@'
         BackColor=Color.FromArgb(1,8,20);
         Font=new Font("Segoe UI",9);
         Opacity=0;
+
+        void CentralizarLogin()
+        {
+            var area=Screen.FromPoint(Cursor.Position).WorkingArea;
+            Location=new Point(area.Left+(area.Width-Width)/2,area.Top+(area.Height-Height)/2);
+        }
+        CentralizarLogin();
 
         var stage=new Panel{Dock=DockStyle.Fill,BackColor=Color.FromArgb(1,8,20),Padding=new Padding(14)};
         Controls.Add(stage);
@@ -89,7 +96,10 @@ $new=@'
         TextBox Box(bool password=false)=>new(){Dock=DockStyle.Fill,Font=new Font("Segoe UI",10,FontStyle.Bold),UseSystemPasswordChar=password,BackColor=Color.FromArgb(9,42,75),ForeColor=Color.White,BorderStyle=BorderStyle.FixedSingle};
         Label Lab(string x)=>new(){Text=x.ToUpperInvariant(),Dock=DockStyle.Fill,ForeColor=Color.White,BackColor=Color.Transparent,Font=new Font("Segoe UI",8.5f,FontStyle.Bold),TextAlign=ContentAlignment.BottomLeft};
         if(Auth.UserCount()==0) BuildFirstAdmin(p,Box,Lab); else BuildLogin(p,Box,Lab);
-        Shown+=(_,_)=>{Opacity=1;CenterToScreen();stage.Invalidate();}; Resize+=(_,_)=>stage.Invalidate();
+        Load+=(_,_)=>CentralizarLogin();
+        Shown+=(_,_)=>{CentralizarLogin();Opacity=1;stage.Invalidate();};
+        Activated+=(_,_)=>{if(!Visible)return;};
+        Resize+=(_,_)=>stage.Invalidate();
     }
 
     static System.Drawing.Drawing2D.GraphicsPath RoundedPath(Rectangle r,int radius)
@@ -103,4 +113,4 @@ $c=$c.Substring(0,$start)+$new+$c.Substring($end)
 $c=$c.Replace('var emergency=new LinkLabel{Text="Usar código de recuperação de emergência"','var emergency=new LinkLabel{Text="Acesso Mestre"')
 $c=$c.Replace('var enter=new Button{Text="ENTRAR",Dock=DockStyle.Fill,BackColor=Color.FromArgb(0,163,224)','var enter=new Button{Text="ENTRAR",Dock=DockStyle.Fill,BackColor=Color.FromArgb(0,110,245)')
 Set-Content $path $c -Encoding UTF8
-Write-Host 'Login centralizado em janela flutuante 900x500; paineis proporcionais.'
+Write-Host 'Login 900x500 centralizado explicitamente na area util do monitor.'
