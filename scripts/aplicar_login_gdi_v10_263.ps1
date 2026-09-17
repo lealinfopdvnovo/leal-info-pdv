@@ -36,6 +36,12 @@ $c=$c.Substring(0,$start)+$segment+$c.Substring($end)
 
 # Métodos exclusivos GDI+ antes de BuildLogin; não altera autenticação/recuperação.
 $insert=@'
+    static System.Drawing.Drawing2D.GraphicsPath LoginRoundedPath(Rectangle r,int radius)
+    {
+        var gp=new System.Drawing.Drawing2D.GraphicsPath(); int d=Math.Min(radius*2,Math.Min(r.Width,r.Height));
+        gp.AddArc(r.Left,r.Top,d,d,180,90); gp.AddArc(r.Right-d,r.Top,d,d,270,90); gp.AddArc(r.Right-d,r.Bottom-d,d,d,0,90); gp.AddArc(r.Left,r.Bottom-d,d,d,90,90); gp.CloseFigure(); return gp;
+    }
+
     void AplicarRegiaoLogin()
     {
         if(Width<=0||Height<=0)return;
