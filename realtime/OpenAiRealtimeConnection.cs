@@ -14,6 +14,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     private readonly Func<string?> _apiKeyProvider;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
     private readonly object _lifecycleLock = new();
+    private readonly object _playbackClockLock = new();
     private readonly Channel<byte[]> _microphoneQueue = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(24)
     {
         SingleReader = true,
@@ -32,6 +33,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     private bool _disposed;
     private int _responseActive;
     private int _suppressMicrophone;
+    private DateTime _playbackEndsUtc = DateTime.MinValue;
 
     public event Action? Connected;
     public event Action? Listening;
@@ -276,6 +278,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                 if (string.IsNullOrWhiteSpace(base64)) return;
                 var pcm = Convert.FromBase64String(base64);
                 SuppressMicrophoneDuringPlayback();
+                RegisterPlaybackBytes(pcm.Length);
                 _speakerBuffer?.AddSamples(pcm, 0, pcm.Length);
                 Speaking?.Invoke();
                 return;
@@ -379,6 +382,19 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     private void ClearLocalPlayback()
     {
         try { _speakerBuffer?.ClearBuffer(); } catch { }
+        lock (_playbackClockLock) _playbackEndsUtc = DateTime.UtcNow;
+    }
+
+    private void RegisterPlaybackBytes(int byteCount)
+    {
+        // PCM16 mono 24 kHz = 48.000 bytes por segundo.
+        var duration = TimeSpan.FromSeconds(byteCount / 48000d);
+        lock (_playbackClockLock)
+        {
+            var now = DateTime.UtcNow;
+            if (_playbackEndsUtc < now) _playbackEndsUtc = now;
+            _playbackEndsUtc = _playbackEndsUtc.Add(duration);
+        }
     }
 
     private void SuppressMicrophoneDuringPlayback()
@@ -408,8 +424,13 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         try
         {
             var deadline = DateTime.UtcNow.AddSeconds(8);
-            while ((_speakerBuffer?.BufferedBytes ?? 0) > 0 && DateTime.UtcNow < deadline)
-                await Task.Delay(40, guard.Token).ConfigureAwait(false);
+            while (DateTime.UtcNow < deadline)
+            {
+                TimeSpan remaining;
+                lock (_playbackClockLock) remaining = _playbackEndsUtc - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero) break;
+                await Task.Delay(Math.Min(80, Math.Max(10, (int)remaining.TotalMilliseconds)), guard.Token).ConfigureAwait(false);
+            }
 
             // Pequena margem para o som fisico do alto-falante desaparecer do ambiente.
             await Task.Delay(300, guard.Token).ConfigureAwait(false);
@@ -425,7 +446,24 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             if (IsCapturing) Listening?.Invoke(); else Idle?.Invoke();
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { Error?.Invoke("Protecao antieco: " + ex.Message); }
+        catch
+        {
+            // A protecao antieco nunca pode bloquear a LIA nem abrir varias janelas de erro.
+            var ownsGuard = false;
+            lock (_lifecycleLock)
+            {
+                if (ReferenceEquals(_playbackGuardCts, guard))
+                {
+                    _playbackGuardCts = null;
+                    ownsGuard = true;
+                }
+            }
+            if (ownsGuard)
+            {
+                Interlocked.Exchange(ref _suppressMicrophone, 0);
+                if (IsCapturing) Listening?.Invoke(); else Idle?.Invoke();
+            }
+        }
         finally { guard.Dispose(); }
     }
 

@@ -1,6 +1,6 @@
 {
-  "version": "10.248",
-  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.248/Setup_LEAL_INFO_PDV_V10_248_FINAL.exe",
+  "version": "10.249",
+  "downloadUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.249/Setup_LEAL_INFO_PDV_V10_249_FINAL.exe",
   "mandatory": false,
-  "message": "V10.248: normaliza a animacao de Cadastro e Tela de Vendas."
+  "message": "V10.249: corrige a protecao antieco da LIA e impede erros repetidos."
 }

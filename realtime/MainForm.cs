@@ -18,6 +18,7 @@ public sealed class MainForm : Form
     private OpenAiRealtimeConnection? _realtime;
     private CancellationTokenSource _lifetime = new();
     private bool _closing;
+    private int _errorDialogVisible;
 
     public MainForm(ConversationEngine engine, LocalSecretStore secrets, bool voiceOnly = false)
     {
@@ -86,9 +87,11 @@ public sealed class MainForm : Form
         _realtime.Transcript += text => Ui(() => Append("LIA", text));
         _realtime.Error += message => Ui(() =>
         {
+            if (Interlocked.Exchange(ref _errorDialogVisible, 1) == 1) return;
             _status.Text = "Falha na conexao de voz";
             _ = SendStatusAsync("ERROR");
-            MessageBox.Show(this, message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            try { MessageBox.Show(this, message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            finally { Interlocked.Exchange(ref _errorDialogVisible, 0); }
         });
         _realtime.NavigationRequested += async command => await SendNavigationCommandAsync(command, _lifetime.Token);
     }
