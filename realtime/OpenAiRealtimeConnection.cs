@@ -444,7 +444,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                         buffer.AddSamples(next, 0, next.Length);
                         accumulated += next.Length;
                     }
-                    speaker.Play();
+                    EnsureSpeakerAwake();
                     continue;
                 }
 
@@ -452,11 +452,22 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                 // descartar blocos e sem acelerar a reproducao para alcancar a rede.
                 while (buffer.BufferedBytes >= StartupBufferBytes * 2)
                     await Task.Delay(10, cancellationToken).ConfigureAwait(false);
+                EnsureSpeakerAwake();
                 buffer.AddSamples(pcm, 0, pcm.Length);
             }
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) { Error?.Invoke("Reproducao de audio: " + ex.Message); }
+    }
+
+    private void EnsureSpeakerAwake()
+    {
+        // Equivalente NAudio ao audioContext.resume(): dispositivos do Windows podem
+        // entrar em Paused/Stopped apos ociosidade ou troca temporaria da saida.
+        // Acordamos o WaveOut imediatamente antes de liberar cada bloco PCM.
+        var speaker = _speaker;
+        if (speaker != null && speaker.PlaybackState != PlaybackState.Playing)
+            speaker.Play();
     }
 
     private void ClearLocalPlayback()
