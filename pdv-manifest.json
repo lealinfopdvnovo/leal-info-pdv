@@ -1,6 +1,6 @@
 {
-  "Version": "10.255",
+  "Version": "10.256",
   "PackageUrl": "",
   "Sha256": "",
-  "Notes": "V10.255: corrige a voz acelerada e os cortes de audio da LIA com fila sem descarte."
+  "Notes": "V10.256: corrige a voz acelerada e os cortes de audio da LIA com fila sem descarte."
 }
