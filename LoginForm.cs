@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Drawing2D;
 
 namespace LealInfoPDV;
 
@@ -19,11 +20,11 @@ public sealed class LoginForm : Form
 
         // V10.130: ambiente de login redesenhado. A tela inteira agora faz parte
         // da identidade do sistema; o formulário antigo não fica mais "solto".
-        var stage=new Panel{Dock=DockStyle.Fill,BackColor=Color.FromArgb(2,10,22)};
+        var stage=new ChromeStagePanel{Dock=DockStyle.Fill};
         Controls.Add(stage);
 
         // Identidade à esquerda — limpa, sem usar o logotipo que não foi aprovado.
-        var identity=new Panel{BackColor=Color.FromArgb(3,18,36)};
+        var identity=new GlassBackdropPanel();
         stage.Controls.Add(identity);
 
         var accent=new Panel{BackColor=Color.FromArgb(0,163,224),Height=5};
@@ -39,25 +40,25 @@ public sealed class LoginForm : Form
         identity.Controls.Add(brand); identity.Controls.Add(connected); identity.Controls.Add(product); identity.Controls.Add(tagline);
 
         // Cartão integrado ao ambiente fullscreen.
-        var card=new TableLayoutPanel{ColumnCount=1,RowCount=3,BackColor=Color.FromArgb(236,245,250),Padding=new Padding(0)};
+        var card=new GlassTablePanel{ColumnCount=1,RowCount=3,Padding=new Padding(2)};
         card.RowStyles.Add(new RowStyle(SizeType.Absolute,104));
         card.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         card.RowStyles.Add(new RowStyle(SizeType.Absolute,42));
         stage.Controls.Add(card);
 
-        var header=new Panel{Dock=DockStyle.Fill,BackColor=Color.FromArgb(4,70,112)};
+        var header=new GlassHeaderPanel{Dock=DockStyle.Fill};
         var headerTitle=new Label{Text=Auth.UserCount()==0?"PRIMEIRO ACESSO":"BEM-VINDO DE VOLTA",Dock=DockStyle.Fill,
             ForeColor=Color.White,Font=new Font("Segoe UI",22,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter};
         header.Controls.Add(headerTitle); card.Controls.Add(header,0,0);
 
-        var p=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,Padding=new Padding(62,22,62,18),BackColor=Color.FromArgb(236,245,250)};
+        var p=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,Padding=new Padding(62,22,62,18),BackColor=Color.FromArgb(10,25,46)};
         card.Controls.Add(p,0,1);
         card.Controls.Add(new Label{Text="LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V10.130",Dock=DockStyle.Fill,
-            ForeColor=Color.FromArgb(82,111,133),Font=new Font("Segoe UI",8.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter},0,2);
+            BackColor=Color.Transparent,ForeColor=Color.FromArgb(120,220,255),Font=new Font("Segoe UI",8.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter},0,2);
 
         TextBox Box(bool password=false)=>new(){Dock=DockStyle.Fill,Font=new Font("Segoe UI",12,FontStyle.Bold),
             UseSystemPasswordChar=password,BackColor=Color.White,ForeColor=Color.FromArgb(8,38,68),BorderStyle=BorderStyle.FixedSingle};
-        Label Lab(string x)=>new(){Text=x.ToUpperInvariant(),Dock=DockStyle.Fill,ForeColor=Color.FromArgb(4,55,94),
+        Label Lab(string x)=>new(){Text=x.ToUpperInvariant(),Dock=DockStyle.Fill,ForeColor=Color.FromArgb(165,226,250),
             Font=new Font("Segoe UI",9.5f,FontStyle.Bold),TextAlign=ContentAlignment.BottomLeft};
 
         if(Auth.UserCount()==0) BuildFirstAdmin(p,Box,Lab);
@@ -72,13 +73,14 @@ public sealed class LoginForm : Form
             int sw=ClientSize.Width, sh=ClientSize.Height;
 
             // V10.130: uma única composição fullscreen. Nada de tela dividida.
-            identity.Bounds=new Rectangle(0,0,sw,sh); identity.SendToBack();
+            identity.Bounds=new Rectangle(12,12,Math.Max(1,sw-24),Math.Max(1,sh-24)); identity.SendToBack();
 
             int w=(int)(finalW*scale), h=(int)(finalH*scale);
             int x=(sw-w)/2;
             int targetY=Math.Max(190,(sh-finalH)/2+70);
             int y=(int)(targetY+(1-progress)*70+(finalH-h)/2);
             card.Bounds=new Rectangle(x,y,w,h);
+            ApplyRoundedRegion(card,28);
 
             // Marca central, acima do login.
             // V10.130: identidade com caixas altas o bastante para não cortar fonte.
@@ -150,16 +152,16 @@ public sealed class LoginForm : Form
         Panel ModernField(TextBox box, bool password=false)
         {
             box.BorderStyle=BorderStyle.None;
-            box.BackColor=Color.White;
-            box.ForeColor=Color.FromArgb(8,38,68);
+            box.BackColor=Color.FromArgb(10,25,46);
+            box.ForeColor=Color.White;
             box.Margin=new Padding(0);
             box.Dock=DockStyle.Fill;
 
             var host=new Panel
             {
                 Dock=DockStyle.Fill,
-                BackColor=Color.White,
-                Padding=password ? new Padding(16,13,0,10) : new Padding(16,13,16,10),
+                BackColor=Color.FromArgb(10,25,46),
+                Padding=password ? new Padding(4,13,0,8) : new Padding(4,13,4,8),
                 Margin=new Padding(0,2,0,2)
             };
 
@@ -193,8 +195,13 @@ public sealed class LoginForm : Form
                 gp.AddArc(rect.Right-d,rect.Bottom-d,d,d,0,90);
                 gp.AddArc(rect.Left,rect.Bottom-d,d,d,90,90);
                 gp.CloseFigure();
-                using var pen=new Pen(focused ? Color.FromArgb(0,163,224) : Color.FromArgb(166,196,214), focused ? 2.2f : 1.2f);
-                e.Graphics.DrawPath(pen,gp);
+                using var glow=new LinearGradientBrush(
+                    new Rectangle(0,host.Height-3,host.Width,3),
+                    focused ? Color.FromArgb(80,235,255) : Color.FromArgb(45,112,148),
+                    focused ? Color.FromArgb(0,145,255) : Color.FromArgb(20,65,100),
+                    LinearGradientMode.Horizontal);
+                using var pen=new Pen(glow,focused ? 2.4f : 1.3f);
+                e.Graphics.DrawLine(pen,4,host.Height-3,host.Width-5,host.Height-3);
             };
             host.Resize+=(_,_)=>ApplyRound();
             host.HandleCreated+=(_,_)=>ApplyRound();
@@ -206,16 +213,16 @@ public sealed class LoginForm : Form
             {
                 var eye=new Button
                 {
-                    Text="👁",Dock=DockStyle.Right,Width=52,FlatStyle=FlatStyle.Flat,
-                    BackColor=Color.White,ForeColor=Color.FromArgb(4,70,112),
-                    Font=new Font("Segoe UI Emoji",12),Cursor=Cursors.Hand
+                    Text="MOSTRAR",Dock=DockStyle.Right,Width=76,FlatStyle=FlatStyle.Flat,
+                    BackColor=Color.FromArgb(10,25,46),ForeColor=Color.FromArgb(90,225,255),
+                    Font=new Font("Segoe UI",8,FontStyle.Bold),Cursor=Cursors.Hand
                 };
                 eye.FlatAppearance.BorderSize=0;
-                eye.FlatAppearance.MouseOverBackColor=Color.FromArgb(232,247,252);
+                eye.FlatAppearance.MouseOverBackColor=Color.FromArgb(18,48,78);
                 eye.Click+=(_,_)=>
                 {
                     box.UseSystemPasswordChar=!box.UseSystemPasswordChar;
-                    eye.Text=box.UseSystemPasswordChar?"👁":"🙈";
+                    eye.Text=box.UseSystemPasswordChar?"MOSTRAR":"OCULTAR";
                     box.Focus();
                 };
                 host.Controls.Add(eye);
@@ -228,10 +235,10 @@ public sealed class LoginForm : Form
         p.Controls.Add(Lab("Senha"),0,2);
         p.Controls.Add(ModernField(pass,true),0,3);
 
-        var forgot=new LinkLabel{Text="Esqueci minha senha",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight};
+        var forgot=new LinkLabel{Text="Esqueci minha senha",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,LinkColor=Color.FromArgb(90,220,255),ActiveLinkColor=Color.White};
         p.Controls.Add(forgot,0,4);
 
-        var emergency=new LinkLabel{Text="Usar código de recuperação de emergência",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight};
+        var emergency=new LinkLabel{Text="Usar código de recuperação de emergência",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,LinkColor=Color.FromArgb(90,220,255),ActiveLinkColor=Color.White};
         p.Controls.Add(emergency,0,5);
 
         var recoveryStatus=new Label
@@ -240,17 +247,17 @@ public sealed class LoginForm : Form
                 ? "Recuperação por e-mail: ATIVA"
                 : "Recuperação por e-mail: NÃO CONFIGURADA",
             Dock=DockStyle.Fill,
-            ForeColor = EmailRecovery.IsConfigured() ? Color.DarkGreen : Color.DarkRed,
+            ForeColor = EmailRecovery.IsConfigured() ? Color.FromArgb(95,240,175) : Color.FromArgb(255,135,135),
             Font=new Font("Segoe UI",9,FontStyle.Bold),
             TextAlign=ContentAlignment.MiddleRight
         };
         p.Controls.Add(recoveryStatus,0,6);
 
-        var enter=new Button{Text="ENTRAR",Dock=DockStyle.Fill,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,
-            FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",12,FontStyle.Bold)};
+        var enter=new PremiumButton{Text="ENTRAR",Dock=DockStyle.Fill,ForeColor=Color.White,
+            Font=new Font("Segoe UI",12,FontStyle.Bold),StartColor=Color.FromArgb(0,205,245),EndColor=Color.FromArgb(0,92,205)};
         enter.FlatAppearance.BorderSize=0; p.Controls.Add(enter,0,7);
 
-        var help=new Button{Text="▶  AJUDA PARA RECUPERAR SENHA",Dock=DockStyle.Fill,BackColor=Color.FromArgb(4,70,112),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold)};
+        var help=new PremiumButton{Text="AJUDA PARA RECUPERAR SENHA",Dock=DockStyle.Fill,ForeColor=Color.White,Font=new Font("Segoe UI",10,FontStyle.Bold),StartColor=Color.FromArgb(28,70,110),EndColor=Color.FromArgb(7,28,52)};
         help.FlatAppearance.BorderSize=0;
         p.Controls.Add(help,0,8);
         help.Click+=(_,_)=>OpenRecoveryHelp();
@@ -306,7 +313,7 @@ public sealed class LoginForm : Form
                 Padding=new Padding(28),
                 Font=new Font("Segoe UI",11,FontStyle.Bold),
                 TextAlign=ContentAlignment.MiddleLeft,
-                Text="▶ GUIA RÁPIDO DE RECUPERAÇÃO\\r\\n\\r\\n"+
+                Text="GUIA RÁPIDO DE RECUPERAÇÃO\\r\\n\\r\\n"+
                      "1. Se o e-mail estiver ativo, use “Esqueci minha senha”.\\r\\n\\r\\n"+
                      "2. Sem acesso ao e-mail? Use “Recuperação de emergência”.\\r\\n\\r\\n"+
                      "3. O sistema pode procurar automaticamente a chave recuperacao.leal neste computador.\\r\\n\\r\\n"+
@@ -317,7 +324,7 @@ public sealed class LoginForm : Form
 
             var video=new Button
             {
-                Text="▶  ASSISTIR VÍDEO EXPLICATIVO",
+                Text="ASSISTIR VÍDEO EXPLICATIVO",
                 Dock=DockStyle.Fill,
                 BackColor=Color.FromArgb(0,163,224),
                 ForeColor=Color.White,
@@ -506,5 +513,112 @@ public sealed class LoginForm : Form
                 Auth.Login(user.Text,pass.Text); DialogResult=DialogResult.OK; Close();
             }catch(Exception ex){MessageBox.Show("Não foi possível criar o administrador:\\n"+ex.Message);}
         };
+    }
+
+    private static void ApplyRoundedRegion(Control control, int radius)
+    {
+        if(control.Width<2 || control.Height<2) return;
+        using var path=RoundedPath(new Rectangle(0,0,control.Width,control.Height),radius);
+        control.Region?.Dispose();
+        control.Region=new Region(path);
+    }
+
+    private static GraphicsPath RoundedPath(Rectangle bounds, int radius)
+    {
+        var path=new GraphicsPath();
+        int d=Math.Max(2,radius*2);
+        bounds.Width=Math.Max(1,bounds.Width-1); bounds.Height=Math.Max(1,bounds.Height-1);
+        path.AddArc(bounds.Left,bounds.Top,d,d,180,90);
+        path.AddArc(bounds.Right-d,bounds.Top,d,d,270,90);
+        path.AddArc(bounds.Right-d,bounds.Bottom-d,d,d,0,90);
+        path.AddArc(bounds.Left,bounds.Bottom-d,d,d,90,90);
+        path.CloseFigure();
+        return path;
+    }
+
+    private sealed class ChromeStagePanel : Panel
+    {
+        public ChromeStagePanel(){DoubleBuffered=true;ResizeRedraw=true;}
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            using var bg=new LinearGradientBrush(ClientRectangle,Color.FromArgb(1,8,18),Color.FromArgb(5,30,58),55f);
+            e.Graphics.FillRectangle(bg,ClientRectangle);
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e); e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
+            var outer=new Rectangle(4,4,Width-9,Height-9);
+            if(outer.Width<10||outer.Height<10)return;
+            using var path=RoundedPath(outer,24);
+            using var chrome=new LinearGradientBrush(outer,
+                Color.FromArgb(215,245,255),Color.FromArgb(0,68,145),LinearGradientMode.Vertical);
+            using var chromePen=new Pen(chrome,8f);
+            e.Graphics.DrawPath(chromePen,path);
+            using var shine=new Pen(Color.FromArgb(180,80,235,255),1.8f);
+            e.Graphics.DrawPath(shine,path);
+        }
+    }
+
+    private sealed class GlassBackdropPanel : Panel
+    {
+        public GlassBackdropPanel(){DoubleBuffered=true;ResizeRedraw=true;BackColor=Color.Transparent;}
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            using var glass=new LinearGradientBrush(ClientRectangle,
+                Color.FromArgb(235,3,16,34),Color.FromArgb(225,5,39,69),35f);
+            e.Graphics.FillRectangle(glass,ClientRectangle);
+            using var bloom=new SolidBrush(Color.FromArgb(22,0,205,255));
+            e.Graphics.FillEllipse(bloom,-Width/5,-Height/4,Width,Height);
+        }
+    }
+
+    private sealed class GlassHeaderPanel : Panel
+    {
+        public GlassHeaderPanel(){DoubleBuffered=true;ResizeRedraw=true;BackColor=Color.Transparent;}
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            using var brush=new LinearGradientBrush(ClientRectangle,
+                Color.FromArgb(210,9,61,101),Color.FromArgb(225,3,22,44),LinearGradientMode.Vertical);
+            e.Graphics.FillRectangle(brush,ClientRectangle);
+            using var line=new Pen(Color.FromArgb(170,65,225,255),1.5f);
+            e.Graphics.DrawLine(line,12,Height-2,Width-13,Height-2);
+        }
+    }
+
+    private sealed class GlassTablePanel : TableLayoutPanel
+    {
+        public GlassTablePanel(){DoubleBuffered=true;ResizeRedraw=true;BackColor=Color.FromArgb(10,25,46);}
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
+            using var path=RoundedPath(new Rectangle(1,1,Width-2,Height-2),28);
+            using var glass=new LinearGradientBrush(ClientRectangle,
+                Color.FromArgb(245,12,37,65),Color.FromArgb(245,4,18,36),LinearGradientMode.Vertical);
+            e.Graphics.FillPath(glass,path);
+            using var border=new Pen(Color.FromArgb(210,65,225,255),2f);
+            e.Graphics.DrawPath(border,path);
+            using var highlight=new Pen(Color.FromArgb(130,230,250,255),1f);
+            e.Graphics.DrawArc(highlight,8,5,Width-17,42,190,160);
+        }
+    }
+
+    private sealed class PremiumButton : Button
+    {
+        public Color StartColor{get;set;}=Color.FromArgb(0,190,240);
+        public Color EndColor{get;set;}=Color.FromArgb(0,80,180);
+        public PremiumButton(){FlatStyle=FlatStyle.Flat;FlatAppearance.BorderSize=0;Cursor=Cursors.Hand;DoubleBuffered=true;}
+        protected override void OnResize(EventArgs e){base.OnResize(e);ApplyRoundedRegion(this,Math.Min(18,Math.Max(8,Height/3)));}
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
+            var rect=new Rectangle(1,1,Width-3,Height-3);
+            using var path=RoundedPath(rect,Math.Min(18,Math.Max(8,Height/3)));
+            using var fill=new LinearGradientBrush(rect,StartColor,EndColor,LinearGradientMode.Vertical);
+            e.Graphics.FillPath(fill,path);
+            using var glow=new Pen(Color.FromArgb(210,100,235,255),1.4f);
+            e.Graphics.DrawPath(glow,path);
+            TextRenderer.DrawText(e.Graphics,Text,Font,rect,ForeColor,
+                TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.EndEllipsis);
+        }
     }
 }
