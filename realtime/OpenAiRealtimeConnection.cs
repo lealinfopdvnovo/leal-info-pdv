@@ -21,6 +21,14 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         SingleWriter = false,
         FullMode = BoundedChannelFullMode.DropOldest
     });
+    // Saida de audio: FIFO sem limite e sem politica de descarte. Cada delta recebido
+    // precisa ser reproduzido integralmente e na ordem em que chegou.
+    private readonly Channel<byte[]> _speakerQueue = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+    {
+        SingleReader = true,
+        SingleWriter = false,
+        AllowSynchronousContinuations = false
+    });
 
     private ClientWebSocket? _socket;
     private CancellationTokenSource? _sessionCts;
@@ -29,6 +37,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     private BufferedWaveProvider? _speakerBuffer;
     private Task? _receiveTask;
     private Task? _microphoneSendTask;
+    private Task? _speakerPlaybackTask;
     private CancellationTokenSource? _playbackGuardCts;
     private bool _disposed;
     private int _responseActive;
@@ -75,6 +84,8 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
 
         await socket.ConnectAsync(Endpoint, sessionCts.Token).ConfigureAwait(false);
         InitializeSpeaker();
+        while (_speakerQueue.Reader.TryRead(out _)) { }
+        _speakerPlaybackTask = SpeakerPlaybackLoopAsync(sessionCts.Token);
         _receiveTask = ReceiveLoopAsync(sessionCts.Token);
         _microphoneSendTask = MicrophoneSendLoopAsync(sessionCts.Token);
         await SendSessionUpdateAsync(sessionCts.Token).ConfigureAwait(false);
@@ -279,7 +290,10 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                 var pcm = Convert.FromBase64String(base64);
                 SuppressMicrophoneDuringPlayback();
                 RegisterPlaybackBytes(pcm.Length);
-                _speakerBuffer?.AddSamples(pcm, 0, pcm.Length);
+                // Fila estritamente FIFO. Por ser ilimitada, TryWrite nunca descarta
+                // os blocos para tentar "alcancar" o tempo real.
+                if (!_speakerQueue.Writer.TryWrite(pcm))
+                    throw new InvalidOperationException("Nao foi possivel enfileirar o audio da LIA.");
                 Speaking?.Invoke();
                 return;
             }
@@ -368,10 +382,12 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
 
     private void InitializeSpeaker()
     {
+        // PCM16 mono a 24 kHz determina fisicamente a velocidade nativa 1.0x.
+        // Nao ha resampling, time-stretch ou qualquer alteracao de playback rate.
         _speakerBuffer = new BufferedWaveProvider(new WaveFormat(24000, 16, 1))
         {
-            BufferDuration = TimeSpan.FromSeconds(6),
-            DiscardOnBufferOverflow = true,
+            BufferDuration = TimeSpan.FromSeconds(30),
+            DiscardOnBufferOverflow = false,
             ReadFully = true
         };
         _speaker = new WaveOutEvent { DesiredLatency = 80, NumberOfBuffers = 3 };
@@ -379,8 +395,31 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         _speaker.Play();
     }
 
+    private async Task SpeakerPlaybackLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await foreach (var pcm in _speakerQueue.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            {
+                if (pcm.Length == 0) continue;
+                var buffer = _speakerBuffer;
+                if (buffer == null) continue;
+
+                // Backpressure real: somente um bloco fica em reproducao. O proximo
+                // so e entregue depois que a duracao PCM do anterior terminou.
+                buffer.AddSamples(pcm, 0, pcm.Length);
+                var blockDuration = TimeSpan.FromSeconds(pcm.Length / 48000d);
+                if (blockDuration > TimeSpan.Zero)
+                    await Task.Delay(blockDuration, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { Error?.Invoke("Reproducao de audio: " + ex.Message); }
+    }
+
     private void ClearLocalPlayback()
     {
+        while (_speakerQueue.Reader.TryRead(out _)) { }
         try { _speakerBuffer?.ClearBuffer(); } catch { }
         lock (_playbackClockLock) _playbackEndsUtc = DateTime.UtcNow;
     }
@@ -500,10 +539,13 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         }
         try { if (_receiveTask != null) await _receiveTask.ConfigureAwait(false); } catch { }
         try { if (_microphoneSendTask != null) await _microphoneSendTask.ConfigureAwait(false); } catch { }
+        try { if (_speakerPlaybackTask != null) await _speakerPlaybackTask.ConfigureAwait(false); } catch { }
+        while (_speakerQueue.Reader.TryRead(out _)) { }
         _speaker?.Stop();
         _speaker?.Dispose();
         _speaker = null;
         _speakerBuffer = null;
+        _speakerPlaybackTask = null;
         socket?.Dispose();
         cts?.Dispose();
         Idle?.Invoke();
