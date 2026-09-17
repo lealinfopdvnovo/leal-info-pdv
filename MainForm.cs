@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 77768)
+Total output lines: 5710
+
 ﻿using Microsoft.Data.Sqlite;
 using System.Data;
 using System.Drawing;
@@ -8,11 +11,17 @@ using Microsoft.Web.WebView2.Core;
 using System.Net.Http;
 using System.Text.Json;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 
 namespace LealInfoPDV;
 
 public sealed class MainForm : Form
 {
+    private const uint GwHwndNext = 2;
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetTopWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
     private PictureBox? mainScreenPicture;
 
     private readonly Color Blue = Color.FromArgb(10, 104, 157);
@@ -30,7 +39,7 @@ public sealed class MainForm : Form
     {
         Text = "LEAL INFO CONECTADO - SISTEMA PDV - V10.134";
         WindowState = FormWindowState.Maximized;
-        // Mantem o PDV dentro da area visivel tambem em monitores menores.
+        // Mantem o PDV utilizavel tambem em monitores menores, sem empurrar o topo para fora da tela.
         MinimumSize = new Size(900, 600);
         BackColor = Color.White;
         Font = new Font("Segoe UI", 10);
@@ -82,16 +91,26 @@ public sealed class MainForm : Form
             {
                 await using var pipe = new NamedPipeServerStream(
                     "LealInfoPDV.Navigation",
-                    PipeDirection.In,
+                    PipeDirection.InOut,
                     1,
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous);
 
                 await pipe.WaitForConnectionAsync(cancellationToken);
-                using var reader = new StreamReader(pipe);
+                using var reader = new StreamReader(pipe, leaveOpen: true);
                 var command = await reader.ReadLineAsync(cancellationToken);
                 if (!string.IsNullOrWhiteSpace(command) && !IsDisposed)
-                    BeginInvoke(() => OpenScreenFromAi(command));
+                {
+                    var completion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+                    BeginInvoke(() =>
+                    {
+                        try { completion.TrySetResult(ExecuteAiWindowCommand(command)); }
+                        catch (Exception ex) { completion.TrySetResult("Nao consegui fechar essa janela: " + ex.Message); }
+                    });
+                    var response = await completion.Task.WaitAsync(cancellationToken);
+                    await using var writer = new StreamWriter(pipe, leaveOpen: true) { AutoFlush = true };
+                    await writer.WriteLineAsync(response.AsMemory(), cancellationToken);
+                }
             }
             catch (OperationCanceledException)
             {
@@ -103,6 +122,41 @@ public sealed class MainForm : Form
                     await Task.Delay(400, cancellationToken);
             }
         }
+    }
+
+    private string ExecuteAiWindowCommand(string command)
+    {
+        var normalized = (command ?? string.Empty).Trim().ToUpperInvariant();
+        if (normalized == "FECHAR_TELA") return CloseTopmostWindowFromAi();
+        OpenScreenFromAi(normalized);
+        return "Tela aberta com sucesso.";
+    }
+
+    private string CloseTopmostWindowFromAi()
+    {
+        // Percorre a ordem Z real do Windows. Assim, mesmo com a janela da LIA em
+        // primeiro plano (outro processo), encontramos o primeiro Form visivel do PDV.
+        var formsByHandle = Application.OpenForms.Cast<Form>()
+            .Where(form => !form.IsDisposed && form.Visible && form.IsHandleCreated)
+            .ToDictionary(form => form.Handle);
+        Form? top = null;
+        for (var handle = GetTopWindow(IntPtr.Zero); handle != IntPtr.Zero; handle = GetWindow(handle, GwHwndNext))
+        {
+            if (formsByHandle.TryGetValue(handle, out top)) break;
+        }
+
+        top ??= Form.ActiveForm;
+
+        if (top != null && !ReferenceEquals(top, this))
+        {
+            var title = string.IsNullOrWhiteSpace(top.Text) ? "aviso" : top.Text.Trim();
+            top.Close();
+            return $"Fechando janela {title}.";
+        }
+
+        // Sem modal: o proximo nivel da pilha e a tela principal do PDV.
+        BeginInvoke(Close);
+        return "Fechando tela principal.";
     }
 
     private void OpenScreenFromAi(string command)
@@ -600,7 +654,7 @@ public sealed class MainForm : Form
             }
             else if (title == "Tela de Vendas")
             {
-                // Botao direto: abre a tela de vendas com um clique.
+                // Botao direto: nao exige abrir um submenu para entrar nas vendas.
                 item.Click += (_, _) => OpenSales();
             }
             else if (title == "Utilitários")
@@ -1231,7 +1285,7 @@ public sealed class MainForm : Form
         int pulse = 0;
         bool pulseUp = true;
         string normalizedText = text.Trim();
-        // Todos os atalhos ficam estaveis e usam apenas o destaque suave ao passar o mouse.
+        // Todos os atalhos ficam no mesmo estado visual estavel; destaque apenas ao passar o mouse.
         bool shouldPulse = false;
         var pulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
 
@@ -3299,922 +3353,7 @@ private void ApplyFloatingTheme(Form f)
         grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 10, FontStyle.Bold);
         grid.DataError += (_, e) => { e.ThrowException = false; e.Cancel = true; };
 
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "ID", HeaderText = "ID", Width = 70 });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Código", HeaderText = "Código", Width = 140 });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Produto", HeaderText = "Produto", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Preço", HeaderText = "Preço", Width = 120 });
-        grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Estoque", HeaderText = "Estoque", Width = 120 });
-
-        f.Controls.Add(grid);
-        grid.BringToFront();
-
-        var bottom = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 62,
-            FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(10)
-        };
-        var choose = ActionButton("SELECIONAR", () => { f.DialogResult = DialogResult.OK; f.Close(); });
-        var cancel = ActionButton("CANCELAR", f.Close);
-        bottom.Controls.Add(choose);
-        bottom.Controls.Add(cancel);
-        f.Controls.Add(bottom);
-
-        void LoadProducts(string term)
-        {
-            grid.Rows.Clear();
-            using var cn = Database.Open();
-            using var cmd = cn.CreateCommand();
-
-            if (string.IsNullOrWhiteSpace(term))
-            {
-                cmd.CommandText = """
-                    SELECT id, COALESCE(barcode,''), name, price, stock
-                    FROM products
-                    WHERE active=1
-                    ORDER BY name
-                    """;
-            }
-            else
-            {
-                cmd.CommandText = """
-                    SELECT id, COALESCE(barcode,''), name, price, stock
-                    FROM products
-                    WHERE active=1
-                      AND (
-                          CAST(id AS TEXT) LIKE $term
-                          OR barcode LIKE $term
-                          OR lower(name) LIKE lower($term)
-                      )
-                    ORDER BY name
-                    """;
-                cmd.Parameters.AddWithValue("$term", "%" + term.Trim() + "%");
-            }
-
-            using var rd = cmd.ExecuteReader();
-            while (rd.Read())
-            {
-                grid.Rows.Add(
-                    rd.GetInt64(0),
-                    rd.GetString(1),
-                    rd.GetString(2),
-                    Money(rd.GetDouble(3)),
-                    rd.GetDouble(4).ToString("N3", CultureInfo.GetCultureInfo("pt-BR"))
-                );
-            }
-        }
-
-        search.TextChanged += (_, _) => LoadProducts(search.Text);
-        grid.CellDoubleClick += (_, e) =>
-        {
-            if (e.RowIndex >= 0)
-            {
-                f.DialogResult = DialogResult.OK;
-                f.Close();
-            }
-        };
-        search.KeyDown += (_, e) =>
-        {
-            if (e.KeyCode == Keys.Enter && grid.Rows.Count > 0)
-            {
-                grid.Rows[0].Selected = true;
-                grid.CurrentCell = grid.Rows[0].Cells[0];
-                f.DialogResult = DialogResult.OK;
-                f.Close();
-                e.SuppressKeyPress = true;
-            }
-        };
-
-        LoadProducts("");
-        f.Shown += (_, _) => search.Focus();
-
-        ApplyFloatingTheme(f);
-
-
-        if (f.ShowDialog(this) != DialogResult.OK || grid.CurrentRow == null)
-            return null;
-
-        var id = Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value);
-
-        using var cn2 = Database.Open();
-        using var cmd2 = cn2.CreateCommand();
-        cmd2.CommandText = """
-            SELECT id, COALESCE(barcode,''), name, price, stock
-            FROM products
-            WHERE id=$id AND active=1
-            """;
-        cmd2.Parameters.AddWithValue("$id", id);
-        using var rd2 = cmd2.ExecuteReader();
-        if (!rd2.Read())
-            return null;
-
-        return (
-            rd2.GetInt64(0),
-            rd2.GetString(1),
-            rd2.GetString(2),
-            rd2.GetDouble(3),
-            rd2.GetDouble(4)
-        );
-    }
-
-
-
-    private List<PaymentPart>? SelectPayment(double total)
-    {
-        using var f = new Form
-        {
-            Text = "Finalizar Venda",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 760,
-            Height = 610,
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            BackColor = Color.FromArgb(240, 246, 251),
-            Font = new Font("Segoe UI", 10),
-            KeyPreview = true
-        };
-
-        var header = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = 82,
-            BackColor = DarkBlue
-        };
-
-        var title = new Label
-        {
-            Text = "FINALIZAR VENDA",
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 20, FontStyle.Bold),
-            AutoSize = true,
-            Left = 24,
-            Top = 14
-        };
-
-        var totalLabel = new Label
-        {
-            Text = "TOTAL: " + Money(total),
-            ForeColor = Color.FromArgb(115, 220, 255),
-            Font = new Font("Segoe UI", 18, FontStyle.Bold),
-            AutoSize = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-
-        header.Controls.Add(title);
-        header.Controls.Add(totalLabel);
-        header.Resize += (_, _) =>
-        {
-            totalLabel.Left = Math.Max(350, header.ClientSize.Width - totalLabel.Width - 24);
-            totalLabel.Top = 22;
-        };
-        f.Controls.Add(header);
-
-        var tabs = new TabControl
-        {
-            Dock = DockStyle.Fill,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            Padding = new Point(24, 10)
-        };
-        f.Controls.Add(tabs);
-        tabs.BringToFront();
-
-        var tabCash = new TabPage("DINHEIRO") { BackColor = Color.White };
-        var tabPix = new TabPage("PIX") { BackColor = Color.White };
-        var tabCard = new TabPage("CARTÃO") { BackColor = Color.White };
-        var tabMulti = new TabPage("MÚLTIPLO") { BackColor = Color.White };
-        tabs.TabPages.Add(tabCash);
-        tabs.TabPages.Add(tabPix);
-        tabs.TabPages.Add(tabCard);
-        tabs.TabPages.Add(tabMulti);
-
-        Button BigConfirm(string text)
-        {
-            var b = new Button
-            {
-                Text = text,
-                Width = 300,
-                Height = 58,
-                BackColor = Color.FromArgb(0, 163, 224),
-                ForeColor = Color.White,
-                FlatStyle = FlatStyle.Flat,
-                Font = new Font("Segoe UI", 12, FontStyle.Bold)
-            };
-            b.FlatAppearance.BorderSize = 0;
-            return b;
-        }
-
-        Label CenterInfo(string text, int top, int size = 13)
-        {
-            return new Label
-            {
-                Text = text,
-                Left = 40,
-                Top = top,
-                Width = 640,
-                Height = 52,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Font = new Font("Segoe UI", size, FontStyle.Bold),
-                ForeColor = DarkBlue
-            };
-        }
-
-        // DINHEIRO
-        tabCash.Controls.Add(CenterInfo("PAGAMENTO EM DINHEIRO", 45, 16));
-        tabCash.Controls.Add(CenterInfo("Valor da venda: " + Money(total), 115, 14));
-
-        var receivedLabel = new Label
-        {
-            Text = "Valor recebido:",
-            Left = 135,
-            Top = 200,
-            Width = 180,
-            Height = 32,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            ForeColor = DarkBlue
-        };
-        var received = new NumericUpDown
-        {
-            Left = 320,
-            Top = 195,
-            Width = 230,
-            Height = 38,
-            DecimalPlaces = 2,
-            Maximum = 9999999,
-            Minimum = 0,
-            Value = (decimal)total,
-            ThousandsSeparator = true,
-            TextAlign = HorizontalAlignment.Right,
-            Font = new Font("Segoe UI", 14, FontStyle.Bold)
-        };
-        var change = CenterInfo("TROCO: R$ 0,00", 250, 16);
-        change.ForeColor = Color.FromArgb(0, 130, 78);
-        received.ValueChanged += (_, _) =>
-        {
-            var troco = Math.Max(0, (double)received.Value - total);
-            change.Text = "TROCO: " + Money(troco);
-        };
-
-        var cashConfirm = BigConfirm("CONFIRMAR DINHEIRO");
-        cashConfirm.Left = 210;
-        cashConfirm.Top = 340;
-
-        tabCash.Controls.Add(receivedLabel);
-        tabCash.Controls.Add(received);
-        tabCash.Controls.Add(change);
-        tabCash.Controls.Add(cashConfirm);
-
-        // PIX
-        tabPix.Controls.Add(CenterInfo("PAGAMENTO VIA PIX", 55, 16));
-        tabPix.Controls.Add(CenterInfo("Valor a receber: " + Money(total), 125, 15));
-        var pixInfo = CenterInfo("Confirme o recebimento do PIX antes de concluir a venda.", 205, 12);
-        pixInfo.Font = new Font("Segoe UI", 11);
-        tabPix.Controls.Add(pixInfo);
-
-        var pixConfirm = BigConfirm("PIX RECEBIDO • CONFIRMAR");
-        pixConfirm.Left = 210;
-        pixConfirm.Top = 320;
-        tabPix.Controls.Add(pixConfirm);
-
-        // CARTÃO
-        tabCard.Controls.Add(CenterInfo("PAGAMENTO NO CARTÃO", 45, 16));
-        tabCard.Controls.Add(CenterInfo("Valor: " + Money(total), 110, 14));
-
-        var cardTypeLabel = new Label
-        {
-            Text = "Tipo:",
-            Left = 190,
-            Top = 205,
-            Width = 100,
-            Height = 32,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            ForeColor = DarkBlue
-        };
-        var cardType = new ComboBox
-        {
-            Left = 290,
-            Top = 200,
-            Width = 250,
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Font = new Font("Segoe UI", 11)
-        };
-        cardType.Items.AddRange(new[] { "Débito", "Crédito" });
-        cardType.SelectedIndex = 0;
-
-        var cardConfirm = BigConfirm("CONFIRMAR CARTÃO");
-        cardConfirm.Left = 210;
-        cardConfirm.Top = 320;
-        tabCard.Controls.Add(cardTypeLabel);
-        tabCard.Controls.Add(cardType);
-        tabCard.Controls.Add(cardConfirm);
-
-        // MÚLTIPLO
-        tabMulti.Controls.Add(CenterInfo("DIVIDIR PAGAMENTO", 20, 16));
-        var multiInfo = CenterInfo("Informe os valores de cada forma. Use duas ou três formas.", 70, 11);
-        multiInfo.Font = new Font("Segoe UI", 10);
-        tabMulti.Controls.Add(multiInfo);
-
-        NumericUpDown PayBox(int top)
-        {
-            return new NumericUpDown
-            {
-                Left = 325,
-                Top = top,
-                Width = 230,
-                Height = 35,
-                DecimalPlaces = 2,
-                Maximum = 9999999,
-                Minimum = 0,
-                ThousandsSeparator = true,
-                TextAlign = HorizontalAlignment.Right,
-                Font = new Font("Segoe UI", 12, FontStyle.Bold)
-            };
-        }
-
-        void PayLabel(Control parent, string txt, int top)
-        {
-            parent.Controls.Add(new Label
-            {
-                Text = txt,
-                Left = 150,
-                Top = top + 4,
-                Width = 160,
-                Height = 30,
-                Font = new Font("Segoe UI", 11, FontStyle.Bold),
-                ForeColor = DarkBlue
-            });
-        }
-
-        PayLabel(tabMulti, "Dinheiro", 130);
-        PayLabel(tabMulti, "PIX", 180);
-        PayLabel(tabMulti, "Cartão", 230);
-
-        var multiCash = PayBox(126);
-        var multiPix = PayBox(176);
-        var multiCard = PayBox(226);
-
-        tabMulti.Controls.Add(multiCash);
-        tabMulti.Controls.Add(multiPix);
-        tabMulti.Controls.Add(multiCard);
-
-        var multiStatus = CenterInfo("", 285, 13);
-        tabMulti.Controls.Add(multiStatus);
-
-        void UpdateMulti()
-        {
-            var sum = (double)multiCash.Value + (double)multiPix.Value + (double)multiCard.Value;
-            var diff = total - sum;
-
-            if (Math.Abs(diff) <= 0.01)
-            {
-                multiStatus.Text = "VALORES CONFEREM • " + Money(sum);
-                multiStatus.ForeColor = Color.FromArgb(0, 130, 78);
-            }
-            else if (diff > 0)
-            {
-                multiStatus.Text = "FALTA: " + Money(diff);
-                multiStatus.ForeColor = Color.FromArgb(190, 45, 45);
-            }
-            else
-            {
-                multiStatus.Text = "EXCEDE: " + Money(Math.Abs(diff));
-                multiStatus.ForeColor = Color.FromArgb(190, 45, 45);
-            }
-        }
-
-        multiCash.ValueChanged += (_, _) => UpdateMulti();
-        multiPix.ValueChanged += (_, _) => UpdateMulti();
-        multiCard.ValueChanged += (_, _) => UpdateMulti();
-
-        var multiConfirm = BigConfirm("CONFIRMAR MÚLTIPLO");
-        multiConfirm.Left = 210;
-        multiConfirm.Top = 355;
-        tabMulti.Controls.Add(multiConfirm);
-
-        // Footer
-        var footer = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 58,
-            BackColor = Color.FromArgb(225, 236, 245)
-        };
-        var cancel = new Button
-        {
-            Text = "CANCELAR",
-            Width = 150,
-            Height = 38,
-            Left = 565,
-            Top = 10,
-            BackColor = Color.FromArgb(90, 100, 110),
-            ForeColor = Color.White,
-            FlatStyle = FlatStyle.Flat,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-        cancel.FlatAppearance.BorderSize = 0;
-        cancel.Click += (_, _) => f.Close();
-        footer.Controls.Add(cancel);
-        f.Controls.Add(footer);
-        footer.BringToFront();
-
-        var result = new List<PaymentPart>();
-
-        cashConfirm.Click += (_, _) =>
-        {
-            if ((double)received.Value + 0.01 < total)
-            {
-                Info("O valor recebido é menor que o total da venda.");
-                return;
-            }
-
-            result.Add(new PaymentPart { Method = "Dinheiro", Amount = total });
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        pixConfirm.Click += (_, _) =>
-        {
-            result.Add(new PaymentPart { Method = "PIX", Amount = total });
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        cardConfirm.Click += (_, _) =>
-        {
-            result.Add(new PaymentPart
-            {
-                Method = "Cartão - " + (cardType.SelectedItem?.ToString() ?? "Débito"),
-                Amount = total
-            });
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        multiConfirm.Click += (_, _) =>
-        {
-            result.Clear();
-
-            if ((double)multiCash.Value > 0.004)
-                result.Add(new PaymentPart { Method = "Dinheiro", Amount = (double)multiCash.Value });
-            if ((double)multiPix.Value > 0.004)
-                result.Add(new PaymentPart { Method = "PIX", Amount = (double)multiPix.Value });
-            if ((double)multiCard.Value > 0.004)
-                result.Add(new PaymentPart { Method = "Cartão", Amount = (double)multiCard.Value });
-
-            if (result.Count < 2)
-            {
-                Info("No pagamento múltiplo, informe pelo menos duas formas.");
-                return;
-            }
-
-            var sum = result.Sum(x => x.Amount);
-            if (Math.Abs(sum - total) > 0.01)
-            {
-                Info($"A soma precisa fechar o total da venda.\n\nTotal: {Money(total)}\nInformado: {Money(sum)}");
-                return;
-            }
-
-            f.DialogResult = DialogResult.OK;
-            f.Close();
-        };
-
-        f.KeyDown += (_, e) =>
-        {
-            if (e.KeyCode == Keys.Escape)
-                f.Close();
-        };
-
-        UpdateMulti();
-
-        ApplyFloatingTheme(f);
-        return f.ShowDialog(this) == DialogResult.OK ? result : null;
-    }
-
-    private string BuildReceipt(long saleId, DateTime soldAt, IEnumerable<CartItem> items, IEnumerable<PaymentPart> payments, double total)
-    {
-        var sb = new System.Text.StringBuilder();
-        var companyName = GetSetting("company_name", "LEAL INFO CONECTADO");
-        var tradeName = GetSetting("company_trade_name");
-        var document = GetSetting("company_document");
-        var phone = GetSetting("company_phone");
-        var address = GetSetting("company_address");
-        var cityState = GetSetting("company_city_state");
-        var footer = GetSetting("company_footer", "Obrigado pela preferência!");
-
-        sb.AppendLine(string.IsNullOrWhiteSpace(tradeName) ? companyName : tradeName);
-        if (!string.IsNullOrWhiteSpace(companyName) && companyName != tradeName)
-            sb.AppendLine(companyName);
-        if (!string.IsNullOrWhiteSpace(document))
-            sb.AppendLine("CNPJ/CPF: " + document);
-        if (!string.IsNullOrWhiteSpace(phone))
-            sb.AppendLine("Telefone: " + phone);
-        if (!string.IsNullOrWhiteSpace(address))
-            sb.AppendLine(address);
-        if (!string.IsNullOrWhiteSpace(cityState))
-            sb.AppendLine(cityState);
-
-        sb.AppendLine("COMPROVANTE DE VENDA - NÃO FISCAL");
-        sb.AppendLine(new string('-', 46));
-        sb.AppendLine($"Venda: #{saleId}");
-        sb.AppendLine($"Data: {soldAt:dd/MM/yyyy HH:mm:ss}");
-        sb.AppendLine($"Atendente: {Auth.OperatorName}");
-        sb.AppendLine(new string('-', 46));
-
-        foreach (var item in items)
-        {
-            sb.AppendLine(item.Description);
-            sb.AppendLine($"{item.Qty:N3} x {Money(item.UnitPrice)}   =   {Money(item.Total)}");
-        }
-
-        sb.AppendLine(new string('-', 46));
-        sb.AppendLine($"TOTAL: {Money(total)}");
-        sb.AppendLine();
-        sb.AppendLine("PAGAMENTO:");
-
-        foreach (var p in payments)
-            sb.AppendLine($"{p.Method}: {Money(p.Amount)}");
-
-        sb.AppendLine(new string('-', 46));
-        sb.AppendLine(string.IsNullOrWhiteSpace(footer) ? "Obrigado pela preferência!" : footer);
-        sb.AppendLine(string.IsNullOrWhiteSpace(tradeName) ? companyName : tradeName);
-        return sb.ToString();
-    }
-
-    private void ShowReceipt(string receipt)
-    {
-        using var f = new Form
-        {
-            Text = "Comprovante da Venda",
-            StartPosition = FormStartPosition.CenterParent,
-            Width = 650,
-            Height = 720,
-            BackColor = Color.FromArgb(245, 249, 252)
-        };
-
-        var title = new Label
-        {
-            Text = "VENDA FINALIZADA COM SUCESSO",
-            Dock = DockStyle.Top,
-            Height = 58,
-            BackColor = DarkBlue,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        f.Controls.Add(title);
-
-        var box = new TextBox
-        {
-            Multiline = true,
-            ReadOnly = true,
-            ScrollBars = ScrollBars.Vertical,
-            Font = new Font("Consolas", 11),
-            BackColor = Color.White,
-            Text = receipt,
-            Dock = DockStyle.Fill
-        };
-        f.Controls.Add(box);
-
-        var buttons = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 66,
-            FlowDirection = FlowDirection.RightToLeft,
-            Padding = new Padding(10)
-        };
-
-        var close = ActionButton("FECHAR", f.Close);
-        var print = ActionButton("IMPRIMIR", () => PrintReceipt(receipt));
-        var save = ActionButton("SALVAR TXT", () =>
-        {
-            using var dlg = new SaveFileDialog
-            {
-                Filter = "Arquivo de texto (*.txt)|*.txt",
-                FileName = $"Comprovante_LEAL_INFO_{DateTime.Now:yyyyMMdd_HHmmss}.txt"
-            };
-            if (dlg.ShowDialog(f) == DialogResult.OK)
-            {
-                File.WriteAllText(dlg.FileName, receipt, System.Text.Encoding.UTF8);
-                Info("Comprovante salvo com sucesso.");
-            }
-        });
-
-        buttons.Controls.Add(close);
-        buttons.Controls.Add(print);
-        buttons.Controls.Add(save);
-        f.Controls.Add(buttons);
-        buttons.BringToFront();
-
-        ApplyFloatingTheme(f);
-
-
-        f.ShowDialog(this);
-    }
-
-    private void PrintReceipt(string receipt)
-    {
-        using var doc = new PrintDocument();
-        doc.DocumentName = "LEAL INFO CONECTADO - Comprovante de Venda";
-
-        doc.PrintPage += (_, e) =>
-        {
-            using var font = new Font("Consolas", 9);
-            e.Graphics.DrawString(
-                receipt,
-                font,
-                Brushes.Black,
-                e.MarginBounds.Left,
-                e.MarginBounds.Top);
-        };
-
-        using var dlg = new PrintDialog
-        {
-            Document = doc,
-            UseEXDialog = true
-        };
-
-        if (dlg.ShowDialog(this) == DialogResult.OK)
-        {
-            try { doc.Print(); }
-            catch (Exception ex) { Info("Não foi possível imprimir:\n" + ex.Message); }
-        }
-    }
-
-    private void OpenSales()
-    {
-        var f = new Form
-        {
-            Text = "LEAL INFO CONECTADO - TELA DE VENDAS • V10.130",
-            WindowState = FormWindowState.Maximized,
-            MinimumSize = new Size(1180, 720),
-            BackColor = Color.FromArgb(7, 24, 43),
-            Font = new Font("Segoe UI", 10),
-            KeyPreview = true
-        };
-
-        var cartItems = new List<CartItem>();
-        var cartSource = new BindingSource { DataSource = cartItems };
-
-        // Visual V10.130: cantos arredondados, temas e acabamento moderno,
-        // sem alterar a lógica de venda.
-        void Round(Control c, int radius)
-        {
-            void Apply()
-            {
-                if (c.Width <= 1 || c.Height <= 1) return;
-                var r = new Rectangle(0, 0, c.Width, c.Height);
-                var gp = new System.Drawing.Drawing2D.GraphicsPath();
-                int d = Math.Max(4, radius * 2);
-                gp.AddArc(r.X, r.Y, d, d, 180, 90);
-                gp.AddArc(r.Right - d - 1, r.Y, d, d, 270, 90);
-                gp.AddArc(r.Right - d - 1, r.Bottom - d - 1, d, d, 0, 90);
-                gp.AddArc(r.X, r.Bottom - d - 1, d, d, 90, 90);
-                gp.CloseFigure();
-                c.Region?.Dispose();
-                c.Region = new Region(gp);
-                gp.Dispose();
-            }
-            c.Resize += (_, _) => Apply();
-            c.HandleCreated += (_, _) => Apply();
-        }
-
-        void ModernButton(Button b, Color normal, Color hover)
-        {
-            b.BackColor = normal;
-            b.FlatStyle = FlatStyle.Flat;
-            b.FlatAppearance.BorderSize = 0;
-            b.Cursor = Cursors.Hand;
-            Round(b, 14);
-            b.MouseEnter += (_, _) =>
-            {
-                b.BackColor = hover;
-                b.Font = new Font(b.Font.FontFamily, b.Font.Size + 0.6f, FontStyle.Bold);
-            };
-            b.MouseLeave += (_, _) =>
-            {
-                b.BackColor = normal;
-                b.Font = new Font(b.Font.FontFamily, Math.Max(8f, b.Font.Size - 0.6f), FontStyle.Bold);
-            };
-        }
-
-        // ===== CABEÇALHO =====
-        var header = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = 92,
-            BackColor = Color.FromArgb(4, 45, 82)
-        };
-
-        var headerTitle = new Label
-        {
-            Text = "LEAL INFO CONECTADO  •  CAIXA / PDV",
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 24, FontStyle.Bold),
-            AutoSize = true,
-            Left = 26,
-            Top = 18
-        };
-
-        var headerInfo = new Label
-        {
-            Text = $"TECNOLOGIA QUE CONECTA  •  Atendente: ADMIN  •  {DateTime.Now:dd/MM/yyyy HH:mm}",
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 11, FontStyle.Bold),
-            AutoSize = true,
-            Anchor = AnchorStyles.Top | AnchorStyles.Right
-        };
-
-        header.Controls.Add(headerTitle);
-        header.Controls.Add(headerInfo);
-
-        var headerLine = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = 4,
-            BackColor = Color.FromArgb(0, 183, 255)
-        };
-        header.Controls.Add(headerLine);
-        header.Resize += (_, _) =>
-        {
-            headerInfo.Left = Math.Max(20, header.ClientSize.Width - headerInfo.Width - 28);
-            headerInfo.Top = 32;
-        };
-        f.Controls.Add(header);
-
-        // ===== CONTEÚDO RESPONSIVO =====
-        var body = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            RowCount = 1,
-            Padding = new Padding(18),
-            BackColor = Color.FromArgb(7, 24, 43)
-        };
-        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
-        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45));
-        f.Controls.Add(body);
-        body.BringToFront();
-
-        // ===== VITRINE GRANDE DO PRODUTO =====
-        var photoShowcase = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(9, 52, 88),
-            Padding = new Padding(16),
-            Margin = new Padding(0, 0, 12, 0)
-        };
-        body.Controls.Add(photoShowcase, 0, 0);
-        Round(photoShowcase, 24);
-
-        var photoLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            BackColor = Color.Transparent
-        };
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 55));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        photoLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
-        photoShowcase.Controls.Add(photoLayout);
-
-        var photoTitle = new Label
-        {
-            Text = "PRODUTO",
-            Dock = DockStyle.Fill,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 16, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter
-        };
-        photoLayout.Controls.Add(photoTitle, 0, 0);
-
-        var brandPanel = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(238, 248, 255),
-            Padding = new Padding(10),
-            Margin = new Padding(0, 4, 0, 10)
-        };
-
-        var productPicture = new PictureBox
-        {
-            Dock = DockStyle.Fill,
-            SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.FromArgb(248, 250, 252)
-        };
-        brandPanel.Controls.Add(productPicture);
-        photoLayout.Controls.Add(brandPanel, 0, 1);
-        Round(brandPanel, 22);
-
-        var photoProductName = new Label
-        {
-            Text = "Selecione um produto",
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(4, 45, 82),
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI", 13, FontStyle.Bold),
-            TextAlign = ContentAlignment.MiddleCenter,
-            Padding = new Padding(8),
-            Margin = new Padding(0)
-        };
-        photoLayout.Controls.Add(photoProductName, 0, 2);
-        Round(photoProductName, 16);
-
-        void ShowProductPhoto(long? productId)
-        {
-            productPicture.Image?.Dispose();
-            productPicture.Image = null;
-            photoProductName.Text = "Selecione um produto";
-
-            string? path = null;
-            string? productName = null;
-            if (productId.HasValue)
-            {
-                using var cn = Database.Open();
-                using var cmd = cn.CreateCommand();
-                cmd.CommandText = "SELECT COALESCE(photo_path,''), name FROM products WHERE id=$id";
-                cmd.Parameters.AddWithValue("$id", productId.Value);
-                using var rd = cmd.ExecuteReader();
-                if (rd.Read())
-                {
-                    path = rd.GetString(0);
-                    productName = rd.GetString(1);
-                }
-            }
-
-            if (!string.IsNullOrWhiteSpace(productName))
-                photoProductName.Text = productName;
-
-            if (!string.IsNullOrWhiteSpace(path))
-            {
-                string resolved = path;
-
-                if (!Path.IsPathRooted(resolved))
-                {
-                    var appRelative = Path.Combine(AppContext.BaseDirectory, resolved);
-                    var assetsRelative = Path.Combine(AppContext.BaseDirectory, "Assets", resolved);
-
-                    if (File.Exists(appRelative))
-                        resolved = appRelative;
-                    else if (File.Exists(assetsRelative))
-                        resolved = assetsRelative;
-                }
-
-                if (File.Exists(resolved))
-                {
-                    using var img = Image.FromFile(resolved);
-                    productPicture.Image = new Bitmap(img);
-                    productPicture.Refresh();
-                    return;
-                }
-            }
-
-            // Estado vazio: mantém a logomarca na vitrine.
-            // Produto selecionado sem foto: não confundir a logo com a foto do produto.
-            if (!productId.HasValue)
-            {
-                var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
-                if (File.Exists(logoPath))
-                {
-                    using var img = Image.FromFile(logoPath);
-                    productPicture.Image = new Bitmap(img);
-                }
-                photoProductName.Text = "Selecione um produto";
-            }
-            else
-            {
-                productPicture.Image = null;
-                photoProductName.Text = string.IsNullOrWhiteSpace(productName)
-                    ? "SEM FOTO CADASTRADA"
-                    : productName + " • SEM FOTO CADASTRADA";
-            }
-        }
-
-        ShowProductPhoto(null);
-
-        // ===== COLUNA CENTRAL / LANÇAMENTO =====
-        var left = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.FromArgb(9, 52, 88),
-            Padding = new Padding(24)
-        };
-        body.Controls.Add(left, 1, 0);
-        Round(left, 24);
-
-        var leftLayout = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 11,
-            Padding = new Padding(24, 14, 24, 14),
-            BackColor = Color.Transparent
-        };
-        // Reserva espaço REAL para o status no rodapé. Antes as 10 primeiras linhas
-        // consumiam praticamente toda a altura útil e o "CAIXA LIVRE" era cortado.
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-        leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+       …7768 tokens truncated…d(new RowStyle(SizeType.Absolute, 44));
         leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
         leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
         leftLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
