@@ -1,8 +1,8 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using Windows.Media.SpeechSynthesis;
-using Windows.Storage.Streams;
+using System.Reflection;
+using System.Speech.Synthesis;
 using System.Threading.Channels;
 using NAudio.Wave;
 
@@ -356,35 +356,41 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         Speaking?.Invoke();
         try
         {
-            using var synthesizer = new Windows.Media.SpeechSynthesis.SpeechSynthesizer();
-            var francisca = Windows.Media.SpeechSynthesis.SpeechSynthesizer.AllVoices
-                .FirstOrDefault(v => v.DisplayName.Contains("Francisca", StringComparison.OrdinalIgnoreCase)
-                                  || v.Id.Contains("Francisca", StringComparison.OrdinalIgnoreCase));
-            if (francisca == null)
-                throw new InvalidOperationException("Microsoft Francisca Natural nao foi exposta pela API WinRT.");
-            synthesizer.Voice = francisca;
-            using var stream = await synthesizer.SynthesizeTextToStreamAsync(text);
-            var bytes = new byte[stream.Size];
-            using (var reader = new DataReader(stream.GetInputStreamAt(0)))
+            await Task.Run(() =>
             {
-                await reader.LoadAsync((uint)stream.Size);
-                reader.ReadBytes(bytes);
-            }
-            using var memory = new MemoryStream(bytes, false);
-            using var wave = new WaveFileReader(memory);
-            using var output = new WaveOutEvent();
-            var finished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            output.PlaybackStopped += (_, args) =>
-            {
-                if (args.Exception != null) finished.TrySetException(args.Exception);
-                else finished.TrySetResult(true);
-            };
-            output.Init(wave);
-            output.Play();
-            await finished.Task.ConfigureAwait(false);
+                using var meuSintetizador = new SpeechSynthesizer();
+                DestrancarVozesOneCore(meuSintetizador);
+                meuSintetizador.SelectVoice("Microsoft Francisca");
+                meuSintetizador.Rate = +1;
+                meuSintetizador.Volume = 100;
+                meuSintetizador.Speak(text);
+            }).ConfigureAwait(false);
         }
-        catch (Exception ex) { Error?.Invoke("Voz Francisca WinRT: " + ex.Message); }
+        catch (Exception ex) { Error?.Invoke("Voz Francisca: " + ex.Message); }
         finally { ScheduleMicrophoneResume(); }
+    }
+
+    public static void DestrancarVozesOneCore(SpeechSynthesizer synthesizer)
+    {
+        try
+        {
+            Type synthesizerType = typeof(SpeechSynthesizer);
+            object? voiceSynthesis = synthesizerType.GetProperty("VoiceSynthesis", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(synthesizer);
+            if (voiceSynthesis == null) return;
+            Type voiceSynthesisType = voiceSynthesis.GetType();
+            object? voiceRegistry = voiceSynthesisType.GetProperty("VoiceRegistry", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(voiceSynthesis);
+            if (voiceRegistry == null) return;
+            FieldInfo? regProviderField = voiceRegistry.GetType().GetField("_registryProvider", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (regProviderField != null)
+            {
+                object? regProvider = regProviderField.GetValue(voiceRegistry);
+                if (regProvider == null) return;
+                FieldInfo? rootKeyField = regProvider.GetType().GetField("_rootKey", BindingFlags.Instance | BindingFlags.NonPublic);
+                if (rootKeyField != null)
+                    rootKeyField.SetValue(regProvider, @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices");
+            }
+        }
+        catch { }
     }
 
     private async Task HandleFunctionCallAsync(JsonElement root, CancellationToken cancellationToken)
