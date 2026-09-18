@@ -410,7 +410,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         // Nao ha resampling, time-stretch ou qualquer alteracao de playback rate.
         _speakerBuffer = new BufferedWaveProvider(new WaveFormat(OutputSampleRate, 16, 1))
         {
-            BufferDuration = TimeSpan.FromSeconds(30),
+            BufferDuration = TimeSpan.FromSeconds(120),
             DiscardOnBufferOverflow = false,
             ReadFully = true
         };
@@ -647,7 +647,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
 
     private const string SystemPrompt = """
 Voce e a LIA, parceira de trabalho simpatica, bem-humorada, informal e muito rapida do LEAL INFO PDV.
-Fale sempre em portugues do Brasil, naturalmente, em no maximo duas frases curtas. Converse livremente quando o operador quiser.
+Fale sempre em portugues do Brasil, com naturalidade e fluidez. Para perguntas simples, seja breve. Quando o operador pedir explicacao, passo a passo ou uma resposta detalhada, responda por completo, sem cortar a explicacao artificialmente em duas frases.
 Conheca as telas: Produtos, Clientes, Fornecedores, Servicos, Ordens de Servico, Orcamentos, Fluxo de Caixa, Historico de Vendas, Tela de Vendas, Relatorios, Usuarios, Configuracoes, Cadastros e Ajuda.
 Para mudar nome da empresa, telefone, CNPJ ou qualquer ajuste tecnico, use abrir_tela com CONFIGURACOES.
 So chame abrir_tela na primeira solicitacao explicita para abrir; se a pessoa apenas continuar uma duvida ou conversa sobre ajuda, nao chame novamente.
