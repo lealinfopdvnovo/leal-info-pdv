@@ -8,7 +8,7 @@ AppId={{8B1A4E75-ED29-4D54-9A63-0C1300000130}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\LEAL INFO PDV
+DefaultDirName=C:\LEAL INFO PDV
 DefaultGroupName={#MyAppName}
 UsePreviousAppDir=yes
 OutputDir=SETUP_PRONTO
@@ -35,5 +35,6 @@ Type: files; Name: "{app}\*.runtimeconfig.json"
 Source: "publish_setup\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\LIC AI"; Filename: "{app}\LIC-AI\LicAi.exe"
-Name: "{autodesktop}\LIC AI"; Filename: "{app}\LIC-AI\LicAi.exe"
+Name: "{group}\LEAL INFO PDV"; Filename: "{app}\LealInfoPDV.exe"; WorkingDir: "{app}"
+Name: "{autodesktop}\LEAL INFO PDV"; Filename: "{app}\LealInfoPDV.exe"; WorkingDir: "{app}"
+Name: "{group}\LIC AI"; Filename: "{app}\LIC-AI\LicAi.exe"; WorkingDir: "{app}\LIC-AI"
