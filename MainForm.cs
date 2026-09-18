@@ -215,15 +215,15 @@ public sealed class MainForm : Form
             case "ORDENS_SERVICO": OpenOrders(); break;
             case "ORCAMENTOS": OpenQuotes(); break;
             case "FLUXO_CAIXA":
-                if (Auth.IsManager) OpenFinance();
-                else Info("Seu nível de acesso não permite abrir o Fluxo de Caixa.");
+                if (Auth.CanViewFinance) OpenFinance();
+                else Info("Acesso não permitido para seu nível.");
                 break;
             case "HISTORICO_VENDAS": OpenHistory(); break;
             case "TELA_VENDAS": OpenSales(); break;
             case "RELATORIOS": OpenReports(); break;
             case "USUARIOS":
-                if (Auth.IsAdmin) OpenUsers();
-                else Info("Somente administradores podem abrir Usuários.");
+                if (Auth.CanManageUsers) OpenUsers();
+                else Info("Acesso não permitido para seu nível.");
                 break;
             case "CONFIGURACOES": OpenSettings(); break;
             case "CADASTROS": OpenCadastroCentral(); break;
@@ -643,7 +643,7 @@ public sealed class MainForm : Form
             }
             else if (title == "Financeiro")
             {
-                AddMenu("Fluxo de Caixa", () => { if (Auth.IsManager) OpenFinance(); else MessageBox.Show("Seu nível de acesso não permite abrir o Financeiro."); });
+                AddMenu("Fluxo de Caixa", () => { if (Auth.CanViewFinance) OpenFinance(); else MessageBox.Show("Acesso não permitido para seu nível."); });
             }
             else if (title == "Tela de Vendas")
             {
@@ -658,7 +658,7 @@ public sealed class MainForm : Form
             }
             else if (title == "Relatórios")
             {
-                AddMenu("Abrir Relatórios", () => { if (Auth.IsManager) OpenReports(); else MessageBox.Show("Seu nível de acesso não permite abrir Relatórios."); });
+                AddMenu("Abrir Relatórios", () => { if (Auth.CanViewReports) OpenReports(); else MessageBox.Show("Acesso não permitido para seu nível."); });
             }
             else if (title == "Ajuda")
             {
@@ -2360,7 +2360,7 @@ private void ApplyFloatingTheme(Form f)
             Label L(string s)=>new(){Text=s,Dock=DockStyle.Top,Height=26,Font=new Font("Segoe UI",10,FontStyle.Bold)};
             var n=B();var u=B();var e=B();var ph=B();var pw=B(true);
             var role=new ComboBox{Dock=DockStyle.Top,DropDownStyle=ComboBoxStyle.DropDownList,Height=38};
-            role.Items.AddRange(new[]{"ADMINISTRADOR","GERENTE","OPERADOR"});role.SelectedIndex=2;
+            role.Items.AddRange(new[]{"PATRÃO","GERENTE","FUNCIONÁRIO","CAIXA"});role.SelectedIndex=2;
             var discount=new CheckBox{Text="Pode conceder desconto",Dock=DockStyle.Top,Height=35};
             foreach(var x in new (string,Control)[]{("Nome completo",n),("Usuário",u),("E-mail",e),("Telefone",ph),("Senha inicial",pw),("Nível de acesso",role)})
             {p.Controls.Add(L(x.Item1));p.Controls.Add(x.Item2);}
