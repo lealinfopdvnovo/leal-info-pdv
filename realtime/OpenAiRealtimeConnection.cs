@@ -125,7 +125,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                     output = new
                     {
                         format = new { type = "audio/pcm", rate = 24000 },
-                        voice = "marin"
+                        voice = "nova"
                     }
                 },
                 tools = new object[]
