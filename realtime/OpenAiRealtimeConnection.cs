@@ -298,7 +298,22 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             var root = document.RootElement;
             var type = GetString(root, "type");
 
-                                    switch (type)
+            if (type is "response.output_audio.delta" or "response.audio.delta")
+            {
+                var base64 = FindAudioDelta(root);
+                if (string.IsNullOrWhiteSpace(base64)) return;
+                var pcm = Convert.FromBase64String(base64);
+                SuppressMicrophoneDuringPlayback();
+                RegisterPlaybackBytes(pcm.Length);
+                // Fila estritamente FIFO. Por ser ilimitada, TryWrite nunca descarta
+                // os blocos para tentar "alcancar" o tempo real.
+                if (!_speakerQueue.Writer.TryWrite(pcm))
+                    throw new InvalidOperationException("Nao foi possivel enfileirar o audio da LIA.");
+                Speaking?.Invoke();
+                return;
+            }
+
+            switch (type)
             {
                 case "response.created":
                     Interlocked.Exchange(ref _responseActive, 1);
@@ -319,22 +334,10 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                     break;
                 case "input_audio_buffer.speech_stopped":
                     break;
-                case "response.output_text.done":
-                    var transcript = GetString(root, "text");
-                    if (!string.IsNullOrWhiteSpace(transcript))
-                    {
-                        Transcript?.Invoke(transcript);
-                        _ = SpeakFranciscaAsync(transcript);
-                    }
-                    break;
                 case "response.output_audio_transcript.done":
                 case "response.audio_transcript.done":
-                    var audioTranscript = GetString(root, "transcript");
-                    if (!string.IsNullOrWhiteSpace(audioTranscript))
-                    {
-                        Transcript?.Invoke(audioTranscript);
-                        _ = SpeakFranciscaAsync(audioTranscript);
-                    }
+                    var transcript = GetString(root, "transcript");
+                    if (!string.IsNullOrWhiteSpace(transcript)) Transcript?.Invoke(transcript);
                     break;
                 case "response.function_call_arguments.done":
                     _ = HandleFunctionCallAsync(root.Clone(), _sessionCts?.Token ?? CancellationToken.None);
@@ -348,15 +351,6 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             }
         }
         catch (Exception ex) { Error?.Invoke("Evento Realtime invalido: " + ex.Message); }
-    }
-
-    private Task SpeakFranciscaAsync(string text)
-    {
-        // V10.275: fallback seguro. A voz local Francisca nao e exposta ao System.Speech
-        // nesta maquina; nao bloquear nem ocultar a LIA por falha de SelectVoice.
-        if (!string.IsNullOrWhiteSpace(text))
-            Transcript?.Invoke(text);
-        return Task.CompletedTask;
     }
 
     private async Task HandleFunctionCallAsync(JsonElement root, CancellationToken cancellationToken)
