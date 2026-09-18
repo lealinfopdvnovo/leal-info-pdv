@@ -96,7 +96,7 @@ jobs:
           Copy-Item "realtime\MainForm.cs" "LIC-AI\MainForm.cs" -Force
           $project=Get-Content "LIC-AI\LicAi.csproj" -Raw
           $project=$project.Replace('<PackageReference Include="Vosk" Version="0.3.38" />','')
-          if($project -notmatch 'PackageReference Include="Microsoft.Windows.SDK.Contracts"'){ $project=$project.Replace('</ItemGroup>','    <PackageReference Include="Microsoft.Windows.SDK.Contracts" Version="10.0.26100.4948" />' + [Environment]::NewLine + '  </ItemGroup>') }
+          if($project -notmatch 'PackageReference Include="System.Speech"'){ $project=$project.Replace('</ItemGroup>','    <PackageReference Include="System.Speech" Version="8.0.0" />' + [Environment]::NewLine + '  </ItemGroup>') }
           Set-Content "LIC-AI\LicAi.csproj" $project -Encoding UTF8
       - run: dotnet restore LIC-AI/LicAi.csproj
       - run: dotnet publish LIC-AI/LicAi.csproj -c Release -r win-x64 --self-contained true -o publish_setup/LIC-AI
