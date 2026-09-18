@@ -15,6 +15,7 @@ public sealed class SplashForm : Form
     private bool loginLoaded;
     private bool introStarted;
     private bool introFinished;
+    public bool IntroFinished => introFinished;
 
     public SplashForm()
     {
@@ -87,6 +88,7 @@ public sealed class SplashForm : Form
         try { videoView.CoreWebView2?.Stop(); } catch { }
         introLayer.Visible = false;
         login?.BringToFront();
+        if (login != null) { login.Visible = false; login.Visible = true; }
         TopMost = false;
     }
 
