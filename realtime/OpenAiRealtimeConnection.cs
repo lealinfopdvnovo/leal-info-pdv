@@ -109,6 +109,22 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                 model = Model,
                 output_modalities = new[] { "text" },
                 instructions = SystemPrompt,
+                audio = new
+                {
+                    input = new
+                    {
+                        format = new { type = "audio/pcm", rate = 24000 },
+                        turn_detection = new
+                        {
+                            type = "server_vad",
+                            threshold = 0.45,
+                            prefix_padding_ms = 250,
+                            silence_duration_ms = 420,
+                            create_response = true,
+                            interrupt_response = true
+                        }
+                    }
+                },
                 tools = new object[]
                 {
                     new
