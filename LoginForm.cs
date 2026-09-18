@@ -276,7 +276,7 @@ public sealed class LoginForm : Form
 
         AcceptButton=enter;
         int consecutiveFailures=0;
-        Shown+=async (_,_)=>{await Task.Delay(2500);if(!EmailRecovery.IsConfigured()) await SpeakLoginAssistAsync("Bem-vindo de volta! Lembre-se de configurar seu e-mail de recuperação nas configurações para manter seu caixa seguro.");};
+        VisibleChanged+=async (_,_)=>{if(!Visible || Parent is not SplashForm splash || !splash.IntroFinished) return;await Task.Delay(500);if(!EmailRecovery.IsConfigured()) await SpeakLoginAssistAsync("Bem-vindo de volta! Lembre-se de configurar seu e-mail de recuperação nas configurações para manter seu caixa seguro.");};
 
         void Go()
         {
