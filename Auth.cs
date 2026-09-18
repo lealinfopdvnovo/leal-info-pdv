@@ -185,7 +185,7 @@ public static class Auth
 
 
     public static string RecoveryKeyPath =>
-        Path.Combine(AppContext.BaseDirectory, "Dados", "recuperacao.leal");
+        Path.Combine(Database.AppFolder, "Dados", "recuperacao.leal");
 
     static byte[] RecoveryFileKey()
     {
