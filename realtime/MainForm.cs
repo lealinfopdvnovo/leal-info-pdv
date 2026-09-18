@@ -19,6 +19,7 @@ public sealed class MainForm : Form
     private CancellationTokenSource _lifetime = new();
     private bool _closing;
     private int _errorDialogVisible;
+    private bool _offlineMode;
 
     public MainForm(ConversationEngine engine, LocalSecretStore secrets, bool voiceOnly = false)
     {
@@ -88,6 +89,7 @@ public sealed class MainForm : Form
         _realtime.Error += message => Ui(() =>
         {
             if (Interlocked.Exchange(ref _errorDialogVisible, 1) == 1) return;
+            if (IsCreditError(message)) { _offlineMode = true; _status.Text = "LIA OFFLINE • comandos locais disponíveis"; Append("LIA", "Meus créditos da IA acabaram, mas continuo disponível para comandos locais do PDV."); return; }
             _status.Text = "Falha na conexao de voz";
             _ = SendStatusAsync("ERROR");
             try { MessageBox.Show(this, message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error); }
@@ -138,6 +140,8 @@ public sealed class MainForm : Form
     {
         var text = _input.Text.Trim();
         if (text.Length == 0 || !_send.Enabled) return;
+        if (TryOfflineCommand(text, out var localCommand)) { _input.Clear(); Append("Voce", text); var localReply=await SendNavigationCommandAsync(localCommand,_lifetime.Token); Append("LIA",localReply); _status.Text="LIA OFFLINE • comando local executado"; return; }
+        if (_offlineMode) { Append("LIA","Estou sem créditos para conversa inteligente. Posso continuar executando comandos locais do PDV."); return; }
         if (!EnsureApiKey()) return;
         CreateRealtimeConnection();
         _input.Clear();
@@ -244,6 +248,33 @@ public sealed class MainForm : Form
         _status.Text = "A LIA encontrou um erro";
         _ = SendStatusAsync("ERROR");
         MessageBox.Show(this, ex.Message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+
+
+    private static bool IsCreditError(string message)
+    {
+        var m=(message??"").ToLowerInvariant();
+        return m.Contains("no credits") || m.Contains("insufficient_quota") || m.Contains("quota") || m.Contains("billing");
+    }
+
+    private static bool TryOfflineCommand(string text, out string command)
+    {
+        var t=(text??"").Trim().ToLowerInvariant(); command="";
+        if(t.Contains("fechar tela")||t=="fechar"){command="FECHAR_TELA";return true;}
+        if(t.Contains("produto")){command="PRODUTOS";return true;}
+        if(t.Contains("cliente")){command="CLIENTES";return true;}
+        if(t.Contains("fornecedor")){command="FORNECEDORES";return true;}
+        if(t.Contains("serviço")||t.Contains("servico")){command="SERVICOS";return true;}
+        if(t.Contains("orçamento")||t.Contains("orcamento")){command="ORCAMENTOS";return true;}
+        if(t.Contains("ordem")||t=="os"||t.Contains(" os ")){command="ORDENS_SERVICO";return true;}
+        if(t.Contains("histórico")||t.Contains("historico")){command="HISTORICO_VENDAS";return true;}
+        if(t.Contains("venda")||t.Contains("pdv")){command="TELA_VENDAS";return true;}
+        if(t.Contains("financeiro")||t.Contains("fluxo de caixa")){command="FLUXO_CAIXA";return true;}
+        if(t.Contains("relatório")||t.Contains("relatorio")){command="RELATORIOS";return true;}
+        if(t.Contains("usuário")||t.Contains("usuario")){command="USUARIOS";return true;}
+        if(t.Contains("configura")){command="CONFIGURACOES";return true;}
+        if(t.Contains("cadastro")){command="CADASTROS";return true;}
+        return false;
     }
 
     private static async Task<string> SendNavigationCommandAsync(string command, CancellationToken cancellationToken)
