@@ -30,7 +30,13 @@ $pidToWait={{Environment.ProcessId}}
 $stage='{{EscapePs(stage)}}'
 $app='{{EscapePs(app)}}'
 $exe='{{EscapePs(exe)}}'
-while(Get-Process -Id $pidToWait -ErrorAction SilentlyContinue){Start-Sleep -Milliseconds 250}
+Start-Sleep -Milliseconds 500
+Get-Process -Name 'LicAi' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Get-Process -Id $pidToWait -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+$limit=(Get-Date).AddSeconds(12)
+while((Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) -and (Get-Date) -lt $limit){Start-Sleep -Milliseconds 250}
+Get-Process -Id $pidToWait -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 700
 Copy-Item -Path (Join-Path $stage '*') -Destination $app -Recurse -Force
 Start-Process -FilePath $exe -WorkingDirectory $app
 """;await File.WriteAllTextAsync(ps,script);Process.Start(new ProcessStartInfo("powershell.exe",$"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{ps}\""){UseShellExecute=true});Application.Exit();}
