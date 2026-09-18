@@ -1,8 +1,6 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using System.Reflection;
-using System.Speech.Synthesis;
 using System.Threading.Channels;
 using NAudio.Wave;
 
@@ -107,7 +105,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             {
                 type = "realtime",
                 model = Model,
-                output_modalities = new[] { "text" },
+                output_modalities = new[] { "audio" },
                 instructions = SystemPrompt,
                 audio = new
                 {
@@ -295,7 +293,17 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             var root = document.RootElement;
             var type = GetString(root, "type");
 
-            if (type is "response.output_audio.delta" or "response.audio.delta") return;
+            if (type is "response.output_audio.delta" or "response.audio.delta")
+                {
+                    var b64 = GetString(root, "delta");
+                    if (!string.IsNullOrWhiteSpace(b64))
+                    {
+                        SuppressMicrophoneDuringPlayback();
+                        Speaking?.Invoke();
+                        QueueSpeakerAudio(Convert.FromBase64String(b64));
+                    }
+                    return;
+                }
 
             switch (type)
             {
@@ -349,48 +357,13 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         catch (Exception ex) { Error?.Invoke("Evento Realtime invalido: " + ex.Message); }
     }
 
-    private async Task SpeakFranciscaAsync(string text)
+    private Task SpeakFranciscaAsync(string text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return;
-        SuppressMicrophoneDuringPlayback();
-        Speaking?.Invoke();
-        try
-        {
-            await Task.Run(() =>
-            {
-                using var meuSintetizador = new SpeechSynthesizer();
-                DestrancarVozesOneCore(meuSintetizador);
-                meuSintetizador.SelectVoice("Microsoft Francisca");
-                meuSintetizador.Rate = +1;
-                meuSintetizador.Volume = 100;
-                meuSintetizador.Speak(text);
-            }).ConfigureAwait(false);
-        }
-        catch (Exception ex) { Error?.Invoke("Voz Francisca: " + ex.Message); }
-        finally { ScheduleMicrophoneResume(); }
-    }
-
-    public static void DestrancarVozesOneCore(SpeechSynthesizer synthesizer)
-    {
-        try
-        {
-            Type synthesizerType = typeof(SpeechSynthesizer);
-            object? voiceSynthesis = synthesizerType.GetProperty("VoiceSynthesis", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(synthesizer);
-            if (voiceSynthesis == null) return;
-            Type voiceSynthesisType = voiceSynthesis.GetType();
-            object? voiceRegistry = voiceSynthesisType.GetProperty("VoiceRegistry", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(voiceSynthesis);
-            if (voiceRegistry == null) return;
-            FieldInfo? regProviderField = voiceRegistry.GetType().GetField("_registryProvider", BindingFlags.Instance | BindingFlags.NonPublic);
-            if (regProviderField != null)
-            {
-                object? regProvider = regProviderField.GetValue(voiceRegistry);
-                if (regProvider == null) return;
-                FieldInfo? rootKeyField = regProvider.GetType().GetField("_rootKey", BindingFlags.Instance | BindingFlags.NonPublic);
-                if (rootKeyField != null)
-                    rootKeyField.SetValue(regProvider, @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices");
-            }
-        }
-        catch { }
+        // V10.275: fallback seguro. A voz local Francisca nao e exposta ao System.Speech
+        // nesta maquina; nao bloquear nem ocultar a LIA por falha de SelectVoice.
+        if (!string.IsNullOrWhiteSpace(text))
+            Transcript?.Invoke(text);
+        return Task.CompletedTask;
     }
 
     private async Task HandleFunctionCallAsync(JsonElement root, CancellationToken cancellationToken)
