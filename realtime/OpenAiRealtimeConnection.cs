@@ -121,6 +121,11 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                             create_response = true,
                             interrupt_response = true
                         }
+                    },
+                    output = new
+                    {
+                        format = new { type = "audio/pcm", rate = 24000 },
+                        voice = "marin"
                     }
                 },
                 tools = new object[]
