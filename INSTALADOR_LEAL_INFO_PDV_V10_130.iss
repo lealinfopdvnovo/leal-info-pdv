@@ -24,6 +24,19 @@ UninstallDisplayName={#MyAppName} V{#MyAppVersion}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 CloseApplications=yes
 RestartApplications=no
+CloseApplicationsFilter=*.exe,*.dll
+
+[Code]
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  { Encerra PDV e LIA antes de substituir DLLs/EXEs bloqueados. }
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /F /T /IM LealInfoPDV.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{cmd}'), '/C taskkill /F /T /IM LicAi.exe >nul 2>&1', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Sleep(800);
+  Result := '';
+end;
 
 [InstallDelete]
 Type: files; Name: "{app}\*.exe"
