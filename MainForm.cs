@@ -2337,7 +2337,8 @@ private void ApplyFloatingTheme(Form f)
         var add=new Button{Text="NOVO USUÁRIO",Width=150,Height=42};
         var reset=new Button{Text="REDEFINIR SENHA",Width=160,Height=42};
         var toggle=new Button{Text="ATIVAR / INATIVAR",Width=160,Height=42};
-        bar.Controls.Add(add);bar.Controls.Add(reset);bar.Controls.Add(toggle);
+        var access=new Button{Text="ALTERAR NÍVEL",Width=160,Height=42};
+        bar.Controls.Add(add);bar.Controls.Add(reset);bar.Controls.Add(toggle);bar.Controls.Add(access);
         f.Controls.Add(grid);f.Controls.Add(bar);
 
         void LoadUsers()
@@ -2396,6 +2397,20 @@ private void ApplyFloatingTheme(Form f)
             cmd.CommandText="UPDATE users SET active=CASE active WHEN 1 THEN 0 ELSE 1 END WHERE id=$id";
             cmd.Parameters.AddWithValue("$id",id);cmd.ExecuteNonQuery();LoadUsers();
         };
+        access.Click+=(_,_)=>{
+            if(grid.CurrentRow==null)return;
+            long id=Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value);
+            string currentRole=Convert.ToString(grid.CurrentRow.Cells["Nivel"].Value)??"";
+            if(Auth.Current?.Id==id){MessageBox.Show("Seu próprio nível não pode ser alterado durante a sessão.");return;}
+            using var af=new Form{Text="Alterar nível de acesso",StartPosition=FormStartPosition.CenterParent,Width=440,Height=220,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false};
+            var cb=new ComboBox{Left=35,Top=45,Width=350,DropDownStyle=ComboBoxStyle.DropDownList};
+            cb.Items.AddRange(new[]{"PATRÃO","GERENTE","FUNCIONÁRIO","CAIXA"}); cb.SelectedItem=currentRole; if(cb.SelectedIndex<0)cb.SelectedIndex=2;
+            var ok=new Button{Left=235,Top=105,Width=150,Height=40,Text="SALVAR"};
+            af.Controls.AddRange(new Control[]{cb,ok});
+            ok.Click+=(_,_)=>{using var cn=Database.Open();using var cmd=cn.CreateCommand();cmd.CommandText="UPDATE users SET role=$r WHERE id=$id";cmd.Parameters.AddWithValue("$r",cb.Text);cmd.Parameters.AddWithValue("$id",id);cmd.ExecuteNonQuery();af.DialogResult=DialogResult.OK;af.Close();};
+            if(af.ShowDialog(f)==DialogResult.OK)LoadUsers();
+        };
+
         LoadUsers();
         ApplyFloatingTheme(f);
         f.ShowDialog(this);
