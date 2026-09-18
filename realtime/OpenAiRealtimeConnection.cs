@@ -298,19 +298,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             var root = document.RootElement;
             var type = GetString(root, "type");
 
-            if (type is "response.output_audio.delta" or "response.audio.delta")
-                {
-                    var b64 = GetString(root, "delta");
-                    if (!string.IsNullOrWhiteSpace(b64))
-                    {
-                        SuppressMicrophoneDuringPlayback();
-                        Speaking?.Invoke();
-                        QueueSpeakerAudio(Convert.FromBase64String(b64));
-                    }
-                    return;
-                }
-
-            switch (type)
+                                    switch (type)
             {
                 case "response.created":
                     Interlocked.Exchange(ref _responseActive, 1);
