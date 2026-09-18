@@ -1,6 +1,8 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using System.Reflection;
+using System.Speech.Synthesis;
 using System.Threading.Channels;
 using NAudio.Wave;
 
@@ -105,29 +107,8 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             {
                 type = "realtime",
                 model = Model,
-                output_modalities = new[] { "audio" },
+                output_modalities = new[] { "text" },
                 instructions = SystemPrompt,
-                audio = new
-                {
-                    input = new
-                    {
-                        format = new { type = "audio/pcm", rate = 24000 },
-                        turn_detection = new
-                        {
-                            type = "server_vad",
-                            threshold = 0.45,
-                            prefix_padding_ms = 250,
-                            silence_duration_ms = 420,
-                            create_response = true,
-                            interrupt_response = true
-                        }
-                    },
-                    output = new
-                    {
-                        format = new { type = "audio/pcm", rate = 24000 },
-                        voice = "nova"
-                    }
-                },
                 tools = new object[]
                 {
                     new
@@ -298,20 +279,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             var root = document.RootElement;
             var type = GetString(root, "type");
 
-            if (type is "response.output_audio.delta" or "response.audio.delta")
-            {
-                var base64 = FindAudioDelta(root);
-                if (string.IsNullOrWhiteSpace(base64)) return;
-                var pcm = Convert.FromBase64String(base64);
-                SuppressMicrophoneDuringPlayback();
-                RegisterPlaybackBytes(pcm.Length);
-                // Fila estritamente FIFO. Por ser ilimitada, TryWrite nunca descarta
-                // os blocos para tentar "alcancar" o tempo real.
-                if (!_speakerQueue.Writer.TryWrite(pcm))
-                    throw new InvalidOperationException("Nao foi possivel enfileirar o audio da LIA.");
-                Speaking?.Invoke();
-                return;
-            }
+            if (type is "response.output_audio.delta" or "response.audio.delta") return;
 
             switch (type)
             {
@@ -334,10 +302,22 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                     break;
                 case "input_audio_buffer.speech_stopped":
                     break;
+                case "response.output_text.done":
+                    var transcript = GetString(root, "text");
+                    if (!string.IsNullOrWhiteSpace(transcript))
+                    {
+                        Transcript?.Invoke(transcript);
+                        _ = SpeakFranciscaAsync(transcript);
+                    }
+                    break;
                 case "response.output_audio_transcript.done":
                 case "response.audio_transcript.done":
-                    var transcript = GetString(root, "transcript");
-                    if (!string.IsNullOrWhiteSpace(transcript)) Transcript?.Invoke(transcript);
+                    var audioTranscript = GetString(root, "transcript");
+                    if (!string.IsNullOrWhiteSpace(audioTranscript))
+                    {
+                        Transcript?.Invoke(audioTranscript);
+                        _ = SpeakFranciscaAsync(audioTranscript);
+                    }
                     break;
                 case "response.function_call_arguments.done":
                     _ = HandleFunctionCallAsync(root.Clone(), _sessionCts?.Token ?? CancellationToken.None);
@@ -351,6 +331,49 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
             }
         }
         catch (Exception ex) { Error?.Invoke("Evento Realtime invalido: " + ex.Message); }
+    }
+
+    private async Task SpeakFranciscaAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        SuppressMicrophoneDuringPlayback();
+        Speaking?.Invoke();
+        try
+        {
+            await Task.Run(() =>
+            {
+                using var synthesizer = new SpeechSynthesizer();
+                DestrancarVozesOneCore(synthesizer);
+                var francisca = synthesizer.GetInstalledVoices()
+                    .FirstOrDefault(v => v.Enabled && v.VoiceInfo.Name.Contains("Francisca", StringComparison.OrdinalIgnoreCase));
+                if (francisca == null)
+                    throw new InvalidOperationException("Microsoft Francisca nao foi encontrada pelo sintetizador local.");
+                synthesizer.SelectVoice(francisca.VoiceInfo.Name);
+                synthesizer.Rate = 1;
+                synthesizer.Volume = 100;
+                synthesizer.Speak(text);
+            }).ConfigureAwait(false);
+        }
+        catch (Exception ex) { Error?.Invoke("Voz Francisca: " + ex.Message); }
+        finally { ScheduleMicrophoneResume(); }
+    }
+
+    public static void DestrancarVozesOneCore(SpeechSynthesizer synthesizer)
+    {
+        try
+        {
+            var synthesizerType = typeof(SpeechSynthesizer);
+            var voiceSynthesis = synthesizerType.GetProperty("VoiceSynthesis", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(synthesizer);
+            if (voiceSynthesis == null) return;
+            var voiceRegistry = voiceSynthesis.GetType().GetProperty("VoiceRegistry", BindingFlags.Instance | BindingFlags.NonPublic)?.GetValue(voiceSynthesis);
+            if (voiceRegistry == null) return;
+            var regProviderField = voiceRegistry.GetType().GetField("_registryProvider", BindingFlags.Instance | BindingFlags.NonPublic);
+            var regProvider = regProviderField?.GetValue(voiceRegistry);
+            if (regProvider == null) return;
+            var rootKeyField = regProvider.GetType().GetField("_rootKey", BindingFlags.Instance | BindingFlags.NonPublic);
+            rootKeyField?.SetValue(regProvider, @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices");
+        }
+        catch { }
     }
 
     private async Task HandleFunctionCallAsync(JsonElement root, CancellationToken cancellationToken)
