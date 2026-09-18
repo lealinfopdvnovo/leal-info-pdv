@@ -2,7 +2,6 @@ using LicAi.Core;
 using LicAi.Security;
 using System.IO.Compression;
 using System.IO.Pipes;
-using System.Speech.Synthesis;
 using System.Text.Json;
 using NAudio.Wave;
 using Vosk;
@@ -20,7 +19,6 @@ public sealed class MainForm : Form
     private readonly Button _voiceButton = new();
     private readonly Label _status = new();
     private CancellationTokenSource? _cts;
-    private SpeechSynthesizer? _speaker;
     private Model? _voiceModel;
     private VoskRecognizer? _voiceRecognizer;
     private WaveInEvent? _microphone;
@@ -201,27 +199,9 @@ public sealed class MainForm : Form
 
     private void InitializeVoice()
     {
-        try
-        {
-            _speaker = new SpeechSynthesizer();
-            var preferred = _speaker.GetInstalledVoices()
-                .FirstOrDefault(v => v.Enabled &&
-                    (v.VoiceInfo.Culture.Name.Equals("pt-BR", StringComparison.OrdinalIgnoreCase) ||
-                     v.VoiceInfo.Name.Contains("Francisca", StringComparison.OrdinalIgnoreCase) ||
-                     v.VoiceInfo.Name.Contains("Maria", StringComparison.OrdinalIgnoreCase)));
-            if (preferred != null) _speaker.SelectVoice(preferred.VoiceInfo.Name);
-            _speaker.Rate = -1;
-            _speaker.Volume = 100;
-            _voiceButton.Enabled = true;
-            _voiceButton.Text = "🎙 FALAR";
-            _status.Text = "Pronta para conversar por texto ou voz";
-        }
-        catch
-        {
-            _voiceButton.Enabled = true;
-            _voiceButton.Text = "🎙 FALAR";
-            _status.Text = "Conversa por voz disponível";
-        }
+        _voiceButton.Enabled = true;
+        _voiceButton.Text = "🎙 FALAR";
+        _status.Text = "Pronta para conversar por texto ou voz";
     }
 
     private async Task ToggleVoiceAsync()
@@ -348,11 +328,47 @@ public sealed class MainForm : Form
     {
         _status.Text = "LIA está falando...";
         _voiceButton.Text = "🔊 FALANDO";
-        if (_speaker != null)
+        try
         {
-            try { await Task.Run(() => _speaker.Speak(text)); }
-            catch { }
+            var apiKey = _secrets.Get("OPENAI_API_KEY");
+            if (string.IsNullOrWhiteSpace(apiKey)) throw new InvalidOperationException("Chave da OpenAI não configurada.");
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
+            http.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+
+            var payload = JsonSerializer.Serialize(new
+            {
+                model = "gpt-4o-mini-tts",
+                voice = "nova",
+                input = text,
+                response_format = "mp3"
+            });
+            using var body = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
+            using var response = await http.PostAsync("https://api.openai.com/v1/audio/speech", body);
+            response.EnsureSuccessStatusCode();
+
+            var temp = Path.Combine(Path.GetTempPath(), $"lia_tts_{Guid.NewGuid():N}.mp3");
+            await using (var output = File.Create(temp))
+                await response.Content.CopyToAsync(output);
+
+            try
+            {
+                using var audio = new AudioFileReader(temp);
+                using var player = new WaveOutEvent();
+                var finished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                player.PlaybackStopped += (_, _) => finished.TrySetResult(true);
+                player.Init(audio);
+                player.Play();
+                await finished.Task;
+            }
+            finally { try { File.Delete(temp); } catch { } }
         }
+        catch
+        {
+            _status.Text = "Não foi possível reproduzir a voz da LIA";
+        }
+
         if (_voiceMode)
         {
             await Task.Delay(300);
@@ -368,7 +384,6 @@ public sealed class MainForm : Form
         _microphone?.Dispose();
         _voiceRecognizer?.Dispose();
         _voiceModel?.Dispose();
-        _speaker?.Dispose();
     }
 
     private static async Task SendNavigationCommandAsync(
