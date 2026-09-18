@@ -70,8 +70,17 @@ public static class Auth
     }
 
     public static void Logout()=>Current=null;
-    public static bool IsAdmin => Current?.Role=="ADMINISTRADOR";
-    public static bool IsManager => Current?.Role=="GERENTE" || IsAdmin;
+    public static bool IsOwner => Current?.Role is "PATRÃO" or "PATRAO" or "ADMINISTRADOR";
+    public static bool IsAdmin => IsOwner;
+    public static bool IsManager => Current?.Role=="GERENTE" || IsOwner;
+    public static bool IsEmployee => Current?.Role is "FUNCIONÁRIO" or "FUNCIONARIO" or "OPERADOR";
+    public static bool IsCashier => Current?.Role=="CAIXA";
+    public static bool CanManageUsers => IsOwner;
+    public static bool CanViewFinance => IsOwner || IsManager;
+    public static bool CanViewReports => IsOwner || IsManager;
+    public static bool CanManageCatalog => IsOwner || IsManager;
+    public static bool CanSell => Current != null;
+    public static bool CanDiscount => IsOwner || IsManager || Current?.CanDiscount==true;
     public static string OperatorName => Current?.FullName ?? "ADMIN";
 
     public static void ResetPassword(long userId,string newPassword)
