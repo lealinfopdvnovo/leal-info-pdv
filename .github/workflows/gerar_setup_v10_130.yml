@@ -29,8 +29,8 @@ jobs:
           $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.280"')
           $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_280_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.278\.0</Version>') { throw "csproj nao esta em V10.280" }
-          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.278"') { throw "UpdateManager nao esta em V10.280" }
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.280\.0</Version>') { throw "csproj nao esta em V10.280" }
+          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.280"') { throw "UpdateManager nao esta em V10.280" }
       - name: Preservar visual
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_visual_estavel_v10_177.ps1"
@@ -123,7 +123,7 @@ jobs:
           $asset=$release.assets|Where-Object{$_.name -eq $env:UPDATE_PACKAGE}
           if(-not $asset){throw "ZIP ausente"}
           $hash=(Get-FileHash $env:UPDATE_PACKAGE -Algorithm SHA256).Hash.ToLowerInvariant()
-          $notes="V10.280: somente centralizacao nativa da janela de login; demais funcoes preservadas."
+          $notes="V10.280: corrige travamento ao verificar atualizacoes e corrige permissao da chave local; demais funcoes preservadas."
           $manifest=@{Version=$env:UPDATE_VERSION;PackageUrl=$asset.browser_download_url;Sha256=$hash;Notes=$notes;DownloadUrl="https://github.com/$env:UPDATE_REPO/releases/download/$env:UPDATE_TAG/$env:SETUP_FILE";Mandatory=$false}|ConvertTo-Json
           $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
