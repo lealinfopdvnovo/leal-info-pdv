@@ -1,6 +1,10 @@
 using LicAi.Core;
 using LicAi.Security;
 using System.IO.Pipes;
+using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 namespace LicAi;
 
@@ -20,6 +24,8 @@ public sealed class MainForm : Form
     private bool _closing;
     private int _errorDialogVisible;
     private bool _offlineMode;
+    private static readonly HttpClient GeminiHttp = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private const string GeminiModel = "gemini-3.5-flash-lite";
 
     public MainForm(ConversationEngine engine, LocalSecretStore secrets, bool voiceOnly = false)
     {
@@ -89,7 +95,14 @@ public sealed class MainForm : Form
         _realtime.Error += message => Ui(() =>
         {
             if (Interlocked.Exchange(ref _errorDialogVisible, 1) == 1) return;
-            if (IsCreditError(message)) { _offlineMode = true; _status.Text = "LIA OFFLINE • comandos locais disponíveis"; Append("LIA", "Meus créditos da IA acabaram, mas continuo disponível para comandos locais do PDV."); return; }
+            if (IsCreditError(message))
+            {
+                _offlineMode = true;
+                _status.Text = "LIA GEMINI • modo básico";
+                Append("LIA", "O crédito da OpenAI acabou. Entrei no modo básico Gemini para continuar ajudando no PDV.");
+                Interlocked.Exchange(ref _errorDialogVisible, 0);
+                return;
+            }
             _status.Text = "Falha na conexao de voz";
             _ = SendStatusAsync("ERROR");
             try { MessageBox.Show(this, message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error); }
@@ -140,8 +153,35 @@ public sealed class MainForm : Form
     {
         var text = _input.Text.Trim();
         if (text.Length == 0 || !_send.Enabled) return;
-        if (TryOfflineCommand(text, out var localCommand)) { _input.Clear(); Append("Voce", text); var localReply=await SendNavigationCommandAsync(localCommand,_lifetime.Token); Append("LIA",localReply); _status.Text="LIA OFFLINE • comando local executado"; return; }
-        if (_offlineMode) { Append("LIA","Estou sem créditos para conversa inteligente. Posso continuar executando comandos locais do PDV."); return; }
+        if (_offlineMode)
+        {
+            _input.Clear();
+            Append("Voce", text);
+            _send.Enabled = false;
+            _status.Text = "LIA GEMINI • pensando...";
+            try
+            {
+                var answer = await SendGeminiAsync(text, _lifetime.Token);
+                if (TryExtractNavigationCommand(answer, out var command))
+                {
+                    var result = await SendNavigationCommandAsync(command, _lifetime.Token);
+                    Append("LIA", result);
+                    _status.Text = "LIA GEMINI • comando executado";
+                }
+                else
+                {
+                    Append("LIA", answer);
+                    _status.Text = "LIA GEMINI • modo básico";
+                }
+            }
+            catch (Exception ex)
+            {
+                Append("LIA", "Não consegui usar o Gemini agora: " + ex.Message);
+                _status.Text = "LIA GEMINI • indisponível";
+            }
+            finally { _send.Enabled = true; }
+            return;
+        }
         if (!EnsureApiKey()) return;
         CreateRealtimeConnection();
         _input.Clear();
@@ -257,25 +297,124 @@ public sealed class MainForm : Form
         return m.Contains("no credits") || m.Contains("insufficient_quota") || m.Contains("quota") || m.Contains("billing");
     }
 
-    private static bool TryOfflineCommand(string text, out string command)
+    private static bool TryExtractNavigationCommand(string answer, out string command)
     {
-        var t=(text??"").Trim().ToLowerInvariant(); command="";
-        if(t.Contains("fechar tela")||t=="fechar"){command="FECHAR_TELA";return true;}
-        if(t.Contains("produto")){command="PRODUTOS";return true;}
-        if(t.Contains("cliente")){command="CLIENTES";return true;}
-        if(t.Contains("fornecedor")){command="FORNECEDORES";return true;}
-        if(t.Contains("serviço")||t.Contains("servico")){command="SERVICOS";return true;}
-        if(t.Contains("orçamento")||t.Contains("orcamento")){command="ORCAMENTOS";return true;}
-        if(t.Contains("ordem")||t=="os"||t.Contains(" os ")){command="ORDENS_SERVICO";return true;}
-        if(t.Contains("histórico")||t.Contains("historico")){command="HISTORICO_VENDAS";return true;}
-        if(t.Contains("venda")||t.Contains("pdv")){command="TELA_VENDAS";return true;}
-        if(t.Contains("financeiro")||t.Contains("fluxo de caixa")){command="FLUXO_CAIXA";return true;}
-        if(t.Contains("relatório")||t.Contains("relatorio")){command="RELATORIOS";return true;}
-        if(t.Contains("usuário")||t.Contains("usuario")){command="USUARIOS";return true;}
-        if(t.Contains("configura")){command="CONFIGURACOES";return true;}
-        if(t.Contains("cadastro")){command="CADASTROS";return true;}
-        return false;
+        command = "";
+        if (string.IsNullOrWhiteSpace(answer)) return false;
+        var line = answer.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .FirstOrDefault(x => x.TrimStart().StartsWith("COMANDO:", StringComparison.OrdinalIgnoreCase));
+        if (line == null) return false;
+        var candidate = line[(line.IndexOf(':') + 1)..].Trim().ToUpperInvariant();
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "PRODUTOS","CLIENTES","FORNECEDORES","SERVICOS","ORDENS_SERVICO","ORCAMENTOS",
+            "FLUXO_CAIXA","HISTORICO_VENDAS","TELA_VENDAS","RELATORIOS","USUARIOS",
+            "CONFIGURACOES","CADASTROS","AJUDA_CADASTRO","FECHAR_TELA"
+        };
+        if (!allowed.Contains(candidate)) return false;
+        command = candidate;
+        return true;
     }
+
+    private static string GeminiKeyPath =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV", "gemini.key");
+
+    private static string? GetGeminiApiKey()
+    {
+        try
+        {
+            if (!File.Exists(GeminiKeyPath)) return null;
+            var encrypted = File.ReadAllBytes(GeminiKeyPath);
+            var plain = ProtectedData.Unprotect(encrypted, null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(plain).Trim();
+        }
+        catch { return null; }
+    }
+
+    private static void SaveGeminiApiKey(string key)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(GeminiKeyPath)!);
+        var plain = Encoding.UTF8.GetBytes(key.Trim());
+        var encrypted = ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser);
+        File.WriteAllBytes(GeminiKeyPath, encrypted);
+    }
+
+    private string EnsureGeminiApiKey()
+    {
+        var key = GetGeminiApiKey();
+        if (!string.IsNullOrWhiteSpace(key)) return key;
+        var value = Microsoft.VisualBasic.Interaction.InputBox(
+            "Cole sua chave gratuita do Google AI Studio. Ela ficará protegida neste computador.",
+            "Configurar Gemini • LIA modo básico", "").Trim();
+        if (value.Length < 20) throw new InvalidOperationException("Chave do Gemini não configurada.");
+        SaveGeminiApiKey(value);
+        return value;
+    }
+
+    private async Task<string> SendGeminiAsync(string userText, CancellationToken cancellationToken)
+    {
+        var key = EnsureGeminiApiKey();
+        var endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiModel}:generateContent";
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        request.Headers.Add("x-goog-api-key", key);
+        request.Content = JsonContent.Create(new
+        {
+            system_instruction = new
+            {
+                parts = new[] { new { text = GeminiSystemPrompt } }
+            },
+            contents = new[]
+            {
+                new { role = "user", parts = new[] { new { text = userText } } }
+            }
+        });
+        using var response = await GeminiHttp.SendAsync(request, cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Gemini {(int)response.StatusCode}: {ExtractGeminiError(json)}");
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
+        {
+            var content = candidates[0].GetProperty("content");
+            if (content.TryGetProperty("parts", out var parts))
+            {
+                var texts = parts.EnumerateArray()
+                    .Where(p => p.TryGetProperty("text", out _))
+                    .Select(p => p.GetProperty("text").GetString())
+                    .Where(x => !string.IsNullOrWhiteSpace(x));
+                var answer = string.Join("\n", texts!);
+                if (!string.IsNullOrWhiteSpace(answer)) return answer.Trim();
+            }
+        }
+        throw new InvalidOperationException("O Gemini não retornou uma resposta de texto.");
+    }
+
+    private static string ExtractGeminiError(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.GetProperty("error").GetProperty("message").GetString() ?? "erro desconhecido";
+        }
+        catch { return "erro desconhecido"; }
+    }
+
+    private const string GeminiSystemPrompt = """
+Você é a LIA, assistente virtual do LEAL INFO PDV. Fale sempre em português do Brasil, de forma natural, curta e útil.
+Você conhece as áreas reais do sistema: Produtos, Clientes, Fornecedores, Serviços, Ordens de Serviço, Orçamentos, Fluxo de Caixa, Histórico de Vendas, Tela de Vendas, Relatórios, Usuários, Configurações, Cadastros e Ajuda de Cadastro.
+Produtos: código, código de barras, nome, categoria, custo, preço, estoque, estoque mínimo e foto.
+Clientes/Fornecedores: nome, documento, telefone, e-mail e endereço.
+Serviços: nome, preço e descrição.
+OS: cliente, equipamento, defeito, serviço realizado, status, valor e observações.
+Orçamentos: cliente, descrição, valor e status.
+Tela de vendas: F5 consulta produto; F2 finaliza; F7 remove item; possui quantidade, cliente, pagamentos, desconto, troco e comprovante.
+Se a pessoa perguntar ONDE, COMO, PARA QUE SERVE ou pedir explicação, explique e NÃO gere comando.
+Somente quando houver pedido claro para abrir, ir, mostrar ou fechar uma tela, responda EXCLUSIVAMENTE com uma linha COMANDO: NOME.
+Comandos permitidos: PRODUTOS, CLIENTES, FORNECEDORES, SERVICOS, ORDENS_SERVICO, ORCAMENTOS, FLUXO_CAIXA, HISTORICO_VENDAS, TELA_VENDAS, RELATORIOS, USUARIOS, CONFIGURACOES, CADASTROS, AJUDA_CADASTRO, FECHAR_TELA.
+Exemplo: "onde vejo minhas vendas?" => explique Histórico de Vendas.
+Exemplo: "abre minhas vendas" => COMANDO: HISTORICO_VENDAS
+Nunca diga que executou antes da confirmação do PDV. Não contorne permissões. Não execute venda, exclusão, alteração financeira ou mudança de segurança.
+""";
 
     private static async Task<string> SendNavigationCommandAsync(string command, CancellationToken cancellationToken)
     {
