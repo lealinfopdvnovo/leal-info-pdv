@@ -665,7 +665,7 @@ public sealed class MainForm : Form
                 AddMenu("Conheça o menu Cadastro", ShowCadastroHelp);
                 AddMenu("Tutorial de Primeiro Acesso", () => OpenFirstAccessTutorial(false));
                 AddMenu("Atalhos do PDV", () => MessageBox.Show("F2  Finalizar venda\nF5  Código do produto\nF7  Remover item\nESC  Fechar janela", "Atalhos do LEAL INFO PDV"));
-                AddMenu("Atualizações do sistema", () => UpdateManager.ShowUpdateCenter(this));
+                AddMenu("Atualizações do sistema", () => _ = UpdateManager.ShowUpdateCenterAsync(this));
                 AddMenu("Sobre o sistema", () => MessageBox.Show($"LEAL INFO PDV PRO\nVersão V{UpdateManager.CurrentVersion}\nTecnologia que conecta.", "Sobre"));
             }
             else if (title == "Sair")
