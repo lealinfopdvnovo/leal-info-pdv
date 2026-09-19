@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Speech.Recognition;
 
 namespace LicAi;
 
@@ -26,6 +27,7 @@ public sealed class MainForm : Form
     private bool _offlineMode;
     private static readonly HttpClient GeminiHttp = new() { Timeout = TimeSpan.FromSeconds(30) };
     private const string GeminiModel = "gemini-3.5-flash-lite";
+    private SpeechRecognitionEngine? _offlineRecognizer;
 
     public MainForm(ConversationEngine engine, LocalSecretStore secrets, bool voiceOnly = false)
     {
@@ -72,6 +74,7 @@ public sealed class MainForm : Form
         try
         {
             _lifetime.Cancel();
+            StopOfflineVoice();
             if (_realtime != null) await _realtime.DisposeAsync();
             await SendStatusAsync("IDLE");
         }
@@ -98,8 +101,9 @@ public sealed class MainForm : Form
             if (IsCreditError(message))
             {
                 _offlineMode = true;
-                _status.Text = "LIA GEMINI • modo básico";
+                _status.Text = "LIA GEMINI • preparando voz local...";
                 Append("LIA", "O crédito da OpenAI acabou. Entrei no modo básico Gemini para continuar ajudando no PDV.");
+                _ = SwitchToGeminiVoiceAsync();
                 Interlocked.Exchange(ref _errorDialogVisible, 0);
                 return;
             }
@@ -136,6 +140,12 @@ public sealed class MainForm : Form
     {
         try
         {
+            if (_offlineMode)
+            {
+                if (_offlineRecognizer != null) { StopOfflineVoice(); await SendStatusAsync("IDLE"); }
+                else StartOfflineVoice();
+                return;
+            }
             if (_realtime?.IsCapturing == true)
             {
                 await _realtime.StopMicrophoneAsync();
@@ -147,6 +157,84 @@ public sealed class MainForm : Form
             await StartVoiceAsync();
         }
         catch (Exception ex) { ShowFatalError(ex); }
+    }
+
+    private async Task SwitchToGeminiVoiceAsync()
+    {
+        try
+        {
+            if (_realtime != null)
+            {
+                await _realtime.StopMicrophoneAsync();
+                await _realtime.DisconnectAsync();
+            }
+            StartOfflineVoice();
+        }
+        catch (Exception ex)
+        {
+            _status.Text = "LIA GEMINI • voz local indisponível";
+            Append("LIA", "Não consegui iniciar a escuta local: " + ex.Message);
+            await SendStatusAsync("ERROR");
+        }
+    }
+
+    private void StartOfflineVoice()
+    {
+        if (_offlineRecognizer != null) return;
+        var culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+        var recognizer = new SpeechRecognitionEngine(culture);
+        var choices = new Choices(
+            "LIA", "oi LIA", "bom dia", "boa tarde", "boa noite",
+            "abrir produtos", "abrir cadastro de produtos", "abrir clientes", "abrir fornecedores",
+            "abrir serviços", "abrir ordens de serviço", "abrir orçamentos", "abrir financeiro",
+            "abrir fluxo de caixa", "abrir histórico de vendas", "abrir minhas vendas",
+            "abrir tela de vendas", "abrir PDV", "abrir relatórios", "abrir usuários",
+            "abrir configurações", "abrir cadastros", "fechar tela", "fechar janela");
+        recognizer.LoadGrammar(new Grammar(new GrammarBuilder(choices) { Culture = culture }));
+        recognizer.SpeechRecognized += OfflineSpeechRecognized;
+        recognizer.SetInputToDefaultAudioDevice();
+        recognizer.RecognizeAsync(RecognizeMode.Multiple);
+        _offlineRecognizer = recognizer;
+        _status.Text = "LIA GEMINI • ouvindo localmente";
+        _voiceButton.Text = "OUVINDO";
+        _voiceButton.BackColor = Color.FromArgb(0, 125, 210);
+        _ = SendStatusAsync("LISTENING");
+    }
+
+    private void StopOfflineVoice()
+    {
+        var recognizer = Interlocked.Exchange(ref _offlineRecognizer, null);
+        if (recognizer == null) return;
+        recognizer.SpeechRecognized -= OfflineSpeechRecognized;
+        try { recognizer.RecognizeAsyncCancel(); } catch { }
+        try { recognizer.RecognizeAsyncStop(); } catch { }
+        recognizer.Dispose();
+        _voiceButton.Text = "🎙 FALAR";
+        _status.Text = "LIA GEMINI • modo básico";
+    }
+
+    private async void OfflineSpeechRecognized(object? sender, SpeechRecognizedEventArgs e)
+    {
+        if (e.Result == null || e.Result.Confidence < 0.45) return;
+        var spoken = e.Result.Text.Trim();
+        Ui(() => _status.Text = "LIA GEMINI • entendendo...");
+        try
+        {
+            var answer = await SendGeminiAsync(spoken, _lifetime.Token);
+            if (TryExtractNavigationCommand(answer, out var command))
+            {
+                var result = await SendNavigationCommandAsync(command, _lifetime.Token);
+                Ui(() => { Append("LIA", result); _status.Text = "LIA GEMINI • ouvindo localmente"; });
+            }
+            else
+            {
+                Ui(() => { Append("LIA", answer); _status.Text = "LIA GEMINI • ouvindo localmente"; });
+            }
+        }
+        catch (Exception ex)
+        {
+            Ui(() => { Append("LIA", "Não consegui processar sua fala agora: " + ex.Message); _status.Text = "LIA GEMINI • ouvindo localmente"; });
+        }
     }
 
     private async Task SendTextAsync()
