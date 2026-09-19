@@ -203,11 +203,11 @@ public sealed class MainForm : Form
         mic.StartRecording();
         _geminiCaptureTimer?.Stop();
         _geminiCaptureTimer?.Dispose();
-        _geminiCaptureTimer = new System.Windows.Forms.Timer { Interval = 6000 };
+        _geminiCaptureTimer = new System.Windows.Forms.Timer { Interval = 3000 };
         _geminiCaptureTimer.Tick += (_, _) =>
         {
             _geminiCaptureTimer?.Stop();
-            LiaLog("CAPTURE_TIMEOUT_STOP", "6000ms");
+            LiaLog("CAPTURE_TIMEOUT_STOP", "3000ms");
             StopOfflineVoice();
         };
         _geminiCaptureTimer.Start();
@@ -269,10 +269,8 @@ public sealed class MainForm : Form
             if (TryExtractNavigationCommand(answer, out var command))
             {
                 LiaLog("PDV_COMMAND_SEND", command);
-                var result = await SendNavigationCommandAsync(command, _lifetime.Token);
-                LiaLog("PDV_COMMAND_RESULT", result);
-                Ui(() => Append("LIA", result));
-                _ = SpeakGeminiAsync(result, _lifetime.Token);
+                Ui(() => Append("LIA", "Abrindo..."));
+                _ = SendNavigationCommandAndLogAsync(command, _lifetime.Token);
             }
             else
             {
@@ -288,6 +286,17 @@ public sealed class MainForm : Form
             Ui(() => { _status.Text = "LIA GEMINI • erro"; _voiceButton.Text = "🎙 FALAR"; });
             await SendStatusAsync("ERROR");
         }
+    }
+
+    private async Task SendNavigationCommandAndLogAsync(string command, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await SendNavigationCommandAsync(command, cancellationToken);
+            LiaLog("PDV_COMMAND_RESULT", result);
+            Ui(() => Append("LIA", result));
+        }
+        catch (Exception ex) { LiaLog("PDV_COMMAND_ERROR", ex.Message); }
     }
 
     private async Task<string> SendGeminiAudioAsync(byte[] wav, CancellationToken cancellationToken)
