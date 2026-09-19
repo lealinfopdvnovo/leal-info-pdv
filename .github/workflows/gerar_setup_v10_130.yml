@@ -130,3 +130,5 @@ jobs:
           gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.288" -f content="$encoded" -f sha="$sha"
 
 # V10.288 trigger after version sync
+
+# V10.288 diagnostic trigger after version sync
