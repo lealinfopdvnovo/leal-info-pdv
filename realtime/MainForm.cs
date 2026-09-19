@@ -31,6 +31,7 @@ public sealed class MainForm : Form
     private MemoryStream? _geminiAudio;
     private WaveFileWriter? _geminiWriter;
     private DateTime _geminiVoiceStarted;
+    private System.Windows.Forms.Timer? _geminiCaptureTimer;
     private static readonly object LiaLogLock = new();
     private static string LiaLogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV", "Logs", "lia-diagnostico.log");
     private static void LiaLog(string stage, string detail = "")
@@ -200,6 +201,16 @@ public sealed class MainForm : Form
         _geminiMic = mic;
         _geminiVoiceStarted = DateTime.UtcNow;
         mic.StartRecording();
+        _geminiCaptureTimer?.Stop();
+        _geminiCaptureTimer?.Dispose();
+        _geminiCaptureTimer = new System.Windows.Forms.Timer { Interval = 6000 };
+        _geminiCaptureTimer.Tick += (_, _) =>
+        {
+            _geminiCaptureTimer?.Stop();
+            LiaLog("CAPTURE_TIMEOUT_STOP", "6000ms");
+            StopOfflineVoice();
+        };
+        _geminiCaptureTimer.Start();
         LiaLog("MIC_INPUT_READY", "NAudio 16000Hz 16-bit mono device=0");
         _status.Text = "LIA GEMINI • ouvindo";
         _voiceButton.Text = "OUVINDO";
@@ -213,8 +224,7 @@ public sealed class MainForm : Form
         {
             _geminiWriter?.Write(e.Buffer, 0, e.BytesRecorded);
             _geminiWriter?.Flush();
-            if ((DateTime.UtcNow - _geminiVoiceStarted).TotalSeconds >= 12)
-                Ui(StopOfflineVoice);
+
         }
         catch (Exception ex) { LiaLog("AUDIO_CAPTURE_ERROR", ex.Message); }
     }
@@ -223,6 +233,10 @@ public sealed class MainForm : Form
     {
         var mic = Interlocked.Exchange(ref _geminiMic, null);
         if (mic == null) return;
+        _geminiCaptureTimer?.Stop();
+        _geminiCaptureTimer?.Dispose();
+        _geminiCaptureTimer = null;
+        LiaLog("MIC_STOP_REQUEST", $"elapsed={(DateTime.UtcNow - _geminiVoiceStarted).TotalMilliseconds:0}ms");
         try { mic.StopRecording(); } catch (Exception ex) { LiaLog("MIC_STOP_ERROR", ex.Message); }
         _voiceButton.Text = "🎙 FALAR";
         _status.Text = "LIA GEMINI • processando...";
