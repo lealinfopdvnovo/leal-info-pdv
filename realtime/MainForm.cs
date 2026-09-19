@@ -6,6 +6,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using NAudio.Wave;
+using Microsoft.CognitiveServices.Speech;
+using System.Speech.Synthesis;
 
 namespace LicAi;
 
@@ -352,56 +354,131 @@ public sealed class MainForm : Form
         throw new InvalidOperationException("O Gemini não retornou resposta para o áudio.");
     }
 
+    private const string AzureVoiceName = "pt-BR-FranciscaNeural";
+    private static string TtsCacheDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPdv", "voz-cache");
+
+    private static string TtsCachePath(string text)
+    {
+        Directory.CreateDirectory(TtsCacheDir);
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(AzureVoiceName + "\n" + text))).ToLowerInvariant();
+        return Path.Combine(TtsCacheDir, hash + ".wav");
+    }
+
+    private static bool IsFixedTtsPhrase(string text)
+    {
+        var t = text.Trim();
+        return t.Equals("Tela aberta com sucesso.", StringComparison.OrdinalIgnoreCase)
+            || t.Equals("Estou com lentidão, tente de novo.", StringComparison.OrdinalIgnoreCase)
+            || t.StartsWith("Bom dia", StringComparison.OrdinalIgnoreCase)
+            || t.StartsWith("Boa tarde", StringComparison.OrdinalIgnoreCase)
+            || t.StartsWith("Boa noite", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async Task PlayCachedWavAsync(string path, CancellationToken cancellationToken)
+    {
+        using var reader = new AudioFileReader(path);
+        using var output = new WaveOutEvent();
+        var done = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        output.PlaybackStopped += (_, e) => { if (e.Exception != null) done.TrySetException(e.Exception); else done.TrySetResult(true); };
+        output.Init(reader);
+        output.Play();
+        await done.Task.WaitAsync(cancellationToken);
+    }
+
+    private static async Task SpeakWindowsLocalAsync(string text, CancellationToken cancellationToken)
+    {
+        await Task.Run(() =>
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            using var synth = new SpeechSynthesizer();
+            var pt = synth.GetInstalledVoices().FirstOrDefault(v => v.Enabled && v.VoiceInfo.Culture.Name.Equals("pt-BR", StringComparison.OrdinalIgnoreCase));
+            if (pt != null) synth.SelectVoice(pt.VoiceInfo.Name);
+            synth.Speak(text);
+        }, cancellationToken);
+    }
+
     private async Task SpeakGeminiAsync(string text, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
-        if (!await _ttsLock.WaitAsync(0, cancellationToken)) { LiaLog("TTS_BUSY_SKIP"); return; }
+        await _ttsLock.WaitAsync(cancellationToken);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        LiaLog("TTS_REQUEST", $"chars={text.Length}");
         try
         {
-            LiaLog("TTS_REQUEST", $"chars={text.Length}");
-            var key = EnsureGeminiApiKey();
-            var endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent";
-            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-            request.Headers.Add("x-goog-api-key", key);
-            request.Content = JsonContent.Create(new
+            var cache = TtsCachePath(text);
+            if (IsFixedTtsPhrase(text) && File.Exists(cache))
             {
-                contents = new[] { new { parts = new[] { new { text = "Fale em português do Brasil, com voz natural, ritmo normal e tom acolhedor: " + text } } } },
-                generationConfig = new
-                {
-                    responseModalities = new[] { "AUDIO" },
-                    speechConfig = new
-                    {
-                        voiceConfig = new { prebuiltVoiceConfig = new { voiceName = "Kore" } },
-                        languageCode = "pt-BR"
-                    }
-                }
-            });
-            _ttsCts?.Cancel();
-            _ttsCts?.Dispose();
-            _ttsCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _ttsCts.CancelAfter(TimeSpan.FromSeconds(10));
-            using var response = await GeminiHttp.SendAsync(request, _ttsCts.Token);
-            var json = await response.Content.ReadAsStringAsync(_ttsCts.Token);
-            if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"Gemini TTS {(int)response.StatusCode}: {ExtractGeminiError(json)}");
-            using var doc = JsonDocument.Parse(json);
-            var data = doc.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("inlineData").GetProperty("data").GetString();
-            if (string.IsNullOrWhiteSpace(data)) throw new InvalidOperationException("Gemini TTS não retornou áudio.");
-            var pcm = Convert.FromBase64String(data);
-            LiaLog("TTS_AUDIO_READY", $"bytes={pcm.Length}");
-            var provider = new BufferedWaveProvider(new WaveFormat(24000, 16, 1)) { ReadFully = false, DiscardOnBufferOverflow = false, BufferDuration = TimeSpan.FromSeconds(30) };
-            provider.AddSamples(pcm, 0, pcm.Length);
-            using var output = new WaveOutEvent();
-            output.Init(provider);
-            LiaLog("TTS_PLAY_START");
-            await SendStatusAsync("SPEAKING");
-            output.Play();
-            while (output.PlaybackState == PlaybackState.Playing && !cancellationToken.IsCancellationRequested)
-                await Task.Delay(50, cancellationToken);
-            LiaLog("TTS_PLAY_END");
+                LiaLog("TTS_CACHE_HIT", $"ms={sw.ElapsedMilliseconds}");
+                LiaLog("TTS_PLAY_START", $"ms={sw.ElapsedMilliseconds}");
+                await SendStatusAsync("SPEAKING");
+                await PlayCachedWavAsync(cache, cancellationToken);
+                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}");
+                await SendStatusAsync("IDLE");
+                return;
+            }
+
+            var key = Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY");
+            var region = Environment.GetEnvironmentVariable("AZURE_SPEECH_REGION");
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(region))
+            {
+                LiaLog("TTS_FALLBACK_LOCAL", $"ms={sw.ElapsedMilliseconds}; reason=AZURE_ENV_MISSING");
+                await SendStatusAsync("SPEAKING");
+                await SpeakWindowsLocalAsync(text, cancellationToken);
+                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}; engine=windows");
+                await SendStatusAsync("IDLE");
+                return;
+            }
+
+            LiaLog("TTS_AZURE_REQUEST", $"ms={sw.ElapsedMilliseconds}");
+            using var azureTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            azureTimeout.CancelAfter(TimeSpan.FromSeconds(3));
+            try
+            {
+                var config = SpeechConfig.FromSubscription(key, region);
+                config.SpeechSynthesisVoiceName = AzureVoiceName;
+                using var synthesizer = new SpeechSynthesizer(config, null);
+                var synthTask = synthesizer.SpeakTextAsync(text);
+                var result = await synthTask.WaitAsync(azureTimeout.Token);
+                if (result.Reason != ResultReason.SynthesizingAudioCompleted || result.AudioData == null || result.AudioData.Length == 0)
+                    throw new InvalidOperationException("AZURE_" + result.Reason);
+
+                var playFile = Path.Combine(Path.GetTempPath(), $"lia_azure_{Guid.NewGuid():N}.wav");
+                if (IsFixedTtsPhrase(text)) playFile = cache;
+                await File.WriteAllBytesAsync(playFile, result.AudioData, cancellationToken);
+                LiaLog("TTS_AZURE_READY", $"ms={sw.ElapsedMilliseconds}; bytes={result.AudioData.Length}");
+                LiaLog("TTS_PLAY_START", $"ms={sw.ElapsedMilliseconds}");
+                await SendStatusAsync("SPEAKING");
+                await PlayCachedWavAsync(playFile, cancellationToken);
+                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}");
+                await SendStatusAsync("IDLE");
+                if (!IsFixedTtsPhrase(text)) try { File.Delete(playFile); } catch { }
+            }
+            catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException || ex is InvalidOperationException)
+            {
+                var reason = ex is OperationCanceledException ? "AZURE_TIMEOUT_3S" : ex.Message.Replace(Environment.NewLine, " ");
+                LiaLog("TTS_FALLBACK_LOCAL", $"ms={sw.ElapsedMilliseconds}; reason={reason}");
+                await SendStatusAsync("SPEAKING");
+                await SpeakWindowsLocalAsync(text, cancellationToken);
+                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}; engine=windows");
+                await SendStatusAsync("IDLE");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            LiaLog("TTS_CANCELLED", $"ms={sw.ElapsedMilliseconds}; reason=request_cancelled");
             await SendStatusAsync("IDLE");
         }
-        catch (OperationCanceledException) { LiaLog("TTS_TIMEOUT_FALLBACK"); await SendStatusAsync("IDLE"); }
-        catch (Exception ex) { LiaLog("TTS_ERROR", ex.ToString()); }
+        catch (Exception ex)
+        {
+            LiaLog("TTS_FALLBACK_LOCAL", $"ms={sw.ElapsedMilliseconds}; reason={ex.GetType().Name}:{ex.Message.Replace(Environment.NewLine, " ")}");
+            try
+            {
+                await SpeakWindowsLocalAsync(text, CancellationToken.None);
+                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}; engine=windows");
+            }
+            catch (Exception localEx) { LiaLog("TTS_ERROR", $"ms={sw.ElapsedMilliseconds}; local={localEx.Message}"); }
+            await SendStatusAsync("IDLE");
+        }
         finally { _ttsLock.Release(); }
     }
 
