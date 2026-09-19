@@ -390,7 +390,7 @@ public sealed class MainForm : Form
         await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var synth = new SpeechSynthesizer();
+            using var synth = new System.Speech.Synthesis.SpeechSynthesizer();
             var pt = synth.GetInstalledVoices().FirstOrDefault(v => v.Enabled && v.VoiceInfo.Culture.Name.Equals("pt-BR", StringComparison.OrdinalIgnoreCase));
             if (pt != null) synth.SelectVoice(pt.VoiceInfo.Name);
             synth.Speak(text);
@@ -436,7 +436,7 @@ public sealed class MainForm : Form
             {
                 var config = SpeechConfig.FromSubscription(key, region);
                 config.SpeechSynthesisVoiceName = AzureVoiceName;
-                using var synthesizer = new SpeechSynthesizer(config, null);
+                using var synthesizer = new Microsoft.CognitiveServices.Speech.SpeechSynthesizer(config, null);
                 var synthTask = synthesizer.SpeakTextAsync(text);
                 var result = await synthTask.WaitAsync(azureTimeout.Token);
                 if (result.Reason != ResultReason.SynthesizingAudioCompleted || result.AudioData == null || result.AudioData.Length == 0)
