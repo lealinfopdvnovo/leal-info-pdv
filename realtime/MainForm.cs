@@ -25,7 +25,7 @@ public sealed class MainForm : Form
     private bool _closing;
     private int _errorDialogVisible;
     private bool _offlineMode;
-    private static readonly HttpClient GeminiHttp = new() { Timeout = TimeSpan.FromSeconds(30) };
+    private static readonly HttpClient GeminiHttp = new() { Timeout = TimeSpan.FromSeconds(90) };
     private const string GeminiModel = "gemini-3.5-flash-lite";
     private WaveInEvent? _geminiMic;
     private MemoryStream? _geminiAudio;
@@ -363,10 +363,12 @@ public sealed class MainForm : Form
             using var output = new WaveOutEvent();
             output.Init(provider);
             LiaLog("TTS_PLAY_START");
+            await SendStatusAsync("SPEAKING");
             output.Play();
             while (output.PlaybackState == PlaybackState.Playing && !cancellationToken.IsCancellationRequested)
                 await Task.Delay(50, cancellationToken);
             LiaLog("TTS_PLAY_END");
+            await SendStatusAsync("IDLE");
         }
         catch (Exception ex) { LiaLog("TTS_ERROR", ex.ToString()); }
     }
