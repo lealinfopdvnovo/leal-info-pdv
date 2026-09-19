@@ -32,6 +32,10 @@ public sealed class MainForm : Form
     private WaveFileWriter? _geminiWriter;
     private DateTime _geminiVoiceStarted;
     private System.Windows.Forms.Timer? _geminiCaptureTimer;
+    private readonly SemaphoreSlim _voicePipelineLock = new(1, 1);
+    private readonly SemaphoreSlim _ttsLock = new(1, 1);
+    private CancellationTokenSource? _voiceRequestCts;
+    private CancellationTokenSource? _ttsCts;
     private static readonly object LiaLogLock = new();
     private static string LiaLogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV", "Logs", "lia-diagnostico.log");
     private static void LiaLog(string stage, string detail = "")
@@ -171,6 +175,11 @@ public sealed class MainForm : Form
 
     private async Task SwitchToGeminiVoiceAsync()
     {
+        if (!await _voicePipelineLock.WaitAsync(0))
+        {
+            LiaLog("VOICE_DUPLICATE_IGNORED");
+            return;
+        }
         LiaLog("GEMINI_FALLBACK_START");
         try
         {
@@ -186,6 +195,7 @@ public sealed class MainForm : Form
             _status.Text = "LIA GEMINI • voz local indisponível";
             Append("LIA", "Não consegui iniciar a escuta local: " + ex.Message);
             await SendStatusAsync("ERROR");
+            _voicePipelineLock.Release();
         }
     }
 
@@ -264,7 +274,11 @@ public sealed class MainForm : Form
             if (wav.Length < 2000) throw new InvalidOperationException("Nenhum áudio útil foi capturado.");
 
             LiaLog("GEMINI_AUDIO_SEND", $"bytes={wav.Length}");
-            var answer = await SendGeminiAudioAsync(wav, _lifetime.Token);
+            _voiceRequestCts?.Cancel();
+            _voiceRequestCts?.Dispose();
+            _voiceRequestCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            _voiceRequestCts.CancelAfter(TimeSpan.FromSeconds(12));
+            var answer = await SendGeminiAudioAsync(wav, _voiceRequestCts.Token);
             LiaLog("GEMINI_AUDIO_RESPONSE", answer);
             if (TryExtractNavigationCommand(answer, out var command))
             {
@@ -292,7 +306,9 @@ public sealed class MainForm : Form
     {
         try
         {
-            var result = await SendNavigationCommandAsync(command, cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(8));
+            var result = await SendNavigationCommandAsync(command, timeout.Token);
             LiaLog("PDV_COMMAND_RESULT", result);
             Ui(() => Append("LIA", result));
         }
@@ -339,11 +355,12 @@ public sealed class MainForm : Form
     private async Task SpeakGeminiAsync(string text, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
+        if (!await _ttsLock.WaitAsync(0, cancellationToken)) { LiaLog("TTS_BUSY_SKIP"); return; }
         try
         {
             LiaLog("TTS_REQUEST", $"chars={text.Length}");
             var key = EnsureGeminiApiKey();
-            var endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent";
+            var endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent";
             using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
             request.Headers.Add("x-goog-api-key", key);
             request.Content = JsonContent.Create(new
@@ -359,15 +376,19 @@ public sealed class MainForm : Form
                     }
                 }
             });
-            using var response = await GeminiHttp.SendAsync(request, cancellationToken);
-            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            _ttsCts?.Cancel();
+            _ttsCts?.Dispose();
+            _ttsCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _ttsCts.CancelAfter(TimeSpan.FromSeconds(10));
+            using var response = await GeminiHttp.SendAsync(request, _ttsCts.Token);
+            var json = await response.Content.ReadAsStringAsync(_ttsCts.Token);
             if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"Gemini TTS {(int)response.StatusCode}: {ExtractGeminiError(json)}");
             using var doc = JsonDocument.Parse(json);
             var data = doc.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("inlineData").GetProperty("data").GetString();
             if (string.IsNullOrWhiteSpace(data)) throw new InvalidOperationException("Gemini TTS não retornou áudio.");
             var pcm = Convert.FromBase64String(data);
             LiaLog("TTS_AUDIO_READY", $"bytes={pcm.Length}");
-            var provider = new BufferedWaveProvider(new WaveFormat(24000, 16, 1)) { DiscardOnBufferOverflow = false, BufferDuration = TimeSpan.FromSeconds(120) };
+            var provider = new BufferedWaveProvider(new WaveFormat(24000, 16, 1)) { ReadFully = false, DiscardOnBufferOverflow = false, BufferDuration = TimeSpan.FromSeconds(30) };
             provider.AddSamples(pcm, 0, pcm.Length);
             using var output = new WaveOutEvent();
             output.Init(provider);
@@ -379,7 +400,9 @@ public sealed class MainForm : Form
             LiaLog("TTS_PLAY_END");
             await SendStatusAsync("IDLE");
         }
+        catch (OperationCanceledException) { LiaLog("TTS_TIMEOUT_FALLBACK"); await SendStatusAsync("IDLE"); }
         catch (Exception ex) { LiaLog("TTS_ERROR", ex.ToString()); }
+        finally { _ttsLock.Release(); }
     }
 
     private async Task SendTextAsync()
