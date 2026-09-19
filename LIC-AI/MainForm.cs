@@ -5,6 +5,12 @@ using System.IO.Pipes;
 using System.Text.Json;
 using NAudio.Wave;
 using Vosk;
+using Microsoft.CognitiveServices.Speech;
+using Microsoft.CognitiveServices.Speech.Audio;
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
+using System.Speech.Synthesis;
 
 namespace LicAi;
 
@@ -324,56 +330,148 @@ public sealed class MainForm : Form
         if (!_voiceMode) _status.Text = "Pronta para conversar por texto ou voz";
     }
 
-    private async Task SpeakAndContinueAsync(string text)
+    private static readonly SemaphoreSlim TtsGate = new(1, 1);
+    private const string AzureVoice = "pt-BR-FranciscaNeural";
+
+    private static string VoiceCacheFolder
     {
-        _status.Text = "LIA está falando...";
-        _voiceButton.Text = "🔊 FALANDO";
+        get
+        {
+            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "LealInfoPdv", "voz-cache");
+            Directory.CreateDirectory(folder);
+            return folder;
+        }
+    }
+
+    private static void TtsLog(string evt, Stopwatch sw, string? detail = null)
+    {
         try
         {
-            var apiKey = _secrets.Get("OPENAI_API_KEY");
-            if (string.IsNullOrWhiteSpace(apiKey)) throw new InvalidOperationException("Chave da OpenAI não configurada.");
+            var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPdv");
+            Directory.CreateDirectory(folder);
+            File.AppendAllText(Path.Combine(folder, "lia-voz.log"),
+                $"{DateTime.Now:O} {evt} ms={sw.ElapsedMilliseconds}{(string.IsNullOrWhiteSpace(detail) ? "" : " " + detail)}{Environment.NewLine}");
+        }
+        catch { }
+    }
 
-            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
-            http.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiKey);
+    private static string CachePath(string text)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(AzureVoice + "\n" + text));
+        return Path.Combine(VoiceCacheFolder, Convert.ToHexString(bytes).ToLowerInvariant() + ".wav");
+    }
 
-            var payload = JsonSerializer.Serialize(new
-            {
-                model = "gpt-4o-mini-tts",
-                voice = "nova",
-                input = text,
-                response_format = "mp3"
-            });
-            using var body = new StringContent(payload, System.Text.Encoding.UTF8, "application/json");
-            using var response = await http.PostAsync("https://api.openai.com/v1/audio/speech", body);
-            response.EnsureSuccessStatusCode();
+    private static async Task PlayWavAsync(string path, Stopwatch sw)
+    {
+        TtsLog("TTS_PLAY_START", sw);
+        using var audio = new AudioFileReader(path);
+        using var player = new WaveOutEvent();
+        var finished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        player.PlaybackStopped += (_, e) =>
+        {
+            if (e.Exception != null) finished.TrySetException(e.Exception);
+            else finished.TrySetResult(true);
+        };
+        player.Init(audio);
+        player.Play();
+        await finished.Task;
+        TtsLog("TTS_PLAY_END", sw);
+    }
 
-            var temp = Path.Combine(Path.GetTempPath(), $"lia_tts_{Guid.NewGuid():N}.mp3");
-            await using (var output = File.Create(temp))
-                await response.Content.CopyToAsync(output);
-
+    private static async Task SpeakLocalAsync(string text, Stopwatch sw, string reason)
+    {
+        TtsLog("TTS_FALLBACK_LOCAL", sw, "reason=" + reason.Replace(Environment.NewLine, " "));
+        await Task.Run(() =>
+        {
+            using var synth = new SpeechSynthesizer();
             try
             {
-                using var audio = new AudioFileReader(temp);
-                using var player = new WaveOutEvent();
-                var finished = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-                player.PlaybackStopped += (_, _) => finished.TrySetResult(true);
-                player.Init(audio);
-                player.Play();
-                await finished.Task;
+                var pt = synth.GetInstalledVoices()
+                    .FirstOrDefault(v => v.Enabled && v.VoiceInfo.Culture.Name.Equals("pt-BR", StringComparison.OrdinalIgnoreCase));
+                if (pt != null) synth.SelectVoice(pt.VoiceInfo.Name);
             }
-            finally { try { File.Delete(temp); } catch { } }
-        }
-        catch
-        {
-            _status.Text = "Não foi possível reproduzir a voz da LIA";
-        }
+            catch { }
+            synth.Speak(text);
+        });
+        TtsLog("TTS_PLAY_END", sw, "engine=local");
+    }
 
-        if (_voiceMode)
+    private async Task SpeakAndContinueAsync(string text)
+    {
+        var sw = Stopwatch.StartNew();
+        await TtsGate.WaitAsync();
+        try
         {
-            await Task.Delay(300);
-            _processingVoice = false;
-            StartRecognition();
+            _status.Text = "LIA está falando...";
+            _voiceButton.Text = "🔊 FALANDO";
+            var cache = CachePath(text);
+            if (File.Exists(cache))
+            {
+                TtsLog("TTS_CACHE_HIT", sw);
+                await PlayWavAsync(cache, sw);
+                return;
+            }
+
+            var key = Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY");
+            var region = Environment.GetEnvironmentVariable("AZURE_SPEECH_REGION");
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(region))
+            {
+                await SpeakLocalAsync(text, sw, "AZURE_ENV_MISSING");
+                return;
+            }
+
+            TtsLog("TTS_AZURE_REQUEST", sw);
+            try
+            {
+                var config = SpeechConfig.FromSubscription(key, region);
+                config.SpeechSynthesisVoiceName = AzureVoice;
+                using var synthesizer = new SpeechSynthesizer(config, null);
+                var azureTask = synthesizer.SpeakTextAsync(text);
+                var completed = await Task.WhenAny(azureTask, Task.Delay(TimeSpan.FromSeconds(3)));
+                if (completed != azureTask)
+                {
+                    TtsLog("TTS_CANCELLED", sw, "reason=AZURE_TIMEOUT_3S");
+                    await SpeakLocalAsync(text, sw, "AZURE_TIMEOUT_3S");
+                    return;
+                }
+
+                var result = await azureTask;
+                if (result.Reason != ResultReason.SynthesizingAudioCompleted || result.AudioData == null || result.AudioData.Length == 0)
+                {
+                    var reason = result.Reason.ToString();
+                    if (result.Reason == ResultReason.Canceled)
+                    {
+                        var details = SpeechSynthesisCancellationDetails.FromResult(result);
+                        reason = $"{details.Reason}:{details.ErrorCode}:{details.ErrorDetails}";
+                    }
+                    await SpeakLocalAsync(text, sw, reason);
+                    return;
+                }
+
+                await File.WriteAllBytesAsync(cache, result.AudioData);
+                TtsLog("TTS_AZURE_READY", sw);
+                await PlayWavAsync(cache, sw);
+            }
+            catch (Exception ex)
+            {
+                await SpeakLocalAsync(text, sw, ex.GetType().Name + ":" + ex.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            TtsLog("TTS_FALLBACK_LOCAL", sw, "reason=PIPELINE:" + ex.GetType().Name);
+            try { await SpeakLocalAsync(text, sw, "PIPELINE:" + ex.Message); } catch { TtsLog("TTS_CANCELLED", sw, "reason=LOCAL_TTS_FAILED"); }
+        }
+        finally
+        {
+            TtsGate.Release();
+            if (_voiceMode)
+            {
+                await Task.Delay(300);
+                _processingVoice = false;
+                StartRecognition();
+            }
         }
     }
 
