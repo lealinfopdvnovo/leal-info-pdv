@@ -28,6 +28,12 @@ public sealed class MainForm : Form
     private static readonly HttpClient GeminiHttp = new() { Timeout = TimeSpan.FromSeconds(30) };
     private const string GeminiModel = "gemini-3.5-flash-lite";
     private SpeechRecognitionEngine? _offlineRecognizer;
+    private static readonly object LiaLogLock = new();
+    private static string LiaLogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV", "Logs", "lia-diagnostico.log");
+    private static void LiaLog(string stage, string detail = "")
+    {
+        try { lock (LiaLogLock) { Directory.CreateDirectory(Path.GetDirectoryName(LiaLogPath)!); File.AppendAllText(LiaLogPath, $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} | {stage} | {detail}{Environment.NewLine}"); } } catch { }
+    }
 
     public MainForm(ConversationEngine engine, LocalSecretStore secrets, bool voiceOnly = false)
     {
@@ -161,6 +167,7 @@ public sealed class MainForm : Form
 
     private async Task SwitchToGeminiVoiceAsync()
     {
+        LiaLog("GEMINI_FALLBACK_START");
         try
         {
             if (_realtime != null)
@@ -182,6 +189,7 @@ public sealed class MainForm : Form
     {
         if (_offlineRecognizer != null) return;
         var culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
+        LiaLog("LOCAL_RECOGNIZER_CREATE", culture.Name);
         var recognizer = new SpeechRecognitionEngine(culture);
         var choices = new Choices(
             "LIA", "oi LIA", "bom dia", "boa tarde", "boa noite",
@@ -191,9 +199,15 @@ public sealed class MainForm : Form
             "abrir tela de vendas", "abrir PDV", "abrir relatórios", "abrir usuários",
             "abrir configurações", "abrir cadastros", "fechar tela", "fechar janela");
         recognizer.LoadGrammar(new Grammar(new GrammarBuilder(choices) { Culture = culture }));
+        recognizer.SpeechDetected += (_, e) => LiaLog("SPEECH_DETECTED", $"position={e.AudioPosition}");
+        recognizer.SpeechHypothesized += (_, e) => LiaLog("SPEECH_HYPOTHESIS", $"{e.Result.Text} | confidence={e.Result.Confidence:0.000}");
+        recognizer.SpeechRecognitionRejected += (_, e) => LiaLog("SPEECH_REJECTED", $"{e.Result?.Text} | confidence={e.Result?.Confidence:0.000}");
+        recognizer.RecognizeCompleted += (_, e) => LiaLog("RECOGNIZER_COMPLETED", $"cancelled={e.Cancelled}; error={e.Error?.Message}");
         recognizer.SpeechRecognized += OfflineSpeechRecognized;
         recognizer.SetInputToDefaultAudioDevice();
+        LiaLog("MIC_INPUT_READY", recognizer.AudioFormat == null ? "format=n/a" : recognizer.AudioFormat.ToString());
         recognizer.RecognizeAsync(RecognizeMode.Multiple);
+        LiaLog("RECOGNIZER_STARTED", "mode=Multiple");
         _offlineRecognizer = recognizer;
         _status.Text = "LIA GEMINI • ouvindo localmente";
         _voiceButton.Text = "OUVINDO";
@@ -215,15 +229,21 @@ public sealed class MainForm : Form
 
     private async void OfflineSpeechRecognized(object? sender, SpeechRecognizedEventArgs e)
     {
-        if (e.Result == null || e.Result.Confidence < 0.45) return;
+        if (e.Result == null) { LiaLog("RECOGNIZED_NULL"); return; }
+        LiaLog("SPEECH_RECOGNIZED", $"{e.Result.Text} | confidence={e.Result.Confidence:0.000}");
+        if (e.Result.Confidence < 0.45) { LiaLog("CONFIDENCE_BLOCK", e.Result.Confidence.ToString("0.000")); return; }
         var spoken = e.Result.Text.Trim();
         Ui(() => _status.Text = "LIA GEMINI • entendendo...");
         try
         {
+            LiaLog("GEMINI_SEND", spoken);
             var answer = await SendGeminiAsync(spoken, _lifetime.Token);
+            LiaLog("GEMINI_RESPONSE", answer);
             if (TryExtractNavigationCommand(answer, out var command))
             {
+                LiaLog("PDV_COMMAND_SEND", command);
                 var result = await SendNavigationCommandAsync(command, _lifetime.Token);
+                LiaLog("PDV_COMMAND_RESULT", result);
                 Ui(() => { Append("LIA", result); _status.Text = "LIA GEMINI • ouvindo localmente"; });
             }
             else
@@ -233,6 +253,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
+            LiaLog("VOICE_PIPELINE_ERROR", ex.ToString());
             Ui(() => { Append("LIA", "Não consegui processar sua fala agora: " + ex.Message); _status.Text = "LIA GEMINI • ouvindo localmente"; });
         }
     }
