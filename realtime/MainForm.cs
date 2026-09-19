@@ -5,7 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using System.Speech.Recognition;
+using NAudio.Wave;
 
 namespace LicAi;
 
@@ -27,7 +27,10 @@ public sealed class MainForm : Form
     private bool _offlineMode;
     private static readonly HttpClient GeminiHttp = new() { Timeout = TimeSpan.FromSeconds(30) };
     private const string GeminiModel = "gemini-3.5-flash-lite";
-    private SpeechRecognitionEngine? _offlineRecognizer;
+    private WaveInEvent? _geminiMic;
+    private MemoryStream? _geminiAudio;
+    private WaveFileWriter? _geminiWriter;
+    private DateTime _geminiVoiceStarted;
     private static readonly object LiaLogLock = new();
     private static string LiaLogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV", "Logs", "lia-diagnostico.log");
     private static void LiaLog(string stage, string detail = "")
@@ -148,7 +151,7 @@ public sealed class MainForm : Form
         {
             if (_offlineMode)
             {
-                if (_offlineRecognizer != null) { StopOfflineVoice(); await SendStatusAsync("IDLE"); }
+                if (_geminiMic != null) { StopOfflineVoice(); }
                 else StartOfflineVoice();
                 return;
             }
@@ -187,75 +190,122 @@ public sealed class MainForm : Form
 
     private void StartOfflineVoice()
     {
-        if (_offlineRecognizer != null) return;
-        var culture = System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
-        LiaLog("LOCAL_RECOGNIZER_CREATE", culture.Name);
-        var recognizer = new SpeechRecognitionEngine(culture);
-        var choices = new Choices(
-            "LIA", "oi LIA", "bom dia", "boa tarde", "boa noite",
-            "abrir produtos", "abrir cadastro de produtos", "abrir clientes", "abrir fornecedores",
-            "abrir serviços", "abrir ordens de serviço", "abrir orçamentos", "abrir financeiro",
-            "abrir fluxo de caixa", "abrir histórico de vendas", "abrir minhas vendas",
-            "abrir tela de vendas", "abrir PDV", "abrir relatórios", "abrir usuários",
-            "abrir configurações", "abrir cadastros", "fechar tela", "fechar janela");
-        recognizer.LoadGrammar(new Grammar(new GrammarBuilder(choices) { Culture = culture }));
-        recognizer.SpeechDetected += (_, e) => LiaLog("SPEECH_DETECTED", $"position={e.AudioPosition}");
-        recognizer.SpeechHypothesized += (_, e) => LiaLog("SPEECH_HYPOTHESIS", $"{e.Result.Text} | confidence={e.Result.Confidence:0.000}");
-        recognizer.SpeechRecognitionRejected += (_, e) => LiaLog("SPEECH_REJECTED", $"{e.Result?.Text} | confidence={e.Result?.Confidence:0.000}");
-        recognizer.RecognizeCompleted += (_, e) => LiaLog("RECOGNIZER_COMPLETED", $"cancelled={e.Cancelled}; error={e.Error?.Message}");
-        recognizer.SpeechRecognized += OfflineSpeechRecognized;
-        recognizer.SetInputToDefaultAudioDevice();
-        LiaLog("MIC_INPUT_READY", recognizer.AudioFormat == null ? "format=n/a" : recognizer.AudioFormat.ToString());
-        recognizer.RecognizeAsync(RecognizeMode.Multiple);
-        LiaLog("RECOGNIZER_STARTED", "mode=Multiple");
-        _offlineRecognizer = recognizer;
-        _status.Text = "LIA GEMINI • ouvindo localmente";
+        if (_geminiMic != null) return;
+        LiaLog("GEMINI_AUDIO_CAPTURE_START");
+        _geminiAudio = new MemoryStream();
+        _geminiWriter = new WaveFileWriter(new IgnoreDisposeStream(_geminiAudio), new WaveFormat(16000, 16, 1));
+        var mic = new WaveInEvent { DeviceNumber = 0, WaveFormat = new WaveFormat(16000, 16, 1), BufferMilliseconds = 100 };
+        mic.DataAvailable += GeminiMicDataAvailable;
+        mic.RecordingStopped += GeminiMicStopped;
+        _geminiMic = mic;
+        _geminiVoiceStarted = DateTime.UtcNow;
+        mic.StartRecording();
+        LiaLog("MIC_INPUT_READY", "NAudio 16000Hz 16-bit mono device=0");
+        _status.Text = "LIA GEMINI • ouvindo";
         _voiceButton.Text = "OUVINDO";
         _voiceButton.BackColor = Color.FromArgb(0, 125, 210);
         _ = SendStatusAsync("LISTENING");
     }
 
-    private void StopOfflineVoice()
+    private void GeminiMicDataAvailable(object? sender, WaveInEventArgs e)
     {
-        var recognizer = Interlocked.Exchange(ref _offlineRecognizer, null);
-        if (recognizer == null) return;
-        recognizer.SpeechRecognized -= OfflineSpeechRecognized;
-        try { recognizer.RecognizeAsyncCancel(); } catch { }
-        try { recognizer.RecognizeAsyncStop(); } catch { }
-        recognizer.Dispose();
-        _voiceButton.Text = "🎙 FALAR";
-        _status.Text = "LIA GEMINI • modo básico";
-    }
-
-    private async void OfflineSpeechRecognized(object? sender, SpeechRecognizedEventArgs e)
-    {
-        if (e.Result == null) { LiaLog("RECOGNIZED_NULL"); return; }
-        LiaLog("SPEECH_RECOGNIZED", $"{e.Result.Text} | confidence={e.Result.Confidence:0.000}");
-        if (e.Result.Confidence < 0.45) { LiaLog("CONFIDENCE_BLOCK", e.Result.Confidence.ToString("0.000")); return; }
-        var spoken = e.Result.Text.Trim();
-        Ui(() => _status.Text = "LIA GEMINI • entendendo...");
         try
         {
-            LiaLog("GEMINI_SEND", spoken);
-            var answer = await SendGeminiAsync(spoken, _lifetime.Token);
-            LiaLog("GEMINI_RESPONSE", answer);
+            _geminiWriter?.Write(e.Buffer, 0, e.BytesRecorded);
+            _geminiWriter?.Flush();
+            if ((DateTime.UtcNow - _geminiVoiceStarted).TotalSeconds >= 12)
+                Ui(StopOfflineVoice);
+        }
+        catch (Exception ex) { LiaLog("AUDIO_CAPTURE_ERROR", ex.Message); }
+    }
+
+    private void StopOfflineVoice()
+    {
+        var mic = Interlocked.Exchange(ref _geminiMic, null);
+        if (mic == null) return;
+        try { mic.StopRecording(); } catch (Exception ex) { LiaLog("MIC_STOP_ERROR", ex.Message); }
+        _voiceButton.Text = "🎙 FALAR";
+        _status.Text = "LIA GEMINI • processando...";
+        _ = SendStatusAsync("THINKING");
+    }
+
+    private async void GeminiMicStopped(object? sender, StoppedEventArgs e)
+    {
+        try
+        {
+            var mic = sender as WaveInEvent;
+            if (mic != null)
+            {
+                mic.DataAvailable -= GeminiMicDataAvailable;
+                mic.RecordingStopped -= GeminiMicStopped;
+                mic.Dispose();
+            }
+            _geminiWriter?.Dispose();
+            _geminiWriter = null;
+            var wav = _geminiAudio?.ToArray() ?? Array.Empty<byte>();
+            _geminiAudio?.Dispose();
+            _geminiAudio = null;
+            LiaLog("AUDIO_CAPTURED", $"bytes={wav.Length}; error={e.Exception?.Message}");
+            if (e.Exception != null) throw e.Exception;
+            if (wav.Length < 2000) throw new InvalidOperationException("Nenhum áudio útil foi capturado.");
+
+            LiaLog("GEMINI_AUDIO_SEND", $"bytes={wav.Length}");
+            var answer = await SendGeminiAudioAsync(wav, _lifetime.Token);
+            LiaLog("GEMINI_AUDIO_RESPONSE", answer);
             if (TryExtractNavigationCommand(answer, out var command))
             {
                 LiaLog("PDV_COMMAND_SEND", command);
                 var result = await SendNavigationCommandAsync(command, _lifetime.Token);
                 LiaLog("PDV_COMMAND_RESULT", result);
-                Ui(() => { Append("LIA", result); _status.Text = "LIA GEMINI • ouvindo localmente"; });
+                Ui(() => Append("LIA", result));
             }
-            else
-            {
-                Ui(() => { Append("LIA", answer); _status.Text = "LIA GEMINI • ouvindo localmente"; });
-            }
+            else Ui(() => Append("LIA", answer));
+            Ui(() => { _status.Text = "LIA GEMINI • modo básico"; _voiceButton.Text = "🎙 FALAR"; });
+            await SendStatusAsync("IDLE");
         }
         catch (Exception ex)
         {
             LiaLog("VOICE_PIPELINE_ERROR", ex.ToString());
-            Ui(() => { Append("LIA", "Não consegui processar sua fala agora: " + ex.Message); _status.Text = "LIA GEMINI • ouvindo localmente"; });
+            Ui(() => { _status.Text = "LIA GEMINI • erro"; _voiceButton.Text = "🎙 FALAR"; });
+            await SendStatusAsync("ERROR");
         }
+    }
+
+    private async Task<string> SendGeminiAudioAsync(byte[] wav, CancellationToken cancellationToken)
+    {
+        var key = EnsureGeminiApiKey();
+        var endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiModel}:generateContent";
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        request.Headers.Add("x-goog-api-key", key);
+        request.Content = JsonContent.Create(new
+        {
+            system_instruction = new { parts = new[] { new { text = GeminiSystemPrompt } } },
+            contents = new[]
+            {
+                new
+                {
+                    role = "user",
+                    parts = new object[]
+                    {
+                        new { text = "Ouça este áudio em português do Brasil. Entenda o pedido falado e responda seguindo rigorosamente as instruções do sistema. Se for comando de navegação, devolva somente COMANDO: NOME." },
+                        new { inline_data = new { mime_type = "audio/wav", data = Convert.ToBase64String(wav) } }
+                    }
+                }
+            }
+        });
+        using var response = await GeminiHttp.SendAsync(request, cancellationToken);
+        var json = await response.Content.ReadAsStringAsync(cancellationToken);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Gemini {(int)response.StatusCode}: {ExtractGeminiError(json)}");
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
+        {
+            var parts = candidates[0].GetProperty("content").GetProperty("parts");
+            var texts = parts.EnumerateArray().Where(p => p.TryGetProperty("text", out _)).Select(p => p.GetProperty("text").GetString()).Where(x => !string.IsNullOrWhiteSpace(x));
+            var answer = string.Join("\n", texts!);
+            if (!string.IsNullOrWhiteSpace(answer)) return answer.Trim();
+        }
+        throw new InvalidOperationException("O Gemini não retornou resposta para o áudio.");
     }
 
     private async Task SendTextAsync()
