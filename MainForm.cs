@@ -5050,6 +5050,42 @@ private void ApplyFloatingTheme(Form f)
             AddCurrent();
         }
 
+        void OpenLooseSaleF10()
+        {
+            using var vf = new Form
+            {
+                Text = "Venda Avulsa - F10",
+                StartPosition = FormStartPosition.CenterParent,
+                Width = 560,
+                Height = 350,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(224, 239, 248),
+                Font = new Font("Segoe UI", 10),
+                KeyPreview = true
+            };
+
+            var title = new Label { Text = "VENDA AVULSA", Dock = DockStyle.Top, Height = 62, BackColor = DarkBlue, ForeColor = Color.White, Font = new Font("Segoe UI", 18, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter };
+            var description = new TextBox { Left = 34, Top = 105, Width = 475, Height = 36, Font = new Font("Segoe UI", 13), PlaceholderText = "Descrição do serviço" };
+            var value = new NumericUpDown { Left = 34, Top = 185, Width = 475, Height = 40, DecimalPlaces = 2, Minimum = 0.01M, Maximum = 999999.99M, ThousandsSeparator = true, Font = new Font("Segoe UI", 16, FontStyle.Bold), TextAlign = HorizontalAlignment.Right };
+            var addLoose = new Button { Text = "ADICIONAR À VENDA", Left = 274, Top = 248, Width = 235, Height = 48, BackColor = Color.FromArgb(0, 163, 224), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 11, FontStyle.Bold), DialogResult = DialogResult.OK };
+            var cancelLoose = new Button { Text = "CANCELAR", Left = 34, Top = 248, Width = 220, Height = 48, BackColor = Color.FromArgb(55, 88, 115), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 11, FontStyle.Bold), DialogResult = DialogResult.Cancel };
+            vf.Controls.AddRange(new Control[] { title, new Label { Text = "DESCRIÇÃO DO SERVIÇO", Left = 34, Top = 82, Width = 300, ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, description, new Label { Text = "VALOR", Left = 34, Top = 162, Width = 150, ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, value, cancelLoose, addLoose });
+            vf.AcceptButton = addLoose; vf.CancelButton = cancelLoose; ApplyFloatingTheme(vf);
+            vf.Shown += (_, _) => description.Focus();
+
+            if (vf.ShowDialog(f) != DialogResult.OK) return;
+            var desc = description.Text.Trim();
+            if (string.IsNullOrWhiteSpace(desc)) { Info("Informe a descrição do serviço."); return; }
+            if (value.Value <= 0) { Info("Informe o valor da venda avulsa."); return; }
+
+            cartItems.Add(new CartItem { ProductId = 0, Code = "AVULSO", Description = desc, Qty = 1, UnitPrice = (double)value.Value });
+            RefreshCart();
+            statusBox.Text = $"{desc}\nVENDA AVULSA ADICIONADA";
+            search.Focus();
+        }
+
         searchLabel.Click += (_, _) => OpenCatalogF5();
 
         void RefreshCart()
@@ -5407,6 +5443,7 @@ private void ApplyFloatingTheme(Form f)
             {
                 foreach (var item in cartItems)
                 {
+                    if (item.ProductId <= 0) continue;
                     using var chk = cn.CreateCommand();
                     chk.Transaction = tx;
                     chk.CommandText = "SELECT stock FROM products WHERE id=$id";
@@ -5509,6 +5546,13 @@ private void ApplyFloatingTheme(Form f)
                 e.Handled = true;
                 e.SuppressKeyPress = true;
                 FinalizeSale();
+                return;
+            }
+            if (e.KeyCode == Keys.F10)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                OpenLooseSaleF10();
                 return;
             }
             if (e.KeyCode == Keys.F5)
