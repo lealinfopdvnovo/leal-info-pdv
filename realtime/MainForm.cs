@@ -272,8 +272,13 @@ public sealed class MainForm : Form
                 var result = await SendNavigationCommandAsync(command, _lifetime.Token);
                 LiaLog("PDV_COMMAND_RESULT", result);
                 Ui(() => Append("LIA", result));
+                _ = SpeakGeminiAsync(result, _lifetime.Token);
             }
-            else Ui(() => Append("LIA", answer));
+            else
+            {
+                Ui(() => Append("LIA", answer));
+                _ = SpeakGeminiAsync(answer, _lifetime.Token);
+            }
             Ui(() => { _status.Text = "LIA GEMINI • modo básico"; _voiceButton.Text = "🎙 FALAR"; });
             await SendStatusAsync("IDLE");
         }
@@ -320,6 +325,50 @@ public sealed class MainForm : Form
             if (!string.IsNullOrWhiteSpace(answer)) return answer.Trim();
         }
         throw new InvalidOperationException("O Gemini não retornou resposta para o áudio.");
+    }
+
+    private async Task SpeakGeminiAsync(string text, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        try
+        {
+            LiaLog("TTS_REQUEST", $"chars={text.Length}");
+            var key = EnsureGeminiApiKey();
+            var endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent";
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            request.Headers.Add("x-goog-api-key", key);
+            request.Content = JsonContent.Create(new
+            {
+                contents = new[] { new { parts = new[] { new { text = "Fale em português do Brasil, com voz natural, ritmo normal e tom acolhedor: " + text } } } },
+                generationConfig = new
+                {
+                    responseModalities = new[] { "AUDIO" },
+                    speechConfig = new
+                    {
+                        voiceConfig = new { prebuiltVoiceConfig = new { voiceName = "Kore" } },
+                        languageCode = "pt-BR"
+                    }
+                }
+            });
+            using var response = await GeminiHttp.SendAsync(request, cancellationToken);
+            var json = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (!response.IsSuccessStatusCode) throw new InvalidOperationException($"Gemini TTS {(int)response.StatusCode}: {ExtractGeminiError(json)}");
+            using var doc = JsonDocument.Parse(json);
+            var data = doc.RootElement.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("inlineData").GetProperty("data").GetString();
+            if (string.IsNullOrWhiteSpace(data)) throw new InvalidOperationException("Gemini TTS não retornou áudio.");
+            var pcm = Convert.FromBase64String(data);
+            LiaLog("TTS_AUDIO_READY", $"bytes={pcm.Length}");
+            var provider = new BufferedWaveProvider(new WaveFormat(24000, 16, 1)) { DiscardOnBufferOverflow = false, BufferDuration = TimeSpan.FromSeconds(120) };
+            provider.AddSamples(pcm, 0, pcm.Length);
+            using var output = new WaveOutEvent();
+            output.Init(provider);
+            LiaLog("TTS_PLAY_START");
+            output.Play();
+            while (output.PlaybackState == PlaybackState.Playing && !cancellationToken.IsCancellationRequested)
+                await Task.Delay(50, cancellationToken);
+            LiaLog("TTS_PLAY_END");
+        }
+        catch (Exception ex) { LiaLog("TTS_ERROR", ex.ToString()); }
     }
 
     private async Task SendTextAsync()
