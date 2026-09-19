@@ -193,7 +193,7 @@ public sealed class MainForm : Form
         if (_geminiMic != null) return;
         LiaLog("GEMINI_AUDIO_CAPTURE_START");
         _geminiAudio = new MemoryStream();
-        _geminiWriter = new WaveFileWriter(new IgnoreDisposeStream(_geminiAudio), new WaveFormat(16000, 16, 1));
+        _geminiWriter = new WaveFileWriter(_geminiAudio, new WaveFormat(16000, 16, 1));
         var mic = new WaveInEvent { DeviceNumber = 0, WaveFormat = new WaveFormat(16000, 16, 1), BufferMilliseconds = 100 };
         mic.DataAvailable += GeminiMicDataAvailable;
         mic.RecordingStopped += GeminiMicStopped;
