@@ -128,3 +128,5 @@ jobs:
           $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
           gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.287" -f content="$encoded" -f sha="$sha"
+
+# V10.287 trigger after version sync
