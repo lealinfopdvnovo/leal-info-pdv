@@ -63,6 +63,7 @@ public sealed class MainForm : Form
                 ShowInitialSecuritySetup();
 
             OpenFirstAccessTutorial(true);
+            ShowPostLoginWelcome();
             _ = UpdateManager.CheckForUpdatesAsync(this, true);
         };
 
@@ -71,6 +72,90 @@ public sealed class MainForm : Form
             navigationListenerCts.Cancel();
             navigationListenerCts.Dispose();
         };
+    }
+
+    private void ShowPostLoginWelcome()
+    {
+        try
+        {
+            var bubble = new Panel
+            {
+                Width = 720,
+                Height = 210,
+                BackColor = Color.FromArgb(10, 35, 62)
+            };
+            bubble.Left = Math.Max(20, (ClientSize.Width - bubble.Width) / 2);
+            bubble.Top = Math.Max(90, (ClientSize.Height - bubble.Height) / 2 - 30);
+            bubble.Anchor = AnchorStyles.None;
+
+            bubble.Paint += (_, e) =>
+            {
+                e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                var rect = new Rectangle(2, 2, bubble.Width - 5, bubble.Height - 5);
+                using var path = new System.Drawing.Drawing2D.GraphicsPath();
+                const int radius = 30;
+                path.AddArc(rect.Left, rect.Top, radius, radius, 180, 90);
+                path.AddArc(rect.Right-radius, rect.Top, radius, radius, 270, 90);
+                path.AddArc(rect.Right-radius, rect.Bottom-radius, radius, radius, 0, 90);
+                path.AddArc(rect.Left, rect.Bottom-radius, radius, radius, 90, 90);
+                path.CloseFigure();
+                using var glow = new Pen(Color.FromArgb(190, 80, 220, 255), 3.5f);
+                e.Graphics.DrawPath(glow, path);
+            };
+
+            var title = new Label
+            {
+                Text = "BEM-VINDO AO FUTURO DO SEU NEGÓCIO",
+                Dock = DockStyle.Top,
+                Height = 78,
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 20, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            var message = new Label
+            {
+                Text = "TECNOLOGIA E INTELIGÊNCIA TRABALHANDO COM VOCÊ.",
+                Dock = DockStyle.Top,
+                Height = 52,
+                ForeColor = Color.FromArgb(115, 220, 255),
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 12.5f, FontStyle.Bold),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            var brand = new Label
+            {
+                Text = "LEAL INFO PDV PRO  •  Inteligência que simplifica. Tecnologia que conecta.",
+                Dock = DockStyle.Fill,
+                ForeColor = Color.White,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI", 10.5f),
+                TextAlign = ContentAlignment.MiddleCenter
+            };
+            bubble.Controls.Add(brand);
+            bubble.Controls.Add(message);
+            bubble.Controls.Add(title);
+            Controls.Add(bubble);
+            bubble.BringToFront();
+
+            var timer = new System.Windows.Forms.Timer { Interval = 5000 };
+            timer.Tick += (_, _) =>
+            {
+                timer.Stop();
+                timer.Dispose();
+                if (!bubble.IsDisposed)
+                {
+                    Controls.Remove(bubble);
+                    bubble.Dispose();
+                }
+            };
+            bubble.Disposed += (_, _) => { if (timer.Enabled) timer.Stop(); timer.Dispose(); };
+            timer.Start();
+        }
+        catch
+        {
+            // O balão é puramente visual e nunca pode impedir a abertura do PDV.
+        }
     }
 
     private void StartNavigationListener()
