@@ -8,25 +8,21 @@ public sealed record PixCharge(string IdTransacao, string PayloadQrCode, string?
 
 public sealed class AsaasPixService
 {
-    private static readonly HttpClient Http = CreateHttpClient();
+    private readonly HttpClient http;
     private readonly string apiKey;
 
-    public AsaasPixService(string? apiKey = null)
+    public AsaasPixService(string? apiKey = null, bool? sandbox = null)
     {
         this.apiKey = apiKey ?? Environment.GetEnvironmentVariable("LEAL_ASAAS_API_KEY")
-            ?? throw new InvalidOperationException("Configure LEAL_ASAAS_API_KEY no Windows antes de habilitar o PIX.");
-    }
-
-    private static HttpClient CreateHttpClient()
-    {
-        var sandbox = string.Equals(Environment.GetEnvironmentVariable("LEAL_ASAAS_SANDBOX"), "1", StringComparison.OrdinalIgnoreCase);
-        var client = new HttpClient
+            ?? throw new InvalidOperationException("Configure a credencial PIX/Asaas em Configurações > PIX.");
+        var useSandbox = sandbox ?? string.Equals(Environment.GetEnvironmentVariable("LEAL_ASAAS_SANDBOX"), "1", StringComparison.OrdinalIgnoreCase);
+        http = new HttpClient
         {
-            BaseAddress = new Uri(sandbox ? "https://api-sandbox.asaas.com/v3/" : "https://api.asaas.com/v3/"),
+            BaseAddress = new Uri(useSandbox ? "https://api-sandbox.asaas.com/v3/" : "https://api.asaas.com/v3/"),
             Timeout = TimeSpan.FromSeconds(20)
         };
-        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        return client;
+        http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV/10.298");
     }
 
     private HttpRequestMessage Request(HttpMethod method, string endpoint)
@@ -34,6 +30,15 @@ public sealed class AsaasPixService
         var request = new HttpRequestMessage(method, endpoint);
         request.Headers.TryAddWithoutValidation("access_token", apiKey);
         return request;
+    }
+
+    public async Task TestarConexaoAsync(CancellationToken ct = default)
+    {
+        using var request = Request(HttpMethod.Get, "myAccount/commercialInfo/");
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (response.IsSuccessStatusCode) return;
+        var body = await response.Content.ReadAsStringAsync(ct);
+        throw new HttpRequestException($"Falha ao validar credencial PIX ({(int)response.StatusCode}): {body}");
     }
 
     public async Task<PixCharge> GerarCobrancaPixAsync(decimal valorVenda, string customerId, CancellationToken ct = default)
@@ -52,7 +57,7 @@ public sealed class AsaasPixService
 
         using var post = Request(HttpMethod.Post, "payments");
         post.Content = new StringContent(body, Encoding.UTF8, "application/json");
-        using var response = await Http.SendAsync(post, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var response = await http.SendAsync(post, HttpCompletionOption.ResponseHeadersRead, ct);
         var json = await response.Content.ReadAsStringAsync(ct);
         if (!response.IsSuccessStatusCode) throw new HttpRequestException($"Falha ao criar PIX ({(int)response.StatusCode}): {json}");
 
@@ -61,7 +66,7 @@ public sealed class AsaasPixService
             ?? throw new InvalidOperationException("Asaas não retornou o ID da cobrança.");
 
         using var getQr = Request(HttpMethod.Get, $"payments/{Uri.EscapeDataString(id)}/pixQrCode");
-        using var qrResponse = await Http.SendAsync(getQr, HttpCompletionOption.ResponseHeadersRead, ct);
+        using var qrResponse = await http.SendAsync(getQr, HttpCompletionOption.ResponseHeadersRead, ct);
         var qrJson = await qrResponse.Content.ReadAsStringAsync(ct);
         if (!qrResponse.IsSuccessStatusCode) throw new HttpRequestException($"Falha ao obter QR PIX ({(int)qrResponse.StatusCode}): {qrJson}");
 
@@ -81,7 +86,7 @@ public sealed class AsaasPixService
         {
             ct.ThrowIfCancellationRequested();
             using var request = Request(HttpMethod.Get, $"payments/{Uri.EscapeDataString(idTransacao)}");
-            using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
             var json = await response.Content.ReadAsStringAsync(ct);
             if (response.IsSuccessStatusCode)
             {
