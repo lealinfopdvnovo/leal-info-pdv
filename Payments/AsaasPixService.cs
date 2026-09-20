@@ -87,7 +87,8 @@ public sealed class AsaasPixService
             {
                 using var doc = JsonDocument.Parse(json);
                 var status = doc.RootElement.TryGetProperty("status", out var s) ? s.GetString()?.ToUpperInvariant() : null;
-                if (status is "RECEIVED" or "CONFIRMED" or "PAID" or "APPROVED") return true;
+                if (status is "RECEIVED") return true;
+                // CONFIRMED pode ser temporário no Asaas; só liquidamos a venda em RECEIVED.
                 if (status is "REFUNDED" or "DELETED" or "CANCELED") return false;
             }
             await Task.Delay(TimeSpan.FromSeconds(3), ct);
