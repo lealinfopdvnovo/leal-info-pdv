@@ -3796,9 +3796,28 @@ private void ApplyFloatingTheme(Form f)
 
         pixConfirm.Click += (_, _) =>
         {
-            result.Add(new PaymentPart { Method = "PIX", Amount = total });
-            f.DialogResult = DialogResult.OK;
-            f.Close();
+            var customerId = Environment.GetEnvironmentVariable("LEAL_ASAAS_CUSTOMER_ID");
+            if (string.IsNullOrWhiteSpace(customerId))
+            {
+                Info("PIX conectado ainda não está configurado. Configure LEAL_ASAAS_CUSTOMER_ID no Windows.");
+                return;
+            }
+
+            try
+            {
+                using var pix = new PixPaymentForm((decimal)total, customerId);
+                if (pix.ShowDialog(f) != DialogResult.OK)
+                    return;
+
+                result.Add(new PaymentPart { Method = "PIX", Amount = total });
+                f.DialogResult = DialogResult.OK;
+                f.Close();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(f, "Não foi possível iniciar o PIX conectado:\n\n" + ex.Message,
+                    "PIX - LEAL INFO PDV", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         };
 
         cardConfirm.Click += (_, _) =>
@@ -3834,6 +3853,35 @@ private void ApplyFloatingTheme(Form f)
             {
                 Info($"A soma precisa fechar o total da venda.\n\nTotal: {Money(total)}\nInformado: {Money(sum)}");
                 return;
+            }
+
+            var pixPart = result.FirstOrDefault(x => x.Method == "PIX");
+            if (pixPart != null && pixPart.Amount > 0.004)
+            {
+                var customerId = Environment.GetEnvironmentVariable("LEAL_ASAAS_CUSTOMER_ID");
+                if (string.IsNullOrWhiteSpace(customerId))
+                {
+                    Info("PIX conectado ainda não está configurado. Configure LEAL_ASAAS_CUSTOMER_ID no Windows.");
+                    result.Clear();
+                    return;
+                }
+
+                try
+                {
+                    using var pix = new PixPaymentForm((decimal)pixPart.Amount, customerId);
+                    if (pix.ShowDialog(f) != DialogResult.OK)
+                    {
+                        result.Clear();
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    result.Clear();
+                    MessageBox.Show(f, "Não foi possível iniciar o PIX conectado:\n\n" + ex.Message,
+                        "PIX - LEAL INFO PDV", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
             }
 
             f.DialogResult = DialogResult.OK;
