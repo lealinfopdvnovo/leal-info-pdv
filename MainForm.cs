@@ -2672,79 +2672,31 @@ private void ApplyFloatingTheme(Form f)
             Info("Dados da empresa salvos com sucesso.");
         };
 
-        // PIX CONECTADO
-        var pixPanel = new TableLayoutPanel { Dock=DockStyle.Fill, ColumnCount=2, RowCount=8, Padding=new Padding(18) };
-        pixPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,240));
-        pixPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        for(int i=0;i<7;i++) pixPanel.RowStyles.Add(new RowStyle(SizeType.Percent,12.5f));
-        pixPanel.RowStyles.Add(new RowStyle(SizeType.Percent,12.5f));
-        pixTab.Controls.Add(pixPanel);
-
-        var pixKey = SettingBox(GetSetting("pix_key"));
-        var asaasCustomer = SettingBox(GetSetting("pix_asaas_customer_id"));
-        var savedApiKey = PixSecureSettings.Unprotect(GetSetting("pix_asaas_api_key"));
-        var asaasApiKey = SettingBox(savedApiKey);
-        asaasApiKey.UseSystemPasswordChar = true;
-        var showApiKey = new CheckBox { Text="Mostrar credencial", AutoSize=true, ForeColor=DarkBlue, Font=new Font("Segoe UI",9,FontStyle.Bold), Anchor=AnchorStyles.Left };
-        showApiKey.CheckedChanged += (_,_) => asaasApiKey.UseSystemPasswordChar = !showApiKey.Checked;
-        var sandboxPix = new CheckBox { Text="AMBIENTE DE TESTE (SANDBOX)", Checked=GetSetting("pix_asaas_sandbox")=="1", AutoSize=true, ForeColor=DarkBlue, Font=new Font("Segoe UI",9.5f,FontStyle.Bold), Anchor=AnchorStyles.Left };
-
-        var pixStatus = new Panel { Dock=DockStyle.Fill, Margin=new Padding(4,8,4,8), BackColor=Color.FromArgb(160,80,80) };
-        var pixStatusText = new Label { Text="PIX NÃO TESTADO", Dock=DockStyle.Fill, ForeColor=Color.White, Font=new Font("Segoe UI",11,FontStyle.Bold), TextAlign=ContentAlignment.MiddleCenter };
-        pixStatus.Controls.Add(pixStatusText);
-        void PixStatus(string text, Color color) { pixStatus.BackColor=color; pixStatusText.Text=text; }
-
-        pixPanel.Controls.Add(SettingLabel("Chave PIX cadastrada no Asaas"),0,0); pixPanel.Controls.Add(pixKey,1,0);
-        pixPanel.Controls.Add(SettingLabel("Customer ID Asaas"),0,1); pixPanel.Controls.Add(asaasCustomer,1,1);
-        pixPanel.Controls.Add(SettingLabel("API Key / access_token"),0,2); pixPanel.Controls.Add(asaasApiKey,1,2);
-        pixPanel.Controls.Add(SettingLabel("Exibição da credencial"),0,3); pixPanel.Controls.Add(showApiKey,1,3);
-        pixPanel.Controls.Add(SettingLabel("Ambiente"),0,4); pixPanel.Controls.Add(sandboxPix,1,4);
-        pixPanel.Controls.Add(SettingLabel("Status do recebimento"),0,5); pixPanel.Controls.Add(pixStatus,1,5);
-
-        var pixButtons = new FlowLayoutPanel { Dock=DockStyle.Fill, FlowDirection=FlowDirection.LeftToRight, WrapContents=false };
-        var savePix = new Button { Text="SALVAR CONFIGURAÇÃO PIX",Width=230,Height=46,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold) };
-        var testPix = new Button { Text="TESTAR CONEXÃO",Width=190,Height=46,BackColor=Color.FromArgb(230,145,20),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold) };
-        savePix.FlatAppearance.BorderSize=0; testPix.FlatAppearance.BorderSize=0;
-        pixButtons.Controls.Add(savePix); pixButtons.Controls.Add(testPix);
-        pixPanel.SetColumnSpan(pixButtons,2); pixPanel.Controls.Add(pixButtons,0,6);
-
-        var pixHelp = new Label { Text="A chave PIX identifica sua conta. O recebimento automático usa a API Key do Asaas e o Customer ID. A credencial é protegida no Windows e não é gravada aberta no código.",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",9.5f),TextAlign=ContentAlignment.MiddleCenter };
-        pixPanel.SetColumnSpan(pixHelp,2); pixPanel.Controls.Add(pixHelp,0,7);
-
-        savePix.Click += (_,_) =>
-        {
-            if(!Auth.IsAdmin) { Info("Somente ADMINISTRADOR pode alterar a configuração PIX."); return; }
-            if(string.IsNullOrWhiteSpace(asaasApiKey.Text) || string.IsNullOrWhiteSpace(asaasCustomer.Text))
-            { PixStatus("CONFIGURAÇÃO INCOMPLETA", Color.FromArgb(180,55,55)); Info("Informe a API Key e o Customer ID do Asaas."); return; }
-            SetSetting("pix_key",pixKey.Text.Trim());
-            SetSetting("pix_asaas_customer_id",asaasCustomer.Text.Trim());
-            SetSetting("pix_asaas_api_key",PixSecureSettings.Protect(asaasApiKey.Text));
-            SetSetting("pix_asaas_sandbox",sandboxPix.Checked ? "1" : "0");
-            PixStatus("SALVO • TESTE A CONEXÃO", Color.FromArgb(230,145,20));
-        };
-
-        testPix.Click += async (_,_) =>
-        {
-            if(!Auth.IsAdmin) { Info("Somente ADMINISTRADOR pode testar a configuração PIX."); return; }
-            if(string.IsNullOrWhiteSpace(asaasApiKey.Text)) { PixStatus("SEM CREDENCIAL",Color.FromArgb(180,55,55)); return; }
-            try
-            {
-                testPix.Enabled=false; PixStatus("VERIFICANDO CONEXÃO...",Color.FromArgb(230,145,20));
-                var svc = new AsaasPixService(asaasApiKey.Text.Trim(), sandboxPix.Checked);
-                await svc.TestarConexaoAsync();
-                SetSetting("pix_key",pixKey.Text.Trim());
-                SetSetting("pix_asaas_customer_id",asaasCustomer.Text.Trim());
-                SetSetting("pix_asaas_api_key",PixSecureSettings.Protect(asaasApiKey.Text));
-                SetSetting("pix_asaas_sandbox",sandboxPix.Checked ? "1" : "0");
-                PixStatus("PIX CONECTADO • PRONTO PARA RECEBER",Color.FromArgb(0,145,85));
-            }
-            catch(Exception ex)
-            {
-                PixStatus("PIX DESCONECTADO / ERRO",Color.FromArgb(180,55,55));
-                MessageBox.Show(f,"Falha no teste PIX:\n\n"+ex.Message,"PIX - LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Error);
-            }
-            finally { testPix.Enabled=true; }
-        };
+        // PIX: simples por chave (qualquer banco) + Mercado Pago automático opcional
+        var pixPanel=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=10,Padding=new Padding(18)};
+        pixPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,240));pixPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        for(int i=0;i<10;i++)pixPanel.RowStyles.Add(new RowStyle(SizeType.Percent,10));pixTab.Controls.Add(pixPanel);
+        var pixKey=SettingBox(GetSetting("pix_key"));
+        var pixType=new ComboBox{Dock=DockStyle.Fill,DropDownStyle=ComboBoxStyle.DropDownList,Font=new Font("Segoe UI",11,FontStyle.Bold),Margin=new Padding(4,8,4,8)};
+        pixType.Items.AddRange(new[]{"CPF","CNPJ","E-MAIL","TELEFONE","ALEATÓRIA"});var savedType=GetSetting("pix_key_type","ALEATÓRIA");pixType.SelectedItem=pixType.Items.Cast<object>().FirstOrDefault(x=>string.Equals(x.ToString(),savedType,StringComparison.OrdinalIgnoreCase))??"ALEATÓRIA";
+        var mpEnabled=new CheckBox{Text="ATIVAR PIX AUTOMÁTICO PELO MERCADO PAGO",Checked=GetSetting("pix_mp_enabled")=="1",AutoSize=true,ForeColor=DarkBlue,Font=new Font("Segoe UI",9.5f,FontStyle.Bold),Anchor=AnchorStyles.Left};
+        var mpToken=SettingBox(PixSecureSettings.Unprotect(GetSetting("pix_mp_access_token")));mpToken.UseSystemPasswordChar=true;
+        var mpShow=new CheckBox{Text="Mostrar Access Token",AutoSize=true,ForeColor=DarkBlue,Anchor=AnchorStyles.Left};mpShow.CheckedChanged+=(_,_)=>mpToken.UseSystemPasswordChar=!mpShow.Checked;
+        var statusPanel=new Panel{Dock=DockStyle.Fill,Margin=new Padding(4,8,4,8),BackColor=Color.FromArgb(230,145,20)};
+        var statusText=new Label{Text="PIX SIMPLES • AGUARDANDO SALVAR",Dock=DockStyle.Fill,ForeColor=Color.White,Font=new Font("Segoe UI",10.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter};statusPanel.Controls.Add(statusText);
+        void PixStatus(string t,Color col){statusPanel.BackColor=col;statusText.Text=t;}
+        pixPanel.Controls.Add(SettingLabel("Tipo da chave PIX"),0,0);pixPanel.Controls.Add(pixType,1,0);
+        pixPanel.Controls.Add(SettingLabel("Chave PIX (qualquer banco)"),0,1);pixPanel.Controls.Add(pixKey,1,1);
+        pixPanel.Controls.Add(SettingLabel("Modo automático opcional"),0,2);pixPanel.Controls.Add(mpEnabled,1,2);
+        pixPanel.Controls.Add(SettingLabel("Mercado Pago • Access Token"),0,3);pixPanel.Controls.Add(mpToken,1,3);
+        pixPanel.Controls.Add(SettingLabel("Exibição da credencial"),0,4);pixPanel.Controls.Add(mpShow,1,4);
+        pixPanel.Controls.Add(SettingLabel("Status"),0,5);pixPanel.Controls.Add(statusPanel,1,5);
+        var buttons=new FlowLayoutPanel{Dock=DockStyle.Fill,FlowDirection=FlowDirection.LeftToRight,WrapContents=false};
+        var savePix=new Button{Text="SALVAR PIX",Width=180,Height=44,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold)};
+        var testMp=new Button{Text="TESTAR MERCADO PAGO",Width=220,Height=44,BackColor=Color.FromArgb(0,145,85),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",9.5f,FontStyle.Bold)};savePix.FlatAppearance.BorderSize=0;testMp.FlatAppearance.BorderSize=0;buttons.Controls.Add(savePix);buttons.Controls.Add(testMp);pixPanel.SetColumnSpan(buttons,2);pixPanel.Controls.Add(buttons,0,6);
+        var help=new Label{Text="PIX SIMPLES: informe somente sua chave de qualquer banco. O PDV gera QR Code e Copia e Cola com o valor da venda; você confirma o recebimento manualmente.\nPIX AUTOMÁTICO: opcional, usa Mercado Pago e confirma o pagamento automaticamente.",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",9.5f),TextAlign=ContentAlignment.MiddleCenter};pixPanel.SetColumnSpan(help,2);pixPanel.Controls.Add(help,0,7);
+        savePix.Click+=(_,_)=>{if(!Auth.IsAdmin){Info("Somente ADMINISTRADOR pode alterar o PIX.");return;}if(string.IsNullOrWhiteSpace(pixKey.Text)){PixStatus("INFORME SUA CHAVE PIX",Color.FromArgb(180,55,55));return;}SetSetting("pix_key",pixKey.Text.Trim());SetSetting("pix_key_type",pixType.SelectedItem?.ToString()??"ALEATÓRIA");SetSetting("pix_mp_enabled",mpEnabled.Checked?"1":"0");SetSetting("pix_mp_access_token",PixSecureSettings.Protect(mpToken.Text));PixStatus(mpEnabled.Checked?"PIX SALVO • MERCADO PAGO OPCIONAL ATIVO":"PIX POR CHAVE • PRONTO PARA RECEBER",Color.FromArgb(0,145,85));};
+        testMp.Click+=async(_,_)=>{if(!mpEnabled.Checked){Info("Ative o PIX automático do Mercado Pago primeiro.");return;}if(string.IsNullOrWhiteSpace(mpToken.Text)){PixStatus("INFORME O ACCESS TOKEN DO MERCADO PAGO",Color.FromArgb(180,55,55));return;}try{testMp.Enabled=false;PixStatus("TESTANDO MERCADO PAGO...",Color.FromArgb(230,145,20));await new MercadoPagoPixService(mpToken.Text).TestarConexaoAsync();SetSetting("pix_mp_access_token",PixSecureSettings.Protect(mpToken.Text));SetSetting("pix_mp_enabled","1");PixStatus("MERCADO PAGO CONECTADO • AUTOMÁTICO",Color.FromArgb(0,145,85));}catch(Exception ex){PixStatus("MERCADO PAGO DESCONECTADO",Color.FromArgb(180,55,55));MessageBox.Show(f,ex.Message,"PIX Mercado Pago",MessageBoxButtons.OK,MessageBoxIcon.Error);}finally{testMp.Enabled=true;}};
 
         var system = new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=2,RowCount=5,Padding=new Padding(14) };
         system.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50)); system.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));
@@ -3872,30 +3824,29 @@ private void ApplyFloatingTheme(Form f)
 
         pixConfirm.Click += (_, _) =>
         {
-            var customerId = GetSetting("pix_asaas_customer_id");
-            var apiKey = PixSecureSettings.Unprotect(GetSetting("pix_asaas_api_key"));
-            var sandbox = GetSetting("pix_asaas_sandbox") == "1";
-            if (string.IsNullOrWhiteSpace(customerId) || string.IsNullOrWhiteSpace(apiKey))
-            {
-                Info("PIX conectado ainda não está configurado. Abra CONFIGURAÇÕES > PIX.");
-                return;
-            }
-
+            var key=GetSetting("pix_key");var keyType=GetSetting("pix_key_type","ALEATÓRIA");
+            if(string.IsNullOrWhiteSpace(key)){Info("Configure sua chave em CONFIGURAÇÕES > PIX.");return;}
             try
             {
-                using var pix = new PixPaymentForm((decimal)total, customerId, new AsaasPixService(apiKey, sandbox));
-                if (pix.ShowDialog(f) != DialogResult.OK)
-                    return;
-
-                result.Add(new PaymentPart { Method = "PIX", Amount = total });
-                f.DialogResult = DialogResult.OK;
-                f.Close();
+                if(GetSetting("pix_mp_enabled")=="1")
+                {
+                    var token=PixSecureSettings.Unprotect(GetSetting("pix_mp_access_token"));
+                    if(string.IsNullOrWhiteSpace(token)){Info("Mercado Pago automático está ativo, mas falta o Access Token.");return;}
+                    var payer=Microsoft.VisualBasic.Interaction.InputBox("E-mail do cliente para gerar o PIX automático:","PIX Mercado Pago","");
+                    if(string.IsNullOrWhiteSpace(payer))return;
+                    using var pix=new MercadoPagoPixForm((decimal)total,payer,new MercadoPagoPixService(token));
+                    if(pix.ShowDialog(f)!=DialogResult.OK)return;
+                }
+                else
+                {
+                    var merchant=GetSetting("company_trade_name",GetSetting("company_name","LEAL INFO"));
+                    var cityState=GetSetting("company_city_state","BRASIL");var city=cityState.Split('/')[0].Trim();
+                    using var pix=new SimplePixPaymentForm((decimal)total,key,keyType,merchant,city);
+                    if(pix.ShowDialog(f)!=DialogResult.OK)return;
+                }
+                result.Add(new PaymentPart{Method="PIX",Amount=total});f.DialogResult=DialogResult.OK;f.Close();
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show(f, "Não foi possível iniciar o PIX conectado:\n\n" + ex.Message,
-                    "PIX - LEAL INFO PDV", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+            catch(Exception ex){MessageBox.Show(f,"Não foi possível iniciar o PIX:\n\n"+ex.Message,"PIX - LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Error);}
         };
 
         cardConfirm.Click += (_, _) =>
@@ -3933,35 +3884,25 @@ private void ApplyFloatingTheme(Form f)
                 return;
             }
 
-            var pixPart = result.FirstOrDefault(x => x.Method == "PIX");
-            if (pixPart != null && pixPart.Amount > 0.004)
+            var pixPart=result.FirstOrDefault(x=>x.Method=="PIX");
+            if(pixPart!=null&&pixPart.Amount>0.004)
             {
-                var customerId = GetSetting("pix_asaas_customer_id");
-                var apiKey = PixSecureSettings.Unprotect(GetSetting("pix_asaas_api_key"));
-                var sandbox = GetSetting("pix_asaas_sandbox") == "1";
-                if (string.IsNullOrWhiteSpace(customerId) || string.IsNullOrWhiteSpace(apiKey))
-                {
-                    Info("PIX conectado ainda não está configurado. Abra CONFIGURAÇÕES > PIX.");
-                    result.Clear();
-                    return;
-                }
-
+                var key=GetSetting("pix_key");var keyType=GetSetting("pix_key_type","ALEATÓRIA");
+                if(string.IsNullOrWhiteSpace(key)){Info("Configure sua chave em CONFIGURAÇÕES > PIX.");result.Clear();return;}
                 try
                 {
-                    using var pix = new PixPaymentForm((decimal)pixPart.Amount, customerId, new AsaasPixService(apiKey, sandbox));
-                    if (pix.ShowDialog(f) != DialogResult.OK)
+                    if(GetSetting("pix_mp_enabled")=="1")
                     {
-                        result.Clear();
-                        return;
+                        var token=PixSecureSettings.Unprotect(GetSetting("pix_mp_access_token"));if(string.IsNullOrWhiteSpace(token)){Info("Falta o Access Token do Mercado Pago.");result.Clear();return;}
+                        var payer=Microsoft.VisualBasic.Interaction.InputBox("E-mail do cliente para o PIX automático:","PIX Mercado Pago","");if(string.IsNullOrWhiteSpace(payer)){result.Clear();return;}
+                        using var pix=new MercadoPagoPixForm((decimal)pixPart.Amount,payer,new MercadoPagoPixService(token));if(pix.ShowDialog(f)!=DialogResult.OK){result.Clear();return;}
                     }
-                }
-                catch (Exception ex)
-                {
-                    result.Clear();
-                    MessageBox.Show(f, "Não foi possível iniciar o PIX conectado:\n\n" + ex.Message,
-                        "PIX - LEAL INFO PDV", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
+                    else
+                    {
+                        var merchant=GetSetting("company_trade_name",GetSetting("company_name","LEAL INFO"));var city=GetSetting("company_city_state","BRASIL").Split('/')[0].Trim();
+                        using var pix=new SimplePixPaymentForm((decimal)pixPart.Amount,key,keyType,merchant,city);if(pix.ShowDialog(f)!=DialogResult.OK){result.Clear();return;}
+                    }
+                }catch(Exception ex){result.Clear();MessageBox.Show(f,"Não foi possível iniciar o PIX:\n\n"+ex.Message,"PIX - LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Error);return;}
             }
 
             f.DialogResult = DialogResult.OK;
