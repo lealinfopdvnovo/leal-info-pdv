@@ -3658,11 +3658,11 @@ private void ApplyFloatingTheme(Form f)
         // PIX
         tabPix.Controls.Add(CenterInfo("PAGAMENTO VIA PIX", 55, 16));
         tabPix.Controls.Add(CenterInfo("Valor a receber: " + Money(total), 125, 15));
-        var pixInfo = CenterInfo("Confirme o recebimento do PIX antes de concluir a venda.", 205, 12);
+        var pixInfo = CenterInfo("Clique abaixo para gerar o QR Code PIX com o valor exato da venda.", 205, 12);
         pixInfo.Font = new Font("Segoe UI", 11);
         tabPix.Controls.Add(pixInfo);
 
-        var pixConfirm = BigConfirm("PIX RECEBIDO • CONFIRMAR");
+        var pixConfirm = BigConfirm("GERAR QR CODE PIX");
         pixConfirm.Left = 210;
         pixConfirm.Top = 320;
         tabPix.Controls.Add(pixConfirm);
