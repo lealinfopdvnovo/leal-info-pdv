@@ -1,4 +1,4 @@
-name: Publicar atualizacao LEAL INFO PDV V10.303 
+name: Publicar atualizacao LEAL INFO PDV V10.304 
 on:
   workflow_dispatch:
   push:
@@ -13,10 +13,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.303"
-      UPDATE_TAG: "v10.303"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_303_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_303_UPDATE.zip"
+      UPDATE_VERSION: "10.304"
+      UPDATE_TAG: "v10.304"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_304_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_304_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -24,22 +24,22 @@ jobs:
         with: { fetch-depth: 0 }
       - name: Sincronizar updater
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\sincronizar_update_manager_v10_303.ps1"
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\sincronizar_update_manager_v10_304.ps1"
       - name: Preparar versao
         shell: powershell
         run: |
           $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw -Encoding UTF8
-          $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.303"')
-          $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_303_FINAL')
+          $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.304"')
+          $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_304_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.303\.0</Version>') { throw "csproj nao esta em V10.303" }
-          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.303"') { throw "UpdateManager nao esta em V10.303" }
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.303\.0</Version>') { throw "csproj nao esta em V10.304" }
+          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.303"') { throw "UpdateManager nao esta em V10.304" }
       - name: Preservar visual
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_visual_estavel_v10_177.ps1"
       - name: Aplicar boas-vindas holografica
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_boas_vindas_holografica_v10_303.ps1"
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_boas_vindas_holografica_v10_304.ps1"
       - name: Aplicar login centralizado
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_login_futurista_v10_259.ps1"
@@ -121,7 +121,7 @@ jobs:
         run: |
           $setup="SETUP_PRONTO/$env:SETUP_FILE"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
-          gh release create $env:UPDATE_TAG $env:UPDATE_PACKAGE $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.303: corrige a animacao de boas-vindas com tamanho fixo, fade suave e renderizacao sem piscadas." --latest
+          gh release create $env:UPDATE_TAG $env:UPDATE_PACKAGE $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.304: melhora o holograma de boas-vindas com vidro azul-escuro, contraste alto, glow discreto nas bordas e texto nitido." --latest
       - name: Validar e ativar
         shell: pwsh
         run: |
@@ -132,10 +132,10 @@ jobs:
           $setupAsset=$release.assets|Where-Object{$_.name -eq $env:SETUP_FILE}
           if(-not $setupAsset){throw "Setup ausente"}
           $hash=(Get-FileHash $env:UPDATE_PACKAGE -Algorithm SHA256).Hash.ToLowerInvariant()
-          $notes="V10.303: fade holografico corrigido, tamanho fixo e sem zoom/piscadas; permanece 5 segundos."
+          $notes="V10.304: holograma menos ofuscado, vidro azul-escuro, glow discreto e texto branco nitido; permanece 5 segundos."
           $manifest=@{Version=$env:UPDATE_VERSION;PackageUrl=$asset.browser_download_url;Sha256=$hash;Notes=$notes;DownloadUrl=$setupAsset.browser_download_url;Mandatory=$false}|ConvertTo-Json
           $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
-          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.303" -f content="$encoded" -f sha="$sha"
+          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.304" -f content="$encoded" -f sha="$sha"
 
-# V10.303 smooth fade release
+# V10.304 smooth fade release
