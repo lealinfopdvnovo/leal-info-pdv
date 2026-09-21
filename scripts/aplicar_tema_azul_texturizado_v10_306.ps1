@@ -62,11 +62,3 @@ if ($main -notmatch 'ThemeCard\\("Azul Texturizado"') {
 
 Set-Content $path $main -Encoding UTF8
 Write-Host 'Tema Azul Texturizado aplicado sem alterar os elementos da tela.'
-
-    $match = [regex]::Match($main, $pattern)
-    if (-not $match.Success) { throw 'Cartao PDV Rosa nao localizado' }
-    $main = $main.Insert($match.Index + $match.Length, "`r`n" + $card)
-}
-
-Set-Content $path $main -Encoding UTF8
-Write-Host 'Tema Azul Texturizado aplicado sem alterar os elementos da tela.'
