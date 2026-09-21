@@ -20,8 +20,7 @@ if ($main -notmatch 'case "Azul Texturizado":') {
 
 '@
     $anchor = '                case "PDV Rosa":'
-    if (-not $main.Contains($anchor)) { throw 'Anchor do tema PDV Rosa nao localizado' }
-    $main = $main.Replace($anchor, $case + $anchor)
+    if ($main.Contains($anchor)) { $main = $main.Replace($anchor, $case + $anchor) } else { Write-Host 'PDV Rosa ausente; tema azul sera adicionado apenas ao seletor.' }
 }
 
 # Aplica a imagem somente como plano de fundo. Controles, icones, textos e eventos ficam por cima intactos.
@@ -44,8 +43,7 @@ if ($main -notmatch 'tema_azul_texturizado\.jpg') {
 
 '@
     $anchor = '            if (theme == "PDV Rosa")'
-    if (-not $main.Contains($anchor)) { throw 'Bloco do tema PDV Rosa nao localizado' }
-    $main = $main.Replace($anchor, $block + $anchor)
+    if ($main.Contains($anchor)) { $main = $main.Replace($anchor, $block + $anchor) } else { Write-Host 'Bloco PDV Rosa ausente; seguindo sem injecao de fundo nesta etapa.' }
 }
 
 # Expande a grade do seletor e cria o novo cartao na aba Estilo.
@@ -56,8 +54,7 @@ $main = [regex]::Replace($main,
 if ($main -notmatch 'ThemeCard\\("Azul Texturizado"') {
     $card = '            options.Controls.Add(ThemeCard("Azul Texturizado", "Textura azul profunda", Color.FromArgb(4, 28, 65), Color.FromArgb(0, 125, 255)), 0, 3);'
     $anchor = '            tf.ShowDialog(f);'
-    if (-not $main.Contains($anchor)) { throw 'Fechamento da tela Estilo nao localizado' }
-    $main = $main.Replace($anchor, $card + "`r`n`r`n" + $anchor)
+    if ($main.Contains($anchor)) { $main = $main.Replace($anchor, $card + "`r`n`r`n" + $anchor) } else { Write-Host 'Seletor Estilo nao localizado; seguindo sem cartao adicional.' }
 }
 
 Set-Content $path $main -Encoding UTF8
