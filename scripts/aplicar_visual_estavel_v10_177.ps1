@@ -44,13 +44,32 @@ private void AddTool(Control parent, string text, string iconFile, Action action
             gp.CloseFigure();
 
             int lift = visualPulse * 5;
-            using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect,
-                hover ? Color.FromArgb(22, 170, 235) : Color.FromArgb(8, 115 + lift, 180 + lift),
-                Color.FromArgb(2, 28, 66), 90f);
+            Color topColor;
+            Color bottomColor;
+            Color glowColor;
+            if (normalizedText == "PRODUTOS")
+            {
+                topColor = hover ? Color.FromArgb(255, 176, 55) : Color.FromArgb(245, 128, 20);
+                bottomColor = Color.FromArgb(174, 72, 0);
+                glowColor = Color.FromArgb(255, 196, 95);
+            }
+            else if (normalizedText.Replace("\n", " ").Contains("TELA DE") && normalizedText.Contains("VENDAS"))
+            {
+                topColor = hover ? Color.FromArgb(245, 75, 75) : Color.FromArgb(205, 35, 35);
+                bottomColor = Color.FromArgb(125, 12, 18);
+                glowColor = Color.FromArgb(255, 105, 105);
+            }
+            else
+            {
+                topColor = hover ? Color.FromArgb(22, 170, 235) : Color.FromArgb(8, 115 + lift, 180 + lift);
+                bottomColor = Color.FromArgb(2, 28, 66);
+                glowColor = Color.FromArgb(80, 225, 255);
+            }
+            using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect, topColor, bottomColor, 90f);
             e.Graphics.FillPath(bg, gp);
 
             int alpha = Math.Min(255, 105 + visualPulse * 18 + (hover ? 45 : 0));
-            using var glow = new Pen(Color.FromArgb(alpha, 80, 225, 255), hover ? 4.5f : 3.2f + visualPulse * 0.12f);
+            using var glow = new Pen(Color.FromArgb(alpha, glowColor), hover ? 4.5f : 3.2f + visualPulse * 0.12f);
             e.Graphics.DrawPath(glow, gp);
 
             var innerRect = Rectangle.Inflate(rect, -4, -4);
@@ -60,7 +79,7 @@ private void AddTool(Control parent, string text, string iconFile, Action action
             innerPath.AddArc(innerRect.Right-(radius-4), innerRect.Bottom-(radius-4), radius - 4, radius - 4, 0, 90);
             innerPath.AddArc(innerRect.X, innerRect.Bottom-(radius-4), radius - 4, radius - 4, 90, 90);
             innerPath.CloseFigure();
-            using var innerGlow = new Pen(Color.FromArgb(70 + visualPulse * 10, 210, 250, 255), 1.2f);
+            using var innerGlow = new Pen(Color.FromArgb(70 + visualPulse * 10, glowColor), 1.2f);
             e.Graphics.DrawPath(innerGlow, innerPath);
         };
 
@@ -187,4 +206,8 @@ $greenCard = '            options.Controls.Add(ThemeCard("Verde Texturizado", "V
 if ($main.Contains($themeAnchor) -and -not $main.Contains('ThemeCard("Verde Texturizado"')) { $main = $main.Replace($themeAnchor, $themeAnchor + "`r`n" + $greenCard) }
 
 Set-Content $path $main -Encoding UTF8
-Write-Host 'Visual estavel aplicado: cards, temas e telas preservados.'
+
+# Mantem o padrao brasileiro de valores no cadastro de produtos.
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_virgula_valores_cadastro_v10_305.ps1"
+
+Write-Host 'Visual estavel aplicado: cards, temas, cores principais e valores com virgula preservados.'
