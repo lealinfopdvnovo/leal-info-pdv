@@ -12,7 +12,9 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
     private const string Model = "gpt-realtime-2.1";
     private const int OutputSampleRate = 24000;
     private const int PcmBytesPerSecond = OutputSampleRate * 2; // PCM16 mono
-    private const int StartupBufferBytes = PcmBytesPerSecond * 300 / 1000;
+    // Pre-buffer curto: reduz o tempo ate a primeira fala sem remover a
+    // protecao contra pequenas oscilacoes da rede.
+    private const int StartupBufferBytes = PcmBytesPerSecond * 100 / 1000;
     private static readonly Uri Endpoint = new($"wss://api.openai.com/v1/realtime?model={Model}");
     private readonly Func<string?> _apiKeyProvider;
     private readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -322,7 +324,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                 case "response.done":
                 case "response.cancelled":
                     Interlocked.Exchange(ref _responseActive, 0);
-                    // Marcador de fim: libera falas menores que os 300 ms do prebuffer.
+                    // Marcador de fim: libera falas menores que os 100 ms do prebuffer.
                     _speakerQueue.Writer.TryWrite(Array.Empty<byte>());
                     ScheduleMicrophoneResume();
                     break;
@@ -432,7 +434,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
 
                 if (buffer.BufferedBytes == 0)
                 {
-                    // Jitter buffer: acumula 300 ms antes de iniciar. Se a resposta
+                    // Jitter buffer: acumula 100 ms antes de iniciar. Se a resposta
                     // terminar antes disso, o marcador vazio libera a fala curta.
                     speaker.Pause();
                     buffer.AddSamples(pcm, 0, pcm.Length);
@@ -448,7 +450,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                     continue;
                 }
 
-                // Backpressure mantem aproximadamente 300-600 ms reservados, sem
+                // Backpressure mantem aproximadamente 100-200 ms reservados, sem
                 // descartar blocos e sem acelerar a reproducao para alcancar a rede.
                 while (buffer.BufferedBytes >= StartupBufferBytes * 2)
                     await Task.Delay(10, cancellationToken).ConfigureAwait(false);
