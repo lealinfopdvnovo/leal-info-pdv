@@ -3,7 +3,7 @@ $path = 'MainForm.cs'
 $main = Get-Content $path -Raw -Encoding UTF8
 
 # Nova opcao de tema usando a textura azul fornecida pelo usuario.
-if ($main -notmatch 'case "Azul Texturizado":') {
+if (-not $main.Contains('case "Azul Texturizado":')) {
     $case = @'
                 case "Azul Texturizado":
                     bg = Color.FromArgb(3, 18, 38);
@@ -20,11 +20,15 @@ if ($main -notmatch 'case "Azul Texturizado":') {
 
 '@
     $anchor = '                case "PDV Rosa":'
-    if ($main.Contains($anchor)) { $main = $main.Replace($anchor, $case + $anchor) } else { Write-Host 'PDV Rosa ausente; tema azul sera adicionado apenas ao seletor.' }
+    if ($main.Contains($anchor)) {
+        $main = $main.Replace($anchor, $case + $anchor)
+    } else {
+        Write-Host 'PDV Rosa ausente; tema azul sera adicionado apenas ao seletor.'
+    }
 }
 
 # Aplica a imagem somente como plano de fundo. Controles, icones, textos e eventos ficam por cima intactos.
-if ($main -notmatch 'tema_azul_texturizado\.jpg') {
+if (-not $main.Contains('tema_azul_texturizado.jpg')) {
     $block = @'
             if (theme == "Azul Texturizado")
             {
@@ -43,7 +47,11 @@ if ($main -notmatch 'tema_azul_texturizado\.jpg') {
 
 '@
     $anchor = '            if (theme == "PDV Rosa")'
-    if ($main.Contains($anchor)) { $main = $main.Replace($anchor, $block + $anchor) } else { Write-Host 'Bloco PDV Rosa ausente; seguindo sem injecao de fundo nesta etapa.' }
+    if ($main.Contains($anchor)) {
+        $main = $main.Replace($anchor, $block + $anchor)
+    } else {
+        Write-Host 'Bloco PDV Rosa ausente; seguindo sem injecao de fundo nesta etapa.'
+    }
 }
 
 # Expande a grade do seletor e cria o novo cartao na aba Estilo.
@@ -51,10 +59,14 @@ $main = [regex]::Replace($main,
     '(?s)(var options = new TableLayoutPanel\s*\{.*?ColumnCount = 2,\s*)RowCount = 3,',
     '${1}RowCount = 4,', 1)
 
-if ($main -notmatch 'ThemeCard\\("Azul Texturizado"') {
+if (-not $main.Contains('ThemeCard("Azul Texturizado"')) {
     $card = '            options.Controls.Add(ThemeCard("Azul Texturizado", "Textura azul profunda", Color.FromArgb(4, 28, 65), Color.FromArgb(0, 125, 255)), 0, 3);'
     $anchor = '            tf.ShowDialog(f);'
-    if ($main.Contains($anchor)) { $main = $main.Replace($anchor, $card + "`r`n`r`n" + $anchor) } else { Write-Host 'Seletor Estilo nao localizado; seguindo sem cartao adicional.' }
+    if ($main.Contains($anchor)) {
+        $main = $main.Replace($anchor, $card + "`r`n`r`n" + $anchor)
+    } else {
+        Write-Host 'Seletor Estilo nao localizado; seguindo sem cartao adicional.'
+    }
 }
 
 Set-Content $path $main -Encoding UTF8
