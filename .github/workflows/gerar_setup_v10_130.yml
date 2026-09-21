@@ -31,30 +31,6 @@ jobs:
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
           if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.309\.0</Version>') { throw "csproj nao esta em V10.309" }
           if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.309"') { throw "UpdateManager nao esta em V10.309" }
-      - name: Aplicar tema azul texturizado
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_tema_azul_texturizado_v10_306.ps1"
-      - name: Aplicar boas-vindas holografica
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_boas_vindas_holografica_v10_304.ps1"
-      - name: Aplicar login centralizado
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_login_futurista_v10_259.ps1"
-      - name: Login premium
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_login_premium_v10_261.ps1"
-      - name: Login GDI
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_login_gdi_v10_263.ps1"
-      - name: Aplicar esfera
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_lic_ai_botao_v10_186.ps1"
-      - name: Estados esfera
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_lic_ai_estado_v10_210.ps1"
-      - name: Encerrar LIA com PDV
-        shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1"
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
       - run: dotnet restore LealInfoPDV.csproj
