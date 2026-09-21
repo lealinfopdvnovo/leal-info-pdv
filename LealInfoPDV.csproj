@@ -9,9 +9,9 @@
     <AssemblyName>LealInfoPDV</AssemblyName>
     <RootNamespace>LealInfoPDV</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>10.305.0</Version>
-    <AssemblyVersion>10.305.0.0</AssemblyVersion>
-    <FileVersion>10.305.0.0</FileVersion>
+    <Version>10.306.0</Version>
+    <AssemblyVersion>10.306.0.0</AssemblyVersion>
+    <FileVersion>10.306.0.0</FileVersion>
     <ApplicationIcon>Assets\lealinfo.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup><Compile Remove="realtime\**\*.cs" /></ItemGroup>
@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Assets\*.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="Assets\*.jpg"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
     <Content Include="Assets\*.mp4"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
   </ItemGroup>
 </Project>
