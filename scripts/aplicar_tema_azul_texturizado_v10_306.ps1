@@ -22,8 +22,6 @@ if (-not $main.Contains('case "Azul Texturizado":')) {
     $anchor = '                case "PDV Rosa":'
     if ($main.Contains($anchor)) {
         $main = $main.Replace($anchor, $case + $anchor)
-    } else {
-        Write-Host 'PDV Rosa ausente; tema azul sera adicionado apenas ao seletor.'
     }
 }
 
@@ -49,25 +47,20 @@ if (-not $main.Contains('tema_azul_texturizado.jpg')) {
     $anchor = '            if (theme == "PDV Rosa")'
     if ($main.Contains($anchor)) {
         $main = $main.Replace($anchor, $block + $anchor)
-    } else {
-        Write-Host 'Bloco PDV Rosa ausente; seguindo sem injecao de fundo nesta etapa.'
     }
 }
 
-# Expande a grade do seletor e cria o novo cartao na aba Estilo.
-$main = [regex]::Replace($main,
-    '(?s)(var options = new TableLayoutPanel\s*\{.*?ColumnCount = 2,\s*)RowCount = 3,',
-    '${1}RowCount = 4,', 1)
+# Mantem a grade em 3 linhas e posiciona Azul Texturizado ao lado do PDV Rosa.
+$main = $main.Replace('RowCount = 4,', 'RowCount = 3,')
+$main = $main.Replace('options.Controls.Add(ThemeCard("Azul Texturizado", "Textura azul profunda", Color.FromArgb(4, 28, 65), Color.FromArgb(0, 125, 255)), 0, 3);', 'options.Controls.Add(ThemeCard("Azul Texturizado", "Textura azul profunda", Color.FromArgb(4, 28, 65), Color.FromArgb(0, 125, 255)), 1, 2);')
 
 if (-not $main.Contains('ThemeCard("Azul Texturizado"')) {
-    $card = '            options.Controls.Add(ThemeCard("Azul Texturizado", "Textura azul profunda", Color.FromArgb(4, 28, 65), Color.FromArgb(0, 125, 255)), 0, 3);'
+    $card = '            options.Controls.Add(ThemeCard("Azul Texturizado", "Textura azul profunda", Color.FromArgb(4, 28, 65), Color.FromArgb(0, 125, 255)), 1, 2);'
     $anchor = '            tf.ShowDialog(f);'
     if ($main.Contains($anchor)) {
         $main = $main.Replace($anchor, $card + "`r`n`r`n" + $anchor)
-    } else {
-        Write-Host 'Seletor Estilo nao localizado; seguindo sem cartao adicional.'
     }
 }
 
 Set-Content $path $main -Encoding UTF8
-Write-Host 'Tema Azul Texturizado aplicado sem alterar os elementos da tela.'
+Write-Host 'Tema Azul Texturizado alinhado na terceira linha ao lado do PDV Rosa.'
