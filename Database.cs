@@ -37,6 +37,9 @@ public static class Database
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
 
+        INSERT OR IGNORE INTO products(id,barcode,name,category,cost,price,stock,min_stock,active)
+        VALUES(0,'AVULSO','VENDA AVULSA','SERVIÇOS',0,0,0,0,0);
+
         CREATE TABLE IF NOT EXISTS customers(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
