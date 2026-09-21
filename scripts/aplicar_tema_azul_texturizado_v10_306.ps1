@@ -53,9 +53,11 @@ $main = [regex]::Replace($main,
     '(?s)(var options = new TableLayoutPanel\s*\{.*?ColumnCount = 2,\s*)RowCount = 3,',
     '${1}RowCount = 4,', 1)
 
-if ($main -notmatch 'ThemeCard\("Azul Texturizado"') {
+if ($main -notmatch 'ThemeCard\\("Azul Texturizado"') {
     $card = '            options.Controls.Add(ThemeCard("Azul Texturizado", "Textura azul profunda", Color.FromArgb(4, 28, 65), Color.FromArgb(0, 125, 255)), 0, 3);'
-    $pattern = '(?m)^(?<indent>\\s*)options\\.Controls\\.Add\\(ThemeCard\\("PDV Rosa"[^\\r\\n]*
+    $anchor = '            tf.ShowDialog(f);'
+    if (-not $main.Contains($anchor)) { throw 'Fechamento da tela Estilo nao localizado' }
+    $main = $main.Replace($anchor, $card + "`r`n`r`n" + $anchor)
 }
 
 Set-Content $path $main -Encoding UTF8
