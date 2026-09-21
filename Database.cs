@@ -80,7 +80,7 @@ public static class Database
         CREATE TABLE IF NOT EXISTS sale_items(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sale_id INTEGER NOT NULL,
-            product_id INTEGER NOT NULL,
+            product_id INTEGER,
             description TEXT NOT NULL,
             qty REAL NOT NULL,
             unit_price REAL NOT NULL,
@@ -189,6 +189,8 @@ public static class Database
         """;
         cmd.ExecuteNonQuery();
 
+        EnsureSaleItemsAllowsLooseSales(cn);
+
         // Migração compatível com bancos já existentes.
         try
         {
@@ -199,6 +201,53 @@ public static class Database
         catch
         {
             // Coluna já existe.
+        }
+    }
+
+    private static void EnsureSaleItemsAllowsLooseSales(SqliteConnection cn)
+    {
+        using var check = cn.CreateCommand();
+        check.CommandText = "SELECT \"notnull\" FROM pragma_table_info('sale_items') WHERE name='product_id'";
+        var productIdIsRequired = Convert.ToInt32(check.ExecuteScalar() ?? 0) == 1;
+        if (!productIdIsRequired)
+            return;
+
+        using (var foreignKeys = cn.CreateCommand())
+        {
+            foreignKeys.CommandText = "PRAGMA foreign_keys=OFF";
+            foreignKeys.ExecuteNonQuery();
+        }
+
+        try
+        {
+            using var tx = cn.BeginTransaction();
+            using var migrate = cn.CreateCommand();
+            migrate.Transaction = tx;
+            migrate.CommandText = """
+                CREATE TABLE sale_items_migrated(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sale_id INTEGER NOT NULL,
+                    product_id INTEGER,
+                    description TEXT NOT NULL,
+                    qty REAL NOT NULL,
+                    unit_price REAL NOT NULL,
+                    total REAL NOT NULL,
+                    FOREIGN KEY(sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+                    FOREIGN KEY(product_id) REFERENCES products(id)
+                );
+                INSERT INTO sale_items_migrated(id,sale_id,product_id,description,qty,unit_price,total)
+                SELECT id,sale_id,product_id,description,qty,unit_price,total FROM sale_items;
+                DROP TABLE sale_items;
+                ALTER TABLE sale_items_migrated RENAME TO sale_items;
+                """;
+            migrate.ExecuteNonQuery();
+            tx.Commit();
+        }
+        finally
+        {
+            using var foreignKeys = cn.CreateCommand();
+            foreignKeys.CommandText = "PRAGMA foreign_keys=ON";
+            foreignKeys.ExecuteNonQuery();
         }
     }
 
