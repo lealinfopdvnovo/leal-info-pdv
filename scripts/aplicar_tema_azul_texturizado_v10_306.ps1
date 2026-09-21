@@ -54,10 +54,16 @@ $main = [regex]::Replace($main,
     '${1}RowCount = 4,', 1)
 
 if ($main -notmatch 'ThemeCard\("Azul Texturizado"') {
-    $anchor = '            options.Controls.Add(ThemeCard("PDV Rosa", "Rosé texturizado + vinho acetinado", Color.FromArgb(125, 20, 86), Color.FromArgb(255, 72, 165)), 0, 2);'
     $card = '            options.Controls.Add(ThemeCard("Azul Texturizado", "Textura azul profunda", Color.FromArgb(4, 28, 65), Color.FromArgb(0, 125, 255)), 0, 3);'
-    if (-not $main.Contains($anchor)) { throw 'Cartao PDV Rosa nao localizado' }
-    $main = $main.Replace($anchor, $anchor + "`r`n" + $card)
+    $pattern = '(?m)^(?<indent>\\s*)options\\.Controls\\.Add\\(ThemeCard\\("PDV Rosa"[^\\r\\n]*
+}
+
+Set-Content $path $main -Encoding UTF8
+Write-Host 'Tema Azul Texturizado aplicado sem alterar os elementos da tela.'
+
+    $match = [regex]::Match($main, $pattern)
+    if (-not $match.Success) { throw 'Cartao PDV Rosa nao localizado' }
+    $main = $main.Insert($match.Index + $match.Length, "`r`n" + $card)
 }
 
 Set-Content $path $main -Encoding UTF8
