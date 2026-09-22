@@ -105,11 +105,12 @@ public sealed class EquipmentSettingsForm : Form
     private readonly TextBox regex = Field();
     private readonly Label scaleStatus = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White, BackColor = Color.FromArgb(230, 145, 20), Font = new Font("Segoe UI", 10, FontStyle.Bold), Text = "AGUARDANDO TESTE" };
 
-    public static void Show(IWin32Window owner)
+    public static void Open(IWin32Window owner)
     {
         var current = Application.OpenForms.OfType<EquipmentSettingsForm>().FirstOrDefault();
         if (current != null) { current.BringToFront(); current.Focus(); return; }
-        new EquipmentSettingsForm().Show(owner);
+        var form = new EquipmentSettingsForm();
+        form.Show(owner);
     }
 
     public EquipmentSettingsForm()
@@ -275,7 +276,7 @@ public sealed class EquipmentSettingsForm : Form
             else if (scaleMode.Text == "REDE TCP/IP") raw = await ReadNetworkAsync(timeout.Token);
             else { scaleStatus.Text = scaleMode.Text.StartsWith("TECLADO") ? "MODO TECLADO: TESTE NO CAMPO DE VENDA" : "MODO ETIQUETA: TESTE COM O LEITOR"; scaleStatus.BackColor = Color.FromArgb(0, 145, 85); return; }
             var match = Regex.Match(raw, string.IsNullOrWhiteSpace(regex.Text) ? @"[-+]?\d+[\.,]?\d*" : regex.Text);
-            if (!match.Success) throw new InvalidOperationException("A balança respondeu, mas o peso não foi localizado. Resposta: " + Visible(raw));
+            if (!match.Success) throw new InvalidOperationException("A balança respondeu, mas o peso não foi localizado. Resposta: " + DisplayRaw(raw));
             scaleStatus.Text = "COMUNICAÇÃO OK • PESO: " + match.Value; scaleStatus.BackColor = Color.FromArgb(0, 145, 85);
         }
         catch (Exception ex)
@@ -326,7 +327,7 @@ public sealed class EquipmentSettingsForm : Form
     private void RefreshPrinters() { var selected = printer.Text; printer.Items.Clear(); printer.Items.AddRange(PrinterSettings.InstalledPrinters.Cast<string>().ToArray()); Select(printer, selected); }
     private void RefreshPorts() { var selected = port.Text; port.Items.Clear(); port.Items.AddRange(SerialPort.GetPortNames().OrderBy(x => x).Cast<object>().ToArray()); Select(port, selected); }
     private static string DecodeCommand(string value) => value.Replace("\\r", "\r").Replace("\\n", "\n").Replace("\\t", "\t");
-    private static string Visible(string value) => value.Replace("\r", "<CR>").Replace("\n", "<LF>").Trim();
+    private static string DisplayRaw(string value) => value.Replace("\r", "<CR>").Replace("\n", "<LF>").Trim();
     private void Warn(string text) => MessageBox.Show(this, text, "Central de Equipamentos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
     private static ComboBox DropDown() => new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 11, FontStyle.Bold) };

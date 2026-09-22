@@ -27,7 +27,7 @@ if ($content -notmatch 'var equipmentTab = new TabPage') {
         var equipmentText = new Label { Text="CONFIGURE BALANÇAS, IMPRESSORAS TÉRMICAS E MODELOS DE BOBINA",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",16,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter };
         var equipmentButton = new Button { Text="ABRIR CENTRAL DE EQUIPAMENTOS",Dock=DockStyle.Fill,Margin=new Padding(60,20,60,20),BackColor=Color.FromArgb(0,145,85),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",14,FontStyle.Bold) };
         equipmentButton.FlatAppearance.BorderSize=0;
-        equipmentButton.Click += (_,_) => EquipmentSettingsForm.Show(f);
+        equipmentButton.Click += (_,_) => EquipmentSettingsForm.Open(f);
         var equipmentHint = new Label { Text="Impressoras instaladas no Windows • Bobinas 58, 76, 80 mm ou personalizada\nBalanças COM/RS-232 • TCP/IP • Teclado/HID • Etiqueta com código de barras",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",10),TextAlign=ContentAlignment.MiddleCenter };
         equipmentPanel.Controls.Add(equipmentText,0,0);equipmentPanel.Controls.Add(equipmentButton,0,1);equipmentPanel.Controls.Add(equipmentHint,0,2);
         equipmentTab.Controls.Add(equipmentPanel);
