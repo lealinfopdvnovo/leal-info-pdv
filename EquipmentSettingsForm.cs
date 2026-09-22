@@ -92,18 +92,18 @@ public sealed class EquipmentSettingsForm : Form
     private static readonly Color LightBlue = Color.FromArgb(224, 239, 248);
     private readonly ComboBox printer = DropDown();
     private readonly ComboBox paper = DropDown();
-    private readonly NumericUpDown customWidth = new() { Minimum = 40, Maximum = 120, Value = 80, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 11, FontStyle.Bold) };
-    private readonly NumericUpDown copies = new() { Minimum = 1, Maximum = 9, Value = 1, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 11, FontStyle.Bold) };
-    private readonly CheckBox autoPrint = new() { Text = "IMPRIMIR AUTOMATICAMENTE AO FINALIZAR A VENDA", AutoSize = true, ForeColor = Blue, Font = new Font("Segoe UI", 10, FontStyle.Bold) };
+    private readonly NumericUpDown customWidth = new() { Minimum = 40, Maximum = 120, Value = 80, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+    private readonly NumericUpDown copies = new() { Minimum = 1, Maximum = 9, Value = 1, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+    private readonly CheckBox autoPrint = new() { Text = "IMPRIMIR AUTOMATICAMENTE AO FINALIZAR A VENDA", AutoSize = true, ForeColor = Blue, Font = new Font("Segoe UI", 9, FontStyle.Bold), Anchor = AnchorStyles.Left };
     private readonly ComboBox scaleMode = DropDown();
     private readonly ComboBox scaleProfile = DropDown();
     private readonly ComboBox port = DropDown();
     private readonly ComboBox baud = DropDown();
     private readonly TextBox host = Field();
-    private readonly NumericUpDown tcpPort = new() { Minimum = 1, Maximum = 65535, Value = 4001, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 11, FontStyle.Bold) };
+    private readonly NumericUpDown tcpPort = new() { Minimum = 1, Maximum = 65535, Value = 4001, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
     private readonly TextBox command = Field();
     private readonly TextBox regex = Field();
-    private readonly Label scaleStatus = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White, BackColor = Color.FromArgb(230, 145, 20), Font = new Font("Segoe UI", 10, FontStyle.Bold), Text = "AGUARDANDO TESTE" };
+    private readonly Label scaleStatus = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.White, BackColor = Color.FromArgb(230, 145, 20), Font = new Font("Segoe UI", 9, FontStyle.Bold), Text = "AGUARDANDO TESTE", Margin = new Padding(4, 6, 4, 6) };
 
     public static void Open(IWin32Window owner)
     {
@@ -117,13 +117,14 @@ public sealed class EquipmentSettingsForm : Form
     {
         Text = "LEAL INFO PDV - Balança e Impressora";
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(900, 680);
-        Size = new Size(1020, 760);
+        MinimumSize = new Size(760, 540);
+        Size = new Size(860, 620);
+        MaximizeBox = false;
         BackColor = LightBlue;
-        Font = new Font("Segoe UI", 10);
+        Font = new Font("Segoe UI", 9);
 
-        Controls.Add(new Label { Text = "CENTRAL DE EQUIPAMENTOS", Dock = DockStyle.Top, Height = 72, BackColor = Blue, ForeColor = Color.White, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 20, FontStyle.Bold) });
-        var tabs = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 11, FontStyle.Bold), Padding = new Point(18, 8) };
+        Controls.Add(new Label { Text = "CENTRAL DE EQUIPAMENTOS", Dock = DockStyle.Top, Height = 54, BackColor = Blue, ForeColor = Color.White, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 16, FontStyle.Bold) });
+        var tabs = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold), Padding = new Point(14, 6) };
         tabs.TabPages.Add(BuildPrinterTab());
         tabs.TabPages.Add(BuildScaleTab());
         tabs.TabPages.Add(BuildTutorialTab());
@@ -145,7 +146,7 @@ public sealed class EquipmentSettingsForm : Form
         AddRow(grid, 2, "Largura personalizada (mm)", customWidth);
         AddRow(grid, 3, "Quantidade de vias", copies);
         grid.Controls.Add(autoPrint, 1, 4);
-        var hint = new Label { Text = "Compatível com impressoras que possuam driver do Windows: USB, rede, Bluetooth ou porta virtual. O corte automático e a abertura de gaveta devem ser ativados no driver do fabricante quando disponíveis.", Dock = DockStyle.Fill, ForeColor = Blue, Font = new Font("Segoe UI", 9.5f), TextAlign = ContentAlignment.MiddleLeft };
+        var hint = new Label { Text = "Compatível com impressoras instaladas no Windows: USB, rede, Bluetooth ou porta virtual. Corte e gaveta dependem do driver do fabricante.", Dock = DockStyle.Fill, ForeColor = Blue, Font = new Font("Segoe UI", 8.5f), TextAlign = ContentAlignment.MiddleLeft };
         grid.Controls.Add(hint, 0, 5); grid.SetColumnSpan(hint, 2);
         var buttons = Buttons();
         buttons.Controls.Add(Action("SALVAR CONFIGURAÇÃO", SavePrinter));
@@ -178,8 +179,8 @@ public sealed class EquipmentSettingsForm : Form
         buttons.Controls.Add(Action("SALVAR CONFIGURAÇÃO", SaveScale));
         buttons.Controls.Add(Action("TESTAR LEITURA", async () => await TestScaleAsync(), Color.FromArgb(0, 145, 85)));
         buttons.Controls.Add(Action("ATUALIZAR PORTAS", RefreshPorts, Color.FromArgb(230, 145, 20)));
-        grid.Controls.Add(buttons, 0, 8);
-        grid.Controls.Add(scaleStatus, 1, 8);
+        grid.Controls.Add(buttons, 0, 8); grid.SetColumnSpan(buttons, 2);
+        grid.Controls.Add(scaleStatus, 0, 9); grid.SetColumnSpan(scaleStatus, 2);
         return tab;
     }
 
@@ -189,7 +190,7 @@ public sealed class EquipmentSettingsForm : Form
         var text = new RichTextBox
         {
             Dock = DockStyle.Fill, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = Color.White,
-            ForeColor = Color.FromArgb(20, 45, 65), Font = new Font("Segoe UI", 11), Margin = new Padding(20),
+            ForeColor = Color.FromArgb(20, 45, 65), Font = new Font("Segoe UI", 9.5f), Margin = new Padding(12),
             Text = """
             IMPRESSORA TÉRMICA NÃO FISCAL
 
@@ -330,25 +331,25 @@ public sealed class EquipmentSettingsForm : Form
     private static string DisplayRaw(string value) => value.Replace("\r", "<CR>").Replace("\n", "<LF>").Trim();
     private void Warn(string text) => MessageBox.Show(this, text, "Central de Equipamentos", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
-    private static ComboBox DropDown() => new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 11, FontStyle.Bold) };
-    private static TextBox Field() => new() { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 11, FontStyle.Bold) };
-    private static TabPage NewTab(string text) => new(text) { BackColor = LightBlue, Padding = new Padding(24) };
+    private static ComboBox DropDown() => new() { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+    private static TextBox Field() => new() { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+    private static TabPage NewTab(string text) => new(text) { BackColor = Color.White, Padding = new Padding(14) };
     private static TableLayoutPanel Grid(int rows)
     {
-        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = rows, Padding = new Padding(12) };
-        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 290)); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        var grid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = rows, Padding = new Padding(8), BackColor = Color.White };
+        grid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 235)); grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         for (var i = 0; i < rows; i++) grid.RowStyles.Add(new RowStyle(SizeType.Percent, 100f / rows));
         return grid;
     }
     private static void AddRow(TableLayoutPanel grid, int row, string label, Control control)
     {
-        grid.Controls.Add(new Label { Text = label, Dock = DockStyle.Fill, ForeColor = Blue, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 10, FontStyle.Bold) }, 0, row);
-        control.Margin = new Padding(4, 8, 4, 8); grid.Controls.Add(control, 1, row);
+        grid.Controls.Add(new Label { Text = label, Dock = DockStyle.Fill, ForeColor = Blue, TextAlign = ContentAlignment.MiddleLeft, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, 0, row);
+        control.Margin = new Padding(4, 5, 4, 5); grid.Controls.Add(control, 1, row);
     }
     private static FlowLayoutPanel Buttons() => new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
     private static Button Action(string text, Action action, Color? color = null)
     {
-        var button = new Button { Text = text, Width = 210, Height = 45, BackColor = color ?? Color.FromArgb(0, 163, 224), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+        var button = new Button { Text = text, Width = 178, Height = 38, BackColor = color ?? Color.FromArgb(0, 163, 224), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 8.5f, FontStyle.Bold), Margin = new Padding(3, 5, 3, 3) };
         button.FlatAppearance.BorderSize = 0; button.Click += (_, _) => action(); return button;
     }
     private static void Select(ComboBox combo, string value)
