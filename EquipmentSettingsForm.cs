@@ -60,9 +60,64 @@ public static class ThermalPrinterService
         }
     }
 
+    public static bool PrintReceipt(string text, IWin32Window? owner = null)
+    {
+        var installed = PrinterSettings.InstalledPrinters.Cast<string>()
+            .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+
+        if (installed.Length == 0)
+        {
+            MessageBox.Show(owner, "Nenhuma impressora foi encontrada no Windows.", "Impressora", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+
+        var selected = installed.Length == 1 ? installed[0] : ChoosePrinter(installed, owner);
+        if (string.IsNullOrWhiteSpace(selected)) return false;
+
+        try
+        {
+            using var document = CreateDocument(selected, text);
+            document.Print();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(owner, "Não foi possível imprimir.\n\n" + ex.Message, "Impressora", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return false;
+        }
+    }
+
     public static void PrintAutomaticallyIfEnabled(string text, IWin32Window? owner = null)
     {
-        if (AutoPrintEnabled) TryPrintConfigured(text, owner, true);
+        if (AutoPrintEnabled) PrintReceipt(text, owner);
+    }
+
+    private static string? ChoosePrinter(string[] installed, IWin32Window? owner)
+    {
+        using var form = new Form
+        {
+            Text = "Escolher impressora",
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MinimizeBox = false,
+            MaximizeBox = false,
+            ShowInTaskbar = false,
+            ClientSize = new Size(520, 210),
+            BackColor = Color.FromArgb(224, 239, 248),
+            Font = new Font("Segoe UI", 9.5f)
+        };
+        var title = new Label { Text = "ONDE DESEJA IMPRIMIR?", Dock = DockStyle.Top, Height = 54, BackColor = Color.FromArgb(4, 70, 112), ForeColor = Color.White, Font = new Font("Segoe UI", 14, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter };
+        var combo = new ComboBox { Left = 28, Top = 78, Width = 464, Height = 32, DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Segoe UI", 10, FontStyle.Bold) };
+        combo.Items.AddRange(installed);
+        var preferred = EquipmentSettings.Get("printer_name");
+        combo.SelectedItem = installed.FirstOrDefault(x => string.Equals(x, preferred, StringComparison.OrdinalIgnoreCase)) ?? installed[0];
+        var print = new Button { Text = "IMPRIMIR", Left = 272, Top = 132, Width = 140, Height = 42, BackColor = Color.FromArgb(0, 145, 85), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold), DialogResult = DialogResult.OK };
+        var cancel = new Button { Text = "CANCELAR", Left = 112, Top = 132, Width = 140, Height = 42, BackColor = Color.FromArgb(90, 105, 115), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold), DialogResult = DialogResult.Cancel };
+        print.FlatAppearance.BorderSize = 0; cancel.FlatAppearance.BorderSize = 0;
+        form.Controls.Add(combo); form.Controls.Add(print); form.Controls.Add(cancel); form.Controls.Add(title);
+        form.AcceptButton = print; form.CancelButton = cancel;
+        return form.ShowDialog(owner) == DialogResult.OK ? combo.SelectedItem?.ToString() : null;
     }
 
     private static PrintDocument CreateDocument(string printer, string text)

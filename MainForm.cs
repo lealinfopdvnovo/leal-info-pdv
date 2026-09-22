@@ -4143,31 +4143,7 @@ private void ApplyFloatingTheme(Form f)
 
     private void PrintReceipt(string receipt)
     {
-        using var doc = new PrintDocument();
-        doc.DocumentName = "LEAL INFO CONECTADO - Comprovante de Venda";
-
-        doc.PrintPage += (_, e) =>
-        {
-            using var font = new Font("Consolas", 9);
-            e.Graphics.DrawString(
-                receipt,
-                font,
-                Brushes.Black,
-                e.MarginBounds.Left,
-                e.MarginBounds.Top);
-        };
-
-        using var dlg = new PrintDialog
-        {
-            Document = doc,
-            UseEXDialog = true
-        };
-
-        if (dlg.ShowDialog(this) == DialogResult.OK)
-        {
-            try { doc.Print(); }
-            catch (Exception ex) { Info("Não foi possível imprimir:\n" + ex.Message); }
-        }
+        ThermalPrinterService.PrintReceipt(receipt, this);
     }
 
     private void OpenSales()
