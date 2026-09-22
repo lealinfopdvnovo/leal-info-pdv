@@ -75,7 +75,11 @@ public sealed class MainForm : Form
     {
         try
         {
-            if (!EnsureApiKey()) { Close(); return; }
+            if (string.IsNullOrWhiteSpace(_secrets.GetApiKey()))
+            {
+                ActivateLocalMode("Sem chave da OpenAI. Entrei no modo local e continuo pronta para explicar e abrir as telas do PDV.");
+                return;
+            }
             CreateRealtimeConnection();
             if (_voiceOnly) await StartVoiceAsync();
         }
@@ -114,19 +118,8 @@ public sealed class MainForm : Form
         _realtime.Error += message => Ui(() =>
         {
             if (Interlocked.Exchange(ref _errorDialogVisible, 1) == 1) return;
-            if (IsCreditError(message))
-            {
-                _offlineMode = true;
-                _status.Text = "LIA GEMINI • preparando voz local...";
-                Append("LIA", "O crédito da OpenAI acabou. Entrei no modo básico Gemini para continuar ajudando no PDV.");
-                _ = SwitchToGeminiVoiceAsync();
-                Interlocked.Exchange(ref _errorDialogVisible, 0);
-                return;
-            }
-            _status.Text = "Falha na conexao de voz";
-            _ = SendStatusAsync("ERROR");
-            try { MessageBox.Show(this, message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-            finally { Interlocked.Exchange(ref _errorDialogVisible, 0); }
+            ActivateLocalMode("A conexão de voz não respondeu. Entrei no modo local para continuar ajudando: " + message);
+            Interlocked.Exchange(ref _errorDialogVisible, 0);
         });
         _realtime.NavigationRequested += async command => await SendNavigationCommandAsync(command, _lifetime.Token);
     }
@@ -144,10 +137,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            await SendStatusAsync("ERROR");
-            _voiceButton.Text = "🎙 FALAR";
-            MessageBox.Show(this, "A LIA nao conseguiu iniciar.\n\n" + ex.Message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            if (_voiceOnly) Close();
+            ActivateLocalMode("A voz online não iniciou. Entrei automaticamente no modo local: " + ex.Message);
         }
         finally { _voiceButton.Enabled = true; }
     }
@@ -158,8 +148,8 @@ public sealed class MainForm : Form
         {
             if (_offlineMode)
             {
-                if (_geminiMic != null) { StopOfflineVoice(); }
-                else StartOfflineVoice();
+                RevealLocalChat();
+                Append("LIA", "A voz local natural ainda está sendo instalada. Por enquanto, escreva sua pergunta aqui; o modo local já explica e abre as telas sem internet.");
                 return;
             }
             if (_realtime?.IsCapturing == true)
@@ -385,17 +375,7 @@ public sealed class MainForm : Form
         await done.Task.WaitAsync(cancellationToken);
     }
 
-    private static async Task SpeakWindowsLocalAsync(string text, CancellationToken cancellationToken)
-    {
-        await Task.Run(() =>
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            using var synth = new System.Speech.Synthesis.SpeechSynthesizer();
-            var pt = synth.GetInstalledVoices().FirstOrDefault(v => v.Enabled && v.VoiceInfo.Culture.Name.Equals("pt-BR", StringComparison.OrdinalIgnoreCase));
-            if (pt != null) synth.SelectVoice(pt.VoiceInfo.Name);
-            synth.Speak(text);
-        }, cancellationToken);
-    }
+    private static Task SpeakWindowsLocalAsync(string text, CancellationToken cancellationToken) => Task.CompletedTask;
 
     private async Task SpeakGeminiAsync(string text, CancellationToken cancellationToken)
     {
@@ -491,26 +471,26 @@ public sealed class MainForm : Form
             _input.Clear();
             Append("Voce", text);
             _send.Enabled = false;
-            _status.Text = "LIA GEMINI • pensando...";
+            _status.Text = "LIA LOCAL • respondendo...";
             try
             {
-                var answer = await SendGeminiAsync(text, _lifetime.Token);
+                var answer = LocalPdvAssistant.Answer(text);
                 if (TryExtractNavigationCommand(answer, out var command))
                 {
                     var result = await SendNavigationCommandAsync(command, _lifetime.Token);
                     Append("LIA", result);
-                    _status.Text = "LIA GEMINI • comando executado";
+                    _status.Text = "LIA LOCAL • comando executado";
                 }
                 else
                 {
                     Append("LIA", answer);
-                    _status.Text = "LIA GEMINI • modo básico";
+                    _status.Text = "LIA LOCAL • pronta";
                 }
             }
             catch (Exception ex)
             {
-                Append("LIA", "Não consegui usar o Gemini agora: " + ex.Message);
-                _status.Text = "LIA GEMINI • indisponível";
+                Append("LIA", "Não consegui concluir esse comando: " + ex.Message);
+                _status.Text = "LIA LOCAL • pronta";
             }
             finally { _send.Enabled = true; }
             return;
@@ -523,7 +503,14 @@ public sealed class MainForm : Form
         _status.Text = "LIA esta pensando...";
         await SendStatusAsync("THINKING");
         try { await _realtime!.SendTextAsync(text, _lifetime.Token); }
-        catch (Exception ex) { ShowFatalError(ex); }
+        catch (Exception ex)
+        {
+            ActivateLocalMode("A conexão online falhou. Continuei no modo local: " + ex.Message);
+            var answer = LocalPdvAssistant.Answer(text);
+            if (TryExtractNavigationCommand(answer, out var command))
+                Append("LIA", await SendNavigationCommandAsync(command, _lifetime.Token));
+            else Append("LIA", answer);
+        }
         finally { _send.Enabled = true; }
     }
 
@@ -599,6 +586,28 @@ public sealed class MainForm : Form
     {
         if (IsDisposed || !IsHandleCreated) return;
         if (InvokeRequired) BeginInvoke(action); else action();
+    }
+
+    private void ActivateLocalMode(string reason)
+    {
+        _offlineMode = true;
+        RevealLocalChat();
+        _status.Text = "LIA LOCAL • pronta sem internet";
+        _voiceButton.Text = "MODO TEXTO";
+        Append("LIA", reason);
+        _ = SendStatusAsync("IDLE");
+    }
+
+    private void RevealLocalChat()
+    {
+        if (!_voiceOnly) return;
+        Opacity = 1;
+        ShowInTaskbar = true;
+        WindowState = FormWindowState.Normal;
+        Show();
+        Activate();
+        BringToFront();
+        _input.Focus();
     }
 
     private bool EnsureApiKey()
