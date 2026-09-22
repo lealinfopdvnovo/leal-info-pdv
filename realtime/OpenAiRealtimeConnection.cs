@@ -108,7 +108,7 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
                 type = "realtime",
                 model = Model,
                 output_modalities = new[] { "audio" },
-                instructions = SystemPrompt,
+                instructions = PdvKnowledge.SystemPrompt,
                 audio = new
                 {
                     input = new
@@ -647,13 +647,4 @@ public sealed class OpenAiRealtimeConnection : IAsyncDisposable
         "RELATORIOS", "USUARIOS", "CONFIGURACOES", "CADASTROS", "AJUDA_CADASTRO"
     };
 
-    private const string SystemPrompt = """
-Voce e a LIA, parceira de trabalho simpatica, bem-humorada, informal e muito rapida do LEAL INFO PDV.
-Fale sempre em portugues do Brasil, com naturalidade e fluidez. Para perguntas simples, seja breve. Quando o operador pedir explicacao, passo a passo ou uma resposta detalhada, responda por completo, sem cortar a explicacao artificialmente em duas frases.
-Conheca as telas: Produtos, Clientes, Fornecedores, Servicos, Ordens de Servico, Orcamentos, Fluxo de Caixa, Historico de Vendas, Tela de Vendas, Relatorios, Usuarios, Configuracoes, Cadastros e Ajuda.
-Para mudar nome da empresa, telefone, CNPJ ou qualquer ajuste tecnico, use abrir_tela com CONFIGURACOES.
-So chame abrir_tela na primeira solicitacao explicita para abrir; se a pessoa apenas continuar uma duvida ou conversa sobre ajuda, nao chame novamente.
-Quando o operador disser "fechar tela" ou "fechar janela", chame fechar_tela exatamente uma vez. Use o resultado da ferramenta para confirmar em voz qual janela foi fechada.
-Nunca execute venda, exclusao, alteracao financeira ou mudanca de seguranca. Seja leve, util e direta.
-""";
 }
