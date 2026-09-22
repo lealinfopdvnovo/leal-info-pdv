@@ -80,6 +80,15 @@ internal sealed class ProductRegistrationForm : Form
                 operator TEXT NOT NULL,
                 FOREIGN KEY(product_id) REFERENCES products(id)
             );
+
+            CREATE TABLE IF NOT EXISTS product_lookups(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL,
+                name TEXT NOT NULL COLLATE NOCASE,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                active INTEGER NOT NULL DEFAULT 1,
+                UNIQUE(type,name)
+            );
             """;
         movement.ExecuteNonQuery();
     }
@@ -130,10 +139,10 @@ internal sealed class ProductRegistrationForm : Form
         AddField(fields, "stock", "Estoque atual", NumberBox(), row, 1);
         AddField(fields, "min_stock", "Estoque mínimo", NumberBox(), row, 2);
         AddField(fields, "expiry", "Validade", DateBox(true), row, 3); row++;
-        AddField(fields, "brand", "Marca", EditableCombo(), row, 0);
-        AddField(fields, "category", "Categoria", EditableCombo(), row, 1);
-        AddField(fields, "group", "Grupo", EditableCombo(), row, 2);
-        AddField(fields, "subgroup", "Subgrupo", EditableCombo(), row, 3); row++;
+        AddLookupField(fields, "brand", "Marca", "MARCA", row, 0);
+        AddLookupField(fields, "category", "Categoria", "CATEGORIA", row, 1);
+        AddLookupField(fields, "group", "Grupo", "GRUPO", row, 2);
+        AddLookupField(fields, "subgroup", "Subgrupo", "SUBGRUPO", row, 3); row++;
         AddField(fields, "composition", "Composição / ingredientes", new TextBox(), row, 0, 2);
         AddField(fields, "location", "Localização", new TextBox(), row, 2);
         AddField(fields, "notes", "Observação", new TextBox(), row, 3); row++;
@@ -181,6 +190,19 @@ internal sealed class ProductRegistrationForm : Form
         panel.Controls.Add(lbl, col, row * 2); panel.Controls.Add(input, col, row * 2 + 1); panel.SetColumnSpan(lbl, span); panel.SetColumnSpan(input, span); _fields[key] = input;
     }
 
+    private void AddLookupField(TableLayoutPanel panel, string key, string label, string type, int row, int col)
+    {
+        while (panel.RowCount <= row * 2 + 1) { panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 25)); panel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42)); panel.RowCount += 2; }
+        var lbl = new Label { Text = label, Dock = DockStyle.Fill, ForeColor = Color.White, Font = new Font("Segoe UI", 9, FontStyle.Bold), TextAlign = ContentAlignment.BottomLeft };
+        var host = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, Margin = new Padding(3, 2, 8, 5), BackColor = Color.Transparent };
+        host.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); host.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 38));
+        var combo = EditableCombo(); combo.Dock = DockStyle.Fill; combo.Margin = new Padding(0); combo.Font = new Font("Segoe UI", 10.5f); combo.BackColor = Color.FromArgb(241, 248, 255); combo.ForeColor = Color.FromArgb(4, 38, 72);
+        var add = new Button { Text = "+", Dock = DockStyle.Fill, Margin = new Padding(4, 0, 0, 0), BackColor = Color.FromArgb(255, 139, 0), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 18, FontStyle.Bold), Cursor = Cursors.Hand };
+        add.FlatAppearance.BorderSize = 0; add.Click += (_, _) => ManageLookup(type, combo);
+        host.Controls.Add(combo, 0, 0); host.Controls.Add(add, 1, 0);
+        panel.Controls.Add(lbl, col, row * 2); panel.Controls.Add(host, col, row * 2 + 1); _fields[key] = combo;
+    }
+
     private static TextBox MoneyBox() => new() { Text = "0,00", TextAlign = HorizontalAlignment.Right };
     private static TextBox NumberBox() => new() { Text = "0", TextAlign = HorizontalAlignment.Right };
     private static ComboBox Combo(params string[] values) { var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }; c.Items.AddRange(values); c.SelectedIndex = 0; return c; }
@@ -198,9 +220,94 @@ internal sealed class ProductRegistrationForm : Form
         supplier.SelectedIndex = 0;
         foreach (var pair in new[] { ("brand", "brand"), ("category", "category"), ("group", "product_group"), ("subgroup", "subgroup") })
         {
-            var combo = (ComboBox)_fields[pair.Item1]; using var cmd = cn.CreateCommand(); cmd.CommandText = $"SELECT DISTINCT COALESCE({pair.Item2},'') FROM products WHERE TRIM(COALESCE({pair.Item2},''))<>'' ORDER BY 1"; using var rd = cmd.ExecuteReader(); while (rd.Read()) combo.Items.Add(rd.GetString(0));
+            var combo = (ComboBox)_fields[pair.Item1]; combo.Items.Clear();
+            var lookupType = pair.Item1 switch { "brand" => "MARCA", "category" => "CATEGORIA", "group" => "GRUPO", _ => "SUBGRUPO" };
+            using var cmd = cn.CreateCommand();
+            cmd.CommandText = $"""
+                SELECT name FROM product_lookups WHERE type=$type AND active=1
+                UNION
+                SELECT DISTINCT COALESCE({pair.Item2},'') FROM products WHERE TRIM(COALESCE({pair.Item2},''))<>''
+                ORDER BY 1
+                """;
+            cmd.Parameters.AddWithValue("$type", lookupType);
+            using var rd = cmd.ExecuteReader(); while (rd.Read()) combo.Items.Add(rd.GetString(0));
         }
     }
+
+    private void ManageLookup(string type, ComboBox target)
+    {
+        using var f = new Form
+        {
+            Text = $"Cadastro de {LookupTitle(type)}",
+            StartPosition = FormStartPosition.CenterParent,
+            Width = 650,
+            Height = 530,
+            MinimumSize = new Size(560, 460),
+            BackColor = Color.FromArgb(7, 52, 92),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 10),
+            FormBorderStyle = FormBorderStyle.Sizable
+        };
+        var title = new Label { Text = LookupTitle(type).ToUpperInvariant(), Dock = DockStyle.Top, Height = 58, BackColor = Color.FromArgb(5, 92, 155), Font = new Font("Segoe UI", 19, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter };
+        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 64, BackColor = Color.FromArgb(8, 65, 110), Padding = new Padding(8) };
+        var description = new TextBox { Left = 18, Top = 151, Width = 390, Height = 36, Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+        var order = new NumericUpDown { Left = 425, Top = 151, Width = 105, Height = 36, Minimum = 0, Maximum = 9999, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+        var descriptionLabel = new Label { Text = "Descrição:", Left = 18, Top = 127, Width = 250, Height = 24 };
+        var orderLabel = new Label { Text = "Ordem:", Left = 425, Top = 127, Width = 100, Height = 24, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+        var list = new DataGridView { Left = 18, Top = 205, Width = 596, Height = 260, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right, ReadOnly = true, AllowUserToAddRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill, SelectionMode = DataGridViewSelectionMode.FullRowSelect, MultiSelect = false, BackgroundColor = Color.White };
+        long? selectedId = null;
+
+        Button ToolButton(string text, Color color)
+        {
+            var button = new Button { Text = text, Width = 130, Height = 44, Margin = new Padding(4), BackColor = color, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10, FontStyle.Bold) };
+            button.FlatAppearance.BorderSize = 0; return button;
+        }
+        var addNew = ToolButton("＋ NOVO", Color.FromArgb(45, 125, 190));
+        var save = ToolButton("✓ SALVAR", Color.FromArgb(75, 170, 70));
+        var edit = ToolButton("✎ EDITAR", Color.FromArgb(20, 115, 170));
+        var delete = ToolButton("🗑 EXCLUIR", Color.FromArgb(190, 55, 60));
+        toolbar.Controls.AddRange(new Control[] { addNew, save, edit, delete });
+
+        void Reload()
+        {
+            using var cn = Database.Open(); using var cmd = cn.CreateCommand();
+            cmd.CommandText = "SELECT id AS ID,name AS Descrição,sort_order AS Ordem FROM product_lookups WHERE type=$type AND active=1 ORDER BY sort_order,name";
+            cmd.Parameters.AddWithValue("$type", type); using var rd = cmd.ExecuteReader(); var table = new System.Data.DataTable(); table.Load(rd); list.DataSource = table;
+            if (list.Columns.Contains("ID")) list.Columns["ID"].Visible = false;
+        }
+        void Clear() { selectedId = null; description.Clear(); order.Value = 0; description.Focus(); }
+        void LoadSelected()
+        {
+            if (list.CurrentRow == null) return;
+            selectedId = Convert.ToInt64(list.CurrentRow.Cells["ID"].Value);
+            description.Text = Convert.ToString(list.CurrentRow.Cells["Descrição"].Value) ?? "";
+            order.Value = Math.Clamp(Convert.ToDecimal(list.CurrentRow.Cells["Ordem"].Value), order.Minimum, order.Maximum);
+        }
+        void Save()
+        {
+            var name = description.Text.Trim(); if (name.Length == 0) { MessageBox.Show(f, "Informe a descrição."); return; }
+            try
+            {
+                using var cn = Database.Open(); using var cmd = cn.CreateCommand();
+                if (selectedId.HasValue) { cmd.CommandText = "UPDATE product_lookups SET name=$name,sort_order=$order WHERE id=$id"; cmd.Parameters.AddWithValue("$id", selectedId.Value); }
+                else cmd.CommandText = "INSERT INTO product_lookups(type,name,sort_order,active) VALUES($type,$name,$order,1) ON CONFLICT(type,name) DO UPDATE SET active=1,sort_order=excluded.sort_order";
+                cmd.Parameters.AddWithValue("$type", type); cmd.Parameters.AddWithValue("$name", name); cmd.Parameters.AddWithValue("$order", (int)order.Value); cmd.ExecuteNonQuery();
+                Reload(); target.Text = name; Clear();
+            }
+            catch (Exception ex) { MessageBox.Show(f, "Não foi possível salvar.\n\n" + ex.Message); }
+        }
+        void Delete()
+        {
+            LoadSelected(); if (!selectedId.HasValue) return;
+            if (MessageBox.Show(f, "Excluir esta opção da lista? Produtos já cadastrados não serão alterados.", "Confirmar", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+            using var cn = Database.Open(); using var cmd = cn.CreateCommand(); cmd.CommandText = "UPDATE product_lookups SET active=0 WHERE id=$id"; cmd.Parameters.AddWithValue("$id", selectedId.Value); cmd.ExecuteNonQuery(); Reload(); Clear();
+        }
+        addNew.Click += (_, _) => Clear(); save.Click += (_, _) => Save(); edit.Click += (_, _) => LoadSelected(); delete.Click += (_, _) => Delete(); list.CellDoubleClick += (_, _) => LoadSelected();
+        f.Controls.AddRange(new Control[] { list, description, order, descriptionLabel, orderLabel, toolbar, title }); Reload(); f.ShowDialog(this);
+        var selected = target.Text; LoadCombos(); if (!string.IsNullOrWhiteSpace(selected)) target.Text = selected;
+    }
+
+    private static string LookupTitle(string type) => type switch { "MARCA" => "Marcas", "CATEGORIA" => "Categorias", "GRUPO" => "Grupos", _ => "Subgrupos" };
 
     private void NewProduct()
     {
