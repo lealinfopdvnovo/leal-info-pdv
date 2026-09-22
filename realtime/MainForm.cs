@@ -630,7 +630,18 @@ public sealed class MainForm : Form
         _voiceButton.Text = "PREPARANDO...";
         try
         {
+            // Quando a LIA e aberta pelo botao do PDV, o formulario nasce oculto.
+            // Exiba-o antes de pedir a chave para o dialogo nao ficar atras do PDV.
+            if (string.IsNullOrWhiteSpace(GetGeminiApiKey()))
+            {
+                RevealLocalChat();
+                TopMost = true;
+                Activate();
+                BringToFront();
+                await Task.Delay(180);
+            }
             _ = EnsureGeminiApiKey();
+            TopMost = false;
             if (_realtime != null)
             {
                 await _realtime.StopMicrophoneAsync();
@@ -640,6 +651,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
+            TopMost = false;
             LiaLog("VOICE_FALLBACK_ERROR", ex.Message);
             RevealLocalChat();
             _status.Text = "Configure a chave gratuita para usar a voz";
