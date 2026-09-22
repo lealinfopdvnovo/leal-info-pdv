@@ -38,6 +38,7 @@ public sealed class MainForm : Form
     private readonly SemaphoreSlim _ttsLock = new(1, 1);
     private CancellationTokenSource? _voiceRequestCts;
     private CancellationTokenSource? _ttsCts;
+    private int _voiceFallbackStarting;
     private static readonly object LiaLogLock = new();
     private static string LiaLogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV", "Logs", "lia-diagnostico.log");
     private static void LiaLog(string stage, string detail = "")
@@ -77,7 +78,7 @@ public sealed class MainForm : Form
         {
             if (string.IsNullOrWhiteSpace(_secrets.GetApiKey()))
             {
-                ActivateLocalMode("Sem chave da OpenAI. Entrei no modo local e continuo pronta para explicar e abrir as telas do PDV.");
+                await ActivateVoiceFallbackAsync("OPENAI_KEY_MISSING");
                 return;
             }
             CreateRealtimeConnection();
@@ -118,7 +119,7 @@ public sealed class MainForm : Form
         _realtime.Error += message => Ui(() =>
         {
             if (Interlocked.Exchange(ref _errorDialogVisible, 1) == 1) return;
-            ActivateLocalMode("A conexão de voz não respondeu. Entrei no modo local para continuar ajudando: " + message);
+            _ = ActivateVoiceFallbackAsync("OPENAI_CONNECTION_FAILED");
             Interlocked.Exchange(ref _errorDialogVisible, 0);
         });
         _realtime.NavigationRequested += async command => await SendNavigationCommandAsync(command, _lifetime.Token);
@@ -137,7 +138,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            ActivateLocalMode("A voz online não iniciou. Entrei automaticamente no modo local: " + ex.Message);
+            await ActivateVoiceFallbackAsync("OPENAI_START_FAILED");
         }
         finally { _voiceButton.Enabled = true; }
     }
@@ -148,8 +149,8 @@ public sealed class MainForm : Form
         {
             if (_offlineMode)
             {
-                RevealLocalChat();
-                Append("LIA", "A voz local natural ainda está sendo instalada. Por enquanto, escreva sua pergunta aqui; o modo local já explica e abre as telas sem internet.");
+                if (_geminiMic != null) StopOfflineVoice();
+                else StartOfflineVoice();
                 return;
             }
             if (_realtime?.IsCapturing == true)
@@ -275,7 +276,6 @@ public sealed class MainForm : Form
             if (TryExtractNavigationCommand(answer, out var command))
             {
                 LiaLog("PDV_COMMAND_SEND", command);
-                Ui(() => Append("LIA", "Abrindo..."));
                 _ = SendNavigationCommandAndLogAsync(command, _lifetime.Token);
             }
             else
@@ -303,6 +303,7 @@ public sealed class MainForm : Form
             var result = await SendNavigationCommandAsync(command, timeout.Token);
             LiaLog("PDV_COMMAND_RESULT", result);
             Ui(() => Append("LIA", result));
+            await SpeakGeminiAsync(result, cancellationToken);
         }
         catch (Exception ex) { LiaLog("PDV_COMMAND_ERROR", ex.Message); }
     }
@@ -345,6 +346,7 @@ public sealed class MainForm : Form
     }
 
     private const string AzureVoiceName = "pt-BR-FranciscaNeural";
+    private const string GeminiTtsModel = "gemini-3.1-flash-tts-preview";
     private static string TtsCacheDir => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPdv", "voz-cache");
 
     private static string TtsCachePath(string text)
@@ -377,6 +379,81 @@ public sealed class MainForm : Form
 
     private static Task SpeakWindowsLocalAsync(string text, CancellationToken cancellationToken) => Task.CompletedTask;
 
+    private static bool TryGetGeminiAudioChunk(string json, out byte[] audio)
+    {
+        audio = Array.Empty<byte>();
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("event_type", out var eventType) || eventType.GetString() != "step.delta") return false;
+            if (!root.TryGetProperty("delta", out var delta) ||
+                !delta.TryGetProperty("type", out var type) || type.GetString() != "audio" ||
+                !delta.TryGetProperty("data", out var data)) return false;
+            var encoded = data.GetString();
+            if (string.IsNullOrWhiteSpace(encoded)) return false;
+            audio = Convert.FromBase64String(encoded);
+            return audio.Length > 0;
+        }
+        catch { return false; }
+    }
+
+    private async Task SpeakGeminiNaturalAsync(string text, string key, CancellationToken cancellationToken)
+    {
+        var endpoint = "https://generativelanguage.googleapis.com/v1beta/interactions";
+        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+        request.Headers.Add("x-goog-api-key", key);
+        request.Headers.Add("Api-Revision", "2026-05-20");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        request.Content = JsonContent.Create(new
+        {
+            model = GeminiTtsModel,
+            input = "Fale em português brasileiro, com voz feminina natural, acolhedora, clara e ritmo ágil de atendente de PDV. Diga somente: " + text,
+            response_format = new { type = "audio" },
+            generation_config = new { speech_config = new[] { new { voice = "Sulafat" } } },
+            stream = true
+        });
+
+        using var response = await GeminiHttp.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            throw new InvalidOperationException($"Gemini TTS {(int)response.StatusCode}: {ExtractGeminiError(error)}");
+        }
+
+        var provider = new BufferedWaveProvider(new WaveFormat(24000, 16, 1))
+        {
+            BufferDuration = TimeSpan.FromSeconds(20),
+            DiscardOnBufferOverflow = true,
+            ReadFully = true
+        };
+        using var output = new WaveOutEvent { DesiredLatency = 80 };
+        output.Init(provider);
+        var started = false;
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var reader = new StreamReader(stream);
+        while (!reader.EndOfStream)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var line = await reader.ReadLineAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(line) || !line.StartsWith("data:", StringComparison.OrdinalIgnoreCase)) continue;
+            var payload = line[5..].Trim();
+            if (payload == "[DONE]") break;
+            if (!TryGetGeminiAudioChunk(payload, out var chunk)) continue;
+            provider.AddSamples(chunk, 0, chunk.Length);
+            if (!started)
+            {
+                output.Play();
+                started = true;
+                await SendStatusAsync("SPEAKING");
+            }
+        }
+        if (!started) throw new InvalidOperationException("O serviço de voz não retornou áudio.");
+        while (provider.BufferedDuration > TimeSpan.FromMilliseconds(60))
+            await Task.Delay(30, cancellationToken);
+        output.Stop();
+    }
+
     private async Task SpeakGeminiAsync(string text, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
@@ -385,63 +462,11 @@ public sealed class MainForm : Form
         LiaLog("TTS_REQUEST", $"chars={text.Length}");
         try
         {
-            var cache = TtsCachePath(text);
-            if (IsFixedTtsPhrase(text) && File.Exists(cache))
-            {
-                LiaLog("TTS_CACHE_HIT", $"ms={sw.ElapsedMilliseconds}");
-                LiaLog("TTS_PLAY_START", $"ms={sw.ElapsedMilliseconds}");
-                await SendStatusAsync("SPEAKING");
-                await PlayCachedWavAsync(cache, cancellationToken);
-                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}");
-                await SendStatusAsync("IDLE");
-                return;
-            }
-
-            var key = Environment.GetEnvironmentVariable("AZURE_SPEECH_KEY");
-            var region = Environment.GetEnvironmentVariable("AZURE_SPEECH_REGION");
-            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(region))
-            {
-                LiaLog("TTS_FALLBACK_LOCAL", $"ms={sw.ElapsedMilliseconds}; reason=AZURE_ENV_MISSING");
-                await SendStatusAsync("SPEAKING");
-                await SpeakWindowsLocalAsync(text, cancellationToken);
-                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}; engine=windows");
-                await SendStatusAsync("IDLE");
-                return;
-            }
-
-            LiaLog("TTS_AZURE_REQUEST", $"ms={sw.ElapsedMilliseconds}");
-            using var azureTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            azureTimeout.CancelAfter(TimeSpan.FromSeconds(3));
-            try
-            {
-                var config = SpeechConfig.FromSubscription(key, region);
-                config.SpeechSynthesisVoiceName = AzureVoiceName;
-                using var synthesizer = new Microsoft.CognitiveServices.Speech.SpeechSynthesizer(config, null);
-                var synthTask = synthesizer.SpeakTextAsync(text);
-                var result = await synthTask.WaitAsync(azureTimeout.Token);
-                if (result.Reason != ResultReason.SynthesizingAudioCompleted || result.AudioData == null || result.AudioData.Length == 0)
-                    throw new InvalidOperationException("AZURE_" + result.Reason);
-
-                var playFile = Path.Combine(Path.GetTempPath(), $"lia_azure_{Guid.NewGuid():N}.wav");
-                if (IsFixedTtsPhrase(text)) playFile = cache;
-                await File.WriteAllBytesAsync(playFile, result.AudioData, cancellationToken);
-                LiaLog("TTS_AZURE_READY", $"ms={sw.ElapsedMilliseconds}; bytes={result.AudioData.Length}");
-                LiaLog("TTS_PLAY_START", $"ms={sw.ElapsedMilliseconds}");
-                await SendStatusAsync("SPEAKING");
-                await PlayCachedWavAsync(playFile, cancellationToken);
-                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}");
-                await SendStatusAsync("IDLE");
-                if (!IsFixedTtsPhrase(text)) try { File.Delete(playFile); } catch { }
-            }
-            catch (Exception ex) when (ex is OperationCanceledException || ex is TimeoutException || ex is InvalidOperationException)
-            {
-                var reason = ex is OperationCanceledException ? "AZURE_TIMEOUT_3S" : ex.Message.Replace(Environment.NewLine, " ");
-                LiaLog("TTS_FALLBACK_LOCAL", $"ms={sw.ElapsedMilliseconds}; reason={reason}");
-                await SendStatusAsync("SPEAKING");
-                await SpeakWindowsLocalAsync(text, cancellationToken);
-                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}; engine=windows");
-                await SendStatusAsync("IDLE");
-            }
+            var key = EnsureGeminiApiKey();
+            LiaLog("TTS_GEMINI_STREAM_REQUEST", $"ms={sw.ElapsedMilliseconds}");
+            await SpeakGeminiNaturalAsync(text, key, cancellationToken);
+            LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}; engine=gemini-natural");
+            await SendStatusAsync("IDLE");
         }
         catch (OperationCanceledException)
         {
@@ -450,13 +475,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            LiaLog("TTS_FALLBACK_LOCAL", $"ms={sw.ElapsedMilliseconds}; reason={ex.GetType().Name}:{ex.Message.Replace(Environment.NewLine, " ")}");
-            try
-            {
-                await SpeakWindowsLocalAsync(text, CancellationToken.None);
-                LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}; engine=windows");
-            }
-            catch (Exception localEx) { LiaLog("TTS_ERROR", $"ms={sw.ElapsedMilliseconds}; local={localEx.Message}"); }
+            LiaLog("TTS_ERROR", $"ms={sw.ElapsedMilliseconds}; reason={ex.GetType().Name}:{ex.Message.Replace(Environment.NewLine, " ")}");
             await SendStatusAsync("IDLE");
         }
         finally { _ttsLock.Release(); }
@@ -505,7 +524,7 @@ public sealed class MainForm : Form
         try { await _realtime!.SendTextAsync(text, _lifetime.Token); }
         catch (Exception ex)
         {
-            ActivateLocalMode("A conexão online falhou. Continuei no modo local: " + ex.Message);
+            await ActivateVoiceFallbackAsync("TEXT_CONNECTION_FAILED");
             var answer = LocalPdvAssistant.Answer(text);
             if (TryExtractNavigationCommand(answer, out var command))
                 Append("LIA", await SendNavigationCommandAsync(command, _lifetime.Token));
@@ -533,7 +552,21 @@ public sealed class MainForm : Form
         _keyButton.Text = "Configurar chave";
         _keyButton.Size = new Size(140, 34);
         _keyButton.Location = new Point(Width - 185, 20);
-        _keyButton.Click += (_, _) => ConfigureApiKey();
+        _keyButton.Click += (_, _) =>
+        {
+            if (_offlineMode)
+            {
+                var value = Microsoft.VisualBasic.Interaction.InputBox(
+                    "Cole sua chave gratuita do Google AI Studio. Ela ficará protegida neste computador.",
+                    "Configurar voz da LIA", "").Trim();
+                if (value.Length >= 20)
+                {
+                    SaveGeminiApiKey(value);
+                    _status.Text = "Chave de voz salva";
+                }
+            }
+            else ConfigureApiKey();
+        };
         top.Controls.AddRange(new Control[] { _status, _keyButton });
         top.Resize += (_, _) => _keyButton.Left = top.ClientSize.Width - _keyButton.Width - 18;
 
@@ -588,14 +621,33 @@ public sealed class MainForm : Form
         if (InvokeRequired) BeginInvoke(action); else action();
     }
 
-    private void ActivateLocalMode(string reason)
+    private async Task ActivateVoiceFallbackAsync(string reason)
     {
+        if (Interlocked.Exchange(ref _voiceFallbackStarting, 1) == 1) return;
         _offlineMode = true;
-        RevealLocalChat();
-        _status.Text = "LIA LOCAL • pronta sem internet";
-        _voiceButton.Text = "MODO TEXTO";
-        Append("LIA", reason);
-        _ = SendStatusAsync("IDLE");
+        LiaLog("VOICE_FALLBACK", reason);
+        _status.Text = "LIA VOZ • preparando microfone";
+        _voiceButton.Text = "PREPARANDO...";
+        try
+        {
+            _ = EnsureGeminiApiKey();
+            if (_realtime != null)
+            {
+                await _realtime.StopMicrophoneAsync();
+                await _realtime.DisconnectAsync();
+            }
+            StartOfflineVoice();
+        }
+        catch (Exception ex)
+        {
+            LiaLog("VOICE_FALLBACK_ERROR", ex.Message);
+            RevealLocalChat();
+            _status.Text = "Configure a chave gratuita para usar a voz";
+            _voiceButton.Text = "🎙 FALAR";
+            Append("LIA", "Para conversar por voz, configure uma chave gratuita do Google AI Studio no botão Configurar.");
+            await SendStatusAsync("ERROR");
+        }
+        finally { Interlocked.Exchange(ref _voiceFallbackStarting, 0); }
     }
 
     private void RevealLocalChat()
