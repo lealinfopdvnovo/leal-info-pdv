@@ -2713,11 +2713,25 @@ private void ApplyFloatingTheme(Form f)
         var companyTab = new TabPage("DADOS DA EMPRESA") { BackColor = Color.FromArgb(224,239,248), Padding = new Padding(26) };
         var pixTab = new TabPage("PIX") { BackColor = Color.FromArgb(224,239,248), Padding = new Padding(26) };
         var systemTab = new TabPage("SISTEMA E SEGURANÇA") { BackColor = Color.FromArgb(224,239,248), Padding = new Padding(26) };
+        var equipmentTab = new TabPage("EQUIPAMENTOS") { BackColor = Color.FromArgb(224,239,248), Padding = new Padding(26) };
         tabs.TabPages.Add(companyTab);
         tabs.TabPages.Add(pixTab);
         tabs.TabPages.Add(systemTab);
+        tabs.TabPages.Add(equipmentTab);
         f.Controls.Add(tabs);
         tabs.BringToFront();
+
+        var equipmentPanel = new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=1,RowCount=3,Padding=new Padding(45) };
+        equipmentPanel.RowStyles.Add(new RowStyle(SizeType.Percent,30));
+        equipmentPanel.RowStyles.Add(new RowStyle(SizeType.Percent,40));
+        equipmentPanel.RowStyles.Add(new RowStyle(SizeType.Percent,30));
+        var equipmentText = new Label { Text="CONFIGURE BALANÇAS, IMPRESSORAS TÉRMICAS E MODELOS DE BOBINA",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",16,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter };
+        var equipmentButton = new Button { Text="ABRIR CENTRAL DE EQUIPAMENTOS",Dock=DockStyle.Fill,Margin=new Padding(60,20,60,20),BackColor=Color.FromArgb(0,145,85),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",14,FontStyle.Bold) };
+        equipmentButton.FlatAppearance.BorderSize=0;
+        equipmentButton.Click += (_,_) => EquipmentSettingsForm.Show(f);
+        var equipmentHint = new Label { Text="Impressoras instaladas no Windows • Bobinas 58, 76, 80 mm ou personalizada\nBalanças COM/RS-232 • TCP/IP • Teclado/HID • Etiqueta com código de barras",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",10),TextAlign=ContentAlignment.MiddleCenter };
+        equipmentPanel.Controls.Add(equipmentText,0,0);equipmentPanel.Controls.Add(equipmentButton,0,1);equipmentPanel.Controls.Add(equipmentHint,0,2);
+        equipmentTab.Controls.Add(equipmentPanel);
 
         var company = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 8, Padding = new Padding(12) };
         company.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,230));
@@ -5629,13 +5643,19 @@ private void ApplyFloatingTheme(Form f)
                 {
                     using var itemCmd = cn.CreateCommand();
                     itemCmd.Transaction = tx;
-                    itemCmd.CommandText = """
-                        INSERT INTO sale_items(sale_id,product_id,description,qty,unit_price,total)
-                        VALUES($sale,$product,$description,$qty,$unit,$total);
-                        UPDATE products SET stock=stock-$qty WHERE id=$product;
-                        """;
+                    itemCmd.CommandText = item.ProductId > 0
+                        ? """
+                            INSERT INTO sale_items(sale_id,product_id,description,qty,unit_price,total)
+                            VALUES($sale,$product,$description,$qty,$unit,$total);
+                            UPDATE products SET stock=stock-$qty WHERE id=$product;
+                            """
+                        : """
+                            INSERT INTO sale_items(sale_id,product_id,description,qty,unit_price,total)
+                            VALUES($sale,NULL,$description,$qty,$unit,$total);
+                            """;
                     itemCmd.Parameters.AddWithValue("$sale", saleId);
-                    itemCmd.Parameters.AddWithValue("$product", item.ProductId);
+                    if (item.ProductId > 0)
+                        itemCmd.Parameters.AddWithValue("$product", item.ProductId);
                     itemCmd.Parameters.AddWithValue("$description", item.Description);
                     itemCmd.Parameters.AddWithValue("$qty", item.Qty);
                     itemCmd.Parameters.AddWithValue("$unit", item.UnitPrice);
@@ -5679,6 +5699,7 @@ private void ApplyFloatingTheme(Form f)
                 RefreshDashboard();
 
                 ShowReceipt(receipt);
+                ThermalPrinterService.PrintAutomaticallyIfEnabled(receipt, this);
             }
             catch (Exception ex)
             {
