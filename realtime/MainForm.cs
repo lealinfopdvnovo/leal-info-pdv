@@ -39,6 +39,7 @@ public sealed class MainForm : Form
     private CancellationTokenSource? _voiceRequestCts;
     private CancellationTokenSource? _ttsCts;
     private int _voiceFallbackStarting;
+    private bool _continuousVoiceMode;
     private static readonly object LiaLogLock = new();
     private static string LiaLogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV", "Logs", "lia-diagnostico.log");
     private static void LiaLog(string stage, string detail = "")
@@ -149,8 +150,21 @@ public sealed class MainForm : Form
         {
             if (_offlineMode)
             {
-                if (_geminiMic != null) StopOfflineVoice();
-                else StartOfflineVoice();
+                if (_continuousVoiceMode)
+                {
+                    _continuousVoiceMode = false;
+                    StopOfflineVoice();
+                    _voiceRequestCts?.Cancel();
+                    _ttsCts?.Cancel();
+                    _status.Text = "LIA VOZ • conversa encerrada";
+                    _voiceButton.Text = "🎙 FALAR";
+                    await SendStatusAsync("IDLE");
+                }
+                else
+                {
+                    _continuousVoiceMode = true;
+                    StartOfflineVoice();
+                }
                 return;
             }
             if (_realtime?.IsCapturing == true)
@@ -181,6 +195,7 @@ public sealed class MainForm : Form
                 await _realtime.StopMicrophoneAsync();
                 await _realtime.DisconnectAsync();
             }
+            _continuousVoiceMode = true;
             StartOfflineVoice();
         }
         catch (Exception ex)
@@ -275,16 +290,36 @@ public sealed class MainForm : Form
             LiaLog("GEMINI_AUDIO_RESPONSE", answer);
             if (TryExtractNavigationCommand(answer, out var command))
             {
+                if (command.Equals("ENCERRAR_VOZ", StringComparison.OrdinalIgnoreCase))
+                {
+                    _continuousVoiceMode = false;
+                    Ui(() => Append("LIA", "Conversa por voz encerrada."));
+                    await SpeakGeminiAsync("Conversa por voz encerrada.", _lifetime.Token);
+                    Ui(() => { _status.Text = "LIA VOZ • conversa encerrada"; _voiceButton.Text = "🎙 FALAR"; });
+                    await SendStatusAsync("IDLE");
+                    return;
+                }
                 LiaLog("PDV_COMMAND_SEND", command);
-                _ = SendNavigationCommandAndLogAsync(command, _lifetime.Token);
+                await SendNavigationCommandAndLogAsync(command, _lifetime.Token);
             }
             else
             {
                 Ui(() => Append("LIA", answer));
-                _ = SpeakGeminiAsync(answer, _lifetime.Token);
+                await SpeakGeminiAsync(answer, _lifetime.Token);
             }
-            Ui(() => { _status.Text = "LIA GEMINI • modo básico"; _voiceButton.Text = "🎙 FALAR"; });
-            await SendStatusAsync("IDLE");
+            if (_continuousVoiceMode && !_lifetime.IsCancellationRequested)
+            {
+                Ui(() =>
+                {
+                    _status.Text = "LIA VOZ • ouvindo novamente";
+                    StartOfflineVoice();
+                });
+            }
+            else
+            {
+                Ui(() => { _status.Text = "LIA VOZ • pronta"; _voiceButton.Text = "🎙 FALAR"; });
+                await SendStatusAsync("IDLE");
+            }
         }
         catch (Exception ex)
         {
@@ -647,6 +682,7 @@ public sealed class MainForm : Form
                 await _realtime.StopMicrophoneAsync();
                 await _realtime.DisconnectAsync();
             }
+            _continuousVoiceMode = true;
             StartOfflineVoice();
         }
         catch (Exception ex)
@@ -715,7 +751,7 @@ public sealed class MainForm : Form
         {
             "PRODUTOS","CLIENTES","FORNECEDORES","SERVICOS","ORDENS_SERVICO","ORCAMENTOS",
             "FLUXO_CAIXA","HISTORICO_VENDAS","TELA_VENDAS","RELATORIOS","USUARIOS",
-            "CONFIGURACOES","CADASTROS","AJUDA_CADASTRO","FECHAR_TELA"
+            "CONFIGURACOES","CADASTROS","AJUDA_CADASTRO","FECHAR_TELA","ENCERRAR_VOZ"
         };
         if (!allowed.Contains(candidate)) return false;
         command = candidate;
@@ -811,6 +847,7 @@ REGRAS DO MODO TEXTO/GEMINI
 Se a pessoa perguntar ONDE, COMO, PARA QUE SERVE ou pedir explicação, explique e NÃO gere comando.
 Somente quando houver pedido claro para abrir, ir, mostrar ou fechar uma tela, responda EXCLUSIVAMENTE com uma linha COMANDO: NOME.
 Comandos permitidos: PRODUTOS, CLIENTES, FORNECEDORES, SERVICOS, ORDENS_SERVICO, ORCAMENTOS, FLUXO_CAIXA, HISTORICO_VENDAS, TELA_VENDAS, RELATORIOS, USUARIOS, CONFIGURACOES, CADASTROS, AJUDA_CADASTRO, FECHAR_TELA.
+Quando a pessoa disser "encerrar voz", "parar conversa", "pode parar de ouvir" ou equivalente, responda EXCLUSIVAMENTE: COMANDO: ENCERRAR_VOZ
 Exemplo: "onde vejo minhas vendas?" => explique Histórico de Vendas.
 Exemplo: "abre minhas vendas" => COMANDO: HISTORICO_VENDAS
 Nunca diga que executou antes da confirmação do PDV.
