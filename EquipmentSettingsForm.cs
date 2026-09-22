@@ -182,6 +182,7 @@ public sealed class EquipmentSettingsForm : Form
         var tabs = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold), Padding = new Point(14, 6) };
         tabs.TabPages.Add(BuildPrinterTab());
         tabs.TabPages.Add(BuildScaleTab());
+        tabs.TabPages.Add(BuildScaleLoadTab());
         tabs.TabPages.Add(BuildTutorialTab());
         Controls.Add(tabs);
         tabs.BringToFront();
@@ -269,6 +270,20 @@ public sealed class EquipmentSettingsForm : Form
             """
         };
         tab.Controls.Add(text);
+        return tab;
+    }
+
+    private TabPage BuildScaleLoadTab()
+    {
+        var tab = NewTab("CARGA DE PRODUTOS");
+        var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(28), BackColor = Color.White };
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 30)); panel.RowStyles.Add(new RowStyle(SizeType.Percent, 40)); panel.RowStyles.Add(new RowStyle(SizeType.Percent, 30));
+        panel.Controls.Add(new Label { Text = "ENVIE PREÇOS E PRODUTOS PARA A BALANÇA", Dock = DockStyle.Fill, ForeColor = Blue, Font = new Font("Segoe UI", 14, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter }, 0, 0);
+        var open = new Button { Text = "ABRIR CARGA PARA BALANÇA", Dock = DockStyle.Fill, Margin = new Padding(100, 16, 100, 16), BackColor = Color.FromArgb(0, 145, 85), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 12, FontStyle.Bold) };
+        open.FlatAppearance.BorderSize = 0; open.Click += (_, _) => ScaleLoadForm.Open(this);
+        panel.Controls.Add(open, 0, 1);
+        panel.Controls.Add(new Label { Text = "Produtos marcados como Usar balança ou cadastrados em KG • PLU • preço • validade • exportação • envio COM/TCP", Dock = DockStyle.Fill, ForeColor = Blue, Font = new Font("Segoe UI", 9), TextAlign = ContentAlignment.MiddleCenter }, 0, 2);
+        tab.Controls.Add(panel);
         return tab;
     }
 
