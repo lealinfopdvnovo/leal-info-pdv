@@ -40,6 +40,8 @@ public sealed class MainForm : Form
     private CancellationTokenSource? _ttsCts;
     private int _voiceFallbackStarting;
     private bool _continuousVoiceMode;
+    private int _voiceDetected;
+    private long _lastVoiceTicks;
     private static readonly object LiaLogLock = new();
     private static string LiaLogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV", "Logs", "lia-diagnostico.log");
     private static void LiaLog(string stage, string detail = "")
@@ -210,6 +212,8 @@ public sealed class MainForm : Form
     private void StartOfflineVoice()
     {
         if (_geminiMic != null) return;
+        Interlocked.Exchange(ref _voiceDetected, 0);
+        Interlocked.Exchange(ref _lastVoiceTicks, DateTime.UtcNow.Ticks);
         LiaLog("GEMINI_AUDIO_CAPTURE_START");
         _geminiAudio = new MemoryStream();
         _geminiWriter = new WaveFileWriter(_geminiAudio, new WaveFormat(16000, 16, 1));
@@ -221,12 +225,21 @@ public sealed class MainForm : Form
         mic.StartRecording();
         _geminiCaptureTimer?.Stop();
         _geminiCaptureTimer?.Dispose();
-        _geminiCaptureTimer = new System.Windows.Forms.Timer { Interval = 3000 };
+        _geminiCaptureTimer = new System.Windows.Forms.Timer { Interval = 100 };
         _geminiCaptureTimer.Tick += (_, _) =>
         {
-            _geminiCaptureTimer?.Stop();
-            LiaLog("CAPTURE_TIMEOUT_STOP", "3000ms");
-            StopOfflineVoice();
+            var now = DateTime.UtcNow;
+            var elapsed = now - _geminiVoiceStarted;
+            var lastVoice = new DateTime(Interlocked.Read(ref _lastVoiceTicks), DateTimeKind.Utc);
+            var finishedSpeaking = Volatile.Read(ref _voiceDetected) == 1
+                && elapsed >= TimeSpan.FromMilliseconds(650)
+                && now - lastVoice >= TimeSpan.FromMilliseconds(480);
+            if (finishedSpeaking || elapsed >= TimeSpan.FromSeconds(6))
+            {
+                _geminiCaptureTimer?.Stop();
+                LiaLog(finishedSpeaking ? "SILENCE_DETECTED_STOP" : "CAPTURE_TIMEOUT_STOP", $"{elapsed.TotalMilliseconds:0}ms");
+                StopOfflineVoice();
+            }
         };
         _geminiCaptureTimer.Start();
         LiaLog("MIC_INPUT_READY", "NAudio 16000Hz 16-bit mono device=0");
@@ -242,9 +255,29 @@ public sealed class MainForm : Form
         {
             _geminiWriter?.Write(e.Buffer, 0, e.BytesRecorded);
             _geminiWriter?.Flush();
-
+            long energy = 0;
+            var samples = e.BytesRecorded / 2;
+            for (var i = 0; i + 1 < e.BytesRecorded; i += 2)
+                energy += Math.Abs((int)BitConverter.ToInt16(e.Buffer, i));
+            if (samples > 0 && energy / samples >= 420)
+            {
+                Volatile.Write(ref _voiceDetected, 1);
+                Interlocked.Exchange(ref _lastVoiceTicks, DateTime.UtcNow.Ticks);
+            }
         }
         catch (Exception ex) { LiaLog("AUDIO_CAPTURE_ERROR", ex.Message); }
+    }
+
+    private async Task ResumeContinuousListeningAsync(int delayMilliseconds = 120)
+    {
+        if (!_continuousVoiceMode || _lifetime.IsCancellationRequested) return;
+        try { await Task.Delay(delayMilliseconds, _lifetime.Token); }
+        catch (OperationCanceledException) { return; }
+        Ui(() =>
+        {
+            if (_continuousVoiceMode && !_lifetime.IsCancellationRequested && _geminiMic == null)
+                StartOfflineVoice();
+        });
     }
 
     private void StopOfflineVoice()
@@ -279,6 +312,12 @@ public sealed class MainForm : Form
             _geminiAudio = null;
             LiaLog("AUDIO_CAPTURED", $"bytes={wav.Length}; error={e.Exception?.Message}");
             if (e.Exception != null) throw e.Exception;
+            if (Volatile.Read(ref _voiceDetected) == 0)
+            {
+                LiaLog("NO_VOICE_RESTART");
+                await ResumeContinuousListeningAsync(100);
+                return;
+            }
             if (wav.Length < 2000) throw new InvalidOperationException("Nenhum áudio útil foi capturado.");
 
             LiaLog("GEMINI_AUDIO_SEND", $"bytes={wav.Length}");
@@ -309,11 +348,8 @@ public sealed class MainForm : Form
             }
             if (_continuousVoiceMode && !_lifetime.IsCancellationRequested)
             {
-                Ui(() =>
-                {
-                    _status.Text = "LIA VOZ • ouvindo novamente";
-                    StartOfflineVoice();
-                });
+                Ui(() => _status.Text = "LIA VOZ • ouvindo novamente");
+                await ResumeContinuousListeningAsync();
             }
             else
             {
@@ -324,8 +360,16 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             LiaLog("VOICE_PIPELINE_ERROR", ex.ToString());
-            Ui(() => { _status.Text = "LIA GEMINI • erro"; _voiceButton.Text = "🎙 FALAR"; });
-            await SendStatusAsync("ERROR");
+            if (_continuousVoiceMode && !_lifetime.IsCancellationRequested)
+            {
+                Ui(() => _status.Text = "LIA VOZ • retomando escuta...");
+                await ResumeContinuousListeningAsync(350);
+            }
+            else
+            {
+                Ui(() => { _status.Text = "LIA GEMINI • erro"; _voiceButton.Text = "🎙 FALAR"; });
+                await SendStatusAsync("ERROR");
+            }
         }
     }
 
