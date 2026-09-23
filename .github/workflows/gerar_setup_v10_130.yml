@@ -1,4 +1,4 @@
-name: Publicar atualizacao LEAL INFO PDV V10.325
+name: Publicar atualizacao LEAL INFO PDV V10.326
 on:
   workflow_dispatch:
   push:
@@ -13,8 +13,8 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.325"
-      UPDATE_TAG: "v10.325"
+      UPDATE_VERSION: "10.326"
+      UPDATE_TAG: "v10.326"
       SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_325_FINAL.exe"
       UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_325_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
@@ -26,11 +26,11 @@ jobs:
         shell: powershell
         run: |
           $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw -Encoding UTF8
-          $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.325"')
+          $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.326"')
           $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_325_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.325\.0</Version>') { throw "csproj nao esta em V10.325" }
-          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.325"') { throw "UpdateManager nao esta em V10.325" }
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.326\.0</Version>') { throw "csproj nao esta em V10.326" }
+          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.326"') { throw "UpdateManager nao esta em V10.326" }
       - name: Restaurar Azul Texturizado
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_tema_azul_texturizado_v10_306.ps1"
@@ -114,7 +114,7 @@ jobs:
         run: |
           $setup="SETUP_PRONTO/$env:SETUP_FILE"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
-          gh release create $env:UPDATE_TAG $env:UPDATE_PACKAGE $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.325: corrige o ciclo mostrado no video, aumenta a sensibilidade do microfone e retoma a escuta em 60 ms."
+          gh release create $env:UPDATE_TAG $env:UPDATE_PACKAGE $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.326: usa o microfone padrao do Windows e deixa de descartar falas com volume baixo."
       - name: Validar e ativar
         shell: pwsh
         run: |
@@ -125,8 +125,8 @@ jobs:
           $setupAsset=$release.assets|Where-Object{$_.name -eq $env:SETUP_FILE}
           if(-not $setupAsset){throw "Setup ausente"}
           $hash=(Get-FileHash $env:UPDATE_PACKAGE -Algorithm SHA256).Hash.ToLowerInvariant()
-          $notes="V10.325: corrige o ciclo mostrado no video, aumenta a sensibilidade do microfone e retoma a escuta em 60 ms."
+          $notes="V10.326: usa o microfone padrao do Windows e deixa de descartar falas com volume baixo."
           $manifest=@{Version=$env:UPDATE_VERSION;PackageUrl=$asset.browser_download_url;Sha256=$hash;Notes=$notes;DownloadUrl=$setupAsset.browser_download_url;Mandatory=$false}|ConvertTo-Json
           $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
-          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.325" -f content="$encoded" -f sha="$sha"
+          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.326" -f content="$encoded" -f sha="$sha"

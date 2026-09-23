@@ -41,6 +41,7 @@ public sealed class MainForm : Form
     private int _voiceFallbackStarting;
     private bool _continuousVoiceMode;
     private int _voiceDetected;
+    private int _maximumInputLevel;
     private long _lastVoiceTicks;
     private static readonly object LiaLogLock = new();
     private static string LiaLogPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV", "Logs", "lia-diagnostico.log");
@@ -213,11 +214,14 @@ public sealed class MainForm : Form
     {
         if (_geminiMic != null) return;
         Interlocked.Exchange(ref _voiceDetected, 0);
+        Interlocked.Exchange(ref _maximumInputLevel, 0);
         Interlocked.Exchange(ref _lastVoiceTicks, DateTime.UtcNow.Ticks);
         LiaLog("GEMINI_AUDIO_CAPTURE_START");
         _geminiAudio = new MemoryStream();
         _geminiWriter = new WaveFileWriter(_geminiAudio, new WaveFormat(16000, 16, 1));
-        var mic = new WaveInEvent { DeviceNumber = 0, WaveFormat = new WaveFormat(16000, 16, 1), BufferMilliseconds = 100 };
+        // -1 usa o dispositivo padrao do Windows. O indice 0 pode apontar para uma
+        // entrada HDMI, webcam ou microfone desconectado em computadores com varias entradas.
+        var mic = new WaveInEvent { DeviceNumber = -1, WaveFormat = new WaveFormat(16000, 16, 1), BufferMilliseconds = 100 };
         mic.DataAvailable += GeminiMicDataAvailable;
         mic.RecordingStopped += GeminiMicStopped;
         _geminiMic = mic;
@@ -242,7 +246,7 @@ public sealed class MainForm : Form
             }
         };
         _geminiCaptureTimer.Start();
-        LiaLog("MIC_INPUT_READY", "NAudio 16000Hz 16-bit mono device=0");
+        LiaLog("MIC_INPUT_READY", "NAudio 16000Hz 16-bit mono device=WindowsDefault(-1)");
         _status.Text = "LIA GEMINI • ouvindo";
         _voiceButton.Text = "OUVINDO";
         _voiceButton.BackColor = Color.FromArgb(0, 125, 210);
@@ -261,7 +265,15 @@ public sealed class MainForm : Form
                 energy += Math.Abs((int)BitConverter.ToInt16(e.Buffer, i));
             // Sensibilidade alta para microfones de notebook/USB com ganho baixo.
             // A versao anterior exigia nivel 420 e podia ignorar uma fala normal.
-            if (samples > 0 && energy / samples >= 110)
+            var inputLevel = samples > 0 ? (int)(energy / samples) : 0;
+            var currentMaximum = Volatile.Read(ref _maximumInputLevel);
+            while (inputLevel > currentMaximum)
+            {
+                var previous = Interlocked.CompareExchange(ref _maximumInputLevel, inputLevel, currentMaximum);
+                if (previous == currentMaximum) break;
+                currentMaximum = previous;
+            }
+            if (inputLevel >= 110)
             {
                 Volatile.Write(ref _voiceDetected, 1);
                 Interlocked.Exchange(ref _lastVoiceTicks, DateTime.UtcNow.Ticks);
@@ -312,14 +324,19 @@ public sealed class MainForm : Form
             var wav = _geminiAudio?.ToArray() ?? Array.Empty<byte>();
             _geminiAudio?.Dispose();
             _geminiAudio = null;
-            LiaLog("AUDIO_CAPTURED", $"bytes={wav.Length}; error={e.Exception?.Message}");
+            var maximumInputLevel = Volatile.Read(ref _maximumInputLevel);
+            LiaLog("AUDIO_CAPTURED", $"bytes={wav.Length}; maxLevel={maximumInputLevel}; voiceDetected={Volatile.Read(ref _voiceDetected)}; error={e.Exception?.Message}");
             if (e.Exception != null) throw e.Exception;
-            if (Volatile.Read(ref _voiceDetected) == 0)
+            // Apenas zero/silencio digital e descartado. Microfones USB e de notebook
+            // podem produzir fala abaixo do limiar local; o Gemini reconhece esse audio melhor.
+            if (Volatile.Read(ref _voiceDetected) == 0 && maximumInputLevel <= 2)
             {
-                LiaLog("NO_VOICE_RESTART");
+                LiaLog("NO_AUDIO_SIGNAL_RESTART", "Verifique o microfone padrao e a permissao do Windows.");
                 await ResumeContinuousListeningAsync(100);
                 return;
             }
+            if (Volatile.Read(ref _voiceDetected) == 0)
+                LiaLog("LOW_LEVEL_AUDIO_SEND", $"maxLevel={maximumInputLevel}");
             if (wav.Length < 2000) throw new InvalidOperationException("Nenhum áudio útil foi capturado.");
 
             LiaLog("GEMINI_AUDIO_SEND", $"bytes={wav.Length}");
