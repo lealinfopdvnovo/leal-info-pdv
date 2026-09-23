@@ -167,6 +167,14 @@ public static class Database
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS user_permissions(
+            user_id INTEGER NOT NULL,
+            permission_key TEXT NOT NULL,
+            allowed INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY(user_id, permission_key),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS settings(
             key TEXT PRIMARY KEY,
             value TEXT
@@ -199,6 +207,17 @@ public static class Database
         {
             using var alter = cn.CreateCommand();
             alter.CommandText = "ALTER TABLE products ADD COLUMN photo_path TEXT";
+            alter.ExecuteNonQuery();
+        }
+        catch
+        {
+            // Coluna já existe.
+        }
+
+        try
+        {
+            using var alter = cn.CreateCommand();
+            alter.CommandText = "ALTER TABLE users ADD COLUMN max_discount_percent REAL NOT NULL DEFAULT 0";
             alter.ExecuteNonQuery();
         }
         catch

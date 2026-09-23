@@ -294,19 +294,19 @@ public sealed class MainForm : Form
 
         switch (command)
         {
-            case "PRODUTOS": OpenProducts(); break;
-            case "CLIENTES": OpenCustomers(); break;
-            case "FORNECEDORES": OpenSuppliers(); break;
-            case "SERVICOS": OpenServices(); break;
-            case "ORDENS_SERVICO": OpenOrders(); break;
-            case "ORCAMENTOS": OpenQuotes(); break;
+            case "PRODUTOS": RunAllowed("products", OpenProducts); break;
+            case "CLIENTES": RunAllowed("customers", OpenCustomers); break;
+            case "FORNECEDORES": RunAllowed("suppliers", OpenSuppliers); break;
+            case "SERVICOS": RunAllowed("services", OpenServices); break;
+            case "ORDENS_SERVICO": RunAllowed("orders", OpenOrders); break;
+            case "ORCAMENTOS": RunAllowed("quotes", OpenQuotes); break;
             case "FLUXO_CAIXA":
                 if (Auth.CanViewFinance) OpenFinance();
                 else Info("Acesso não permitido para seu nível.");
                 break;
-            case "HISTORICO_VENDAS": OpenHistory(); break;
-            case "TELA_VENDAS": OpenSales(); break;
-            case "RELATORIOS": OpenReports(); break;
+            case "HISTORICO_VENDAS": RunAllowed("sales_history", OpenHistory); break;
+            case "TELA_VENDAS": RunAllowed("sales", OpenSales); break;
+            case "RELATORIOS": RunAllowed("reports", OpenReports); break;
             case "USUARIOS":
                 if (Auth.CanManageUsers) OpenUsers();
                 else Info("Acesso não permitido para seu nível.");
@@ -715,17 +715,17 @@ public sealed class MainForm : Form
             }
             else if (title == "Consulta")
             {
-                AddMenu("Produtos", OpenProducts);
-                AddMenu("Clientes", OpenCustomers);
-                AddMenu("Histórico de vendas", OpenHistory);
-                AddMenu("Ordens / OS", OpenOrders);
-                AddMenu("Orçamentos", OpenQuotes);
+                AddMenu("Produtos", () => RunAllowed("products", OpenProducts));
+                AddMenu("Clientes", () => RunAllowed("customers", OpenCustomers));
+                AddMenu("Histórico de vendas", () => RunAllowed("sales_history", OpenHistory));
+                AddMenu("Ordens / OS", () => RunAllowed("orders", OpenOrders));
+                AddMenu("Orçamentos", () => RunAllowed("quotes", OpenQuotes));
             }
             else if (title == "Movimentação")
             {
-                AddMenu("Tela de Vendas", OpenSales);
-                AddMenu("Histórico de vendas", OpenHistory);
-                AddMenu("Ordens / OS", OpenOrders);
+                AddMenu("Tela de Vendas", () => RunAllowed("sales", OpenSales));
+                AddMenu("Histórico de vendas", () => RunAllowed("sales_history", OpenHistory));
+                AddMenu("Ordens / OS", () => RunAllowed("orders", OpenOrders));
             }
             else if (title == "Financeiro")
             {
@@ -734,7 +734,7 @@ public sealed class MainForm : Form
             else if (title == "Tela de Vendas")
             {
                 // Botao direto: abre a tela de vendas com um clique.
-                item.Click += (_, _) => OpenSales();
+                item.Click += (_, _) => RunAllowed("sales", OpenSales);
             }
             else if (title == "Utilitários")
             {
@@ -775,19 +775,19 @@ public sealed class MainForm : Form
         Controls.Add(bar);
         bar.BringToFront();
 
-        AddTool(bar, "PRODUTOS", "products.png", OpenProducts);
-        AddTool(bar, "CLIENTES", "customers.png", OpenCustomers);
-        AddTool(bar, "FORNECEDORES", "suppliers.png", OpenSuppliers);
-        AddTool(bar, "SERVIÇOS", "services.png", OpenServices);
-        AddTool(bar, "HISTÓRICO\nVENDAS", "history.png", OpenHistory);
-        AddTool(bar, "FLUXO DE\nCAIXA", "finance.png", OpenFinance);
-        AddTool(bar, "ORDENS /\nOS", "orders.png", OpenOrders);
-        AddTool(bar, "ORÇAMENTOS", "quotes.png", OpenQuotes);
-        AddTool(bar, "TELA DE\nVENDAS", "sales.png", OpenSales);
-        AddTool(bar, "RELATÓRIOS", "reports.png", OpenReports);
-        AddTool(bar, "FAZER\nBACKUP", "backup.png", () => _ = BackupAsync());
-        AddTool(bar, "RESTAURAR\nBACKUP", "restore.png", () => _ = RestoreBackupAsync());
-        AddTool(bar, "CONFIGURAÇÕES", "settings.png", OpenSettings);
+        AddTool(bar, "PRODUTOS", "products.png", () => RunAllowed("products", OpenProducts));
+        AddTool(bar, "CLIENTES", "customers.png", () => RunAllowed("customers", OpenCustomers));
+        AddTool(bar, "FORNECEDORES", "suppliers.png", () => RunAllowed("suppliers", OpenSuppliers));
+        AddTool(bar, "SERVIÇOS", "services.png", () => RunAllowed("services", OpenServices));
+        AddTool(bar, "HISTÓRICO\nVENDAS", "history.png", () => RunAllowed("sales_history", OpenHistory));
+        AddTool(bar, "FLUXO DE\nCAIXA", "finance.png", () => RunAllowed("cash", OpenFinance));
+        AddTool(bar, "ORDENS /\nOS", "orders.png", () => RunAllowed("orders", OpenOrders));
+        AddTool(bar, "ORÇAMENTOS", "quotes.png", () => RunAllowed("quotes", OpenQuotes));
+        AddTool(bar, "TELA DE\nVENDAS", "sales.png", () => RunAllowed("sales", OpenSales));
+        AddTool(bar, "RELATÓRIOS", "reports.png", () => RunAllowed("reports", OpenReports));
+        AddTool(bar, "FAZER\nBACKUP", "backup.png", () => RunAllowed("backup", () => _ = BackupAsync()));
+        AddTool(bar, "RESTAURAR\nBACKUP", "restore.png", () => RunAllowed("restore", () => _ = RestoreBackupAsync()));
+        AddTool(bar, "CONFIGURAÇÕES", "settings.png", () => RunAllowed("settings", OpenSettings));
         AddTool(bar, "LOGOUT", "exit.png", ConfirmLogout);
         AddTool(bar, "SAIR", "exit.png", ConfirmExit);
 
@@ -890,6 +890,20 @@ public sealed class MainForm : Form
         status.Items.Add(new ToolStripStatusLabel($"Serial: {Database.DeviceSerial()}"));
         status.Items.Add(new ToolStripStatusLabel($"V{UpdateManager.CurrentVersion}"));
         Controls.Add(status);
+    }
+
+    private void RunAllowed(string permission, Action action)
+    {
+        if (Auth.HasPermission(permission))
+        {
+            action();
+            return;
+        }
+        MessageBox.Show(
+            "Seu usuário não possui permissão para acessar esta função.\n\nSolicite a liberação ao administrador.",
+            "Acesso não permitido",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning);
     }
 
     private void ShowCadastroHelp()
@@ -2456,7 +2470,8 @@ private void ApplyFloatingTheme(Form f)
         var reset=new Button{Text="REDEFINIR SENHA",Width=160,Height=42};
         var toggle=new Button{Text="ATIVAR / INATIVAR",Width=160,Height=42};
         var access=new Button{Text="ALTERAR NÍVEL",Width=160,Height=42};
-        bar.Controls.Add(add);bar.Controls.Add(reset);bar.Controls.Add(toggle);bar.Controls.Add(access);
+        var permissions=new Button{Text="RESTRIÇÕES",Width=150,Height=42,BackColor=Color.FromArgb(230,95,20),ForeColor=Color.White,FlatStyle=FlatStyle.Flat};
+        bar.Controls.Add(add);bar.Controls.Add(reset);bar.Controls.Add(toggle);bar.Controls.Add(access);bar.Controls.Add(permissions);
         f.Controls.Add(grid);f.Controls.Add(bar);
 
         void LoadUsers()
@@ -2528,9 +2543,122 @@ private void ApplyFloatingTheme(Form f)
             ok.Click+=(_,_)=>{using var cn=Database.Open();using var cmd=cn.CreateCommand();cmd.CommandText="UPDATE users SET role=$r WHERE id=$id";cmd.Parameters.AddWithValue("$r",cb.Text);cmd.Parameters.AddWithValue("$id",id);cmd.ExecuteNonQuery();af.DialogResult=DialogResult.OK;af.Close();};
             if(af.ShowDialog(f)==DialogResult.OK)LoadUsers();
         };
+        permissions.Click+=(_,_)=>{
+            if(grid.CurrentRow==null){MessageBox.Show("Selecione um usuário.");return;}
+            long id=Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value);
+            string name=Convert.ToString(grid.CurrentRow.Cells["Nome"].Value)??"";
+            string role=Convert.ToString(grid.CurrentRow.Cells["Nivel"].Value)??"";
+            OpenUserRestrictions(id,name,role);
+            LoadUsers();
+        };
 
         LoadUsers();
         ApplyFloatingTheme(f);
+        f.ShowDialog(this);
+    }
+
+    private void OpenUserRestrictions(long userId, string userName, string role)
+    {
+        using var f = new Form
+        {
+            Text = "Restrições de Usuários",
+            StartPosition = FormStartPosition.CenterParent,
+            Width = 1000,
+            Height = 650,
+            MinimumSize = new Size(900, 580),
+            BackColor = Color.FromArgb(224,239,248),
+            Font = new Font("Segoe UI",10)
+        };
+
+        var title = new Label
+        {
+            Text = "RESTRIÇÕES DE USUÁRIOS",
+            Dock = DockStyle.Top,
+            Height = 70,
+            TextAlign = ContentAlignment.MiddleCenter,
+            BackColor = Color.FromArgb(4,70,112),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI",24,FontStyle.Bold)
+        };
+
+        var info = new TableLayoutPanel { Dock=DockStyle.Top,Height=82,ColumnCount=4,Padding=new Padding(18,8,18,4) };
+        info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,36));
+        info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,24));
+        info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,20));
+        info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,20));
+        Control Field(string label, Control input)
+        {
+            var p=new Panel{Dock=DockStyle.Fill,Margin=new Padding(5)};
+            p.Controls.Add(input); input.Dock=DockStyle.Bottom; input.Height=30;
+            p.Controls.Add(new Label{Text=label,Dock=DockStyle.Top,Height=23,Font=new Font("Segoe UI",9,FontStyle.Bold)});
+            return p;
+        }
+        var nameBox=new TextBox{Text=userName,ReadOnly=true};
+        var roleBox=new TextBox{Text=role,ReadOnly=true};
+        var maxDiscount=new NumericUpDown{Minimum=0,Maximum=100,DecimalPlaces=2};
+        var statusBox=new ComboBox{DropDownStyle=ComboBoxStyle.DropDownList};
+        statusBox.Items.AddRange(new[]{"ATIVO","INATIVO"});
+        using(var cn=Database.Open())
+        using(var cmd=cn.CreateCommand())
+        {
+            cmd.CommandText="SELECT active,COALESCE(max_discount_percent,0) FROM users WHERE id=$id";
+            cmd.Parameters.AddWithValue("$id",userId);
+            using var rd=cmd.ExecuteReader();
+            if(rd.Read()){statusBox.SelectedIndex=rd.GetInt32(0)==1?0:1;maxDiscount.Value=(decimal)rd.GetDouble(1);}
+        }
+        info.Controls.Add(Field("Usuário",nameBox),0,0);
+        info.Controls.Add(Field("Tipo",roleBox),1,0);
+        info.Controls.Add(Field("Limite de desconto (%)",maxDiscount),2,0);
+        info.Controls.Add(Field("Status",statusBox),3,0);
+
+        var permissionLabels = new (string Key,string Group,string Text)[]
+        {
+            ("products","PRODUTOS","Cadastrar, editar, excluir e consultar"),
+            ("customers","CLIENTES","Cadastrar, editar, excluir e consultar"),
+            ("suppliers","FORNECEDORES","Cadastrar, editar, excluir e consultar"),
+            ("services","SERVIÇOS","Cadastrar, editar, excluir e consultar"),
+            ("sales","VENDAS","Abrir e finalizar vendas"),
+            ("sales_history","HISTÓRICO","Visualizar histórico de vendas"),
+            ("quotes","ORÇAMENTOS","Cadastrar, editar e excluir"),
+            ("orders","ORDEM DE SERVIÇO","Cadastrar, editar e excluir"),
+            ("cash","CAIXA","Fluxo de caixa e lançamentos"),
+            ("reports","RELATÓRIOS","Visualizar relatórios gerenciais"),
+            ("expenses","DESPESAS","Lançar e excluir despesas"),
+            ("backup","BACKUP","Criar cópia de segurança"),
+            ("restore","RESTAURAÇÃO","Restaurar cópia de segurança"),
+            ("settings","CONFIGURAÇÕES","Alterar configurações da empresa"),
+            ("users","USUÁRIOS","Cadastrar e restringir usuários"),
+            ("discount","DESCONTOS","Conceder desconto até o limite")
+        };
+        var saved=Auth.GetPermissions(userId,role);
+        var checks=new Dictionary<string,CheckBox>();
+        var grid=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=4,Padding=new Padding(18,8,18,8),AutoScroll=true};
+        for(int i=0;i<4;i++)grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,25));
+        for(int i=0;i<4;i++)grid.RowStyles.Add(new RowStyle(SizeType.Percent,25));
+        for(int i=0;i<permissionLabels.Length;i++)
+        {
+            var item=permissionLabels[i];
+            var box=new GroupBox{Text=item.Group,Dock=DockStyle.Fill,Margin=new Padding(5),ForeColor=Color.FromArgb(4,55,94),Font=new Font("Segoe UI",9,FontStyle.Bold)};
+            var check=new CheckBox{Text=item.Text,Dock=DockStyle.Fill,Padding=new Padding(10),Checked=saved.TryGetValue(item.Key,out var allowed)&&allowed,Font=new Font("Segoe UI",8.5f),ForeColor=Color.FromArgb(15,40,60)};
+            box.Controls.Add(check);checks[item.Key]=check;grid.Controls.Add(box,i%4,i/4);
+        }
+
+        var all=new CheckBox{Text="MARCAR TODAS AS PERMISSÕES",Dock=DockStyle.Left,Width=270,Font=new Font("Segoe UI",9,FontStyle.Bold)};
+        all.CheckedChanged+=(_,_)=>{foreach(var c in checks.Values)c.Checked=all.Checked;};
+        var save=new Button{Text="SALVAR RESTRIÇÕES",Dock=DockStyle.Right,Width=220,BackColor=Color.FromArgb(0,145,85),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold)};
+        var footer=new Panel{Dock=DockStyle.Bottom,Height=62,Padding=new Padding(20,10,20,10)};
+        footer.Controls.Add(all);footer.Controls.Add(save);
+        save.Click+=(_,_)=>{
+            var values=checks.ToDictionary(x=>x.Key,x=>x.Value.Checked);
+            Auth.SavePermissions(userId,values,(double)maxDiscount.Value);
+            using var cn=Database.Open();using var cmd=cn.CreateCommand();
+            cmd.CommandText="UPDATE users SET active=$active WHERE id=$id";
+            cmd.Parameters.AddWithValue("$active",statusBox.SelectedIndex==0?1:0);
+            cmd.Parameters.AddWithValue("$id",userId);cmd.ExecuteNonQuery();
+            MessageBox.Show("Restrições salvas com sucesso.","LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Information);
+            f.DialogResult=DialogResult.OK;f.Close();
+        };
+        f.Controls.Add(grid);f.Controls.Add(footer);f.Controls.Add(info);f.Controls.Add(title);
         f.ShowDialog(this);
     }
 

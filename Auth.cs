@@ -8,6 +8,12 @@ public sealed record UserSession(long Id, string FullName, string Username, stri
 
 public static class Auth
 {
+    public static readonly string[] PermissionKeys =
+    {
+        "products","customers","suppliers","services","sales","sales_history",
+        "quotes","orders","cash","reports","backup","restore","settings",
+        "users","discount","expenses"
+    };
     public static UserSession? Current { get; private set; }
 
     public static int UserCount()
@@ -82,6 +88,67 @@ public static class Auth
     public static bool CanSell => Current != null;
     public static bool CanDiscount => IsOwner || IsManager || Current?.CanDiscount==true;
     public static string OperatorName => Current?.FullName ?? "ADMIN";
+
+    public static bool HasPermission(string key)
+    {
+        if (Current == null) return false;
+        if (IsOwner) return true;
+        using var cn = Database.Open();
+        using var cmd = cn.CreateCommand();
+        cmd.CommandText = "SELECT allowed FROM user_permissions WHERE user_id=$id AND permission_key=$key";
+        cmd.Parameters.AddWithValue("$id", Current.Id);
+        cmd.Parameters.AddWithValue("$key", key);
+        var value = cmd.ExecuteScalar();
+        if (value != null && value != DBNull.Value)
+            return Convert.ToInt32(value) == 1;
+
+        return Current.Role switch
+        {
+            "GERENTE" => key is not "users" and not "restore",
+            "CAIXA" => key is "sales" or "products" or "customers" or "quotes",
+            _ => key is "sales" or "products" or "customers" or "services" or "quotes" or "orders"
+        };
+    }
+
+    public static Dictionary<string,bool> GetPermissions(long userId, string role)
+    {
+        var result = PermissionKeys.ToDictionary(k => k, k => role is "PATRÃO" or "PATRAO" or "ADMINISTRADOR");
+        using var cn = Database.Open();
+        using var cmd = cn.CreateCommand();
+        cmd.CommandText = "SELECT permission_key,allowed FROM user_permissions WHERE user_id=$id";
+        cmd.Parameters.AddWithValue("$id", userId);
+        using var rd = cmd.ExecuteReader();
+        while (rd.Read())
+            result[rd.GetString(0)] = rd.GetInt32(1) == 1;
+        return result;
+    }
+
+    public static void SavePermissions(long userId, IReadOnlyDictionary<string,bool> permissions, double maxDiscount)
+    {
+        using var cn = Database.Open();
+        using var tx = cn.BeginTransaction();
+        foreach (var item in permissions)
+        {
+            using var cmd = cn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = """
+                INSERT INTO user_permissions(user_id,permission_key,allowed) VALUES($id,$key,$allowed)
+                ON CONFLICT(user_id,permission_key) DO UPDATE SET allowed=excluded.allowed
+                """;
+            cmd.Parameters.AddWithValue("$id", userId);
+            cmd.Parameters.AddWithValue("$key", item.Key);
+            cmd.Parameters.AddWithValue("$allowed", item.Value ? 1 : 0);
+            cmd.ExecuteNonQuery();
+        }
+        using var update = cn.CreateCommand();
+        update.Transaction = tx;
+        update.CommandText = "UPDATE users SET max_discount_percent=$max,can_discount=$can WHERE id=$id";
+        update.Parameters.AddWithValue("$max", Math.Clamp(maxDiscount, 0, 100));
+        update.Parameters.AddWithValue("$can", maxDiscount > 0 ? 1 : 0);
+        update.Parameters.AddWithValue("$id", userId);
+        update.ExecuteNonQuery();
+        tx.Commit();
+    }
 
     public static void ResetPassword(long userId,string newPassword)
     {
