@@ -232,9 +232,9 @@ public sealed class MainForm : Form
             var elapsed = now - _geminiVoiceStarted;
             var lastVoice = new DateTime(Interlocked.Read(ref _lastVoiceTicks), DateTimeKind.Utc);
             var finishedSpeaking = Volatile.Read(ref _voiceDetected) == 1
-                && elapsed >= TimeSpan.FromMilliseconds(650)
-                && now - lastVoice >= TimeSpan.FromMilliseconds(480);
-            if (finishedSpeaking || elapsed >= TimeSpan.FromSeconds(6))
+                && elapsed >= TimeSpan.FromMilliseconds(500)
+                && now - lastVoice >= TimeSpan.FromMilliseconds(420);
+            if (finishedSpeaking || elapsed >= TimeSpan.FromSeconds(4))
             {
                 _geminiCaptureTimer?.Stop();
                 LiaLog(finishedSpeaking ? "SILENCE_DETECTED_STOP" : "CAPTURE_TIMEOUT_STOP", $"{elapsed.TotalMilliseconds:0}ms");
@@ -259,7 +259,9 @@ public sealed class MainForm : Form
             var samples = e.BytesRecorded / 2;
             for (var i = 0; i + 1 < e.BytesRecorded; i += 2)
                 energy += Math.Abs((int)BitConverter.ToInt16(e.Buffer, i));
-            if (samples > 0 && energy / samples >= 420)
+            // Sensibilidade alta para microfones de notebook/USB com ganho baixo.
+            // A versao anterior exigia nivel 420 e podia ignorar uma fala normal.
+            if (samples > 0 && energy / samples >= 110)
             {
                 Volatile.Write(ref _voiceDetected, 1);
                 Interlocked.Exchange(ref _lastVoiceTicks, DateTime.UtcNow.Ticks);
@@ -268,7 +270,7 @@ public sealed class MainForm : Form
         catch (Exception ex) { LiaLog("AUDIO_CAPTURE_ERROR", ex.Message); }
     }
 
-    private async Task ResumeContinuousListeningAsync(int delayMilliseconds = 120)
+    private async Task ResumeContinuousListeningAsync(int delayMilliseconds = 60)
     {
         if (!_continuousVoiceMode || _lifetime.IsCancellationRequested) return;
         try { await Task.Delay(delayMilliseconds, _lifetime.Token); }
