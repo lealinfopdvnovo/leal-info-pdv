@@ -94,13 +94,30 @@ internal static class Program
                 }
             }
 
-            using var entry = new SplashForm();
-            if (entry.ShowDialog() != DialogResult.OK) return;
+            var firstAccess = true;
+            while (true)
+            {
+                DialogResult loginResult;
+                if (firstAccess)
+                {
+                    using var entry = new SplashForm();
+                    loginResult = entry.ShowDialog();
+                    firstAccess = false;
+                }
+                else
+                {
+                    using var login = new LoginForm();
+                    loginResult = login.ShowDialog();
+                }
 
-            var main = new MainForm();
-            main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - V{UpdateManager.CurrentVersion}";
-            using var clockSync = new SystemClockSync(main);
-            Application.Run(main);
+                if (loginResult != DialogResult.OK) return;
+
+                using var main = new MainForm();
+                main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - V{UpdateManager.CurrentVersion}";
+                using var clockSync = new SystemClockSync(main);
+                Application.Run(main);
+                if (!main.LogoutRequested) return;
+            }
         }
         catch (Exception ex)
         {

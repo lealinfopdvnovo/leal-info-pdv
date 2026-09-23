@@ -14,6 +14,7 @@ namespace LealInfoPDV;
 
 public sealed class MainForm : Form
 {
+    public bool LogoutRequested { get; private set; }
     private const uint GwHwndNext = 2;
     [DllImport("user32.dll")]
     private static extern IntPtr GetTopWindow(IntPtr hWnd);
@@ -787,6 +788,7 @@ public sealed class MainForm : Form
         AddTool(bar, "FAZER\nBACKUP", "backup.png", () => _ = BackupAsync());
         AddTool(bar, "RESTAURAR\nBACKUP", "restore.png", () => _ = RestoreBackupAsync());
         AddTool(bar, "CONFIGURAÇÕES", "settings.png", OpenSettings);
+        AddTool(bar, "LOGOUT", "exit.png", ConfirmLogout);
         AddTool(bar, "SAIR", "exit.png", ConfirmExit);
 
         // Distribui todos os atalhos pela largura disponível.
@@ -1344,6 +1346,26 @@ public sealed class MainForm : Form
             MessageBoxDefaultButton.Button2);
         if (r == DialogResult.Yes)
             Close();
+    }
+
+    private void ConfirmLogout()
+    {
+        var operatorName = Auth.OperatorName;
+        var result = MessageBox.Show(
+            $"Deseja encerrar a sessão de {operatorName} e voltar para o login?",
+            "Trocar usuário",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question,
+            MessageBoxDefaultButton.Button2);
+        if (result != DialogResult.Yes) return;
+
+        foreach (var form in Application.OpenForms.Cast<Form>().Where(x => !ReferenceEquals(x, this)).ToArray())
+        {
+            try { form.Close(); } catch { }
+        }
+        Auth.Logout();
+        LogoutRequested = true;
+        Close();
     }
 
     private void AddTool(Control parent, string text, string iconFile, Action action)
