@@ -12,7 +12,7 @@ public static class Auth
     {
         "products","customers","suppliers","services","sales","sales_history",
         "quotes","orders","cash","reports","backup","restore","settings",
-        "users","discount","expenses"
+        "users","discount","expenses","deliveries"
     };
     public static UserSession? Current { get; private set; }
 
@@ -105,8 +105,8 @@ public static class Auth
         return Current.Role switch
         {
             "GERENTE" => key is not "users" and not "restore",
-            "CAIXA" => key is "sales" or "products" or "customers" or "quotes",
-            _ => key is "sales" or "products" or "customers" or "services" or "quotes" or "orders"
+            "CAIXA" => key is "sales" or "products" or "customers" or "quotes" or "deliveries",
+            _ => key is "sales" or "products" or "customers" or "services" or "quotes" or "orders" or "deliveries"
         };
     }
 

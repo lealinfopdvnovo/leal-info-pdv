@@ -175,6 +175,36 @@ public static class Database
             FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS delivery_drivers(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            vehicle TEXT,
+            plate TEXT,
+            active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS deliveries(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            customer_name TEXT NOT NULL,
+            customer_phone TEXT,
+            address TEXT NOT NULL,
+            reference TEXT,
+            order_description TEXT,
+            amount REAL NOT NULL DEFAULT 0,
+            delivery_fee REAL NOT NULL DEFAULT 0,
+            payment TEXT,
+            driver_id INTEGER,
+            status TEXT NOT NULL DEFAULT 'AGUARDANDO',
+            departed_at TEXT,
+            delivered_at TEXT,
+            notes TEXT,
+            operator TEXT,
+            FOREIGN KEY(driver_id) REFERENCES delivery_drivers(id)
+        );
+
         CREATE TABLE IF NOT EXISTS settings(
             key TEXT PRIMARY KEY,
             value TEXT

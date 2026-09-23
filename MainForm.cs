@@ -270,6 +270,7 @@ public sealed class MainForm : Form
             ["FLUXO_CAIXA"] = new[] { "FLUXO DE CAIXA" },
             ["HISTORICO_VENDAS"] = new[] { "HISTÓRICO DE VENDAS" },
             ["TELA_VENDAS"] = new[] { "LEAL INFO CONECTADO - TELA DE VENDAS" },
+            ["ENTREGAS"] = new[] { "LEAL INFO PDV - Motoboy e Entregas" },
             ["USUARIOS"] = new[] { "Usuários e Níveis de Acesso" },
             ["CADASTROS"] = new[] { "Cadastros" },
             ["AJUDA_CADASTRO"] = new[] { "Central de Ajuda • Cadastro" },
@@ -307,6 +308,7 @@ public sealed class MainForm : Form
             case "HISTORICO_VENDAS": RunAllowed("sales_history", OpenHistory); break;
             case "TELA_VENDAS": RunAllowed("sales", OpenSales); break;
             case "RELATORIOS": RunAllowed("reports", OpenReports); break;
+            case "ENTREGAS": RunAllowed("deliveries", OpenDeliveries); break;
             case "USUARIOS":
                 if (Auth.CanManageUsers) OpenUsers();
                 else Info("Acesso não permitido para seu nível.");
@@ -719,6 +721,7 @@ public sealed class MainForm : Form
                 AddMenu("Clientes", () => RunAllowed("customers", OpenCustomers));
                 AddMenu("Histórico de vendas", () => RunAllowed("sales_history", OpenHistory));
                 AddMenu("Ordens / OS", () => RunAllowed("orders", OpenOrders));
+                AddMenu("Motoboy / Entregas", () => RunAllowed("deliveries", OpenDeliveries));
                 AddMenu("Orçamentos", () => RunAllowed("quotes", OpenQuotes));
             }
             else if (title == "Movimentação")
@@ -782,6 +785,7 @@ public sealed class MainForm : Form
         AddTool(bar, "HISTÓRICO\nVENDAS", "history.png", () => RunAllowed("sales_history", OpenHistory));
         AddTool(bar, "FLUXO DE\nCAIXA", "finance.png", () => RunAllowed("cash", OpenFinance));
         AddTool(bar, "ORDENS /\nOS", "orders.png", () => RunAllowed("orders", OpenOrders));
+        AddTool(bar, "MOTOBOY /\nENTREGAS", "orders.png", () => RunAllowed("deliveries", OpenDeliveries));
         AddTool(bar, "ORÇAMENTOS", "quotes.png", () => RunAllowed("quotes", OpenQuotes));
         AddTool(bar, "TELA DE\nVENDAS", "sales.png", () => RunAllowed("sales", OpenSales));
         AddTool(bar, "RELATÓRIOS", "reports.png", () => RunAllowed("reports", OpenReports));
@@ -904,6 +908,12 @@ public sealed class MainForm : Form
             "Acesso não permitido",
             MessageBoxButtons.OK,
             MessageBoxIcon.Warning);
+    }
+
+    private void OpenDeliveries()
+    {
+        using var form = new DeliveryManagementForm();
+        form.ShowDialog(this);
     }
 
     private void ShowCadastroHelp()
@@ -2628,13 +2638,14 @@ private void ApplyFloatingTheme(Form f)
             ("restore","RESTAURAÇÃO","Restaurar cópia de segurança"),
             ("settings","CONFIGURAÇÕES","Alterar configurações da empresa"),
             ("users","USUÁRIOS","Cadastrar e restringir usuários"),
-            ("discount","DESCONTOS","Conceder desconto até o limite")
+            ("discount","DESCONTOS","Conceder desconto até o limite"),
+            ("deliveries","MOTOBOY / ENTREGAS","Cadastrar, despachar, abrir rota e concluir")
         };
         var saved=Auth.GetPermissions(userId,role);
         var checks=new Dictionary<string,CheckBox>();
-        var grid=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=4,Padding=new Padding(18,8,18,8),AutoScroll=true};
+        var grid=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=5,Padding=new Padding(18,8,18,8),AutoScroll=true};
         for(int i=0;i<4;i++)grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,25));
-        for(int i=0;i<4;i++)grid.RowStyles.Add(new RowStyle(SizeType.Percent,25));
+        for(int i=0;i<5;i++)grid.RowStyles.Add(new RowStyle(SizeType.Percent,20));
         for(int i=0;i<permissionLabels.Length;i++)
         {
             var item=permissionLabels[i];

@@ -66,6 +66,7 @@ public static class LocalPdvAssistant
         if (Has(text, "orcamento")) return "ORCAMENTOS";
         if (Has(text, "fluxo", "caixa")) return "FLUXO_CAIXA";
         if (Has(text, "historico")) return "HISTORICO_VENDAS";
+        if (Has(text, "motoboy", "entrega", "delivery")) return "ENTREGAS";
         if (Has(text, "venda", "pdv")) return "TELA_VENDAS";
         if (Has(text, "relatorio")) return "RELATORIOS";
         if (Has(text, "usuario")) return "USUARIOS";

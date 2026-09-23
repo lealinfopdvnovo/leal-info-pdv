@@ -833,7 +833,7 @@ public sealed class MainForm : Form
         var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "PRODUTOS","CLIENTES","FORNECEDORES","SERVICOS","ORDENS_SERVICO","ORCAMENTOS",
-            "FLUXO_CAIXA","HISTORICO_VENDAS","TELA_VENDAS","RELATORIOS","USUARIOS",
+            "FLUXO_CAIXA","HISTORICO_VENDAS","TELA_VENDAS","RELATORIOS","ENTREGAS","USUARIOS",
             "CONFIGURACOES","CADASTROS","AJUDA_CADASTRO","FECHAR_TELA","ENCERRAR_VOZ"
         };
         if (!allowed.Contains(candidate)) return false;
@@ -864,6 +864,7 @@ public sealed class MainForm : Form
             "HISTORICO" or "VENDAS_ANTERIORES" or "CONSULTA_VENDAS" => "HISTORICO_VENDAS",
             "VENDAS" or "PDV" or "FRENTE_CAIXA" or "ABRIR_CAIXA" => "TELA_VENDAS",
             "RELATORIO" => "RELATORIOS",
+            "MOTOBOY" or "ENTREGA" or "DELIVERY" => "ENTREGAS",
             "USUARIO" or "ACESSOS" or "NIVEIS_ACESSO" => "USUARIOS",
             "CONFIGURACAO" or "AJUSTES" or "EQUIPAMENTOS" or "IMPRESSORA" or "BALANCA" => "CONFIGURACOES",
             "CADASTRO" or "CATEGORIAS" or "MARCAS" or "GRUPOS" or "SUBGRUPOS" => "CADASTROS",
@@ -964,7 +965,7 @@ Responda sempre em português brasileiro, de forma direta, com no máximo uma fr
 Interprete variações de pronúncia e ruído do caixa pelo contexto do PDV.
 Se a pessoa perguntar ONDE, COMO, PARA QUE SERVE ou pedir explicação, explique e NÃO gere comando.
 Somente quando houver pedido claro para abrir, ir, mostrar ou fechar uma tela, responda EXCLUSIVAMENTE com uma linha COMANDO: NOME.
-Comandos permitidos: PRODUTOS, CLIENTES, FORNECEDORES, SERVICOS, ORDENS_SERVICO, ORCAMENTOS, FLUXO_CAIXA, HISTORICO_VENDAS, TELA_VENDAS, RELATORIOS, USUARIOS, CONFIGURACOES, CADASTROS, AJUDA_CADASTRO, FECHAR_TELA.
+Comandos permitidos: PRODUTOS, CLIENTES, FORNECEDORES, SERVICOS, ORDENS_SERVICO, ORCAMENTOS, FLUXO_CAIXA, HISTORICO_VENDAS, TELA_VENDAS, RELATORIOS, ENTREGAS, USUARIOS, CONFIGURACOES, CADASTROS, AJUDA_CADASTRO, FECHAR_TELA.
 Quando a pessoa disser "encerrar voz", "parar conversa", "pode parar de ouvir" ou equivalente, responda EXCLUSIVAMENTE: COMANDO: ENCERRAR_VOZ
 Exemplo: "onde vejo minhas vendas?" => explique Histórico de Vendas.
 Exemplo: "abre minhas vendas" => COMANDO: HISTORICO_VENDAS
@@ -980,6 +981,7 @@ INTERPRETAÇÃO FLEXÍVEL DE PEDIDOS
 - Venda antiga, venda anterior, consultar venda ou histórico => HISTORICO_VENDAS.
 - Vender, iniciar venda, frente de caixa, balcão ou abrir caixa para vender => TELA_VENDAS.
 - Relatório, resumo, resultado ou desempenho => RELATORIOS.
+- Motoboy, entrega, delivery, rota ou pedido para entregar => ENTREGAS.
 - Usuário, funcionário, senha, permissão ou nível de acesso => USUARIOS.
 - Ajuste, sistema, empresa, PIX, impressora, balança ou equipamento => CONFIGURACOES.
 - Marca, categoria, grupo ou subgrupo => CADASTROS.
