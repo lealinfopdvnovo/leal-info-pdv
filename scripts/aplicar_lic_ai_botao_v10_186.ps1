@@ -5,7 +5,7 @@ if ($text.Contains('btnAssistenteAI')) {
     Write-Host 'Botao LIC AI ja esta aplicado.'
     exit 0
 }
-$anchorMatch = [regex]::Match($text, 'Controls\.Add\(menu\);')
+$anchorMatch = [regex]::Match($text, 'Controls\.Add\(menu\);|Controls\.Add\(body\);')
 if (-not $anchorMatch.Success) { throw 'Ponto de insercao LIC AI nao encontrado' }
 $anchor = $anchorMatch.Value.TrimEnd("`r", "`n")
 $insert = @'
@@ -220,7 +220,8 @@ $insert = @'
         Shown += (_, _) => { PositionLicAiButton(); licAiButton.BringToFront(); licPulseTimer.Start(); };
         FormClosed += (_, _) => { licPulseTimer.Stop(); licPulseTimer.Dispose(); };
 '@
-$insert = $insert.Replace('        Controls.Add(menu);', $anchor)
-$text = $text.Replace($anchor, $insert)
+$firstBreak = $insert.IndexOf("`n")
+$licBlock = if ($firstBreak -ge 0) { $insert.Substring($firstBreak + 1) } else { $insert }
+$text = $text.Replace($anchor, $anchor + [Environment]::NewLine + $licBlock)
 Set-Content $path $text -Encoding UTF8
 Write-Host 'LIC AI: clique vinculado explicitamente com diagnostico visual e inicializacao assincrona.'
