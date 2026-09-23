@@ -168,7 +168,7 @@ public sealed class EquipmentSettingsForm : Form
         form.Show(owner);
     }
 
-    public EquipmentSettingsForm()
+    public EquipmentSettingsForm(bool embedded = false)
     {
         Text = "LEAL INFO PDV - Balança e Impressora";
         StartPosition = FormStartPosition.CenterParent;
@@ -178,7 +178,8 @@ public sealed class EquipmentSettingsForm : Form
         BackColor = LightBlue;
         Font = new Font("Segoe UI", 9);
 
-        Controls.Add(new Label { Text = "CENTRAL DE EQUIPAMENTOS", Dock = DockStyle.Top, Height = 54, BackColor = Blue, ForeColor = Color.White, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 16, FontStyle.Bold) });
+        if (!embedded)
+            Controls.Add(new Label { Text = "CENTRAL DE EQUIPAMENTOS", Dock = DockStyle.Top, Height = 54, BackColor = Blue, ForeColor = Color.White, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 16, FontStyle.Bold) });
         var tabs = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold), Padding = new Point(14, 6) };
         tabs.TabPages.Add(BuildPrinterTab());
         tabs.TabPages.Add(BuildScaleTab());

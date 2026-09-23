@@ -20,17 +20,16 @@ if ($content -notmatch 'var equipmentTab = new TabPage') {
         f.Controls.Add(tabs);
         tabs.BringToFront();
 
-        var equipmentPanel = new TableLayoutPanel { Dock=DockStyle.Fill,ColumnCount=1,RowCount=3,Padding=new Padding(45) };
-        equipmentPanel.RowStyles.Add(new RowStyle(SizeType.Percent,30));
-        equipmentPanel.RowStyles.Add(new RowStyle(SizeType.Percent,40));
-        equipmentPanel.RowStyles.Add(new RowStyle(SizeType.Percent,30));
-        var equipmentText = new Label { Text="CONFIGURE BALANÇAS, IMPRESSORAS TÉRMICAS E MODELOS DE BOBINA",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",16,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter };
-        var equipmentButton = new Button { Text="ABRIR CENTRAL DE EQUIPAMENTOS",Dock=DockStyle.Fill,Margin=new Padding(60,20,60,20),BackColor=Color.FromArgb(0,145,85),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",14,FontStyle.Bold) };
-        equipmentButton.FlatAppearance.BorderSize=0;
-        equipmentButton.Click += (_,_) => EquipmentSettingsForm.Open(f);
-        var equipmentHint = new Label { Text="Impressoras instaladas no Windows • Bobinas 58, 76, 80 mm ou personalizada\nBalanças COM/RS-232 • TCP/IP • Teclado/HID • Etiqueta com código de barras",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",10),TextAlign=ContentAlignment.MiddleCenter };
-        equipmentPanel.Controls.Add(equipmentText,0,0);equipmentPanel.Controls.Add(equipmentButton,0,1);equipmentPanel.Controls.Add(equipmentHint,0,2);
-        equipmentTab.Controls.Add(equipmentPanel);
+        var embeddedEquipment = new EquipmentSettingsForm(embedded: true)
+        {
+            TopLevel = false,
+            FormBorderStyle = FormBorderStyle.None,
+            Dock = DockStyle.Fill,
+            MinimumSize = Size.Empty
+        };
+        equipmentTab.Padding = new Padding(4);
+        equipmentTab.Controls.Add(embeddedEquipment);
+        embeddedEquipment.Show();
 '@
     if (-not $content.Contains($old)) { throw 'Ponto do painel de equipamentos nao encontrado.' }
     $content = $content.Replace($old, $new)
