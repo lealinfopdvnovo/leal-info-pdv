@@ -9,9 +9,9 @@
     <AssemblyName>LealInfoPDV</AssemblyName>
     <RootNamespace>LealInfoPDV</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <Version>10.327.0</Version>
-    <AssemblyVersion>10.327.0.0</AssemblyVersion>
-    <FileVersion>10.327.0.0</FileVersion>
+    <Version>10.328.0</Version>
+    <AssemblyVersion>10.328.0.0</AssemblyVersion>
+    <FileVersion>10.328.0.0</FileVersion>
     <ApplicationIcon>Assets\lealinfo.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup><Compile Remove="realtime\**\*.cs" /></ItemGroup>

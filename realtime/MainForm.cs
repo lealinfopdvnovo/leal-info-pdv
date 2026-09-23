@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Globalization;
 using NAudio.Wave;
 using Microsoft.CognitiveServices.Speech;
 using System.Speech.Synthesis;
@@ -828,7 +829,7 @@ public sealed class MainForm : Form
         var line = answer.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
             .FirstOrDefault(x => x.TrimStart().StartsWith("COMANDO:", StringComparison.OrdinalIgnoreCase));
         if (line == null) return false;
-        var candidate = line[(line.IndexOf(':') + 1)..].Trim().ToUpperInvariant();
+        var candidate = NormalizeNavigationCommand(line[(line.IndexOf(':') + 1)..]);
         var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "PRODUTOS","CLIENTES","FORNECEDORES","SERVICOS","ORDENS_SERVICO","ORCAMENTOS",
@@ -838,6 +839,39 @@ public sealed class MainForm : Form
         if (!allowed.Contains(candidate)) return false;
         command = candidate;
         return true;
+    }
+
+    private static string NormalizeNavigationCommand(string value)
+    {
+        var decomposed = (value ?? string.Empty).Normalize(NormalizationForm.FormD);
+        var clean = new string(decomposed
+            .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+            .ToArray())
+            .Normalize(NormalizationForm.FormC)
+            .ToUpperInvariant();
+        clean = new string(clean.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
+        while (clean.Contains("__", StringComparison.Ordinal)) clean = clean.Replace("__", "_", StringComparison.Ordinal);
+        clean = clean.Trim('_');
+        return clean switch
+        {
+            "PRODUTO" or "CADASTRO_PRODUTO" or "CADASTRO_DE_PRODUTO" or "CADASTRO_DE_PRODUTOS" => "PRODUTOS",
+            "CLIENTE" or "CADASTRO_CLIENTE" or "CADASTRO_DE_CLIENTES" => "CLIENTES",
+            "FORNECEDOR" or "CADASTRO_FORNECEDOR" or "CADASTRO_DE_FORNECEDORES" => "FORNECEDORES",
+            "SERVICO" or "CADASTRO_SERVICO" or "CADASTRO_DE_SERVICOS" => "SERVICOS",
+            "ORDEM_SERVICO" or "ORDEM_DE_SERVICO" or "OS" => "ORDENS_SERVICO",
+            "ORCAMENTO" => "ORCAMENTOS",
+            "CAIXA" or "MOVIMENTO_CAIXA" or "MOVIMENTACAO_CAIXA" => "FLUXO_CAIXA",
+            "HISTORICO" or "VENDAS_ANTERIORES" or "CONSULTA_VENDAS" => "HISTORICO_VENDAS",
+            "VENDAS" or "PDV" or "FRENTE_CAIXA" or "ABRIR_CAIXA" => "TELA_VENDAS",
+            "RELATORIO" => "RELATORIOS",
+            "USUARIO" or "ACESSOS" or "NIVEIS_ACESSO" => "USUARIOS",
+            "CONFIGURACAO" or "AJUSTES" or "EQUIPAMENTOS" or "IMPRESSORA" or "BALANCA" => "CONFIGURACOES",
+            "CADASTRO" or "CATEGORIAS" or "MARCAS" or "GRUPOS" or "SUBGRUPOS" => "CADASTROS",
+            "AJUDA" or "AJUDA_CADASTROS" => "AJUDA_CADASTRO",
+            "FECHAR" or "VOLTAR" or "SAIR_TELA" => "FECHAR_TELA",
+            "ENCERRAR" or "PARAR_VOZ" or "ENCERRAR_CONVERSA" => "ENCERRAR_VOZ",
+            _ => clean
+        };
     }
 
     private static string GeminiKeyPath =>
@@ -934,6 +968,25 @@ Comandos permitidos: PRODUTOS, CLIENTES, FORNECEDORES, SERVICOS, ORDENS_SERVICO,
 Quando a pessoa disser "encerrar voz", "parar conversa", "pode parar de ouvir" ou equivalente, responda EXCLUSIVAMENTE: COMANDO: ENCERRAR_VOZ
 Exemplo: "onde vejo minhas vendas?" => explique Histórico de Vendas.
 Exemplo: "abre minhas vendas" => COMANDO: HISTORICO_VENDAS
+INTERPRETAÇÃO FLEXÍVEL DE PEDIDOS
+- Não exija que o operador fale o nome exato da tela. Entenda a intenção e escolha a tela semanticamente correta.
+- Produto, mercadoria, item, preço ou estoque => PRODUTOS.
+- Cliente, comprador ou consumidor => CLIENTES.
+- Fornecedor, distribuidor ou quem fornece => FORNECEDORES.
+- Serviço ou mão de obra => SERVICOS.
+- Ordem, conserto, equipamento de cliente ou O.S. => ORDENS_SERVICO.
+- Orçamento, cotação ou proposta => ORCAMENTOS.
+- Entrada, saída, movimento, saldo ou financeiro do caixa => FLUXO_CAIXA.
+- Venda antiga, venda anterior, consultar venda ou histórico => HISTORICO_VENDAS.
+- Vender, iniciar venda, frente de caixa, balcão ou abrir caixa para vender => TELA_VENDAS.
+- Relatório, resumo, resultado ou desempenho => RELATORIOS.
+- Usuário, funcionário, senha, permissão ou nível de acesso => USUARIOS.
+- Ajuste, sistema, empresa, PIX, impressora, balança ou equipamento => CONFIGURACOES.
+- Marca, categoria, grupo ou subgrupo => CADASTROS.
+- Tutorial, instrução ou ajuda de cadastro => AJUDA_CADASTRO.
+- Fechar, voltar ou sair desta janela => FECHAR_TELA.
+- Nunca escolha TELA_VENDAS por padrão. Se não entender a intenção, pergunte em uma frase curta o que a pessoa deseja abrir.
+- Quando identificar um pedido de ação, devolva somente COMANDO: seguido de um comando permitido; não explique junto.
 Nunca diga que executou antes da confirmação do PDV.
 """;
 
