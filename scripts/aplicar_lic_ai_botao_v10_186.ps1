@@ -5,7 +5,7 @@ if ($text.Contains('btnAssistenteAI')) {
     Write-Host 'Botao LIC AI ja esta aplicado.'
     exit 0
 }
-$anchorMatch = [regex]::Match($text, '(?m)^[^\S\r\n]*Controls\.Add\(menu\);[^\S\r\n]*$')
+$anchorMatch = [regex]::Match($text, 'Controls\.Add\(menu\);')
 if (-not $anchorMatch.Success) { throw 'Ponto de insercao LIC AI nao encontrado' }
 $anchor = $anchorMatch.Value.TrimEnd("`r", "`n")
 $insert = @'
