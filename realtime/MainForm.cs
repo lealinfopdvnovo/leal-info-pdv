@@ -236,9 +236,9 @@ public sealed class MainForm : Form
             var elapsed = now - _geminiVoiceStarted;
             var lastVoice = new DateTime(Interlocked.Read(ref _lastVoiceTicks), DateTimeKind.Utc);
             var finishedSpeaking = Volatile.Read(ref _voiceDetected) == 1
-                && elapsed >= TimeSpan.FromMilliseconds(500)
-                && now - lastVoice >= TimeSpan.FromMilliseconds(420);
-            if (finishedSpeaking || elapsed >= TimeSpan.FromSeconds(4))
+                && elapsed >= TimeSpan.FromMilliseconds(350)
+                && now - lastVoice >= TimeSpan.FromMilliseconds(320);
+            if (finishedSpeaking || elapsed >= TimeSpan.FromSeconds(3))
             {
                 _geminiCaptureTimer?.Stop();
                 LiaLog(finishedSpeaking ? "SILENCE_DETECTED_STOP" : "CAPTURE_TIMEOUT_STOP", $"{elapsed.TotalMilliseconds:0}ms");
@@ -273,7 +273,9 @@ public sealed class MainForm : Form
                 if (previous == currentMaximum) break;
                 currentMaximum = previous;
             }
-            if (inputLevel >= 110)
+            // Limiar baixo porque diversos microfones USB/notebook entregam sinal fraco.
+            // O ruido digital puro continua sendo filtrado na finalizacao da captura.
+            if (inputLevel >= 25)
             {
                 Volatile.Write(ref _voiceDetected, 1);
                 Interlocked.Exchange(ref _lastVoiceTicks, DateTime.UtcNow.Ticks);
@@ -338,6 +340,8 @@ public sealed class MainForm : Form
             if (Volatile.Read(ref _voiceDetected) == 0)
                 LiaLog("LOW_LEVEL_AUDIO_SEND", $"maxLevel={maximumInputLevel}");
             if (wav.Length < 2000) throw new InvalidOperationException("Nenhum áudio útil foi capturado.");
+
+            AmplifyPcm16WavInPlace(wav, maximumInputLevel);
 
             LiaLog("GEMINI_AUDIO_SEND", $"bytes={wav.Length}");
             _voiceRequestCts?.Cancel();
@@ -426,7 +430,8 @@ public sealed class MainForm : Form
                         new { inline_data = new { mime_type = "audio/wav", data = Convert.ToBase64String(wav) } }
                     }
                 }
-            }
+            },
+            generation_config = new { temperature = 0.1, max_output_tokens = 60 }
         });
         using var response = await GeminiHttp.SendAsync(request, cancellationToken);
         var json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -441,6 +446,20 @@ public sealed class MainForm : Form
             if (!string.IsNullOrWhiteSpace(answer)) return answer.Trim();
         }
         throw new InvalidOperationException("O Gemini não retornou resposta para o áudio.");
+    }
+
+    private static void AmplifyPcm16WavInPlace(byte[] wav, int measuredLevel)
+    {
+        if (wav.Length <= 44 || measuredLevel <= 0 || measuredLevel >= 500) return;
+        var gain = Math.Clamp(700.0 / measuredLevel, 1.0, 8.0);
+        for (var i = 44; i + 1 < wav.Length; i += 2)
+        {
+            var sample = BitConverter.ToInt16(wav, i);
+            var amplified = (short)Math.Clamp((int)Math.Round(sample * gain), short.MinValue, short.MaxValue);
+            wav[i] = (byte)(amplified & 0xff);
+            wav[i + 1] = (byte)((amplified >> 8) & 0xff);
+        }
+        LiaLog("AUDIO_AUTO_GAIN", $"measured={measuredLevel}; gain={gain:0.0}x");
     }
 
     private const string AzureVoiceName = "pt-BR-FranciscaNeural";
@@ -907,6 +926,8 @@ public sealed class MainForm : Form
     private static readonly string GeminiSystemPrompt = PdvKnowledge.SystemPrompt + """
 
 REGRAS DO MODO TEXTO/GEMINI
+Responda sempre em português brasileiro, de forma direta, com no máximo uma frase curta.
+Interprete variações de pronúncia e ruído do caixa pelo contexto do PDV.
 Se a pessoa perguntar ONDE, COMO, PARA QUE SERVE ou pedir explicação, explique e NÃO gere comando.
 Somente quando houver pedido claro para abrir, ir, mostrar ou fechar uma tela, responda EXCLUSIVAMENTE com uma linha COMANDO: NOME.
 Comandos permitidos: PRODUTOS, CLIENTES, FORNECEDORES, SERVICOS, ORDENS_SERVICO, ORCAMENTOS, FLUXO_CAIXA, HISTORICO_VENDAS, TELA_VENDAS, RELATORIOS, USUARIOS, CONFIGURACOES, CADASTROS, AJUDA_CADASTRO, FECHAR_TELA.
