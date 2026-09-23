@@ -263,8 +263,32 @@ public sealed class DeliveryManagementForm : Form
         var id=SelectedId(_deliveries);if(!id.HasValue)return;
         using var cn=Database.Open();using var cmd=cn.CreateCommand();
         cmd.CommandText="SELECT address FROM deliveries WHERE id=$id";cmd.Parameters.AddWithValue("$id",id.Value);
-        var address=Convert.ToString(cmd.ExecuteScalar())??"";
-        var url="https://www.google.com/maps/dir/?api=1&destination="+Uri.EscapeDataString(address)+"&travelmode=driving";
+        var destination=Convert.ToString(cmd.ExecuteScalar())??"";
+
+        using var company=cn.CreateCommand();
+        company.CommandText="""
+            SELECT
+                COALESCE((SELECT value FROM settings WHERE key='company_address'),''),
+                COALESCE((SELECT value FROM settings WHERE key='company_city_state'),'')
+            """;
+        using var companyReader=company.ExecuteReader();
+        string origin="";
+        if(companyReader.Read())
+            origin=string.Join(", ",new[]{companyReader.GetString(0),companyReader.GetString(1)}
+                .Where(x=>!string.IsNullOrWhiteSpace(x)));
+
+        if(string.IsNullOrWhiteSpace(origin))
+        {
+            MessageBox.Show(
+                "O endereço da empresa ainda não foi informado.\n\nCadastre-o em Configurações > Dados da Empresa.",
+                "Endereço de origem",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
+        var url="https://www.google.com/maps/dir/?api=1&origin="+Uri.EscapeDataString(origin)
+            +"&destination="+Uri.EscapeDataString(destination)+"&travelmode=driving";
         try { Process.Start(new ProcessStartInfo(url){UseShellExecute=true}); }
         catch(Exception ex){MessageBox.Show("Não foi possível abrir o Google Maps.\n"+ex.Message);}
     }
