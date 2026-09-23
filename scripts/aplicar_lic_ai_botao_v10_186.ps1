@@ -5,9 +5,10 @@ if ($text.Contains('btnAssistenteAI')) {
     Write-Host 'Botao LIC AI ja esta aplicado.'
     exit 0
 }
-$anchorMatch = [regex]::Match($text, 'Controls\.Add\(menu\);|Controls\.Add\(body\);')
-if (-not $anchorMatch.Success) { throw 'Ponto de insercao LIC AI nao encontrado' }
-$anchor = $anchorMatch.Value.TrimEnd("`r", "`n")
+$anchor = @('Controls.Add(menu);', 'Controls.Add(body);', 'Controls.Add(status);') |
+    Where-Object { $text.Contains($_) } |
+    Select-Object -First 1
+if ([string]::IsNullOrWhiteSpace($anchor)) { throw 'Ponto de insercao LIC AI nao encontrado' }
 $insert = @'
         Controls.Add(menu);
 
