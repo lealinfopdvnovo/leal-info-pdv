@@ -53,19 +53,47 @@ public sealed class DeliveryManagementForm : Form
         LoadDeliveries();
     }
 
-    private static DataGridView Grid() => new()
+    private static DataGridView Grid()
     {
-        Dock = DockStyle.Fill,
-        ReadOnly = true,
-        AllowUserToAddRows = false,
-        AllowUserToDeleteRows = false,
-        RowHeadersVisible = false,
-        AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        MultiSelect = false,
-        BackgroundColor = Color.White,
-        BorderStyle = BorderStyle.None
-    };
+        var grid = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            ReadOnly = true,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            RowHeadersVisible = false,
+            AutoGenerateColumns = false,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            MultiSelect = false,
+            BackgroundColor = Color.White,
+            BorderStyle = BorderStyle.None
+        };
+        grid.DataError += (_, e) =>
+        {
+            e.ThrowException = false;
+            e.Cancel = false;
+        };
+        return grid;
+    }
+
+    private static void BindTextGrid(DataGridView grid, System.Data.DataTable table)
+    {
+        grid.DataSource = null;
+        grid.Columns.Clear();
+        foreach (System.Data.DataColumn column in table.Columns)
+        {
+            grid.Columns.Add(new DataGridViewTextBoxColumn
+            {
+                Name = column.ColumnName,
+                HeaderText = column.ColumnName,
+                DataPropertyName = column.ColumnName,
+                ValueType = typeof(string),
+                SortMode = DataGridViewColumnSortMode.Automatic
+            });
+        }
+        grid.DataSource = table;
+    }
 
     private static Button Button(string text, Color color, int width = 145)
     {
@@ -144,7 +172,7 @@ public sealed class DeliveryManagementForm : Form
         using var rd = cmd.ExecuteReader();
         var table = new System.Data.DataTable();
         table.Load(rd);
-        _deliveries.DataSource = table;
+        BindTextGrid(_deliveries, table);
     }
 
     private void LoadDrivers()
@@ -155,7 +183,7 @@ public sealed class DeliveryManagementForm : Form
         using var rd = cmd.ExecuteReader();
         var table = new System.Data.DataTable();
         table.Load(rd);
-        _drivers.DataSource = table;
+        BindTextGrid(_drivers, table);
     }
 
     private void EditDriver(long? id)
