@@ -2577,7 +2577,7 @@ private void ApplyFloatingTheme(Form f)
         var footer = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 59, Padding = new Padding(10, 8, 10, 7), FlowDirection = FlowDirection.RightToLeft, BackColor = Color.White };
         var close = new Button { Text = "FECHAR [ESC]", Width = 145, Height = 38, BackColor = Color.FromArgb(80, 91, 102), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         var export = new Button { Text = "EXPORTAR CSV", Width = 145, Height = 38, BackColor = Color.FromArgb(0, 145, 92), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
-        var print = new Button { Text = "IMPRIMIR RESUMO", Width = 165, Height = 38, BackColor = DarkBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var print = new Button { Text = "IMPRIMIR RELATÓRIO", Width = 175, Height = 38, BackColor = DarkBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
         close.FlatAppearance.BorderSize = export.FlatAppearance.BorderSize = print.FlatAppearance.BorderSize = 0;
         footer.Controls.Add(close); footer.Controls.Add(export); footer.Controls.Add(print);
         f.Controls.Add(tabs); f.Controls.Add(statusText); f.Controls.Add(footer);
@@ -2742,8 +2742,82 @@ private void ApplyFloatingTheme(Form f)
 
         print.Click += (_, _) =>
         {
-            var summary = $"RELATÓRIO FINANCEIRO\nPeríodo: {from.Value:dd/MM/yyyy} a {to.Value:dd/MM/yyyy}\n\nVendas: {lastSaleCount}\nFaturamento: {Money(lastSales)}\nCusto dos produtos: {Money(lastCost)}\nLucro bruto: {Money(lastGross)}\nEntradas avulsas: {Money(lastOtherEntries)}\nDespesas / saídas: {Money(lastExpenses)}\nResultado líquido: {Money(lastNet)}\nSaldo do caixa: {Money(lastBalance)}\n\nEmitido em: {DateTime.Now:dd/MM/yyyy HH:mm}";
-            ThermalPrinterService.PrintReceipt(summary, f);
+            var grid = tabs.SelectedIndex switch { 0 => movementGrid, 1 => salesGrid, 2 => productGrid, _ => paymentGrid };
+            if (grid.Rows.Count == 0) { Info("Não há dados para imprimir no período selecionado."); return; }
+
+            var rowIndex = 0;
+            var firstPage = true;
+            using var document = new PrintDocument { DocumentName = "LEAL INFO PDV - Relatório Financeiro", OriginAtMargins = true };
+            document.DefaultPageSettings.Landscape = true;
+            document.DefaultPageSettings.Margins = new Margins(35, 35, 35, 35);
+            document.PrintPage += (_, e) =>
+            {
+                var graphics = e.Graphics;
+                var width = e.MarginBounds.Width;
+                var y = (float)e.MarginBounds.Top;
+                using var titleFont = new Font("Segoe UI", 15, FontStyle.Bold);
+                using var headerFont = new Font("Segoe UI", 8, FontStyle.Bold);
+                using var bodyFont = new Font("Segoe UI", 7.5f);
+                using var smallFont = new Font("Segoe UI", 8);
+                using var headerBrush = new SolidBrush(DarkBlue);
+                using var linePen = new Pen(Color.FromArgb(175, 190, 202));
+
+                graphics.DrawString("LEAL INFO PDV - RELATÓRIO FINANCEIRO", titleFont, Brushes.Black, e.MarginBounds.Left, y);
+                y += 28;
+                graphics.DrawString($"Período: {from.Value:dd/MM/yyyy} a {to.Value:dd/MM/yyyy}   |   Aba: {tabs.SelectedTab?.Text}   |   Emitido: {DateTime.Now:dd/MM/yyyy HH:mm}", smallFont, Brushes.Black, e.MarginBounds.Left, y);
+                y += 22;
+
+                if (firstPage)
+                {
+                    var resume = $"Faturamento: {Money(lastSales)}   |   Custo: {Money(lastCost)}   |   Lucro bruto: {Money(lastGross)}   |   Despesas: {Money(lastExpenses)}   |   Resultado líquido: {Money(lastNet)}   |   Saldo: {Money(lastBalance)}";
+                    graphics.DrawString(resume, headerFont, headerBrush, new RectangleF(e.MarginBounds.Left, y, width, 35));
+                    y += 38;
+                }
+
+                var visibleColumns = grid.Columns.Cast<DataGridViewColumn>().Where(c => c.Visible).ToArray();
+                var totalWeight = Math.Max(1, visibleColumns.Sum(c => Math.Max(1, c.FillWeight)));
+                var x = (float)e.MarginBounds.Left;
+                var widths = visibleColumns.Select(c => width * Math.Max(1, c.FillWeight) / totalWeight).ToArray();
+                const float headerHeight = 25;
+                for (var i = 0; i < visibleColumns.Length; i++)
+                {
+                    graphics.FillRectangle(headerBrush, x, y, widths[i], headerHeight);
+                    graphics.DrawRectangle(Pens.White, x, y, widths[i], headerHeight);
+                    graphics.DrawString(visibleColumns[i].HeaderText, headerFont, Brushes.White, new RectangleF(x + 3, y + 4, widths[i] - 6, headerHeight - 5));
+                    x += widths[i];
+                }
+                y += headerHeight;
+
+                const float rowHeight = 23;
+                while (rowIndex < grid.Rows.Count && y + rowHeight <= e.MarginBounds.Bottom - 22)
+                {
+                    var row = grid.Rows[rowIndex];
+                    x = e.MarginBounds.Left;
+                    for (var i = 0; i < visibleColumns.Length; i++)
+                    {
+                        var value = Convert.ToString(row.Cells[visibleColumns[i].Index].FormattedValue, CultureInfo.GetCultureInfo("pt-BR")) ?? "";
+                        graphics.DrawRectangle(linePen, x, y, widths[i], rowHeight);
+                        graphics.DrawString(value, bodyFont, Brushes.Black, new RectangleF(x + 3, y + 3, widths[i] - 6, rowHeight - 4), new StringFormat { Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap });
+                        x += widths[i];
+                    }
+                    y += rowHeight;
+                    rowIndex++;
+                }
+
+                graphics.DrawString($"Página impressa pelo LEAL INFO PDV   •   Registro {Math.Min(rowIndex, grid.Rows.Count)} de {grid.Rows.Count}", smallFont, Brushes.Gray, e.MarginBounds.Left, e.MarginBounds.Bottom - 16);
+                e.HasMorePages = rowIndex < grid.Rows.Count;
+                firstPage = false;
+            };
+
+            try
+            {
+                using var dialog = new PrintDialog { Document = document, AllowSelection = false, AllowSomePages = false, UseEXDialog = true };
+                if (dialog.ShowDialog(f) == DialogResult.OK) document.Print();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(f, "Não foi possível imprimir o relatório.\n\n" + ex.Message, "Impressão do relatório", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         };
         apply.Click += (_, _) => LoadReport();
         search.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; LoadReport(); } };
