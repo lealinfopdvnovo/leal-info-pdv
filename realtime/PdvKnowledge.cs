@@ -35,7 +35,7 @@ CADASTRO DE PRODUTOS
 - A busca por código de barras localiza o produto. Foto vazia pode usar a identidade visual do PDV.
 
 TELA DE VENDAS
-- F5 busca produto ou recebe o código do leitor. Enter confirma seleção/quantidade. F2 abre a finalização. F7 remove item com confirmação.
+- F5 busca produto ou recebe o código do leitor. Enter confirma seleção/quantidade. F4 abre a finalização. Na janela de pagamento, F3 aciona o PIX. F7 remove item com confirmação.
 - A venda pode ter cliente, quantidade, desconto, subtotal, total e troco.
 - Pagamentos disponíveis: dinheiro, PIX, cartão e múltiplo, inclusive combinações entre dinheiro, cartão e PIX.
 - Após concluir, o sistema gera comprovante. Nunca confirme pagamento, finalize venda, remova item ou aplique desconto sem ação e confirmação do operador.

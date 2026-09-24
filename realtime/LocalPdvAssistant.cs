@@ -30,7 +30,7 @@ public static class LocalPdvAssistant
         if (Has(text, "produto", "estoque", "categoria", "marca", "subgrupo"))
             return "No Cadastro de Produtos você informa código, descrição, fornecedor, unidade, preços, estoque, marca, categoria, grupo, subgrupo, validade e foto. Os botões de mais cadastram as classificações sem sair da tela. Para item pesado, marque Usar balança e Venda fracionada.";
         if (Has(text, "venda", "vender", "caixa", "pagamento", "troco", "desconto"))
-            return "Na Tela de Vendas, F5 busca o produto, Enter confirma a quantidade, F7 remove um item e F2 abre a finalização. O pagamento pode ser dinheiro, PIX, cartão ou múltiplo; confira total, desconto e troco antes de concluir.";
+            return "Na Tela de Vendas, F5 busca o produto, Enter confirma a quantidade, F7 remove um item e F4 abre a finalização. Na janela de pagamento, F3 aciona o PIX. O pagamento pode ser dinheiro, PIX, cartão ou múltiplo; confira total, desconto e troco antes de concluir.";
         if (Has(text, "cliente", "fornecedor"))
             return "Clientes e fornecedores possuem nome, documento, telefone, e-mail e endereço. Antes de cadastrar, pesquise pelo nome ou documento para evitar duplicidade.";
         if (Has(text, "servico", "ordem de servico", "os ", "equipamento", "defeito"))
@@ -46,7 +46,7 @@ public static class LocalPdvAssistant
         if (Has(text, "empresa", "cnpj", "telefone", "rodape"))
             return "Em Configurações, abra Dados da Empresa para alterar nome, nome fantasia, CNPJ ou CPF, telefone, endereço, cidade e mensagem do rodapé do comprovante.";
         if (Has(text, "atalho", "tecla", "esc"))
-            return "Os principais atalhos são F5 para buscar produto, F2 para finalizar, F7 para remover item e ESC para fechar a tela ativa.";
+            return "Os principais atalhos são F5 para buscar produto, F4 para finalizar, F3 para acionar o PIX no fechamento, F7 para remover item e ESC para fechar a tela ativa.";
         if (Has(text, "ajuda", "o que voce sabe", "o que sabe", "funcao"))
             return "Posso explicar produtos, vendas, clientes, fornecedores, serviços, ordens, orçamentos, caixa, relatórios, PIX, backup, impressora, balança, carga de produtos, usuários e configurações. Diga a tela ou tarefa que deseja aprender.";
 

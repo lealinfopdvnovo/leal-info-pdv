@@ -753,7 +753,7 @@ public sealed class MainForm : Form
             {
                 AddMenu("Conheça o menu Cadastro", ShowCadastroHelp);
                 AddMenu("Tutorial de Primeiro Acesso", () => OpenFirstAccessTutorial(false));
-                AddMenu("Atalhos do PDV", () => MessageBox.Show("F2  Finalizar venda\nF5  Código do produto\nF7  Remover item\nESC  Fechar janela", "Atalhos do LEAL INFO PDV"));
+                AddMenu("Atalhos do PDV", () => MessageBox.Show("F4  Finalizar venda\nF3  Acionar PIX no fechamento\nF5  Código do produto\nF7  Remover item\nESC  Fechar janela", "Atalhos do LEAL INFO PDV"));
                 AddMenu("Atualizações do sistema", () => _ = UpdateManager.ShowUpdateCenterAsync(this));
                 AddMenu("Sobre o sistema", () => MessageBox.Show($"LEAL INFO PDV PRO\nVersão V{UpdateManager.CurrentVersion}\nTecnologia que conecta.", "Sobre"));
             }
@@ -3841,7 +3841,7 @@ private void ApplyFloatingTheme(Form f)
         tabs.BringToFront();
 
         var tabCash = new TabPage("DINHEIRO") { BackColor = Color.White };
-        var tabPix = new TabPage("PIX") { BackColor = Color.White };
+        var tabPix = new TabPage("PIX • F3") { BackColor = Color.White };
         var tabCard = new TabPage("CARTÃO") { BackColor = Color.White };
         var tabMulti = new TabPage("MÚLTIPLO") { BackColor = Color.White };
         tabs.TabPages.Add(tabCash);
@@ -3932,7 +3932,7 @@ private void ApplyFloatingTheme(Form f)
         pixInfo.Font = new Font("Segoe UI", 11);
         tabPix.Controls.Add(pixInfo);
 
-        var pixConfirm = BigConfirm("GERAR QR CODE PIX");
+        var pixConfirm = BigConfirm("GERAR QR CODE PIX  [F3]");
         pixConfirm.Left = 210;
         pixConfirm.Top = 320;
         tabPix.Controls.Add(pixConfirm);
@@ -4117,6 +4117,17 @@ private void ApplyFloatingTheme(Form f)
                 result.Add(new PaymentPart{Method="PIX",Amount=total});f.DialogResult=DialogResult.OK;f.Close();
             }
             catch(Exception ex){MessageBox.Show(f,"Não foi possível iniciar o PIX:\n\n"+ex.Message,"PIX - LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Error);}
+        };
+
+        f.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode != Keys.F3)
+                return;
+
+            e.Handled = true;
+            e.SuppressKeyPress = true;
+            tabs.SelectedTab = tabPix;
+            pixConfirm.PerformClick();
         };
 
         cardConfirm.Click += (_, _) =>
@@ -4771,7 +4782,7 @@ private void ApplyFloatingTheme(Form f)
 
         // Estrutura profissional:
         // 1) Total compacto e totalmente visível
-        // 2) Dica F2 logo abaixo
+        // 2) Dica F4 logo abaixo
         // 3) Título + tabela ocupando o maior espaço
         // 4) Cliente
         // 5) Ações no rodapé
@@ -4785,7 +4796,7 @@ private void ApplyFloatingTheme(Form f)
             BackColor = Color.Transparent
         };
         rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 126)); // total
-        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));  // F2
+        rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));  // F4
         rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));  // título itens
         rightLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));  // tabela
         rightLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));  // cliente
@@ -4826,7 +4837,7 @@ private void ApplyFloatingTheme(Form f)
         subtotalPanel.Controls.Add(subtotalCaption);
         rightLayout.Controls.Add(subtotalPanel, 0, 0);
 
-        // ===== DICA F2 =====
+        // ===== DICA F4 =====
         var paymentPanel = new Panel
         {
             Dock = DockStyle.Fill,
@@ -4836,7 +4847,7 @@ private void ApplyFloatingTheme(Form f)
 
         var paymentText = new Label
         {
-            Text = "Pressione F2 para escolher a forma de pagamento",
+            Text = "Pressione F4 para escolher a forma de pagamento",
             Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
             ForeColor = DarkBlue,
@@ -4997,7 +5008,7 @@ private void ApplyFloatingTheme(Form f)
 
         var finish = new Button
         {
-            Text = "FINALIZAR VENDA  [F2]",
+            Text = "FINALIZAR VENDA  [F4]",
             Dock = DockStyle.Fill,
             Margin = new Padding(5, 0, 5, 0),
             BackColor = Color.FromArgb(0, 163, 224),
@@ -5744,7 +5755,7 @@ private void ApplyFloatingTheme(Form f)
 
             var subtotal = cartItems.Sum(x => x.Total);
 
-            // F2 sempre abre a janela flutuante de fechamento.
+            // F4 sempre abre a janela flutuante de fechamento.
             var payments = SelectPayment(subtotal);
             if (payments == null || payments.Count == 0)
                 return;
@@ -5863,7 +5874,7 @@ private void ApplyFloatingTheme(Form f)
 
         f.KeyDown += (_, e) =>
         {
-            if (e.KeyCode == Keys.F2)
+            if (e.KeyCode == Keys.F4)
             {
                 e.Handled = true;
                 e.SuppressKeyPress = true;
@@ -5882,7 +5893,7 @@ private void ApplyFloatingTheme(Form f)
                 OpenCatalogF5();
                 e.SuppressKeyPress = true;
             }
-            else if (e.KeyCode == Keys.F2)
+            else if (e.KeyCode == Keys.F4)
             {
                 return;
             }
