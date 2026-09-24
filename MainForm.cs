@@ -2462,7 +2462,8 @@ private void ApplyFloatingTheme(Form f)
             StartPosition = FormStartPosition.CenterParent,
             Width = 1320,
             Height = 820,
-            MinimumSize = new Size(1050, 680),
+            MinimumSize = new Size(900, 600),
+            WindowState = FormWindowState.Maximized,
             BackColor = Color.FromArgb(232, 241, 248),
             Font = new Font("Segoe UI", 9.5f),
             KeyPreview = true
@@ -2580,7 +2581,37 @@ private void ApplyFloatingTheme(Form f)
         close.FlatAppearance.BorderSize = export.FlatAppearance.BorderSize = print.FlatAppearance.BorderSize = 0;
         footer.Controls.Add(close); footer.Controls.Add(export); footer.Controls.Add(print);
         f.Controls.Add(tabs); f.Controls.Add(statusText); f.Controls.Add(footer);
-        tabs.BringToFront();
+
+        // Mantém cabeçalho, filtros, indicadores, grade e botões sempre visíveis,
+        // independentemente da resolução e da escala configurada no Windows.
+        var reportLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 6,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        reportLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        reportLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 66));
+        reportLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 104));
+        reportLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
+        reportLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        reportLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 27));
+        reportLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 59));
+        foreach (var control in new Control[] { header, filters, cards, tabs, statusText, footer })
+        {
+            control.Dock = DockStyle.Fill;
+            control.Margin = Padding.Empty;
+        }
+        f.Controls.Clear();
+        f.Controls.Add(reportLayout);
+        reportLayout.Controls.Add(header, 0, 0);
+        reportLayout.Controls.Add(filters, 0, 1);
+        reportLayout.Controls.Add(cards, 0, 2);
+        reportLayout.Controls.Add(tabs, 0, 3);
+        reportLayout.Controls.Add(statusText, 0, 4);
+        reportLayout.Controls.Add(footer, 0, 5);
 
         double lastSales = 0, lastCost = 0, lastGross = 0, lastExpenses = 0, lastNet = 0, lastBalance = 0, lastOtherEntries = 0;
         long lastSaleCount = 0;
