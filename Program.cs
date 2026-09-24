@@ -27,7 +27,9 @@ internal static class Program
         {
             Database.Initialize();
 
-            var update = global::UpdateService.CheckAsync().GetAwaiter().GetResult();
+            // Nunca bloqueia a abertura do caixa aguardando Internet.
+            // A verificação silenciosa continua depois que a tela principal já abriu.
+            global::UpdateInfo? update = null;
 
             if (update != null)
             {
