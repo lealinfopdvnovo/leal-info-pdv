@@ -2456,17 +2456,271 @@ private void ApplyFloatingTheme(Form f)
 
     private void OpenReports()
     {
-        using var cn=Database.Open();
-        long products=ScalarLong(cn,"SELECT COUNT(*) FROM products WHERE active=1");
-        long clients=ScalarLong(cn,"SELECT COUNT(*) FROM customers");
-        long sales=ScalarLong(cn,"SELECT COUNT(*) FROM sales");
-        double total=ScalarDouble(cn,"SELECT COALESCE(SUM(total),0) FROM sales");
-        double entries=ScalarDouble(cn,"SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE upper(type) NOT LIKE '%SAÍDA%'");
-        double exits=ScalarDouble(cn,"SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE upper(type) LIKE '%SAÍDA%'");
-        long low=ScalarLong(cn,"SELECT COUNT(*) FROM products WHERE active=1 AND stock<=min_stock");
-        MessageBox.Show(
-            $"RELATÓRIO GERAL\n\nProdutos: {products}\nClientes: {clients}\nVendas: {sales}\nTotal vendido: {Money(total)}\n\nEntradas: {Money(entries)}\nSaídas: {Money(exits)}\nSaldo: {Money(entries-exits)}\n\nEstoque baixo: {low} produto(s)",
-            "LEAL INFO PDV - Relatórios",MessageBoxButtons.OK,MessageBoxIcon.Information);
+        using var f = new Form
+        {
+            Text = "LEAL INFO PDV • RELATÓRIO FINANCEIRO",
+            StartPosition = FormStartPosition.CenterParent,
+            Width = 1320,
+            Height = 820,
+            MinimumSize = new Size(1050, 680),
+            BackColor = Color.FromArgb(232, 241, 248),
+            Font = new Font("Segoe UI", 9.5f),
+            KeyPreview = true
+        };
+
+        var header = new Panel { Dock = DockStyle.Top, Height = 66, BackColor = DarkBlue };
+        header.Controls.Add(new Label
+        {
+            Text = "RELATÓRIO COMPLETO DAS FINANÇAS",
+            Dock = DockStyle.Fill,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 20, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter
+        });
+        f.Controls.Add(header);
+
+        var filters = new Panel { Dock = DockStyle.Top, Height = 104, Padding = new Padding(14, 8, 14, 7), BackColor = Color.White };
+        var from = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 120, Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1) };
+        var to = new DateTimePicker { Format = DateTimePickerFormat.Short, Width = 120, Value = DateTime.Today };
+        var search = new TextBox { Width = 255, PlaceholderText = "Buscar venda, produto, operador..." };
+        var movementType = new ComboBox { Width = 145, DropDownStyle = ComboBoxStyle.DropDownList };
+        movementType.Items.AddRange(new object[] { "TODOS", "ENTRADAS", "SAÍDAS" });
+        movementType.SelectedIndex = 0;
+        var apply = new Button { Text = "BUSCAR", Width = 105, Height = 34, BackColor = Color.FromArgb(0, 145, 210), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 9.5f, FontStyle.Bold) };
+        apply.FlatAppearance.BorderSize = 0;
+
+        Button QuickButton(string text, Action action)
+        {
+            var b = new Button { Text = text, Width = 86, Height = 30, BackColor = Color.FromArgb(225, 236, 245), ForeColor = DarkBlue, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 8.5f, FontStyle.Bold) };
+            b.FlatAppearance.BorderSize = 0;
+            b.Click += (_, _) => action();
+            return b;
+        }
+
+        var filterLine = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 43, WrapContents = false, AutoScroll = true };
+        filterLine.Controls.AddRange(new Control[]
+        {
+            new Label { Text = "DE:", AutoSize = true, Padding = new Padding(0, 8, 0, 0), ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, from,
+            new Label { Text = "ATÉ:", AutoSize = true, Padding = new Padding(8, 8, 0, 0), ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, to,
+            new Label { Text = "TIPO:", AutoSize = true, Padding = new Padding(8, 8, 0, 0), ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, movementType,
+            search, apply
+        });
+        var quickLine = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 38, WrapContents = false };
+        quickLine.Controls.Add(new Label { Text = "PERÍODO RÁPIDO:", AutoSize = true, Padding = new Padding(0, 7, 6, 0), ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) });
+        quickLine.Controls.Add(QuickButton("HOJE", () => { from.Value = to.Value = DateTime.Today; apply.PerformClick(); }));
+        quickLine.Controls.Add(QuickButton("ESTE MÊS", () => { from.Value = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1); to.Value = DateTime.Today; apply.PerformClick(); }));
+        quickLine.Controls.Add(QuickButton("30 DIAS", () => { from.Value = DateTime.Today.AddDays(-29); to.Value = DateTime.Today; apply.PerformClick(); }));
+        quickLine.Controls.Add(QuickButton("ESTE ANO", () => { from.Value = new DateTime(DateTime.Today.Year, 1, 1); to.Value = DateTime.Today; apply.PerformClick(); }));
+        filters.Controls.Add(filterLine);
+        filters.Controls.Add(quickLine);
+        f.Controls.Add(filters);
+
+        var cards = new TableLayoutPanel { Dock = DockStyle.Top, Height = 112, ColumnCount = 6, Padding = new Padding(10, 7, 10, 7), BackColor = Color.FromArgb(232, 241, 248) };
+        for (var i = 0; i < 6; i++) cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 16.6667f));
+        f.Controls.Add(cards);
+
+        Label Card(string title, Color color)
+        {
+            var l = new Label { Dock = DockStyle.Fill, Margin = new Padding(5), BackColor = color, ForeColor = Color.White, Font = new Font("Segoe UI", 11, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter, Text = title + "\nR$ 0,00" };
+            return l;
+        }
+
+        var salesCard = Card("FATURAMENTO", Color.FromArgb(0, 125, 185));
+        var costCard = Card("CUSTO DOS PRODUTOS", Color.FromArgb(94, 102, 110));
+        var grossCard = Card("LUCRO BRUTO", Color.FromArgb(0, 145, 92));
+        var expenseCard = Card("DESPESAS / SAÍDAS", Color.FromArgb(190, 58, 55));
+        var netCard = Card("RESULTADO LÍQUIDO", Color.FromArgb(95, 72, 175));
+        var balanceCard = Card("SALDO DO CAIXA", Color.FromArgb(222, 126, 20));
+        cards.Controls.Add(salesCard, 0, 0); cards.Controls.Add(costCard, 1, 0); cards.Controls.Add(grossCard, 2, 0);
+        cards.Controls.Add(expenseCard, 3, 0); cards.Controls.Add(netCard, 4, 0); cards.Controls.Add(balanceCard, 5, 0);
+
+        DataGridView ReportGrid()
+        {
+            var g = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                ReadOnly = true,
+                AllowUserToAddRows = false,
+                AllowUserToDeleteRows = false,
+                RowHeadersVisible = false,
+                BackgroundColor = Color.White,
+                BorderStyle = BorderStyle.None,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+                ColumnHeadersHeight = 38,
+                RowTemplate = { Height = 31 }
+            };
+            g.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(7, 83, 132);
+            g.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            g.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
+            g.EnableHeadersVisualStyles = false;
+            g.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(242, 247, 251);
+            g.DataError += (_, e) => { e.ThrowException = false; e.Cancel = true; };
+            return g;
+        }
+
+        var tabs = new TabControl { Dock = DockStyle.Fill, Font = new Font("Segoe UI", 10, FontStyle.Bold), Padding = new Point(18, 7) };
+        var movementGrid = ReportGrid(); var salesGrid = ReportGrid(); var productGrid = ReportGrid(); var paymentGrid = ReportGrid();
+        TabPage AddTab(string title, DataGridView grid)
+        {
+            var page = new TabPage(title) { BackColor = Color.White, Padding = new Padding(5) };
+            page.Controls.Add(grid); tabs.TabPages.Add(page); return page;
+        }
+        AddTab("MOVIMENTAÇÕES", movementGrid);
+        AddTab("VENDAS", salesGrid);
+        AddTab("PRODUTOS VENDIDOS", productGrid);
+        AddTab("FORMAS DE PAGAMENTO", paymentGrid);
+        f.Controls.Add(tabs);
+
+        var statusText = new Label { Dock = DockStyle.Bottom, Height = 27, BackColor = Color.FromArgb(210, 225, 237), ForeColor = DarkBlue, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0) };
+        var footer = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 59, Padding = new Padding(10, 8, 10, 7), FlowDirection = FlowDirection.RightToLeft, BackColor = Color.White };
+        var close = new Button { Text = "FECHAR [ESC]", Width = 145, Height = 38, BackColor = Color.FromArgb(80, 91, 102), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var export = new Button { Text = "EXPORTAR CSV", Width = 145, Height = 38, BackColor = Color.FromArgb(0, 145, 92), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var print = new Button { Text = "IMPRIMIR RESUMO", Width = 165, Height = 38, BackColor = DarkBlue, ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        close.FlatAppearance.BorderSize = export.FlatAppearance.BorderSize = print.FlatAppearance.BorderSize = 0;
+        footer.Controls.Add(close); footer.Controls.Add(export); footer.Controls.Add(print);
+        f.Controls.Add(tabs); f.Controls.Add(statusText); f.Controls.Add(footer);
+        tabs.BringToFront();
+
+        double lastSales = 0, lastCost = 0, lastGross = 0, lastExpenses = 0, lastNet = 0, lastBalance = 0, lastOtherEntries = 0;
+        long lastSaleCount = 0;
+
+        DataTable QueryTable(SqliteConnection cn, string sql, DateTime start, DateTime endExclusive, string term, bool includeMovementType = false)
+        {
+            using var cmd = cn.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$from", start.ToString("yyyy-MM-dd HH:mm:ss"));
+            cmd.Parameters.AddWithValue("$to", endExclusive.ToString("yyyy-MM-dd HH:mm:ss"));
+            cmd.Parameters.AddWithValue("$q", "%" + term.Trim() + "%");
+            if (includeMovementType) cmd.Parameters.AddWithValue("$type", movementType.SelectedItem?.ToString() ?? "TODOS");
+            using var reader = cmd.ExecuteReader();
+            var table = new DataTable(); table.Load(reader); return table;
+        }
+
+        double QueryValue(SqliteConnection cn, string sql, DateTime start, DateTime endExclusive)
+        {
+            using var cmd = cn.CreateCommand(); cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$from", start.ToString("yyyy-MM-dd HH:mm:ss"));
+            cmd.Parameters.AddWithValue("$to", endExclusive.ToString("yyyy-MM-dd HH:mm:ss"));
+            return Convert.ToDouble(cmd.ExecuteScalar() ?? 0, CultureInfo.InvariantCulture);
+        }
+
+        void FormatGrid(DataGridView grid)
+        {
+            foreach (DataGridViewColumn column in grid.Columns)
+            {
+                if (column.Name.Contains("Valor", StringComparison.OrdinalIgnoreCase) || column.Name.Contains("Total", StringComparison.OrdinalIgnoreCase) || column.Name.Contains("Custo", StringComparison.OrdinalIgnoreCase) || column.Name.Contains("Lucro", StringComparison.OrdinalIgnoreCase))
+                    column.DefaultCellStyle.Format = "C2";
+                if (column.Name.Contains("Quantidade", StringComparison.OrdinalIgnoreCase)) column.DefaultCellStyle.Format = "N3";
+            }
+        }
+
+        void LoadReport()
+        {
+            var start = from.Value.Date;
+            var endExclusive = to.Value.Date.AddDays(1);
+            if (start >= endExclusive) { Info("A data inicial não pode ser maior que a data final."); return; }
+            var term = search.Text;
+            using var cn = Database.Open();
+
+            movementGrid.DataSource = QueryTable(cn, """
+                SELECT m.id AS Código, datetime(m.occurred_at) AS Data,
+                       CASE WHEN upper(m.type) LIKE '%SAÍDA%' THEN 'SAÍDA' ELSE 'ENTRADA' END AS Tipo,
+                       m.description AS Descrição, m.amount AS Valor,
+                       COALESCE(m.sale_id,'') AS Venda
+                FROM cash_movements m
+                WHERE m.occurred_at >= $from AND m.occurred_at < $to
+                  AND ($type='TODOS' OR ($type='ENTRADAS' AND upper(m.type) NOT LIKE '%SAÍDA%') OR ($type='SAÍDAS' AND upper(m.type) LIKE '%SAÍDA%'))
+                  AND (m.description LIKE $q OR CAST(m.id AS TEXT) LIKE $q OR CAST(COALESCE(m.sale_id,'') AS TEXT) LIKE $q)
+                ORDER BY m.occurred_at DESC, m.id DESC
+                """, start, endExclusive, term, true);
+
+            salesGrid.DataSource = QueryTable(cn, """
+                SELECT s.id AS Venda, datetime(s.sold_at) AS Data, s.payment AS Pagamento,
+                       s.subtotal AS Subtotal, s.discount AS Desconto, s.total AS Total, s.operator AS Operador
+                FROM sales s
+                WHERE s.sold_at >= $from AND s.sold_at < $to
+                  AND (CAST(s.id AS TEXT) LIKE $q OR s.payment LIKE $q OR s.operator LIKE $q)
+                ORDER BY s.sold_at DESC, s.id DESC
+                """, start, endExclusive, term);
+
+            productGrid.DataSource = QueryTable(cn, """
+                SELECT si.description AS Produto, SUM(si.qty) AS Quantidade,
+                       SUM(si.total) AS Total,
+                       SUM(si.qty * COALESCE(p.cost,0)) AS Custo,
+                       SUM(si.total - (si.qty * COALESCE(p.cost,0))) AS Lucro
+                FROM sale_items si
+                JOIN sales s ON s.id=si.sale_id
+                LEFT JOIN products p ON p.id=si.product_id
+                WHERE s.sold_at >= $from AND s.sold_at < $to
+                  AND (si.description LIKE $q OR CAST(si.sale_id AS TEXT) LIKE $q)
+                GROUP BY si.description
+                ORDER BY Total DESC
+                """, start, endExclusive, term);
+
+            paymentGrid.DataSource = QueryTable(cn, """
+                SELECT sp.method AS Forma, COUNT(DISTINCT sp.sale_id) AS Vendas, SUM(sp.amount) AS Total
+                FROM sale_payments sp JOIN sales s ON s.id=sp.sale_id
+                WHERE s.sold_at >= $from AND s.sold_at < $to AND sp.method LIKE $q
+                GROUP BY sp.method ORDER BY Total DESC
+                """, start, endExclusive, term);
+
+            lastSales = QueryValue(cn, "SELECT COALESCE(SUM(total),0) FROM sales WHERE sold_at >= $from AND sold_at < $to", start, endExclusive);
+            lastSaleCount = (long)QueryValue(cn, "SELECT COUNT(*) FROM sales WHERE sold_at >= $from AND sold_at < $to", start, endExclusive);
+            lastCost = QueryValue(cn, """
+                SELECT COALESCE(SUM(si.qty * COALESCE(p.cost,0)),0)
+                FROM sale_items si JOIN sales s ON s.id=si.sale_id LEFT JOIN products p ON p.id=si.product_id
+                WHERE s.sold_at >= $from AND s.sold_at < $to
+                """, start, endExclusive);
+            lastExpenses = QueryValue(cn, "SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE occurred_at >= $from AND occurred_at < $to AND upper(type) LIKE '%SAÍDA%'", start, endExclusive);
+            lastOtherEntries = QueryValue(cn, "SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE occurred_at >= $from AND occurred_at < $to AND upper(type) NOT LIKE '%SAÍDA%' AND sale_id IS NULL", start, endExclusive);
+            var allEntries = QueryValue(cn, "SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE occurred_at >= $from AND occurred_at < $to AND upper(type) NOT LIKE '%SAÍDA%'", start, endExclusive);
+            lastGross = lastSales - lastCost;
+            lastNet = lastGross + lastOtherEntries - lastExpenses;
+            lastBalance = allEntries - lastExpenses;
+
+            salesCard.Text = "FATURAMENTO\n" + Money(lastSales);
+            costCard.Text = "CUSTO DOS PRODUTOS\n" + Money(lastCost);
+            grossCard.Text = "LUCRO BRUTO\n" + Money(lastGross);
+            expenseCard.Text = "DESPESAS / SAÍDAS\n" + Money(lastExpenses);
+            netCard.Text = "RESULTADO LÍQUIDO\n" + Money(lastNet);
+            balanceCard.Text = "SALDO DO CAIXA\n" + Money(lastBalance);
+            netCard.BackColor = lastNet >= 0 ? Color.FromArgb(95, 72, 175) : Color.FromArgb(180, 45, 45);
+
+            FormatGrid(movementGrid); FormatGrid(salesGrid); FormatGrid(productGrid); FormatGrid(paymentGrid);
+            statusText.Text = $"  Período: {start:dd/MM/yyyy} a {to.Value:dd/MM/yyyy}  •  {lastSaleCount} venda(s)  •  Entradas avulsas: {Money(lastOtherEntries)}  •  Atualizado em {DateTime.Now:dd/MM/yyyy HH:mm}";
+        }
+
+        string CsvCell(object? value)
+        {
+            var text = Convert.ToString(value, CultureInfo.GetCultureInfo("pt-BR")) ?? "";
+            return "\"" + text.Replace("\"", "\"\"") + "\"";
+        }
+
+        export.Click += (_, _) =>
+        {
+            var grid = tabs.SelectedIndex switch { 0 => movementGrid, 1 => salesGrid, 2 => productGrid, _ => paymentGrid };
+            using var dialog = new SaveFileDialog { Filter = "Arquivo CSV (*.csv)|*.csv", FileName = $"Relatorio_Financeiro_{DateTime.Now:yyyyMMdd_HHmm}.csv" };
+            if (dialog.ShowDialog(f) != DialogResult.OK) return;
+            using var writer = new StreamWriter(dialog.FileName, false, new System.Text.UTF8Encoding(true));
+            writer.WriteLine(string.Join(";", grid.Columns.Cast<DataGridViewColumn>().Select(c => CsvCell(c.HeaderText))));
+            foreach (DataGridViewRow row in grid.Rows)
+                writer.WriteLine(string.Join(";", row.Cells.Cast<DataGridViewCell>().Select(c => CsvCell(c.Value))));
+            Info("Relatório exportado com sucesso.");
+        };
+
+        print.Click += (_, _) =>
+        {
+            var summary = $"RELATÓRIO FINANCEIRO\nPeríodo: {from.Value:dd/MM/yyyy} a {to.Value:dd/MM/yyyy}\n\nVendas: {lastSaleCount}\nFaturamento: {Money(lastSales)}\nCusto dos produtos: {Money(lastCost)}\nLucro bruto: {Money(lastGross)}\nEntradas avulsas: {Money(lastOtherEntries)}\nDespesas / saídas: {Money(lastExpenses)}\nResultado líquido: {Money(lastNet)}\nSaldo do caixa: {Money(lastBalance)}\n\nEmitido em: {DateTime.Now:dd/MM/yyyy HH:mm}";
+            ThermalPrinterService.PrintReceipt(summary, f);
+        };
+        apply.Click += (_, _) => LoadReport();
+        search.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; LoadReport(); } };
+        close.Click += (_, _) => f.Close();
+        f.KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape) f.Close(); };
+        f.Shown += (_, _) => LoadReport();
+        ApplyFloatingTheme(f);
+        f.ShowDialog(this);
     }
 
     private void OpenUsers()
