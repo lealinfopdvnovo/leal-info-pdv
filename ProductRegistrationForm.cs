@@ -132,7 +132,7 @@ internal sealed class ProductRegistrationForm : Form
         AddField(fields, "wholesale_price", "Preço atacado", MoneyBox(), row, 2);
         AddField(fields, "wholesale_qty", "Qtd. atacado", NumberBox(), row, 3); row++;
         AddField(fields, "approx_price", "Preço aproximado", MoneyBox(), row, 0);
-        AddField(fields, "commission", "Comissão (%)", MoneyBox(), row, 1);
+        AddField(fields, "commission", "Comissão (%)", NumberBox(), row, 1);
         AddField(fields, "promotion_price", "Preço promoção", MoneyBox(), row, 2);
         AddField(fields, "promotion_start", "Início promoção", DateBox(), row, 3); row++;
         AddField(fields, "promotion_end", "Fim promoção", DateBox(), row, 0);
@@ -203,7 +203,26 @@ internal sealed class ProductRegistrationForm : Form
         panel.Controls.Add(lbl, col, row * 2); panel.Controls.Add(host, col, row * 2 + 1); _fields[key] = combo;
     }
 
-    private static TextBox MoneyBox() => new() { Text = "0,00", TextAlign = HorizontalAlignment.Right };
+    private static TextBox MoneyBox()
+    {
+        var box = new TextBox { Text = "0,00", TextAlign = HorizontalAlignment.Right };
+        box.Enter += (_, _) => box.SelectAll();
+        box.KeyPress += (_, e) =>
+        {
+            // Os dois últimos algarismos representam os centavos.
+            if (!char.IsDigit(e.KeyChar) && !char.IsControl(e.KeyChar)) e.Handled = true;
+        };
+        box.TextChanged += (_, _) =>
+        {
+            var digits = new string(box.Text.Where(char.IsDigit).ToArray());
+            if (!decimal.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var cents)) return;
+            var formatted = (cents / 100m).ToString("N2", CultureInfo.GetCultureInfo("pt-BR"));
+            if (box.Text == formatted) return;
+            box.Text = formatted;
+            box.SelectionStart = box.Text.Length;
+        };
+        return box;
+    }
     private static TextBox NumberBox() => new() { Text = "0", TextAlign = HorizontalAlignment.Right };
     private static ComboBox Combo(params string[] values) { var c = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList }; c.Items.AddRange(values); c.SelectedIndex = 0; return c; }
     private static ComboBox EditableCombo() => new() { DropDownStyle = ComboBoxStyle.DropDown };
