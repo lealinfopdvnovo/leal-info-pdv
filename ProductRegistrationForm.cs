@@ -132,7 +132,7 @@ internal sealed class ProductRegistrationForm : Form
         AddField(fields, "wholesale_price", "Preço atacado", MoneyBox(), row, 2);
         AddField(fields, "wholesale_qty", "Qtd. atacado", NumberBox(), row, 3); row++;
         AddField(fields, "approx_price", "Preço aproximado", MoneyBox(), row, 0);
-        AddField(fields, "commission", "Comissão (%)", MoneyBox(), row, 1);
+        AddField(fields, "commission", "Comissão (%)", NumberBox(), row, 1);
         AddField(fields, "promotion_price", "Preço promoção", MoneyBox(), row, 2);
         AddField(fields, "promotion_start", "Início promoção", DateBox(), row, 3); row++;
         AddField(fields, "promotion_end", "Fim promoção", DateBox(), row, 0);
