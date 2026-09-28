@@ -5753,7 +5753,21 @@ private void ApplyFloatingTheme(Form f)
 
             var title = new Label { Text = "VENDA AVULSA", Dock = DockStyle.Top, Height = 62, BackColor = DarkBlue, ForeColor = Color.White, Font = new Font("Segoe UI", 18, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter };
             var description = new TextBox { Left = 34, Top = 105, Width = 475, Height = 36, Font = new Font("Segoe UI", 13), PlaceholderText = "Descrição do serviço" };
-            var value = new NumericUpDown { Left = 34, Top = 185, Width = 475, Height = 40, DecimalPlaces = 2, Minimum = 0.01M, Maximum = 999999.99M, ThousandsSeparator = true, Font = new Font("Segoe UI", 16, FontStyle.Bold), TextAlign = HorizontalAlignment.Right };
+            var value = new TextBox { Left = 34, Top = 185, Width = 475, Height = 40, Text = "0,00", Font = new Font("Segoe UI", 16, FontStyle.Bold), TextAlign = HorizontalAlignment.Right };
+            value.Enter += (_, _) => value.SelectAll();
+            value.KeyPress += (_, e) =>
+            {
+                if (!char.IsDigit(e.KeyChar) && !char.IsControl(e.KeyChar)) e.Handled = true;
+            };
+            value.TextChanged += (_, _) =>
+            {
+                var digits = new string(value.Text.Where(char.IsDigit).ToArray());
+                if (!decimal.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out var cents)) return;
+                var formatted = (cents / 100m).ToString("N2", CultureInfo.GetCultureInfo("pt-BR"));
+                if (value.Text == formatted) return;
+                value.Text = formatted;
+                value.SelectionStart = value.Text.Length;
+            };
             var addLoose = new Button { Text = "ADICIONAR À VENDA", Left = 274, Top = 248, Width = 235, Height = 48, BackColor = Color.FromArgb(0, 163, 224), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 11, FontStyle.Bold), DialogResult = DialogResult.OK };
             var cancelLoose = new Button { Text = "CANCELAR", Left = 34, Top = 248, Width = 220, Height = 48, BackColor = Color.FromArgb(55, 88, 115), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 11, FontStyle.Bold), DialogResult = DialogResult.Cancel };
             vf.Controls.AddRange(new Control[] { title, new Label { Text = "DESCRIÇÃO DO SERVIÇO", Left = 34, Top = 82, Width = 300, ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, description, new Label { Text = "VALOR", Left = 34, Top = 162, Width = 150, ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, value, cancelLoose, addLoose });
@@ -5763,9 +5777,10 @@ private void ApplyFloatingTheme(Form f)
             if (vf.ShowDialog(f) != DialogResult.OK) return;
             var desc = description.Text.Trim();
             if (string.IsNullOrWhiteSpace(desc)) { Info("Informe a descrição do serviço."); return; }
-            if (value.Value <= 0) { Info("Informe o valor da venda avulsa."); return; }
+            if (!decimal.TryParse(value.Text, NumberStyles.Currency, CultureInfo.GetCultureInfo("pt-BR"), out var loosePrice) || loosePrice <= 0 || loosePrice > 999999.99M)
+            { Info("Informe um valor entre R$ 0,01 e R$ 999.999,99."); return; }
 
-            cartItems.Add(new CartItem { ProductId = 0, Code = "AVULSO", Description = desc, Qty = 1, UnitPrice = (double)value.Value });
+            cartItems.Add(new CartItem { ProductId = 0, Code = "AVULSO", Description = desc, Qty = 1, UnitPrice = (double)loosePrice });
             RefreshCart();
             statusBox.Text = $"{desc}\nVENDA AVULSA ADICIONADA";
             search.Focus();
