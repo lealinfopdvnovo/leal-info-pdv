@@ -4716,7 +4716,6 @@ private void ApplyFloatingTheme(Form f)
 
         var referencePalette = SalesPalette.For(GetSetting("sales_theme", "Futurista Azul"));
         Image? referenceTexture = null;
-        f.FormClosed += (_, _) => referenceTexture?.Dispose();
         Action<string>? synchronizeReferenceTheme = null;
         string? lastSaleReceipt = null;
         var cartItems = new List<CartItem>();
@@ -5005,7 +5004,14 @@ private void ApplyFloatingTheme(Form f)
             TextAlign = ContentAlignment.BottomLeft
         };
 
-        var searchLabel = SaleLabel("Código de barras / Produto  [F5]");
+        var searchLabel = new SalesVisualButton
+        {
+            Text = "Código de barras / Produto  [F5]", Dock = DockStyle.Fill,
+            ForeColor = Color.White, Font = new Font("Segoe UI", 18, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter, FlatStyle = FlatStyle.Flat,
+            Margin = new Padding(4), TabStop = false, AccessibleName = "Buscar produto (F5)"
+        };
+        searchLabel.FlatAppearance.BorderSize = 0;
         searchLabel.Cursor = Cursors.Hand;
         var search = new TextBox
         {
@@ -6324,6 +6330,13 @@ private void ApplyFloatingTheme(Form f)
         // As áreas riscadas (menu lateral, atalhos do topo e mascote) não são criadas.
         void ApplyReferenceSalesLayout()
         {
+            f.FormClosed += (_, _) =>
+            {
+                grid.ThemeTexture = null;
+                var texture = referenceTexture;
+                referenceTexture = null;
+                texture?.Dispose();
+            };
             f.SuspendLayout();
             body.SuspendLayout();
             Color navy = Color.FromArgb(3, 17, 32);
@@ -6478,6 +6491,7 @@ private void ApplyFloatingTheme(Form f)
             searchLabel.Font = new Font("Segoe UI", 18, FontStyle.Bold);
             searchLabel.TextAlign = ContentAlignment.MiddleCenter;
             searchLabel.BackColor = Color.FromArgb(0, 110, 235);
+            Round(searchLabel, 10);
             search.PlaceholderText = "Digite o código, nome ou código de barras...";
             search.Font = new Font("Segoe UI", 13);
             search.Multiline = true;
@@ -6698,7 +6712,7 @@ private void ApplyFloatingTheme(Form f)
                 grid.GridColor = ControlPaint.Light(referencePalette.Panel);
                 add.BackColor = searchLabel.BackColor = referencePalette.Accent;
                 foreach (Control child in searchRow.Controls)
-                    if (child is Button button) button.BackColor = referencePalette.Panel;
+                    if (child is Button button && button != searchLabel) button.BackColor = referencePalette.Panel;
                 foreach (Control child in entryActions.Controls)
                     if (child is Button button && button != add && button != remove) button.BackColor = referencePalette.Panel;
                 foreach (Control child in saleActions.Controls)
