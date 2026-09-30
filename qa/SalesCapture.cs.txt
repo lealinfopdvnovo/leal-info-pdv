@@ -123,7 +123,7 @@ internal static class Program
             if (stage == 3)
             {
                 Verify(sales, themes[themeIndex]); Capture(sales, "theme-" + themeIndex);
-                stage = 4; SendKey(sales, Keys.F5); return;
+                stage = 4; Children(sales).OfType<SalesVisualButton>().Single(button => button.Text == "F5").PerformClick(); return;
             }
             if (stage == 4)
             {

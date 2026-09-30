@@ -1,4 +1,4 @@
-name: Publicar atualizacao LEAL INFO PDV V10.349
+name: Publicar atualizacao LEAL INFO PDV V10.350
 on:
   workflow_dispatch:
   push:
@@ -13,10 +13,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.349"
-      UPDATE_TAG: "v10.349"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_349_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_349_UPDATE.zip"
+      UPDATE_VERSION: "10.350"
+      UPDATE_TAG: "v10.350"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_350_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_350_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -26,11 +26,11 @@ jobs:
         shell: powershell
         run: |
           $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw -Encoding UTF8
-          $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.349"')
-          $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_349_FINAL')
+          $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.350"')
+          $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_350_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.349\.0</Version>') { throw "csproj nao esta em V10.349" }
-          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.349"') { throw "UpdateManager nao esta em V10.349" }
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.350\.0</Version>') { throw "csproj nao esta em V10.350" }
+          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.350"') { throw "UpdateManager nao esta em V10.350" }
       - name: Restaurar Azul Texturizado
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_tema_azul_texturizado_v10_306.ps1"
@@ -114,7 +114,7 @@ jobs:
         run: |
           $setup="SETUP_PRONTO/$env:SETUP_FILE"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
-          gh release create $env:UPDATE_TAG $env:UPDATE_PACKAGE $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.349: Painel do tempo sincronizado com a cidade da empresa, atualizacao online e indicacao de dados offline."
+          gh release create $env:UPDATE_TAG $env:UPDATE_PACKAGE $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.350: Botao F5 com cantos arredondados, brilho e relevo acompanhando o ESTILO da venda."
       - name: Validar e ativar
         shell: pwsh
         run: |
@@ -125,8 +125,8 @@ jobs:
           $setupAsset=$release.assets|Where-Object{$_.name -eq $env:SETUP_FILE}
           if(-not $setupAsset){throw "Setup ausente"}
           $hash=(Get-FileHash $env:UPDATE_PACKAGE -Algorithm SHA256).Hash.ToLowerInvariant()
-          $notes="V10.349: Painel do tempo sincronizado com a cidade da empresa, atualizacao online e indicacao de dados offline."
+          $notes="V10.350: Botao F5 com cantos arredondados, brilho e relevo acompanhando o ESTILO da venda."
           $manifest=@{Version=$env:UPDATE_VERSION;PackageUrl=$asset.browser_download_url;Sha256=$hash;Notes=$notes;DownloadUrl=$setupAsset.browser_download_url;Mandatory=$false}|ConvertTo-Json
           $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
-          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.349" -f content="$encoded" -f sha="$sha"
+          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.350" -f content="$encoded" -f sha="$sha"
