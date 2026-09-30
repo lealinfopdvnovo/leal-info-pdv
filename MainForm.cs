@@ -4701,6 +4701,8 @@ private void ApplyFloatingTheme(Form f)
             KeyPreview = true
         };
 
+        var referencePalette = SalesPalette.For(GetSetting("sales_theme", "Futurista Azul"));
+        Action<string>? synchronizeReferenceTheme = null;
         string? lastSaleReceipt = null;
         var cartItems = new List<CartItem>();
         var cartSource = new BindingSource { DataSource = cartItems };
@@ -5100,9 +5102,9 @@ private void ApplyFloatingTheme(Form f)
         {
             if(statusBox.Text != "CAIXA LIVRE")
             {
-                statusFrame.BackColor = Color.FromArgb(0, 150, 205);
-                statusInner.BackColor = Color.FromArgb(2, 16, 35);
-                statusBox.ForeColor = Color.White;
+                statusFrame.BackColor = referencePalette.Accent;
+                statusInner.BackColor = referencePalette.Background;
+                statusBox.ForeColor = referencePalette.Foreground;
                 return;
             }
 
@@ -5110,12 +5112,9 @@ private void ApplyFloatingTheme(Form f)
             if(pulseStep >= 6) { pulseStep = 6; pulseUp = false; }
             if(pulseStep <= 0) { pulseStep = 0; pulseUp = true; }
 
-            statusFrame.BackColor = Color.FromArgb(
-                0,
-                165 + pulseStep * 8,
-                215 + pulseStep * 6);
-            statusInner.BackColor = Color.FromArgb(2, 16, 35);
-            statusBox.ForeColor = Color.White;
+            statusFrame.BackColor = referencePalette.Accent;
+            statusInner.BackColor = referencePalette.Background;
+            statusBox.ForeColor = referencePalette.Foreground;
         };
         freePulse.Start();
         f.FormClosed += (_,_) => freePulse.Dispose();
@@ -5635,6 +5634,8 @@ private void ApplyFloatingTheme(Form f)
             }
 
             SetSetting("sales_theme", theme);
+            referencePalette = SalesPalette.For(theme);
+            synchronizeReferenceTheme?.Invoke(theme);
             f.Invalidate(true);
         }
 
@@ -6318,7 +6319,7 @@ private void ApplyFloatingTheme(Form f)
                 panel.Paint += (_, e) =>
                 {
                     if (panel.Width < 2 || panel.Height < 2) return;
-                    SalesVisuals.Frame(e.Graphics, panel.ClientRectangle);
+                    SalesVisuals.Frame(e.Graphics, panel.ClientRectangle, palette: referencePalette);
                 };
             }
             Button ReferenceButton(string text, Color color, Action click)
@@ -6379,7 +6380,7 @@ private void ApplyFloatingTheme(Form f)
             photoProductName.BackColor = navy;
             brandPanel.Padding = new Padding(12);
             brandPanel.Margin = Padding.Empty;
-            brandPanel.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, brandPanel.ClientRectangle);
+            brandPanel.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, brandPanel.ClientRectangle, palette: referencePalette);
             var cityPicture = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.StretchImage, Margin = new Padding(0, 6, 0, 0) };
             var cityPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_city.png");
             if (File.Exists(cityPath))
@@ -6416,7 +6417,7 @@ private void ApplyFloatingTheme(Form f)
             statusBox.Font = new Font("Segoe UI", 28, FontStyle.Bold);
             statusFrame.Padding = new Padding(7);
             Round(statusFrame, 12); Round(statusInner, 8);
-            statusFrame.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, statusFrame.ClientRectangle, true);
+            statusFrame.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, statusFrame.ClientRectangle, true, referencePalette);
             headerInfo.Dock = DockStyle.Fill;
             headerInfo.AutoSize = false;
             headerInfo.Anchor = AnchorStyles.None;
@@ -6631,6 +6632,60 @@ private void ApplyFloatingTheme(Form f)
             footer.Items.Add(new ToolStripStatusLabel("Pressione F4 para finalizar a venda • F10 Venda avulsa"));
             footer.Items.Add(new ToolStripStatusLabel { Spring = true });
             footer.Items.Add(new ToolStripStatusLabel($"LEAL INFO PDV PRO • {Auth.OperatorName}"));
+            synchronizeReferenceTheme = theme =>
+            {
+                referencePalette = SalesPalette.For(theme);
+                foreach (var control in new Control[] { f, body, header, left, right, photoShowcase }) ClearTexture(control);
+                f.BackColor = body.BackColor = referencePalette.Background;
+                foreach (var panel in new Panel[] { header, left, right, photoShowcase, brandPanel, summaryFrame, methodsFrame, actionsFrame })
+                    panel.BackColor = referencePalette.Panel;
+                productPicture.BackColor = referencePalette.Background;
+                photoProductName.BackColor = referencePalette.Background;
+                photoProductName.ForeColor = referencePalette.Foreground;
+                statusInner.BackColor = referencePalette.Background;
+                statusBox.ForeColor = referencePalette.Foreground;
+                statusBox.GlowColor = referencePalette.Accent;
+                statusFrame.BackColor = referencePalette.Accent;
+                headerInfo.ForeColor = referencePalette.Foreground;
+                foreach (var field in new Control[] { search, qty, unit, itemTotal })
+                {
+                    field.BackColor = referencePalette.Field;
+                    field.ForeColor = referencePalette.FieldText;
+                }
+                void SynchronizeLabels(Control parent)
+                {
+                    foreach (Control child in parent.Controls)
+                    {
+                        if (child is Label label && label != subtotalValue && label != discountValue && label != surchargeValue && label != statusBox)
+                            label.ForeColor = referencePalette.Foreground;
+                        SynchronizeLabels(child);
+                    }
+                }
+                SynchronizeLabels(center); SynchronizeLabels(side);
+                grid.BackgroundColor = referencePalette.Background;
+                grid.ForeColor = referencePalette.Foreground;
+                grid.DefaultCellStyle.BackColor = referencePalette.Background;
+                grid.DefaultCellStyle.ForeColor = referencePalette.Foreground;
+                grid.ColumnHeadersDefaultCellStyle.BackColor = referencePalette.Panel;
+                grid.ColumnHeadersDefaultCellStyle.ForeColor = referencePalette.Foreground;
+                grid.AlternatingRowsDefaultCellStyle.BackColor = referencePalette.Panel;
+                grid.DefaultCellStyle.SelectionBackColor = referencePalette.Accent;
+                grid.DefaultCellStyle.SelectionForeColor = Color.White;
+                grid.GridColor = ControlPaint.Light(referencePalette.Panel);
+                add.BackColor = searchLabel.BackColor = referencePalette.Accent;
+                foreach (Control child in searchRow.Controls)
+                    if (child is Button button) button.BackColor = referencePalette.Panel;
+                foreach (Control child in entryActions.Controls)
+                    if (child is Button button && button != add && button != remove) button.BackColor = referencePalette.Panel;
+                foreach (Control child in saleActions.Controls)
+                    if (child is Button button && button != finish) button.BackColor = referencePalette.Panel;
+                styleButton.BackColor = referencePalette.Accent;
+                close.BackColor = referencePalette.Panel;
+                footer.BackColor = referencePalette.Panel;
+                footer.ForeColor = referencePalette.Foreground;
+                f.Invalidate(true);
+            };
+            synchronizeReferenceTheme(GetSetting("sales_theme", "Futurista Azul"));
             body.ResumeLayout(true);
             f.ResumeLayout(true);
         }

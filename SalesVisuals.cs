@@ -16,33 +16,35 @@ internal static class SalesVisuals
         return p;
     }
 
-    internal static void Frame(Graphics g, Rectangle bounds, bool bright = false)
+    internal static void Frame(Graphics g, Rectangle bounds, bool bright = false, SalesPalette? palette = null)
     {
+        palette ??= SalesPalette.For("Futurista Azul");
         if (bounds.Width < 8 || bounds.Height < 8) return;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         var r = new RectangleF(2, 2, bounds.Width - 5, bounds.Height - 5);
         using var path = Rounded(r, 10);
-        using var background = new LinearGradientBrush(r, Color.FromArgb(10, 38, 65), Color.FromArgb(1, 11, 23), 90f);
+        using var background = new LinearGradientBrush(r, ControlPaint.Light(palette.Panel, .12f), palette.Background, 90f);
         g.FillPath(background, path);
         for (int i = 5; i >= 1; i--)
         {
-            using var glow = new Pen(Color.FromArgb(15 + (5 - i) * 8, 0, 150, 255), i * 2);
+            using var glow = new Pen(Color.FromArgb(15 + (5 - i) * 8, palette.Accent), i * 2);
             g.DrawPath(glow, path);
         }
-        using var rim = new Pen(bright ? Color.FromArgb(130, 235, 255) : Color.FromArgb(50, 155, 225), bright ? 2.2f : 1.2f);
+        using var rim = new Pen(bright ? ControlPaint.Light(palette.Accent) : palette.Accent, bright ? 2.2f : 1.2f);
         g.DrawPath(rim, path);
         var inner = RectangleF.Inflate(r, -5, -5);
         using var innerPath = Rounded(inner, 7);
-        using var bevel = new LinearGradientBrush(inner, Color.FromArgb(130, 150, 220, 255), Color.FromArgb(5, 20, 65, 120), 90f);
+        using var bevel = new LinearGradientBrush(inner, Color.FromArgb(130, ControlPaint.Light(palette.Accent)), Color.FromArgb(5, palette.Accent), 90f);
         using var bevelPen = new Pen(bevel, 1.2f);
         g.DrawPath(bevelPen, innerPath);
-        using var shine = new LinearGradientBrush(new RectangleF(r.Left, r.Top, r.Width, Math.Min(18, r.Height)), Color.FromArgb(bright ? 110 : 45, 95, 205, 255), Color.Transparent, 90f);
+        using var shine = new LinearGradientBrush(new RectangleF(r.Left, r.Top, r.Width, Math.Min(18, r.Height)), Color.FromArgb(bright ? 110 : 45, palette.Accent), Color.Transparent, 90f);
         g.FillRectangle(shine, r.Left + 12, r.Top + 1, r.Width - 24, Math.Min(14, r.Height / 4));
     }
 }
 
 internal sealed class SalesGlowLabel : Label
 {
+    internal Color GlowColor { get; set; } = Color.FromArgb(0, 153, 245);
     internal SalesGlowLabel() { SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint, true); }
     protected override void OnPaint(PaintEventArgs e)
     {
@@ -50,9 +52,9 @@ internal sealed class SalesGlowLabel : Label
         for (int radius = 3; radius >= 1; radius--)
         {
             var rect = new Rectangle(radius, 0, Width, Height);
-            TextRenderer.DrawText(e.Graphics, Text, Font, rect, Color.FromArgb(0, 95 + radius * 30, 245), flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, rect, GlowColor, flags);
             rect.X = -radius;
-            TextRenderer.DrawText(e.Graphics, Text, Font, rect, Color.FromArgb(0, 95 + radius * 30, 245), flags);
+            TextRenderer.DrawText(e.Graphics, Text, Font, rect, GlowColor, flags);
         }
         TextRenderer.DrawText(e.Graphics, Text, Font, ClientRectangle, ForeColor, flags);
     }
@@ -81,7 +83,7 @@ internal sealed class SalesVisualButton : Button
         Color bottom = ControlPaint.Dark(BackColor, pressed ? .45f : .25f);
         using var gradient = new LinearGradientBrush(r, top, bottom, 90f);
         g.FillPath(gradient, path);
-        using var glow = new Pen(Color.FromArgb(75, 0, 155, 255), 5);
+        using var glow = new Pen(Color.FromArgb(75, ControlPaint.Light(BackColor)), 5);
         g.DrawPath(glow, path);
         using var edge = new Pen(Color.FromArgb(175, 195, 235, 255), 1.2f);
         g.DrawPath(edge, path);
@@ -116,15 +118,15 @@ internal sealed class SalesVisualButton : Button
             DrawIcon(g, label.Contains("Comprovante") ? "print" : label == "SAIR" ? "exit" : "cancel", new RectangleF((Width - size) / 2, Height * .13f, size, size));
             textRect.Y = (int)(Height * .5f); textRect.Height = Height - textRect.Y - 5;
         }
-        TextRenderer.DrawText(g, label, textFont, textRect, Enabled ? Color.White : Color.Silver,
+        TextRenderer.DrawText(g, label, textFont, textRect, Enabled ? (BackColor.GetBrightness() > .65f ? Color.FromArgb(35, 58, 72) : Color.White) : Color.Silver,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
         if (Focused) ControlPaint.DrawFocusRectangle(g, Rectangle.Inflate(ClientRectangle, -6, -6), Color.White, Color.Transparent);
     }
-    private static void DrawIcon(Graphics g, string icon, RectangleF r)
+    private void DrawIcon(Graphics g, string icon, RectangleF r)
     {
         var state = g.Save();
         g.TranslateTransform(r.X, r.Y); g.ScaleTransform(r.Width / 32, r.Height / 32);
-        using var white = new SolidBrush(icon == "exit" ? Color.FromArgb(255, 55, 50) : Color.White);
+        using var white = new SolidBrush(icon == "exit" ? Color.FromArgb(255, 55, 50) : BackColor.GetBrightness() > .65f ? Color.FromArgb(35, 58, 72) : Color.White);
         using var pen = new Pen(white.Color, 3) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         switch (icon)
         {
@@ -161,9 +163,23 @@ internal sealed class SalesItemsGrid : DataGridView
         base.OnPaint(e);
         if (RowCount != 0) return;
         using var font = new Font("Segoe UI", 12, FontStyle.Regular);
-        using var brush = new SolidBrush(Color.LightSteelBlue);
+        using var brush = new SolidBrush(ForeColor);
         using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         e.Graphics.DrawString("Nenhum item adicionado.\nUse F5 para buscar um produto.", font, brush,
             new RectangleF(0, ColumnHeadersHeight, Width, Math.Max(0, Height - ColumnHeadersHeight)), format);
     }
+}
+
+internal sealed record SalesPalette(Color Background, Color Panel, Color Accent, Color Foreground, Color Field, Color FieldText)
+{
+    internal static SalesPalette For(string name) => name switch
+    {
+        "PDV Rosa" => new(Color.FromArgb(65, 10, 43), Color.FromArgb(92, 18, 67), Color.FromArgb(244, 67, 151), Color.White, Color.FromArgb(255, 242, 249), Color.FromArgb(91, 20, 66)),
+        "Verde Texturizado" => new(Color.FromArgb(8, 45, 34), Color.FromArgb(18, 105, 72), Color.FromArgb(32, 190, 118), Color.White, Color.FromArgb(239, 255, 245), Color.FromArgb(12, 65, 45)),
+        "Dark Premium" => new(Color.FromArgb(10, 12, 18), Color.FromArgb(24, 28, 38), Color.FromArgb(0, 170, 235), Color.White, Color.FromArgb(40, 46, 58), Color.White),
+        "Clean Pro" => new(Color.FromArgb(225, 235, 242), Color.FromArgb(245, 249, 252), Color.FromArgb(45, 135, 180), Color.FromArgb(35, 58, 72), Color.White, Color.FromArgb(35, 58, 72)),
+        "Blue Red Racing" => new(Color.FromArgb(8, 22, 42), Color.FromArgb(18, 54, 92), Color.FromArgb(235, 30, 48), Color.White, Color.FromArgb(240, 246, 255), Color.FromArgb(12, 38, 68)),
+        "Azul Texturizado" => new(Color.FromArgb(3, 18, 38), Color.FromArgb(4, 28, 65), Color.FromArgb(0, 125, 255), Color.White, Color.FromArgb(238, 247, 255), Color.FromArgb(5, 42, 82)),
+        _ => new(Color.FromArgb(3, 17, 32), Color.FromArgb(5, 30, 55), Color.FromArgb(0, 153, 245), Color.White, Color.FromArgb(231, 243, 255), Color.FromArgb(8, 38, 68))
+    };
 }
