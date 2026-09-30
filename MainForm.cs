@@ -6410,6 +6410,12 @@ private void ApplyFloatingTheme(Form f)
             close.Text = "SAIR";
             headerGrid.Controls.Add(close, 2, 0);
             header.Controls.Add(headerGrid);
+            // Estilo continua acessível sem o botão riscado da referência.
+            var salesContextMenu = new ContextMenuStrip();
+            salesContextMenu.Items.Add("Estilo da tela", null, (_, _) => ShowThemeChooser());
+            header.ContextMenuStrip = salesContextMenu;
+            statusBox.ContextMenuStrip = salesContextMenu;
+            f.FormClosed += (_, _) => salesContextMenu.Dispose();
 
             // Busca e lançamento em linhas horizontais acima dos itens.
             left.Controls.Clear();
