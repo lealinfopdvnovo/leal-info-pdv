@@ -16,7 +16,7 @@ internal static class SalesVisuals
         return p;
     }
 
-    internal static void Frame(Graphics g, Rectangle bounds, bool bright = false, SalesPalette? palette = null)
+    internal static void Frame(Graphics g, Rectangle bounds, bool bright = false, SalesPalette? palette = null, Image? texture = null)
     {
         palette ??= SalesPalette.For("Futurista Azul");
         if (bounds.Width < 8 || bounds.Height < 8) return;
@@ -24,7 +24,14 @@ internal static class SalesVisuals
         var r = new RectangleF(2, 2, bounds.Width - 5, bounds.Height - 5);
         using var path = Rounded(r, 10);
         using var background = new LinearGradientBrush(r, ControlPaint.Light(palette.Panel, .12f), palette.Background, 90f);
-        g.FillPath(background, path);
+        if (texture == null) g.FillPath(background, path);
+        else
+        {
+            var saved = g.Save();
+            g.SetClip(path, CombineMode.Intersect);
+            g.DrawImage(texture, r);
+            g.Restore(saved);
+        }
         for (int i = 5; i >= 1; i--)
         {
             using var glow = new Pen(Color.FromArgb(15 + (5 - i) * 8, palette.Accent), i * 2);
@@ -158,10 +165,13 @@ internal sealed class SalesVisualButton : Button
 
 internal sealed class SalesItemsGrid : DataGridView
 {
+    internal Image? ThemeTexture { get; set; }
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
         if (RowCount != 0) return;
+        if (ThemeTexture != null)
+            e.Graphics.DrawImage(ThemeTexture, new Rectangle(0, ColumnHeadersHeight, Width, Math.Max(1, Height - ColumnHeadersHeight)));
         using var font = new Font("Segoe UI", 12, FontStyle.Regular);
         using var brush = new SolidBrush(ForeColor);
         using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
@@ -174,7 +184,7 @@ internal sealed record SalesPalette(Color Background, Color Panel, Color Accent,
 {
     internal static SalesPalette For(string name) => name switch
     {
-        "PDV Rosa" => new(Color.FromArgb(65, 10, 43), Color.FromArgb(92, 18, 67), Color.FromArgb(244, 67, 151), Color.White, Color.FromArgb(255, 242, 249), Color.FromArgb(91, 20, 66)),
+        "PDV Rosa" => new(Color.FromArgb(255, 232, 240), Color.FromArgb(255, 242, 249), Color.FromArgb(176, 53, 120), Color.FromArgb(91, 20, 66), Color.FromArgb(255, 252, 254), Color.FromArgb(91, 20, 66)),
         "Verde Texturizado" => new(Color.FromArgb(8, 45, 34), Color.FromArgb(18, 105, 72), Color.FromArgb(32, 190, 118), Color.White, Color.FromArgb(239, 255, 245), Color.FromArgb(12, 65, 45)),
         "Dark Premium" => new(Color.FromArgb(10, 12, 18), Color.FromArgb(24, 28, 38), Color.FromArgb(0, 170, 235), Color.White, Color.FromArgb(40, 46, 58), Color.White),
         "Clean Pro" => new(Color.FromArgb(225, 235, 242), Color.FromArgb(245, 249, 252), Color.FromArgb(45, 135, 180), Color.FromArgb(35, 58, 72), Color.White, Color.FromArgb(35, 58, 72)),

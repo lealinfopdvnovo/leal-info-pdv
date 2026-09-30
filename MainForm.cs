@@ -4702,6 +4702,8 @@ private void ApplyFloatingTheme(Form f)
         };
 
         var referencePalette = SalesPalette.For(GetSetting("sales_theme", "Futurista Azul"));
+        Image? referenceTexture = null;
+        f.FormClosed += (_, _) => referenceTexture?.Dispose();
         Action<string>? synchronizeReferenceTheme = null;
         string? lastSaleReceipt = null;
         var cartItems = new List<CartItem>();
@@ -5635,6 +5637,9 @@ private void ApplyFloatingTheme(Form f)
 
             SetSetting("sales_theme", theme);
             referencePalette = SalesPalette.For(theme);
+            referenceTexture?.Dispose();
+            referenceTexture = (theme is "PDV Rosa" or "Azul Texturizado") && body.BackgroundImage != null
+                ? new Bitmap(body.BackgroundImage) : null;
             synchronizeReferenceTheme?.Invoke(theme);
             f.Invalidate(true);
         }
@@ -6319,7 +6324,7 @@ private void ApplyFloatingTheme(Form f)
                 panel.Paint += (_, e) =>
                 {
                     if (panel.Width < 2 || panel.Height < 2) return;
-                    SalesVisuals.Frame(e.Graphics, panel.ClientRectangle, palette: referencePalette);
+                    SalesVisuals.Frame(e.Graphics, panel.ClientRectangle, palette: referencePalette, texture: referenceTexture);
                 };
             }
             Button ReferenceButton(string text, Color color, Action click)
@@ -6380,7 +6385,7 @@ private void ApplyFloatingTheme(Form f)
             photoProductName.BackColor = navy;
             brandPanel.Padding = new Padding(12);
             brandPanel.Margin = Padding.Empty;
-            brandPanel.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, brandPanel.ClientRectangle, palette: referencePalette);
+            brandPanel.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, brandPanel.ClientRectangle, palette: referencePalette, texture: referenceTexture);
             var cityPicture = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.StretchImage, Margin = new Padding(0, 6, 0, 0) };
             var cityPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_city.png");
             if (File.Exists(cityPath))
@@ -6417,7 +6422,7 @@ private void ApplyFloatingTheme(Form f)
             statusBox.Font = new Font("Segoe UI", 28, FontStyle.Bold);
             statusFrame.Padding = new Padding(7);
             Round(statusFrame, 12); Round(statusInner, 8);
-            statusFrame.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, statusFrame.ClientRectangle, true, referencePalette);
+            statusFrame.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, statusFrame.ClientRectangle, true, referencePalette, referenceTexture);
             headerInfo.Dock = DockStyle.Fill;
             headerInfo.AutoSize = false;
             headerInfo.Anchor = AnchorStyles.None;
@@ -6635,7 +6640,16 @@ private void ApplyFloatingTheme(Form f)
             synchronizeReferenceTheme = theme =>
             {
                 referencePalette = SalesPalette.For(theme);
-                foreach (var control in new Control[] { f, body, header, left, right, photoShowcase }) ClearTexture(control);
+                foreach (var control in new Control[] { f, body, header, left, right, photoShowcase, brandPanel, summaryFrame, methodsFrame, actionsFrame, statusFrame, statusInner, productPicture, photoProductName })
+                {
+                    ClearTexture(control);
+                    if (referenceTexture != null)
+                    {
+                        control.BackgroundImage = new Bitmap(referenceTexture);
+                        control.BackgroundImageLayout = ImageLayout.Stretch;
+                    }
+                }
+                grid.ThemeTexture = referenceTexture;
                 f.BackColor = body.BackColor = referencePalette.Background;
                 foreach (var panel in new Panel[] { header, left, right, photoShowcase, brandPanel, summaryFrame, methodsFrame, actionsFrame })
                     panel.BackColor = referencePalette.Panel;

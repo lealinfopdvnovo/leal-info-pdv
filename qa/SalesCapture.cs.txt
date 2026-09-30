@@ -24,7 +24,7 @@ internal static class Program
         Database.Initialize();
         using var owner = new MainForm();
         using var timer = new System.Windows.Forms.Timer { Interval = 600 };
-        var themes = new[] { "Futurista Azul", "Clean Pro", "Dark Premium", "Blue Red Racing", "Azul Texturizado", "PDV Rosa" };
+        var themes = new[] { "Azul Texturizado", "Futurista Azul", "Clean Pro", "Dark Premium", "Blue Red Racing", "PDV Rosa" };
         int themeIndex = 0;
         int stage = 0;
         bool reopening = false;
@@ -43,6 +43,16 @@ internal static class Program
             var status = controls.OfType<SalesGlowLabel>().Single();
             if (sales.BackColor != palette.Background || grid.BackgroundColor != palette.Background || grid.DefaultCellStyle.ForeColor != palette.Foreground || status.ForeColor != palette.Foreground || status.GlowColor != palette.Accent)
                 throw new Exception("Cores nao sincronizadas: " + theme);
+            bool textured = theme is "PDV Rosa" or "Azul Texturizado";
+            if ((sales.BackgroundImage != null) != textured || (grid.ThemeTexture != null) != textured)
+                throw new Exception("Textura original ausente ou vazando de outro tema: " + theme);
+            if (textured)
+            {
+                using var source = new Bitmap(sales.BackgroundImage!);
+                using var tableTexture = new Bitmap(grid.ThemeTexture!);
+                if (source.Size != tableTexture.Size || source.GetPixel(source.Width / 2, source.Height / 2) != tableTexture.GetPixel(tableTexture.Width / 2, tableTexture.Height / 2))
+                    throw new Exception("Textura original divergente: " + theme);
+            }
             checks.Add((reopening ? "Reabertura: " : "Selecao real: ") + theme + " OK");
             File.WriteAllText("visual-qa/theme-checks.json", JsonSerializer.Serialize(checks));
         }
