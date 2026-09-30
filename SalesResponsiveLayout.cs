@@ -69,13 +69,13 @@ internal sealed class SalesResponsiveLayout : IDisposable
                     for (int i = 0; i < m.Columns.Length; i++) if (m.Columns[i] >= 0) table.ColumnStyles[i].Width = Px(m.Columns[i]);
                 }
                 // Prefer DPI sizing when room permits, cap at the available area.
-                float pixels = Math.Max(12f, m.FontPixels * Math.Min(Math.Max(1f, dpi), scale));
+                float pixels = Math.Max(Math.Min(12f * dpi, 16f * scale), m.FontPixels * scale);
                 if (!fonts.TryGetValue(c, out var old) || Math.Abs(old.Size - pixels) > .05f)
                 {
                     var font = new Font(m.Family, pixels, m.Style, GraphicsUnit.Pixel);
                     c.Font = font; fonts[c] = font; old?.Dispose();
                 }
-                if (c is SalesVisualButton button) button.LayoutScale = Math.Min(Math.Max(1f, dpi), scale);
+                if (c is SalesVisualButton button) button.LayoutScale = scale;
                 if (c is DataGridView grid)
                 {
                     grid.DefaultCellStyle.Font = c.Font;
