@@ -1,7 +1,7 @@
 name: Validar tela de venda
 on:
   push:
-    branches: [codex/tela-venda-print]
+    branches: [codex/tela-venda-fiel]
   pull_request:
     branches: [main]
 permissions:
@@ -24,3 +24,17 @@ jobs:
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
       - name: Compilar PDV
         run: dotnet build LealInfoPDV.csproj -c Release
+      - name: Capturar tela real no Windows
+        shell: powershell
+        run: |
+          Copy-Item qa/SalesCapture.cs.txt Program.cs -Force
+          dotnet build LealInfoPDV.csproj -c Release -t:Rebuild -o visual-build
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar captura" }
+          $process = Start-Process ./visual-build/LealInfoPDV.exe -PassThru
+          if (-not $process.WaitForExit(45000)) { $process.Kill(); throw "Captura nao encerrou" }
+          if (-not (Test-Path visual-qa/sales-1366.png)) { throw "Captura ausente" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tela-venda-windows
+          path: visual-qa/

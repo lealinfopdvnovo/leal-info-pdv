@@ -4694,7 +4694,8 @@ private void ApplyFloatingTheme(Form f)
         {
             Text = "LEAL INFO CONECTADO - TELA DE VENDAS • V10.130",
             WindowState = FormWindowState.Maximized,
-            MinimumSize = new Size(1180, 720),
+            MinimumSize = new Size(1180, 700),
+            AutoScaleMode = AutoScaleMode.None,
             BackColor = Color.FromArgb(7, 24, 43),
             Font = new Font("Segoe UI", 10),
             KeyPreview = true
@@ -4785,8 +4786,11 @@ private void ApplyFloatingTheme(Form f)
         header.Controls.Add(headerLine);
         header.Resize += (_, _) =>
         {
-            headerInfo.Left = Math.Max(20, header.ClientSize.Width - headerInfo.Width - 28);
-            headerInfo.Top = 32;
+            if (headerInfo.Parent == header)
+            {
+                headerInfo.Left = Math.Max(20, header.ClientSize.Width - headerInfo.Width - 28);
+                headerInfo.Top = 32;
+            }
         };
         f.Controls.Add(header);
 
@@ -4923,7 +4927,7 @@ private void ApplyFloatingTheme(Form f)
             // Produto selecionado sem foto: não confundir a logo com a foto do produto.
             if (!productId.HasValue)
             {
-                var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
+                var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_brand_product.png");
                 if (File.Exists(logoPath))
                 {
                     using var img = Image.FromFile(logoPath);
@@ -5022,7 +5026,7 @@ private void ApplyFloatingTheme(Form f)
             BackColor = Color.White, ForeColor = Color.FromArgb(8, 38, 68),
             BorderStyle = BorderStyle.FixedSingle, Text = "R$ 0,00"
         };
-        var add = new Button
+        var add = new SalesVisualButton
         {
             Text = "ADICIONAR ITEM  [ENTER]",
             Dock = DockStyle.Fill,
@@ -5034,7 +5038,7 @@ private void ApplyFloatingTheme(Form f)
         add.FlatAppearance.BorderSize = 0;
         ModernButton(add, Color.FromArgb(0, 183, 255), Color.FromArgb(35, 205, 255));
 
-        var clear = new Button
+        var clear = new SalesVisualButton
         {
             Text = "LIMPAR",
             Dock = DockStyle.Fill,
@@ -5064,7 +5068,7 @@ private void ApplyFloatingTheme(Form f)
             Margin = Padding.Empty,
             Padding = Padding.Empty
         };
-        var statusBox = new Label
+        var statusBox = new SalesGlowLabel
         {
             Text = "CAIXA LIVRE",
             Dock = DockStyle.Fill,
@@ -5097,7 +5101,7 @@ private void ApplyFloatingTheme(Form f)
             if(statusBox.Text != "CAIXA LIVRE")
             {
                 statusFrame.BackColor = Color.FromArgb(0, 150, 205);
-                statusInner.BackColor = DarkBlue;
+                statusInner.BackColor = Color.FromArgb(2, 16, 35);
                 statusBox.ForeColor = Color.White;
                 return;
             }
@@ -5110,10 +5114,7 @@ private void ApplyFloatingTheme(Form f)
                 0,
                 165 + pulseStep * 8,
                 215 + pulseStep * 6);
-            statusInner.BackColor = Color.FromArgb(
-                0,
-                92 + pulseStep * 5,
-                142 + pulseStep * 7);
+            statusInner.BackColor = Color.FromArgb(2, 16, 35);
             statusBox.ForeColor = Color.White;
         };
         freePulse.Start();
@@ -5246,7 +5247,7 @@ private void ApplyFloatingTheme(Form f)
         Round(cupomTitle, 16);
 
         // ===== TABELA GRANDE =====
-        var grid = new DataGridView
+        var grid = new SalesItemsGrid
         {
             Dock = DockStyle.Fill,
             BackgroundColor = Color.White,
@@ -5337,7 +5338,7 @@ private void ApplyFloatingTheme(Form f)
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 36));
         actionPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22));
 
-        var remove = new Button
+        var remove = new SalesVisualButton
         {
             Text = "REMOVER ITEM [F7]",
             Dock = DockStyle.Fill,
@@ -5352,7 +5353,7 @@ private void ApplyFloatingTheme(Form f)
         ModernButton(remove, Color.FromArgb(165,48,62), Color.FromArgb(215,65,82));
         Round(remove, 12);
 
-        var styleButton = new Button
+        var styleButton = new SalesVisualButton
         {
             Text = "🎨 ESTILO",
             Dock = DockStyle.Fill,
@@ -5367,7 +5368,7 @@ private void ApplyFloatingTheme(Form f)
         ModernButton(styleButton, Color.FromArgb(112,72,190), Color.FromArgb(155,105,235));
         Round(styleButton, 12);
 
-        var finish = new Button
+        var finish = new SalesVisualButton
         {
             Text = "FINALIZAR VENDA  [F4]",
             Dock = DockStyle.Fill,
@@ -5382,7 +5383,7 @@ private void ApplyFloatingTheme(Form f)
         ModernButton(finish, Color.FromArgb(0,170,105), Color.FromArgb(25,220,145));
         Round(finish, 12);
 
-        var close = new Button
+        var close = new SalesVisualButton
         {
             Text = "FECHAR",
             Dock = DockStyle.Fill,
@@ -5682,7 +5683,7 @@ private void ApplyFloatingTheme(Form f)
 
             Button ThemeCard(string name, string description, Color c1, Color c2)
             {
-                var b = new Button
+                var b = new SalesVisualButton
                 {
                     Text = name.ToUpperInvariant() + "\n\n" + description,
                     Dock = DockStyle.Fill,
@@ -5962,7 +5963,7 @@ private void ApplyFloatingTheme(Form f)
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
 
-            var cancelQ = new Button
+            var cancelQ = new SalesVisualButton
             {
                 Text = "CANCELAR",
                 Dock = DockStyle.Fill,
@@ -5975,7 +5976,7 @@ private void ApplyFloatingTheme(Form f)
             };
             cancelQ.FlatAppearance.BorderSize = 0;
 
-            var addQ = new Button
+            var addQ = new SalesVisualButton
             {
                 Text = "ADICIONAR",
                 Dock = DockStyle.Fill,
@@ -6313,23 +6314,20 @@ private void ApplyFloatingTheme(Form f)
             {
                 panel.BackColor = panelBlue;
                 panel.Padding = new Padding(10);
+                Round(panel, 12);
                 panel.Paint += (_, e) =>
                 {
                     if (panel.Width < 2 || panel.Height < 2) return;
-                    using var gradient = new System.Drawing.Drawing2D.LinearGradientBrush(
-                        panel.ClientRectangle, Color.FromArgb(9, 43, 76), Color.FromArgb(2, 13, 26), 90f);
-                    e.Graphics.FillRectangle(gradient, panel.ClientRectangle);
-                    using var edge = new Pen(cyan, 1);
-                    e.Graphics.DrawRectangle(edge, 0, 0, panel.Width - 1, panel.Height - 1);
+                    SalesVisuals.Frame(e.Graphics, panel.ClientRectangle);
                 };
             }
             Button ReferenceButton(string text, Color color, Action click)
             {
-                var button = new Button
+                var button = new SalesVisualButton
                 {
                     Text = text, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat,
                     BackColor = color, ForeColor = Color.White,
-                    Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                    Font = new Font("Segoe UI", 12, FontStyle.Regular),
                     Margin = new Padding(4), Cursor = Cursors.Hand
                 };
                 button.FlatAppearance.BorderColor = Color.FromArgb(110, 185, 245);
@@ -6351,6 +6349,7 @@ private void ApplyFloatingTheme(Form f)
             }
 
             f.Text = "LEAL INFO CONECTADO • TELA DE VENDA";
+            foreach (var control in new Control[] { f, body, header, left, right, photoShowcase }) ClearTexture(control);
             f.BackColor = navy;
             body.Padding = new Padding(10);
             body.BackColor = navy;
@@ -6365,38 +6364,65 @@ private void ApplyFloatingTheme(Form f)
             brandPanel.BackColor = navy;
             productPicture.BackColor = navy;
             photoProductName.BackColor = navy;
-            photoTitle.Text = "LEAL INFO CONECTADO";
+            photoTitle.Text = "";
             photoTitle.Font = new Font("Segoe UI", 12, FontStyle.Bold);
-            photoLayout.RowStyles[0].Height = 36;
-            photoLayout.RowStyles[2].Height = 68;
+            photoLayout.ColumnStyles.Clear();
+            photoLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            photoLayout.RowStyles[0].Height = 0;
+            photoLayout.RowStyles[1].Height = 68;
+            photoLayout.RowStyles[1].SizeType = SizeType.Percent;
+            photoLayout.RowStyles[2].Height = 65;
+            photoLayout.RowCount = 4;
+            photoLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 32));
+            photoProductName.Text = "Selecione um produto\npara exibir a imagem";
+            photoProductName.Font = new Font("Segoe UI", 12, FontStyle.Regular);
+            photoProductName.BackColor = navy;
+            brandPanel.Padding = new Padding(12);
+            brandPanel.Margin = Padding.Empty;
+            brandPanel.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, brandPanel.ClientRectangle);
+            var cityPicture = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.StretchImage, Margin = new Padding(0, 6, 0, 0) };
+            var cityPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_city.png");
+            if (File.Exists(cityPath))
+            {
+                using var citySource = Image.FromFile(cityPath);
+                cityPicture.Image = new Bitmap(citySource);
+                f.FormClosed += (_, _) => cityPicture.Image?.Dispose();
+            }
+            photoLayout.Controls.Add(cityPicture, 0, 3);
 
             // Cabeçalho com marca, status ao centro, relógio e somente Sair.
             header.Controls.Clear();
             header.Height = 108;
+            header.Padding = new Padding(8);
             var headerGrid = new TableLayoutPanel
             {
                 Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
                 BackColor = Color.Transparent
             };
-            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
-            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
-            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10));
+            headerGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12));
             var logo = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_brand_header.png");
             if (File.Exists(logoPath))
             {
                 using var source = Image.FromFile(logoPath);
                 logo.Image = new Bitmap(source);
                 f.FormClosed += (_, _) => logo.Image?.Dispose();
             }
-            var headerCenter = Rows(-100, 24);
+            var headerCenter = Rows(-100, 27);
             statusFrame.Margin = new Padding(6, 0, 6, 0);
-            statusBox.Font = new Font("Segoe UI", 22, FontStyle.Bold);
+            statusBox.Font = new Font("Segoe UI", 28, FontStyle.Bold);
+            statusFrame.Padding = new Padding(7);
+            Round(statusFrame, 12); Round(statusInner, 8);
+            statusFrame.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, statusFrame.ClientRectangle, true);
             headerInfo.Dock = DockStyle.Fill;
             headerInfo.AutoSize = false;
             headerInfo.Anchor = AnchorStyles.None;
             headerInfo.TextAlign = ContentAlignment.MiddleCenter;
-            headerInfo.Font = new Font("Segoe UI", 10);
+            headerInfo.Font = new Font("Segoe UI", 11);
+            headerInfo.Margin = Padding.Empty;
             void UpdateClock() => headerInfo.Text = DateTime.Now.ToString("dddd, dd 'de' MMMM 'de' yyyy • HH:mm:ss", CultureInfo.GetCultureInfo("pt-BR"));
             UpdateClock();
             var clock = new System.Windows.Forms.Timer { Interval = 1000 };
@@ -6419,41 +6445,58 @@ private void ApplyFloatingTheme(Form f)
 
             // Busca e lançamento em linhas horizontais acima dos itens.
             left.Controls.Clear();
-            var center = Rows(60, 56, 48, -100, 32);
+            var center = Rows(65, 48, 54, -100, 0);
             left.Controls.Add(center);
             var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+            searchRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58));
             searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
             searchLabel.Text = "F5";
+            searchLabel.Font = new Font("Segoe UI", 18, FontStyle.Bold);
             searchLabel.TextAlign = ContentAlignment.MiddleCenter;
             searchLabel.BackColor = Color.FromArgb(0, 110, 235);
             search.PlaceholderText = "Digite o código, nome ou código de barras...";
-            search.Font = new Font("Segoe UI", 12);
+            search.Font = new Font("Segoe UI", 13);
+            search.Multiline = true;
+            search.Margin = new Padding(4, 10, 4, 10);
             search.BackColor = Color.FromArgb(231, 243, 255);
             searchRow.Controls.Add(searchLabel, 0, 0);
             searchRow.Controls.Add(search, 1, 0);
             searchRow.Controls.Add(ReferenceButton("⌕", panelBlue, OpenCatalogF5), 2, 0);
             center.Controls.Add(searchRow, 0, 0);
             var entryRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+            entryRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             foreach (var field in new (string Title, Control Input)[] { ("Qtd.", qty), ("Preço", unit), ("Subtotal", itemTotal) })
             {
                 int column = entryRow.ColumnStyles.Count;
                 entryRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333f));
-                var cell = Rows(20, -100);
+                var cell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            cell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+                cell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, field.Title == "Subtotal" ? 69 : 49));
+                cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
                 var caption = SaleLabel(field.Title);
+                caption.Font = new Font("Segoe UI", 10, FontStyle.Regular);
                 caption.TextAlign = ContentAlignment.MiddleLeft;
                 cell.Controls.Add(caption, 0, 0);
                 field.Input.BackColor = navy;
                 field.Input.ForeColor = Color.White;
                 field.Input.Font = new Font("Segoe UI", 11);
-                cell.Controls.Add(field.Input, 0, 1);
+                field.Input.Margin = new Padding(3, 10, 3, 8);
+                cell.Controls.Add(field.Input, 1, 0);
                 entryRow.Controls.Add(cell, column, 0);
             }
             center.Controls.Add(entryRow, 0, 1);
             var entryActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1 };
+            entryActions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             for (int i = 0; i < 4; i++) entryActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
-            add.Text = "+ Adicionar";
+            add.Text = "+  Adicionar";
+            add.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+            add.BackColor = Color.FromArgb(0, 95, 235);
+            remove.BackColor = Color.FromArgb(220, 20, 28);
+            clear.BackColor = panelBlue;
+            finish.BackColor = Color.FromArgb(25, 195, 35);
+            finish.Font = new Font("Segoe UI", 19, FontStyle.Bold);
             remove.Text = "F7 Remover item";
             clear.Text = "Limpar";
             entryActions.Controls.Add(add, 0, 0);
@@ -6469,13 +6512,13 @@ private void ApplyFloatingTheme(Form f)
             grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
             grid.GridColor = Color.FromArgb(20, 55, 80);
             grid.ColumnHeadersHeight = 38;
-            grid.Paint += (_, e) =>
-            {
-                if (cartItems.Count != 0) return;
-                TextRenderer.DrawText(e.Graphics, "Nenhum item adicionado.\nUse F5 para buscar um produto.",
-                    grid.Font, new Rectangle(0, grid.ColumnHeadersHeight, grid.Width, Math.Max(0, grid.Height - grid.ColumnHeadersHeight)),
-                    Color.LightSteelBlue, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
-            };
+            grid.DefaultCellStyle.Font = new Font("Segoe UI", 11);
+            grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 11, FontStyle.Regular);
+            grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+            grid.Columns[1].HeaderText = "Produto";
+            grid.Columns[3].HeaderText = "Unitário";
+            grid.Columns[4].HeaderText = "Subtotal";
             foreach (DataGridViewColumn column in grid.Columns)
             {
                 column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
@@ -6489,15 +6532,17 @@ private void ApplyFloatingTheme(Form f)
 
             // Resumo, pagamentos e ações reutilizam o fechamento existente.
             right.Controls.Clear();
+            right.Padding = new Padding(6);
             var side = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+            side.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
+            side.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
             side.RowStyles.Add(new RowStyle(SizeType.Percent, 32));
-            side.RowStyles.Add(new RowStyle(SizeType.Percent, 35));
-            side.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
+            side.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             right.Controls.Add(side);
             var summary = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 5 };
             summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
             summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
-            Label SummaryValue(Color color) => new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = color, Font = new Font("Segoe UI", 12, FontStyle.Bold) };
+            Label SummaryValue(Color color) => new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = color, Font = new Font("Segoe UI", 12, FontStyle.Regular) };
             var countValue = SummaryValue(Color.White);
             var baseValue = SummaryValue(Color.White);
             var discountValue = SummaryValue(Color.LimeGreen); discountValue.Text = Money(0);
@@ -6506,6 +6551,12 @@ private void ApplyFloatingTheme(Form f)
             var summaryNames = new[] { "Itens:", "Subtotal:", "Desconto:", "Acréscimo:", "Total:" };
             subtotalValue.ForeColor = Color.FromArgb(100, 245, 130);
             subtotalValue.Font = new Font("Segoe UI", 22, FontStyle.Bold);
+            subtotalValue.Resize += (_, _) =>
+            {
+                var oldFont = subtotalValue.Font;
+                subtotalValue.Font = new Font("Segoe UI", Math.Clamp(subtotalValue.Width / 7.3f, 14, 26), FontStyle.Bold);
+                oldFont.Dispose();
+            };
             for (int i = 0; i < 5; i++)
             {
                 summary.RowStyles.Add(new RowStyle(SizeType.Percent, i == 4 ? 28 : 18));
@@ -6515,12 +6566,15 @@ private void ApplyFloatingTheme(Form f)
             }
             void RefreshSummary()
             {
-                countValue.Text = cartItems.Sum(item => item.Qty).ToString("N3", CultureInfo.GetCultureInfo("pt-BR"));
+                countValue.Text = cartItems.Sum(item => item.Qty).ToString("0.###", CultureInfo.GetCultureInfo("pt-BR"));
                 baseValue.Text = Money(cartItems.Sum(item => item.Total));
             }
             cartSource.ListChanged += (_, _) => RefreshSummary();
             RefreshSummary();
-            side.Controls.Add(summary, 0, 0);
+            var summaryFrame = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 7), Padding = new Padding(12, 8, 12, 8) };
+            Frame(summaryFrame); summaryFrame.Padding = new Padding(12, 8, 12, 8);
+            summaryFrame.Controls.Add(summary);
+            side.Controls.Add(summaryFrame, 0, 0);
             var methods = Rows(28, -100);
             var methodCaption = SaleLabel("Forma de Pagamento"); methodCaption.TextAlign = ContentAlignment.MiddleLeft;
             methods.Controls.Add(methodCaption, 0, 0);
@@ -6537,7 +6591,10 @@ private void ApplyFloatingTheme(Form f)
                 methodGrid.Controls.Add(ReferenceButton(payment.Items[i]?.ToString() ?? "", methodColors[i], () => FinalizeSale(method)), i % 2, i / 2);
             }
             methods.Controls.Add(methodGrid, 0, 1);
-            side.Controls.Add(methods, 0, 1);
+            var methodsFrame = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 7) };
+            Frame(methodsFrame); methodsFrame.Padding = new Padding(10, 5, 10, 8);
+            methodsFrame.Controls.Add(methods);
+            side.Controls.Add(methodsFrame, 0, 1);
             var saleActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
             saleActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
             saleActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
@@ -6555,8 +6612,13 @@ private void ApplyFloatingTheme(Form f)
                 if (lastSaleReceipt == null) { Info("Finalize uma venda para imprimir o comprovante."); return; }
                 PrintReceipt(lastSaleReceipt);
             }), 1, 1);
-            side.Controls.Add(saleActions, 0, 2);
+            var actionsFrame = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty };
+            Frame(actionsFrame); actionsFrame.Padding = new Padding(8);
+            actionsFrame.Controls.Add(saleActions);
+            side.Controls.Add(actionsFrame, 0, 2);
             footer.BackColor = panelBlue;
+            footer.Font = new Font("Segoe UI", 11);
+            footer.Padding = new Padding(10, 3, 10, 3);
             footer.Items.Clear();
             footer.Items.Add(new ToolStripStatusLabel("Pressione F4 para finalizar a venda • F10 Venda avulsa"));
             footer.Items.Add(new ToolStripStatusLabel { Spring = true });
