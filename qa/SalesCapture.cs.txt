@@ -4,6 +4,14 @@ using LealInfoPDV;
 
 internal static class Program
 {
+    static IEnumerable<Control> Children(Control parent)
+    {
+        foreach (Control child in parent.Controls)
+        {
+            yield return child;
+            foreach (var descendant in Children(child)) yield return descendant;
+        }
+    }
     [STAThread]
     static void Main()
     {
@@ -13,48 +21,73 @@ internal static class Program
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         Directory.CreateDirectory("visual-qa");
         AppDomain.CurrentDomain.UnhandledException += (_, e) => File.WriteAllText("visual-qa/error.txt", e.ExceptionObject.ToString());
-        File.AppendAllText("visual-qa/trace.txt", "start\n");
         Database.Initialize();
-        File.AppendAllText("visual-qa/trace.txt", "database ready\n");
         using var owner = new MainForm();
-        File.AppendAllText("visual-qa/trace.txt", "owner ready\n");
-        using var timer = new System.Windows.Forms.Timer { Interval = 700 };
-        int ticks = 0;
-        timer.Tick += (_, _) =>
+        using var timer = new System.Windows.Forms.Timer { Interval = 600 };
+        var themes = new[] { "PDV Rosa", "Clean Pro", "Dark Premium", "Blue Red Racing", "Azul Texturizado", "Futurista Azul" };
+        int themeIndex = 0;
+        int stage = 0;
+        bool reopening = false;
+        var checks = new List<string>();
+        void Capture(Form sales, string name)
         {
-            File.AppendAllText("visual-qa/trace.txt", "tick " + string.Join(" | ", Application.OpenForms.Cast<Form>().Select(f => f.Text)) + "\n");
-            var sales = Application.OpenForms.Cast<Form>().FirstOrDefault(x => x.Text.Contains("TELA DE VENDA"));
-            if (sales == null) return;
-            if (ticks++ == 0)
-            {
-                sales.WindowState = FormWindowState.Normal;
-                sales.MaximumSize = new Size(3000, 2000);
-                sales.MinimumSize = new Size(1366, 730);
-                sales.Bounds = new Rectangle(0, 0, 1366, 730);
-                sales.PerformLayout();
-                return;
-            }
-            if (ticks < 4) return;
-            timer.Stop();
-            Directory.CreateDirectory("visual-qa");
             using var bitmap = new Bitmap(sales.Width, sales.Height);
             sales.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
-            bitmap.Save("visual-qa/sales-1366.png", System.Drawing.Imaging.ImageFormat.Png);
-            var bounds = new List<object>();
-            void Inspect(Control parent)
+            bitmap.Save("visual-qa/" + name + ".png", System.Drawing.Imaging.ImageFormat.Png);
+        }
+        void Verify(Form sales, string theme)
+        {
+            var palette = SalesPalette.For(theme);
+            var controls = Children(sales).ToArray();
+            var grid = controls.OfType<SalesItemsGrid>().Single();
+            var status = controls.OfType<SalesGlowLabel>().Single();
+            if (sales.BackColor != palette.Background || grid.BackgroundColor != palette.Background || grid.DefaultCellStyle.ForeColor != palette.Foreground || status.ForeColor != palette.Foreground || status.GlowColor != palette.Accent)
+                throw new Exception("Cores nao sincronizadas: " + theme);
+            checks.Add((reopening ? "Reabertura: " : "Selecao real: ") + theme + " OK");
+            File.WriteAllText("visual-qa/theme-checks.json", JsonSerializer.Serialize(checks));
+        }
+        timer.Tick += (_, _) =>
+        {
+            var sales = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f.Text.Contains("TELA DE VENDA"));
+            if (sales == null) return;
+            if (stage == 0)
             {
-                foreach (Control c in parent.Controls)
-                {
-                    if (!c.Visible) continue;
-                    bounds.Add(new { type = c.GetType().Name, text = c is PictureBox ? "image" : c.Text, x = c.Left, y = c.Top, width = c.Width, height = c.Height, parentWidth = parent.ClientSize.Width, parentHeight = parent.ClientSize.Height });
-                    Inspect(c);
-                }
+                sales.WindowState = FormWindowState.Normal;
+                sales.Bounds = new Rectangle(0, 0, 1366, 730);
+                sales.PerformLayout();
+                stage = 1;
+                return;
             }
-            Inspect(sales);
-            File.WriteAllText("visual-qa/bounds.json", JsonSerializer.Serialize(bounds));
+            if (reopening)
+            {
+                Verify(sales, themes[^1]);
+                Capture(sales, "sales-reopened");
+                timer.Stop(); sales.Close(); return;
+            }
+            if (stage == 1)
+            {
+                if (themeIndex == 0) Capture(sales, "sales-1366");
+                stage = 2;
+                Children(sales).OfType<Button>().Single(b => b.Text == "ESTILO").PerformClick();
+                return;
+            }
+            if (stage == 2)
+            {
+                var chooser = Application.OpenForms.Cast<Form>().Single(f => f.Text == "Estilo da Tela de Vendas");
+                stage = 3;
+                Children(chooser).OfType<Button>().Single(b => b.Tag?.ToString() == themes[themeIndex]).PerformClick();
+                return;
+            }
+            Verify(sales, themes[themeIndex]);
+            Capture(sales, "theme-" + themeIndex);
+            if (++themeIndex < themes.Length) { stage = 1; return; }
             sales.Close();
         };
         timer.Start();
-        typeof(MainForm).GetMethod("OpenSales", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(owner, null);
+        var open = typeof(MainForm).GetMethod("OpenSales", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        open.Invoke(owner, null);
+        reopening = true; stage = 0;
+        open.Invoke(owner, null);
+        if (checks.Count != 7) throw new Exception("Verificacoes incompletas");
     }
 }
