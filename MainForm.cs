@@ -1631,6 +1631,15 @@ private void ApplyFloatingTheme(Form f)
         }
 
         StyleRecursive(f);
+        ApplySalesDialogTheme(f);
+    }
+
+    private void ApplySalesDialogTheme(Form dialog)
+    {
+        var sales = Application.OpenForms.Cast<Form>()
+            .FirstOrDefault(form => form.Visible && form.Text.Contains("TELA DE VENDA"));
+        if (sales == null || dialog == sales) return;
+        SalesDialogTheme.Apply(dialog, GetSetting("sales_theme", "Futurista Azul"), sales.BackgroundImage);
     }
 
     private void RefreshDashboard()
@@ -3790,10 +3799,14 @@ private void ApplyFloatingTheme(Form f)
 
         private bool yesSelected = true;
         private readonly Color darkBlue;
+        private readonly Color selectionColor;
 
         public RemoveConfirmForm(string productName, double qty, string totalText, Color darkBlue)
         {
-            this.darkBlue = darkBlue;
+            var salesOpen = Application.OpenForms.Cast<Form>().Any(form => form.Visible && form.Text.Contains("TELA DE VENDA"));
+            var palette = SalesPalette.For(GetSetting("sales_theme", "Futurista Azul"));
+            this.darkBlue = salesOpen ? palette.Panel : darkBlue;
+            selectionColor = salesOpen ? palette.Accent : Color.FromArgb(0, 150, 210);
 
             Text = "Remover item da venda";
             StartPosition = FormStartPosition.CenterParent;
@@ -3893,7 +3906,7 @@ private void ApplyFloatingTheme(Form f)
                 YesButton.FlatAppearance.BorderColor = Color.FromArgb(255, 215, 70);
 
                 NoButton.BackColor = darkBlue;
-                NoButton.ForeColor = Color.White;
+                NoButton.ForeColor = NoButton.BackColor.GetBrightness() > .65f ? Color.FromArgb(35, 58, 72) : Color.White;
                 NoButton.FlatAppearance.BorderSize = 0;
             }
             else
@@ -3902,8 +3915,8 @@ private void ApplyFloatingTheme(Form f)
                 YesButton.ForeColor = Color.White;
                 YesButton.FlatAppearance.BorderSize = 0;
 
-                NoButton.BackColor = Color.FromArgb(0, 150, 210);
-                NoButton.ForeColor = Color.White;
+                NoButton.BackColor = selectionColor;
+                NoButton.ForeColor = NoButton.BackColor.GetBrightness() > .65f ? Color.FromArgb(35, 58, 72) : Color.White;
                 NoButton.FlatAppearance.BorderSize = 3;
                 NoButton.FlatAppearance.BorderColor = Color.FromArgb(255, 215, 70);
             }
@@ -4111,7 +4124,7 @@ private void ApplyFloatingTheme(Form f)
         ApplyFloatingTheme(f);
 
 
-        if (f.ShowDialog(this) != DialogResult.OK || grid.CurrentRow == null)
+        if (f.ShowDialog(Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.Visible && form.Text.Contains("TELA DE VENDA")) ?? this) != DialogResult.OK || grid.CurrentRow == null)
             return null;
 
         var id = Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value);
@@ -4465,14 +4478,14 @@ private void ApplyFloatingTheme(Form f)
                     var payer=Microsoft.VisualBasic.Interaction.InputBox("E-mail do cliente para gerar o PIX automático:","PIX Mercado Pago","");
                     if(string.IsNullOrWhiteSpace(payer))return;
                     using var pix=new MercadoPagoPixForm((decimal)total,payer,new MercadoPagoPixService(token));
-                    if(pix.ShowDialog(f)!=DialogResult.OK)return;
+                    ApplySalesDialogTheme(pix);if(pix.ShowDialog(f)!=DialogResult.OK)return;
                 }
                 else
                 {
                     var merchant=GetSetting("company_trade_name",GetSetting("company_name","LEAL INFO"));
                     var cityState=GetSetting("company_city_state","BRASIL");var city=cityState.Split('/')[0].Trim();
                     using var pix=new SimplePixPaymentForm((decimal)total,key,keyType,merchant,city);
-                    if(pix.ShowDialog(f)!=DialogResult.OK)return;
+                    ApplySalesDialogTheme(pix);if(pix.ShowDialog(f)!=DialogResult.OK)return;
                 }
                 result.Add(new PaymentPart{Method="PIX",Amount=total});f.DialogResult=DialogResult.OK;f.Close();
             }
@@ -4536,12 +4549,12 @@ private void ApplyFloatingTheme(Form f)
                     {
                         var token=PixSecureSettings.Unprotect(GetSetting("pix_mp_access_token"));if(string.IsNullOrWhiteSpace(token)){Info("Falta o Access Token do Mercado Pago.");result.Clear();return;}
                         var payer=Microsoft.VisualBasic.Interaction.InputBox("E-mail do cliente para o PIX automático:","PIX Mercado Pago","");if(string.IsNullOrWhiteSpace(payer)){result.Clear();return;}
-                        using var pix=new MercadoPagoPixForm((decimal)pixPart.Amount,payer,new MercadoPagoPixService(token));if(pix.ShowDialog(f)!=DialogResult.OK){result.Clear();return;}
+                        using var pix=new MercadoPagoPixForm((decimal)pixPart.Amount,payer,new MercadoPagoPixService(token));ApplySalesDialogTheme(pix);if(pix.ShowDialog(f)!=DialogResult.OK){result.Clear();return;}
                     }
                     else
                     {
                         var merchant=GetSetting("company_trade_name",GetSetting("company_name","LEAL INFO"));var city=GetSetting("company_city_state","BRASIL").Split('/')[0].Trim();
-                        using var pix=new SimplePixPaymentForm((decimal)pixPart.Amount,key,keyType,merchant,city);if(pix.ShowDialog(f)!=DialogResult.OK){result.Clear();return;}
+                        using var pix=new SimplePixPaymentForm((decimal)pixPart.Amount,key,keyType,merchant,city);ApplySalesDialogTheme(pix);if(pix.ShowDialog(f)!=DialogResult.OK){result.Clear();return;}
                     }
                 }catch(Exception ex){result.Clear();MessageBox.Show(f,"Não foi possível iniciar o PIX:\n\n"+ex.Message,"PIX - LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Error);return;}
             }
@@ -4559,7 +4572,7 @@ private void ApplyFloatingTheme(Form f)
         UpdateMulti();
 
         ApplyFloatingTheme(f);
-        return f.ShowDialog(this) == DialogResult.OK ? result : null;
+        return f.ShowDialog(Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.Visible && form.Text.Contains("TELA DE VENDA")) ?? this) == DialogResult.OK ? result : null;
     }
 
     private string BuildReceipt(long saleId, DateTime soldAt, IEnumerable<CartItem> items, IEnumerable<PaymentPart> payments, double total)
@@ -6114,6 +6127,7 @@ private void ApplyFloatingTheme(Form f)
                 Money(item.Total),
                 DarkBlue);
 
+            ApplySalesDialogTheme(confirm);
             if (confirm.ShowDialog(f) != DialogResult.Yes)
                 return;
 

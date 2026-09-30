@@ -22,8 +22,14 @@ internal static class Program
         Directory.CreateDirectory("visual-qa");
         AppDomain.CurrentDomain.UnhandledException += (_, e) => File.WriteAllText("visual-qa/error.txt", e.ExceptionObject.ToString());
         Database.Initialize();
+        using (var cn = Database.Open())
+        using (var cmd = cn.CreateCommand())
+        {
+            cmd.CommandText = "INSERT INTO products(barcode,name,price,stock,active) VALUES('QA-THEME','Produto QA',10,100,1); INSERT OR REPLACE INTO settings(key,value) VALUES('pix_key','qa@example.com'),('pix_key_type','EMAIL'),('pix_mp_enabled','0');";
+            cmd.ExecuteNonQuery();
+        }
         using var owner = new MainForm();
-        using var timer = new System.Windows.Forms.Timer { Interval = 600 };
+        using var timer = new System.Windows.Forms.Timer { Interval = 300 };
         var themes = new[] { "Azul Texturizado", "Futurista Azul", "Clean Pro", "Dark Premium", "Blue Red Racing", "PDV Rosa" };
         int themeIndex = 0;
         int stage = 0;
@@ -55,6 +61,27 @@ internal static class Program
             }
             checks.Add((reopening ? "Reabertura: " : "Selecao real: ") + theme + " OK");
             File.WriteAllText("visual-qa/theme-checks.json", JsonSerializer.Serialize(checks));
+        }
+        void SendKey(Control control, Keys key) => typeof(Control).GetMethod("OnKeyDown", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(control, new object[] { new KeyEventArgs(key) });
+        Form Dialog(string title) => Application.OpenForms.Cast<Form>().Single(form => form.Text == title);
+        void VerifyDialog(Form dialog, string name)
+        {
+            var palette = SalesPalette.For(themes[themeIndex]);
+            bool textured = themes[themeIndex] is "PDV Rosa" or "Azul Texturizado";
+            if (dialog.BackColor != palette.Background || dialog.ForeColor != palette.Foreground || (dialog.BackgroundImage != null) != textured)
+                throw new Exception("Tema da janela divergente: " + name);
+            foreach (var control in Children(dialog))
+            {
+                if (control is TextBoxBase or ComboBox or NumericUpDown)
+                    if (control.BackColor != palette.Field || control.ForeColor != palette.FieldText) throw new Exception("Campo divergente: " + name);
+                if (control is DataGridView grid)
+                    if (grid.BackgroundColor != palette.Background || grid.DefaultCellStyle.ForeColor != palette.Foreground) throw new Exception("Tabela divergente: " + name);
+                if (control is TabPage page)
+                    if (page.BackColor != palette.Background || page.UseVisualStyleBackColor) throw new Exception("Aba divergente: " + name);
+            }
+            checks.Add(name + ": " + themes[themeIndex] + " OK");
+            File.WriteAllText("visual-qa/theme-checks.json", JsonSerializer.Serialize(checks));
+            Capture(dialog, name + "-" + themeIndex);
         }
         timer.Tick += (_, _) =>
         {
@@ -88,8 +115,54 @@ internal static class Program
                 Children(chooser).OfType<Button>().Single(b => b.Tag?.ToString() == themes[themeIndex]).PerformClick();
                 return;
             }
-            Verify(sales, themes[themeIndex]);
-            Capture(sales, "theme-" + themeIndex);
+            if (stage == 3)
+            {
+                Verify(sales, themes[themeIndex]); Capture(sales, "theme-" + themeIndex);
+                stage = 4; SendKey(sales, Keys.F5); return;
+            }
+            if (stage == 4)
+            {
+                var catalog = Dialog("Consultar Produto - F5"); VerifyDialog(catalog, "F5-consulta");
+                var grid = Children(catalog).OfType<DataGridView>().Single(); grid.CurrentCell = grid.Rows[0].Cells[0];
+                stage = 5; Children(catalog).OfType<Button>().Single(button => button.Text == "SELECIONAR").PerformClick(); return;
+            }
+            if (stage == 5)
+            {
+                var quantity = Dialog("Quantidade do Produto"); VerifyDialog(quantity, "quantidade");
+                stage = 6; quantity.DialogResult = DialogResult.Cancel; quantity.Close(); return;
+            }
+            if (stage == 6) { stage = 7; SendKey(sales, Keys.F10); return; }
+            if (stage == 7)
+            {
+                var loose = Dialog("Venda Avulsa - F10"); VerifyDialog(loose, "F10-avulsa");
+                var inputs = Children(loose).OfType<TextBox>().OrderBy(box => box.Top).ToArray();
+                inputs[0].Text = "Servico QA"; inputs[1].Text = "1000";
+                stage = 8; Children(loose).OfType<Button>().Single(button => button.Text == "ADICIONAR À VENDA").PerformClick(); return;
+            }
+            if (stage == 8) { stage = 9; SendKey(sales, Keys.F4); return; }
+            if (stage == 9)
+            {
+                var payment = Dialog("Finalizar Venda"); VerifyDialog(payment, "F4-pagamento");
+                var tabs = Children(payment).OfType<TabControl>().Single();
+                for (int index = 0; index < tabs.TabCount; index++) { tabs.SelectedIndex = index; Capture(payment, "pagamento-" + themeIndex + "-" + index); }
+                tabs.SelectedIndex = 1; stage = 10;
+                Children(payment).OfType<Button>().Single(button => button.Text.StartsWith("GERAR QR CODE PIX")).PerformClick(); return;
+            }
+            if (stage == 10)
+            {
+                var pix = Dialog("LEAL INFO PDV • PIX POR CHAVE"); VerifyDialog(pix, "F3-PIX");
+                var qr = Children(pix).OfType<PictureBox>().Single();
+                if (qr.Image == null || qr.BackColor != Color.White) throw new Exception("QR Code alterado");
+                stage = 11; pix.DialogResult = DialogResult.Cancel; pix.Close(); return;
+            }
+            if (stage == 11) { var payment = Dialog("Finalizar Venda"); stage = 12; payment.DialogResult = DialogResult.Cancel; payment.Close(); return; }
+            if (stage == 12) { stage = 13; SendKey(sales, Keys.F7); return; }
+            if (stage == 13)
+            {
+                var remove = Dialog("Remover item da venda"); VerifyDialog(remove, "F7-remocao");
+                stage = 14; Children(remove).OfType<Button>().Single(button => button.Text == "SIM, REMOVER").PerformClick(); return;
+            }
+            if (Children(sales).OfType<SalesItemsGrid>().Single().RowCount != 0) throw new Exception("Remocao nao funcionou");
             if (++themeIndex < themes.Length) { stage = 1; return; }
             sales.Close();
         };
@@ -98,6 +171,6 @@ internal static class Program
         open.Invoke(owner, null);
         reopening = true; stage = 0;
         open.Invoke(owner, null);
-        if (checks.Count != 7) throw new Exception("Verificacoes incompletas");
+        if (checks.Count != 43) throw new Exception("Verificacoes incompletas");
     }
 }
