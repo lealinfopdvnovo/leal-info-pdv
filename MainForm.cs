@@ -6434,7 +6434,15 @@ private void ApplyFloatingTheme(Form f)
             headerGrid.Controls.Add(logo, 0, 0);
             headerGrid.Controls.Add(headerCenter, 1, 0);
             close.Text = "SAIR";
-            headerGrid.Controls.Add(close, 2, 0);
+            var headerActions = Rows(-50, -50);
+            styleButton.Text = "ESTILO";
+            styleButton.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+            styleButton.BackColor = Color.FromArgb(112, 72, 190);
+            styleButton.Margin = new Padding(3);
+            close.Margin = new Padding(3);
+            headerActions.Controls.Add(styleButton, 0, 0);
+            headerActions.Controls.Add(close, 0, 1);
+            headerGrid.Controls.Add(headerActions, 2, 0);
             header.Controls.Add(headerGrid);
             // Estilo continua acessível sem o botão riscado da referência.
             var salesContextMenu = new ContextMenuStrip();

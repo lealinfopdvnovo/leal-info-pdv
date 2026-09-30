@@ -1,7 +1,7 @@
 name: Validar tela de venda
 on:
   push:
-    branches: [codex/tela-venda-fiel]
+    branches: ['codex/tela-venda-*']
   pull_request:
     branches: [main]
 permissions:
