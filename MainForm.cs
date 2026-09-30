@@ -6366,6 +6366,8 @@ private void ApplyFloatingTheme(Form f)
             photoProductName.BackColor = navy;
             photoTitle.Text = "";
             photoTitle.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+            photoLayout.ColumnStyles.Clear();
+            photoLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             photoLayout.RowStyles[0].Height = 0;
             photoLayout.RowStyles[1].Height = 68;
             photoLayout.RowStyles[1].SizeType = SizeType.Percent;
@@ -6397,6 +6399,7 @@ private void ApplyFloatingTheme(Form f)
                 Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
                 BackColor = Color.Transparent
             };
+            headerGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
             headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
             headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12));
@@ -6445,6 +6448,7 @@ private void ApplyFloatingTheme(Form f)
             var center = Rows(65, 48, 54, -100, 0);
             left.Controls.Add(center);
             var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+            searchRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58));
             searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
@@ -6462,11 +6466,13 @@ private void ApplyFloatingTheme(Form f)
             searchRow.Controls.Add(ReferenceButton("⌕", panelBlue, OpenCatalogF5), 2, 0);
             center.Controls.Add(searchRow, 0, 0);
             var entryRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+            entryRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             foreach (var field in new (string Title, Control Input)[] { ("Qtd.", qty), ("Preço", unit), ("Subtotal", itemTotal) })
             {
                 int column = entryRow.ColumnStyles.Count;
                 entryRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333f));
                 var cell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = Padding.Empty };
+            cell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
                 cell.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, field.Title == "Subtotal" ? 69 : 49));
                 cell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
                 var caption = SaleLabel(field.Title);
@@ -6482,6 +6488,7 @@ private void ApplyFloatingTheme(Form f)
             }
             center.Controls.Add(entryRow, 0, 1);
             var entryActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1 };
+            entryActions.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
             for (int i = 0; i < 4; i++) entryActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
             add.Text = "+  Adicionar";
             add.Font = new Font("Segoe UI", 12, FontStyle.Bold);
@@ -6537,6 +6544,7 @@ private void ApplyFloatingTheme(Form f)
             side.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
             side.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
             side.RowStyles.Add(new RowStyle(SizeType.Percent, 32));
+            side.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             right.Controls.Add(side);
             var summary = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 5 };
             summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
@@ -6550,6 +6558,12 @@ private void ApplyFloatingTheme(Form f)
             var summaryNames = new[] { "Itens:", "Subtotal:", "Desconto:", "Acréscimo:", "Total:" };
             subtotalValue.ForeColor = Color.FromArgb(100, 245, 130);
             subtotalValue.Font = new Font("Segoe UI", 22, FontStyle.Bold);
+            subtotalValue.Resize += (_, _) =>
+            {
+                var oldFont = subtotalValue.Font;
+                subtotalValue.Font = new Font("Segoe UI", Math.Clamp(subtotalValue.Width / 7.3f, 14, 26), FontStyle.Bold);
+                oldFont.Dispose();
+            };
             for (int i = 0; i < 5; i++)
             {
                 summary.RowStyles.Add(new RowStyle(SizeType.Percent, i == 4 ? 28 : 18));

@@ -28,6 +28,8 @@ internal static class Program
             if (ticks++ == 0)
             {
                 sales.WindowState = FormWindowState.Normal;
+                sales.MaximumSize = new Size(3000, 2000);
+                sales.MinimumSize = new Size(1366, 730);
                 sales.Bounds = new Rectangle(0, 0, 1366, 730);
                 sales.PerformLayout();
                 return;

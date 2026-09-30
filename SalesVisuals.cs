@@ -93,7 +93,7 @@ internal sealed class SalesVisualButton : Button
         string label = Text;
         bool method = label is "Dinheiro" or "PIX" or "Cartão" or "Múltiplo";
         var textRect = Rectangle.Inflate(ClientRectangle, -7, -5);
-        using var textFont = new Font("Segoe UI", method ? Math.Clamp(Height / 6f, 11, 16) : Font.Size, FontStyle.Bold);
+        using var textFont = new Font("Segoe UI", method ? Math.Clamp(Height / 6f, 11, 16) : label.Contains("Finalizar") ? Math.Clamp(Width * .74f / 10f, 12, 20) : label.Contains("Remover") ? 10 : Font.Size, FontStyle.Bold);
         if (method)
         {
             float size = Math.Clamp(Height * .33f, 20, 35);
@@ -140,7 +140,7 @@ internal sealed class SalesVisualButton : Button
                 g.DrawLine(pen, 16, 8, 6, 24); g.DrawLine(pen, 16, 8, 26, 24); g.DrawLine(pen, 6, 24, 26, 24);
                 g.FillEllipse(white, 11, 1, 10, 10); g.FillEllipse(white, 0, 21, 11, 11); g.FillEllipse(white, 21, 21, 11, 11);
                 break;
-            case "check": g.DrawLines(new Pen(Color.White, 6), new[] { new PointF(2, 17), new PointF(12, 27), new PointF(31, 5) }); break;
+            case "check": using (var checkPen = new Pen(Color.White, 6)) g.DrawLines(checkPen, new[] { new PointF(2, 17), new PointF(12, 27), new PointF(31, 5) }); break;
             case "cancel": g.FillEllipse(white, 1, 1, 30, 30); using (var dark = new Pen(Color.FromArgb(20, 45, 70), 3)) { g.DrawLine(dark, 11, 11, 21, 21); g.DrawLine(dark, 21, 11, 11, 21); } break;
             case "print": g.DrawRectangle(pen, 6, 1, 20, 10); g.FillRectangle(white, 1, 10, 30, 15); g.DrawRectangle(pen, 7, 22, 18, 9); break;
             case "exit": g.DrawLines(pen, new[] { new PointF(12, 4), new PointF(3, 4), new PointF(3, 29), new PointF(12, 29) }); g.DrawLine(pen, 11, 15, 29, 15); g.DrawLines(pen, new[] { new PointF(23, 8), new PointF(30, 15), new PointF(23, 22) }); break;
