@@ -6673,6 +6673,8 @@ private void ApplyFloatingTheme(Form f)
                 grid.DefaultCellStyle.SelectionForeColor = Color.White;
                 grid.GridColor = ControlPaint.Light(referencePalette.Panel);
                 add.BackColor = searchLabel.BackColor = referencePalette.Accent;
+                foreach (Control child in searchRow.Controls)
+                    if (child is Button button) button.BackColor = referencePalette.Panel;
                 foreach (Control child in entryActions.Controls)
                     if (child is Button button && button != add && button != remove) button.BackColor = referencePalette.Panel;
                 foreach (Control child in saleActions.Controls)
