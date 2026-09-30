@@ -118,15 +118,15 @@ internal sealed class SalesVisualButton : Button
             DrawIcon(g, label.Contains("Comprovante") ? "print" : label == "SAIR" ? "exit" : "cancel", new RectangleF((Width - size) / 2, Height * .13f, size, size));
             textRect.Y = (int)(Height * .5f); textRect.Height = Height - textRect.Y - 5;
         }
-        TextRenderer.DrawText(g, label, textFont, textRect, Enabled ? Color.White : Color.Silver,
+        TextRenderer.DrawText(g, label, textFont, textRect, Enabled ? (BackColor.GetBrightness() > .65f ? Color.FromArgb(35, 58, 72) : Color.White) : Color.Silver,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
         if (Focused) ControlPaint.DrawFocusRectangle(g, Rectangle.Inflate(ClientRectangle, -6, -6), Color.White, Color.Transparent);
     }
-    private static void DrawIcon(Graphics g, string icon, RectangleF r)
+    private void DrawIcon(Graphics g, string icon, RectangleF r)
     {
         var state = g.Save();
         g.TranslateTransform(r.X, r.Y); g.ScaleTransform(r.Width / 32, r.Height / 32);
-        using var white = new SolidBrush(icon == "exit" ? Color.FromArgb(255, 55, 50) : Color.White);
+        using var white = new SolidBrush(icon == "exit" ? Color.FromArgb(255, 55, 50) : BackColor.GetBrightness() > .65f ? Color.FromArgb(35, 58, 72) : Color.White);
         using var pen = new Pen(white.Color, 3) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
         switch (icon)
         {
