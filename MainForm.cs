@@ -6400,15 +6400,8 @@ private void ApplyFloatingTheme(Form f)
             brandPanel.Padding = new Padding(12);
             brandPanel.Margin = Padding.Empty;
             brandPanel.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, brandPanel.ClientRectangle, palette: referencePalette, texture: referenceTexture);
-            var cityPicture = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.StretchImage, Margin = new Padding(0, 6, 0, 0) };
-            var cityPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_city.png");
-            if (File.Exists(cityPath))
-            {
-                using var citySource = Image.FromFile(cityPath);
-                cityPicture.Image = new Bitmap(citySource);
-                f.FormClosed += (_, _) => cityPicture.Image?.Dispose();
-            }
-            photoLayout.Controls.Add(cityPicture, 0, 3);
+            var weatherCard = new SalesWeatherCard(() => GetSetting("company_city_state")) { Palette = referencePalette };
+            photoLayout.Controls.Add(weatherCard, 0, 3);
 
             // Cabeçalho com marca, status ao centro, relógio e somente Sair.
             header.Controls.Clear();
@@ -6654,6 +6647,8 @@ private void ApplyFloatingTheme(Form f)
             synchronizeReferenceTheme = theme =>
             {
                 referencePalette = SalesPalette.For(theme);
+                weatherCard.Palette = referencePalette;
+                weatherCard.Invalidate();
                 foreach (var control in new Control[] { f, body, header, left, right, photoShowcase, brandPanel, summaryFrame, methodsFrame, actionsFrame, statusFrame, statusInner, productPicture, photoProductName })
                 {
                     ClearTexture(control);
