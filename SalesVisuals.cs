@@ -93,7 +93,7 @@ internal sealed class SalesVisualButton : Button
         string label = Text;
         bool method = label is "Dinheiro" or "PIX" or "Cartão" or "Múltiplo";
         var textRect = Rectangle.Inflate(ClientRectangle, -7, -5);
-        using var textFont = new Font("Segoe UI", method ? Math.Clamp(Height / 6f, 11, 16) : label.Contains("Finalizar") ? Math.Clamp(Width * .74f / 10f, 12, 20) : label.Contains("Remover") ? 10 : Font.Size, FontStyle.Bold);
+        using var textFont = new Font("Segoe UI", method ? Math.Clamp(Height / 6f, 11, 16) : label.Contains("Finalizar") ? Math.Clamp(Width * .74f / 10f, 12, 20) : label.Contains("Remover") ? 10 : label.Contains("Cancelar") || label.Contains("Comprovante") ? Math.Clamp(Width / 12f, 8.5f, 11) : Font.Size, FontStyle.Bold);
         if (method)
         {
             float size = Math.Clamp(Height * .33f, 20, 35);
@@ -104,6 +104,11 @@ internal sealed class SalesVisualButton : Button
         {
             DrawIcon(g, "check", new RectangleF(Width * .08f, Height * .34f, Height * .3f, Height * .3f));
             textRect.X = (int)(Width * .24f); textRect.Width = Width - textRect.X - 10;
+            using var shortcutFont = new Font("Segoe UI", Math.Clamp(Height / 5f, 13, 22), FontStyle.Bold);
+            using var titleFont = new Font("Segoe UI", Math.Clamp(textRect.Width / 12f, 10, 18), FontStyle.Bold);
+            TextRenderer.DrawText(g, "F4", shortcutFont, new Rectangle(textRect.X, 7, textRect.Width, (int)(Height * .42f)), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+            TextRenderer.DrawText(g, "Finalizar Venda", titleFont, new Rectangle(textRect.X, (int)(Height * .42f), textRect.Width, (int)(Height * .48f)), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
+            return;
         }
         else if (label.Contains("Comprovante") || label.Contains("Cancelar") || label == "SAIR")
         {
@@ -146,5 +151,19 @@ internal sealed class SalesVisualButton : Button
             case "exit": g.DrawLines(pen, new[] { new PointF(12, 4), new PointF(3, 4), new PointF(3, 29), new PointF(12, 29) }); g.DrawLine(pen, 11, 15, 29, 15); g.DrawLines(pen, new[] { new PointF(23, 8), new PointF(30, 15), new PointF(23, 22) }); break;
         }
         g.Restore(state);
+    }
+}
+
+internal sealed class SalesItemsGrid : DataGridView
+{
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        base.OnPaint(e);
+        if (RowCount != 0) return;
+        using var font = new Font("Segoe UI", 12, FontStyle.Regular);
+        using var brush = new SolidBrush(Color.LightSteelBlue);
+        using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        e.Graphics.DrawString("Nenhum item adicionado.\nUse F5 para buscar um produto.", font, brush,
+            new RectangleF(0, ColumnHeadersHeight, Width, Math.Max(0, Height - ColumnHeadersHeight)), format);
     }
 }

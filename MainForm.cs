@@ -5247,7 +5247,7 @@ private void ApplyFloatingTheme(Form f)
         Round(cupomTitle, 16);
 
         // ===== TABELA GRANDE =====
-        var grid = new DataGridView
+        var grid = new SalesItemsGrid
         {
             Dock = DockStyle.Fill,
             BackgroundColor = Color.White,
@@ -6519,13 +6519,6 @@ private void ApplyFloatingTheme(Form f)
             grid.Columns[1].HeaderText = "Produto";
             grid.Columns[3].HeaderText = "Unitário";
             grid.Columns[4].HeaderText = "Subtotal";
-            grid.Paint += (_, e) =>
-            {
-                if (cartItems.Count != 0) return;
-                TextRenderer.DrawText(e.Graphics, "Nenhum item adicionado.\nUse F5 para buscar um produto.",
-                    grid.Font, new Rectangle(0, grid.ColumnHeadersHeight, grid.Width, Math.Max(0, grid.Height - grid.ColumnHeadersHeight)),
-                    Color.LightSteelBlue, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
-            };
             foreach (DataGridViewColumn column in grid.Columns)
             {
                 column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
