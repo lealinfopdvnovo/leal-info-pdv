@@ -1,0 +1,51 @@
+using System.Reflection;
+using System.Text.Json;
+using LealInfoPDV;
+
+internal static class Program
+{
+    [STAThread]
+    static void Main()
+    {
+        Application.SetHighDpiMode(HighDpiMode.SystemAware);
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Database.Initialize();
+        using var owner = new MainForm();
+        using var timer = new System.Windows.Forms.Timer { Interval = 700 };
+        int ticks = 0;
+        timer.Tick += (_, _) =>
+        {
+            var sales = Application.OpenForms.Cast<Form>().FirstOrDefault(x => x.Text.Contains("TELA DE VENDA"));
+            if (sales == null) return;
+            if (ticks++ == 0)
+            {
+                sales.WindowState = FormWindowState.Normal;
+                sales.Bounds = new Rectangle(0, 0, 1366, 730);
+                sales.PerformLayout();
+                return;
+            }
+            if (ticks < 4) return;
+            timer.Stop();
+            Directory.CreateDirectory("visual-qa");
+            using var bitmap = new Bitmap(sales.Width, sales.Height);
+            sales.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+            bitmap.Save("visual-qa/sales-1366.png", System.Drawing.Imaging.ImageFormat.Png);
+            var bounds = new List<object>();
+            void Inspect(Control parent)
+            {
+                foreach (Control c in parent.Controls)
+                {
+                    if (!c.Visible) continue;
+                    bounds.Add(new { type = c.GetType().Name, text = c is PictureBox ? "image" : c.Text, x = c.Left, y = c.Top, width = c.Width, height = c.Height, parentWidth = parent.ClientSize.Width, parentHeight = parent.ClientSize.Height });
+                    Inspect(c);
+                }
+            }
+            Inspect(sales);
+            File.WriteAllText("visual-qa/bounds.json", JsonSerializer.Serialize(bounds));
+            sales.Close();
+        };
+        timer.Start();
+        typeof(MainForm).GetMethod("OpenSales", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(owner, null);
+    }
+}
