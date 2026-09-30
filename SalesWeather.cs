@@ -198,7 +198,7 @@ internal sealed class SalesWeatherCard : Control
         catch (Exception ex) { if (!IsDisposed) { Reading = null; message = ex is InvalidOperationException ? ex.Message : "Tempo indisponível. Aguardando conexão."; } }
         finally { loading = false; if (!IsDisposed) Invalidate(); }
     }
-    internal static string Description(string symbol) => symbol.Contains("thunder") ? "Trovoadas" : symbol.Contains("snow") || symbol.Contains("sleet") ? "Neve / granizo" : symbol.Contains("rain") ? "Chuva" : symbol.Contains("fog") ? "Neblina" : symbol.StartsWith("clearsky") ? "Céu limpo" : symbol.StartsWith("fair") || symbol.StartsWith("partlycloudy") ? "Sol entre nuvens" : "Nublado";
+    internal static string Description(string symbol) => symbol.Contains("thunder") ? "Trovoadas" : symbol.Contains("snow") || symbol.Contains("sleet") ? "Neve / granizo" : symbol.Contains("rain") ? "Chuva" : symbol.Contains("fog") ? "Neblina" : symbol.StartsWith("clearsky") ? "Céu limpo" : symbol.StartsWith("fair") || symbol.StartsWith("partlycloudy") ? (symbol.EndsWith("_night") ? "Parcialmente nublado" : "Sol entre nuvens") : "Nublado";
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);
@@ -225,8 +225,21 @@ internal sealed class SalesWeatherCard : Control
         using var ray = new Pen(Color.FromArgb(255, 196, 40), Math.Max(1, 2 * scale));
         if (sun)
         {
-            g.FillEllipse(gold, cx - r, cy - r, r * 2, r * 2);
-            for (int i = 0; i < 8; i++) { double a = i * Math.PI / 4; g.DrawLine(ray, cx + (float)Math.Cos(a) * r * 1.25f, cy + (float)Math.Sin(a) * r * 1.25f, cx + (float)Math.Cos(a) * r * 1.65f, cy + (float)Math.Sin(a) * r * 1.65f); }
+            if (reading.Symbol.EndsWith("_night"))
+            {
+                var saved = g.Save();
+                using var cutout = new GraphicsPath();
+                cutout.AddEllipse(cx - r * .25f, cy - r * 1.35f, r * 2, r * 2);
+                g.SetClip(cutout, CombineMode.Exclude);
+                using var moon = new SolidBrush(Color.FromArgb(235, 235, 205));
+                g.FillEllipse(moon, cx - r, cy - r, r * 2, r * 2);
+                g.Restore(saved);
+            }
+            else
+            {
+                g.FillEllipse(gold, cx - r, cy - r, r * 2, r * 2);
+                for (int i = 0; i < 8; i++) { double a = i * Math.PI / 4; g.DrawLine(ray, cx + (float)Math.Cos(a) * r * 1.25f, cy + (float)Math.Sin(a) * r * 1.25f, cx + (float)Math.Cos(a) * r * 1.65f, cy + (float)Math.Sin(a) * r * 1.65f); }
+            }
         }
         if (!reading.Symbol.StartsWith("clearsky"))
         {
