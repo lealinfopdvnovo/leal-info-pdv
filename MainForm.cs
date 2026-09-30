@@ -4139,7 +4139,7 @@ private void ApplyFloatingTheme(Form f)
 
 
 
-    private List<PaymentPart>? SelectPayment(double total)
+    private List<PaymentPart>? SelectPayment(double total, int initialMethod = 0)
     {
         using var f = new Form
         {
@@ -4207,6 +4207,7 @@ private void ApplyFloatingTheme(Form f)
         tabs.TabPages.Add(tabPix);
         tabs.TabPages.Add(tabCard);
         tabs.TabPages.Add(tabMulti);
+        tabs.SelectedIndex = Math.Clamp(initialMethod, 0, 3);
 
         Button BigConfirm(string text)
         {
@@ -4699,6 +4700,7 @@ private void ApplyFloatingTheme(Form f)
             KeyPreview = true
         };
 
+        string? lastSaleReceipt = null;
         var cartItems = new List<CartItem>();
         var cartSource = new BindingSource { DataSource = cartItems };
 
@@ -6118,7 +6120,7 @@ private void ApplyFloatingTheme(Form f)
 
         close.Click += (_, _) => f.Close();
 
-        void FinalizeSale()
+        void FinalizeSale(int initialMethod = 0)
         {
             if (cartItems.Count == 0)
             {
@@ -6130,7 +6132,7 @@ private void ApplyFloatingTheme(Form f)
             var subtotal = cartItems.Sum(x => x.Total);
 
             // F4 sempre abre a janela flutuante de fechamento.
-            var payments = SelectPayment(subtotal);
+            var payments = SelectPayment(subtotal, initialMethod);
             if (payments == null || payments.Count == 0)
                 return;
 
@@ -6224,6 +6226,7 @@ private void ApplyFloatingTheme(Form f)
                 tx.Commit();
 
                 var receipt = BuildReceipt(saleId, soldAt, cartItems.ToList(), payments, subtotal);
+                lastSaleReceipt = receipt;
 
                 cartItems.Clear();
                 RefreshCart();
@@ -6294,6 +6297,268 @@ private void ApplyFloatingTheme(Form f)
         footer.Items.Add(new ToolStripStatusLabel { Spring = true, Text = "PDV Desktop • Windows 11 • V5.1" });
         footer.Items.Add(new ToolStripStatusLabel("Serial: " + Database.DeviceSerial()));
         f.Controls.Add(footer);
+
+
+        // Visual da referência: reaproveita os controles e eventos da venda.
+        // As áreas riscadas (menu lateral, atalhos do topo e mascote) não são criadas.
+        void ApplyReferenceSalesLayout()
+        {
+            f.SuspendLayout();
+            body.SuspendLayout();
+            Color navy = Color.FromArgb(3, 17, 32);
+            Color panelBlue = Color.FromArgb(5, 30, 55);
+            Color cyan = Color.FromArgb(0, 153, 245);
+
+            void Frame(Panel panel)
+            {
+                panel.BackColor = panelBlue;
+                panel.Padding = new Padding(10);
+                panel.Paint += (_, e) =>
+                {
+                    if (panel.Width < 2 || panel.Height < 2) return;
+                    using var gradient = new System.Drawing.Drawing2D.LinearGradientBrush(
+                        panel.ClientRectangle, Color.FromArgb(9, 43, 76), Color.FromArgb(2, 13, 26), 90f);
+                    e.Graphics.FillRectangle(gradient, panel.ClientRectangle);
+                    using var edge = new Pen(cyan, 1);
+                    e.Graphics.DrawRectangle(edge, 0, 0, panel.Width - 1, panel.Height - 1);
+                };
+            }
+            Button ReferenceButton(string text, Color color, Action click)
+            {
+                var button = new Button
+                {
+                    Text = text, Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat,
+                    BackColor = color, ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                    Margin = new Padding(4), Cursor = Cursors.Hand
+                };
+                button.FlatAppearance.BorderColor = Color.FromArgb(110, 185, 245);
+                Round(button, 10);
+                button.Click += (_, _) => click();
+                return button;
+            }
+            TableLayoutPanel Rows(params float[] heights)
+            {
+                var layout = new TableLayoutPanel
+                {
+                    Dock = DockStyle.Fill, ColumnCount = 1, RowCount = heights.Length,
+                    Margin = Padding.Empty, BackColor = Color.Transparent
+                };
+                foreach (float height in heights)
+                    layout.RowStyles.Add(new RowStyle(height < 0 ? SizeType.Percent : SizeType.Absolute, Math.Abs(height)));
+                layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                return layout;
+            }
+
+            f.Text = "LEAL INFO CONECTADO • TELA DE VENDA";
+            f.BackColor = navy;
+            body.Padding = new Padding(10);
+            body.BackColor = navy;
+            body.ColumnStyles.Clear();
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22));
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 53));
+            body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+            Frame(photoShowcase); Frame(left); Frame(right); Frame(header);
+            photoShowcase.Margin = new Padding(0, 0, 8, 0);
+            left.Margin = new Padding(0, 0, 8, 0);
+            right.Margin = Padding.Empty;
+            brandPanel.BackColor = navy;
+            productPicture.BackColor = navy;
+            photoProductName.BackColor = navy;
+            photoTitle.Text = "LEAL INFO CONECTADO";
+            photoTitle.Font = new Font("Segoe UI", 12, FontStyle.Bold);
+            photoLayout.RowStyles[0].Height = 36;
+            photoLayout.RowStyles[2].Height = 68;
+
+            // Cabeçalho com marca, status ao centro, relógio e somente Sair.
+            header.Controls.Clear();
+            header.Height = 108;
+            var headerGrid = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1,
+                BackColor = Color.Transparent
+            };
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 28));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 10));
+            var logo = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
+            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "logo.png");
+            if (File.Exists(logoPath))
+            {
+                using var source = Image.FromFile(logoPath);
+                logo.Image = new Bitmap(source);
+                f.FormClosed += (_, _) => logo.Image?.Dispose();
+            }
+            var headerCenter = Rows(-100, 24);
+            statusFrame.Margin = new Padding(6, 0, 6, 0);
+            statusBox.Font = new Font("Segoe UI", 22, FontStyle.Bold);
+            headerInfo.Dock = DockStyle.Fill;
+            headerInfo.AutoSize = false;
+            headerInfo.Anchor = AnchorStyles.None;
+            headerInfo.TextAlign = ContentAlignment.MiddleCenter;
+            headerInfo.Font = new Font("Segoe UI", 10);
+            void UpdateClock() => headerInfo.Text = DateTime.Now.ToString("dddd, dd 'de' MMMM 'de' yyyy • HH:mm:ss", CultureInfo.GetCultureInfo("pt-BR"));
+            UpdateClock();
+            var clock = new System.Windows.Forms.Timer { Interval = 1000 };
+            clock.Tick += (_, _) => UpdateClock();
+            clock.Start();
+            f.FormClosed += (_, _) => clock.Dispose();
+            headerCenter.Controls.Add(statusFrame, 0, 0);
+            headerCenter.Controls.Add(headerInfo, 0, 1);
+            headerGrid.Controls.Add(logo, 0, 0);
+            headerGrid.Controls.Add(headerCenter, 1, 0);
+            close.Text = "SAIR";
+            headerGrid.Controls.Add(close, 2, 0);
+            header.Controls.Add(headerGrid);
+
+            // Busca e lançamento em linhas horizontais acima dos itens.
+            left.Controls.Clear();
+            var center = Rows(60, 56, 48, -100, 32);
+            left.Controls.Add(center);
+            var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 58));
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));
+            searchLabel.Text = "F5";
+            searchLabel.TextAlign = ContentAlignment.MiddleCenter;
+            searchLabel.BackColor = Color.FromArgb(0, 110, 235);
+            search.PlaceholderText = "Digite o código, nome ou código de barras...";
+            search.Font = new Font("Segoe UI", 12);
+            search.BackColor = Color.FromArgb(231, 243, 255);
+            searchRow.Controls.Add(searchLabel, 0, 0);
+            searchRow.Controls.Add(search, 1, 0);
+            searchRow.Controls.Add(ReferenceButton("⌕", panelBlue, OpenCatalogF5), 2, 0);
+            center.Controls.Add(searchRow, 0, 0);
+            var entryRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1 };
+            foreach (var field in new (string Title, Control Input)[] { ("Qtd.", qty), ("Preço", unit), ("Subtotal", itemTotal) })
+            {
+                int column = entryRow.ColumnStyles.Count;
+                entryRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.333f));
+                var cell = Rows(20, -100);
+                var caption = SaleLabel(field.Title);
+                caption.TextAlign = ContentAlignment.MiddleLeft;
+                cell.Controls.Add(caption, 0, 0);
+                field.Input.BackColor = navy;
+                field.Input.ForeColor = Color.White;
+                field.Input.Font = new Font("Segoe UI", 11);
+                cell.Controls.Add(field.Input, 0, 1);
+                entryRow.Controls.Add(cell, column, 0);
+            }
+            center.Controls.Add(entryRow, 0, 1);
+            var entryActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1 };
+            for (int i = 0; i < 4; i++) entryActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25));
+            add.Text = "+ Adicionar";
+            remove.Text = "F7 Remover item";
+            clear.Text = "Limpar";
+            entryActions.Controls.Add(add, 0, 0);
+            entryActions.Controls.Add(ReferenceButton("Atualizar", panelBlue, RefreshCart), 1, 0);
+            entryActions.Controls.Add(remove, 2, 0);
+            entryActions.Controls.Add(clear, 3, 0);
+            center.Controls.Add(entryActions, 0, 2);
+            grid.BackgroundColor = navy;
+            grid.DefaultCellStyle.BackColor = navy;
+            grid.DefaultCellStyle.ForeColor = Color.White;
+            grid.AlternatingRowsDefaultCellStyle.BackColor = panelBlue;
+            grid.ColumnHeadersDefaultCellStyle.BackColor = panelBlue;
+            grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.White;
+            grid.GridColor = Color.FromArgb(20, 55, 80);
+            grid.ColumnHeadersHeight = 38;
+            grid.Paint += (_, e) =>
+            {
+                if (cartItems.Count != 0) return;
+                TextRenderer.DrawText(e.Graphics, "Nenhum item adicionado.\nUse F5 para buscar um produto.",
+                    grid.Font, new Rectangle(0, grid.ColumnHeadersHeight, grid.Width, Math.Max(0, grid.Height - grid.ColumnHeadersHeight)),
+                    Color.LightSteelBlue, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
+            };
+            foreach (DataGridViewColumn column in grid.Columns)
+            {
+                column.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+                column.FillWeight = column.DataPropertyName == nameof(CartItem.Description) ? 210 : 90;
+                column.MinimumWidth = 45;
+            }
+            center.Controls.Add(grid, 0, 3);
+            clientLabel.BackColor = panelBlue;
+            clientLabel.ForeColor = Color.White;
+            center.Controls.Add(clientLabel, 0, 4);
+
+            // Resumo, pagamentos e ações reutilizam o fechamento existente.
+            right.Controls.Clear();
+            var side = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+            side.RowStyles.Add(new RowStyle(SizeType.Percent, 32));
+            side.RowStyles.Add(new RowStyle(SizeType.Percent, 35));
+            side.RowStyles.Add(new RowStyle(SizeType.Percent, 33));
+            right.Controls.Add(side);
+            var summary = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 5 };
+            summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 46));
+            summary.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 54));
+            Label SummaryValue(Color color) => new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleRight, ForeColor = color, Font = new Font("Segoe UI", 12, FontStyle.Bold) };
+            var countValue = SummaryValue(Color.White);
+            var baseValue = SummaryValue(Color.White);
+            var discountValue = SummaryValue(Color.LimeGreen); discountValue.Text = Money(0);
+            var surchargeValue = SummaryValue(Color.Gold); surchargeValue.Text = Money(0);
+            var summaryValues = new Control[] { countValue, baseValue, discountValue, surchargeValue, subtotalValue };
+            var summaryNames = new[] { "Itens:", "Subtotal:", "Desconto:", "Acréscimo:", "Total:" };
+            subtotalValue.ForeColor = Color.FromArgb(100, 245, 130);
+            subtotalValue.Font = new Font("Segoe UI", 22, FontStyle.Bold);
+            for (int i = 0; i < 5; i++)
+            {
+                summary.RowStyles.Add(new RowStyle(SizeType.Percent, i == 4 ? 28 : 18));
+                var label = SaleLabel(summaryNames[i]); label.TextAlign = ContentAlignment.MiddleLeft;
+                summary.Controls.Add(label, 0, i);
+                summary.Controls.Add(summaryValues[i], 1, i);
+            }
+            void RefreshSummary()
+            {
+                countValue.Text = cartItems.Sum(item => item.Qty).ToString("N3", CultureInfo.GetCultureInfo("pt-BR"));
+                baseValue.Text = Money(cartItems.Sum(item => item.Total));
+            }
+            cartSource.ListChanged += (_, _) => RefreshSummary();
+            RefreshSummary();
+            side.Controls.Add(summary, 0, 0);
+            var methods = Rows(28, -100);
+            var methodCaption = SaleLabel("Forma de Pagamento"); methodCaption.TextAlign = ContentAlignment.MiddleLeft;
+            methods.Controls.Add(methodCaption, 0, 0);
+            var methodGrid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
+            for (int i = 0; i < 2; i++)
+            {
+                methodGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+                methodGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+            }
+            var methodColors = new[] { Color.FromArgb(0, 175, 45), Color.FromArgb(0, 100, 245), Color.FromArgb(75, 91, 120), Color.FromArgb(100, 30, 210) };
+            for (int i = 0; i < payment.Items.Count; i++)
+            {
+                int method = i;
+                methodGrid.Controls.Add(ReferenceButton(payment.Items[i]?.ToString() ?? "", methodColors[i], () => FinalizeSale(method)), i % 2, i / 2);
+            }
+            methods.Controls.Add(methodGrid, 0, 1);
+            side.Controls.Add(methods, 0, 1);
+            var saleActions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
+            saleActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            saleActions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+            saleActions.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
+            saleActions.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
+            finish.Text = "F4\nFinalizar Venda";
+            saleActions.Controls.Add(finish, 0, 0); saleActions.SetColumnSpan(finish, 2);
+            saleActions.Controls.Add(ReferenceButton("Cancelar Venda", panelBlue, () =>
+            {
+                if (cartItems.Count > 0 && MessageBox.Show(f, "Cancelar esta venda e remover todos os itens?", "Cancelar Venda", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                cartItems.Clear(); RefreshCart(); ClearEntry();
+            }), 0, 1);
+            saleActions.Controls.Add(ReferenceButton("Imprimir\nComprovante", panelBlue, () =>
+            {
+                if (lastSaleReceipt == null) { Info("Finalize uma venda para imprimir o comprovante."); return; }
+                PrintReceipt(lastSaleReceipt);
+            }), 1, 1);
+            side.Controls.Add(saleActions, 0, 2);
+            footer.BackColor = panelBlue;
+            footer.Items.Clear();
+            footer.Items.Add(new ToolStripStatusLabel("Pressione F4 para finalizar a venda • F10 Venda avulsa"));
+            footer.Items.Add(new ToolStripStatusLabel { Spring = true });
+            footer.Items.Add(new ToolStripStatusLabel($"LEAL INFO PDV PRO • {Auth.OperatorName}"));
+            body.ResumeLayout(true);
+            f.ResumeLayout(true);
+        }
+        ApplyReferenceSalesLayout();
 
         f.Shown += (_, _) => search.Focus();
         f.ShowDialog(this);
