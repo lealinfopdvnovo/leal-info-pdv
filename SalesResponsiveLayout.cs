@@ -43,9 +43,6 @@ internal sealed class SalesResponsiveLayout : IDisposable
     private void Changed(object? sender, EventArgs e) => Apply();
     private void DpiChanged(object? sender, DpiChangedEventArgs e)
     {
-        // Maximized windows must stay inside the current monitor's working area.
-        if (form.WindowState == FormWindowState.Maximized)
-            form.MaximizedBounds = Screen.FromHandle(form.Handle).WorkingArea;
         Apply();
     }
     private void Closed(object? sender, FormClosedEventArgs e) => Dispose();
