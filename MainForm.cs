@@ -4402,17 +4402,17 @@ private void ApplyFloatingTheme(Form f)
             if (Math.Abs(diff) <= 0.01)
             {
                 multiStatus.Text = "VALORES CONFEREM • " + Money(sum);
-                multiStatus.ForeColor = Color.FromArgb(0, 130, 78);
+                multiStatus.ForeColor = f.ForeColor == Color.White ? Color.FromArgb(85, 235, 145) : Color.FromArgb(0, 130, 78);
             }
             else if (diff > 0)
             {
                 multiStatus.Text = "FALTA: " + Money(diff);
-                multiStatus.ForeColor = Color.FromArgb(190, 45, 45);
+                multiStatus.ForeColor = f.ForeColor == Color.White ? Color.FromArgb(255, 135, 135) : Color.FromArgb(190, 45, 45);
             }
             else
             {
                 multiStatus.Text = "EXCEDE: " + Money(Math.Abs(diff));
-                multiStatus.ForeColor = Color.FromArgb(190, 45, 45);
+                multiStatus.ForeColor = f.ForeColor == Color.White ? Color.FromArgb(255, 135, 135) : Color.FromArgb(190, 45, 45);
             }
         }
 

@@ -31,8 +31,12 @@ internal static class SalesDialogTheme
                         grid.AlternatingRowsDefaultCellStyle.ForeColor = palette.Foreground;
                         grid.ColumnHeadersDefaultCellStyle.BackColor = palette.Panel;
                         grid.ColumnHeadersDefaultCellStyle.ForeColor = palette.Foreground;
+                        grid.ColumnHeadersDefaultCellStyle.SelectionBackColor = palette.Accent;
+                        grid.ColumnHeadersDefaultCellStyle.SelectionForeColor = Color.White;
                         grid.RowHeadersDefaultCellStyle.BackColor = palette.Panel;
                         grid.RowHeadersDefaultCellStyle.ForeColor = palette.Foreground;
+                        grid.RowHeadersDefaultCellStyle.SelectionBackColor = palette.Accent;
+                        grid.RowHeadersDefaultCellStyle.SelectionForeColor = Color.White;
                         grid.DefaultCellStyle.SelectionBackColor = palette.Accent;
                         grid.DefaultCellStyle.SelectionForeColor = Color.White;
                         grid.GridColor = ControlPaint.Light(palette.Panel);
