@@ -21,11 +21,13 @@ internal static class Program
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         Directory.CreateDirectory("visual-qa");
         AppDomain.CurrentDomain.UnhandledException += (_, e) => File.WriteAllText("visual-qa/error.txt", e.ExceptionObject.ToString());
+        WeatherChecks.RunAsync().GetAwaiter().GetResult();
+        SalesWeatherCard.ServiceFactory = () => WeatherChecks.FixtureService();
         Database.Initialize();
         using (var cn = Database.Open())
         using (var cmd = cn.CreateCommand())
         {
-            cmd.CommandText = "INSERT INTO products(barcode,name,price,stock,active) VALUES('QA-THEME','Produto QA',10,100,1); INSERT OR REPLACE INTO settings(key,value) VALUES('pix_key','qa@example.com'),('pix_key_type','EMAIL'),('pix_mp_enabled','0');";
+            cmd.CommandText = "INSERT INTO products(barcode,name,price,stock,active) VALUES('QA-THEME','Produto QA',10,100,1); INSERT OR REPLACE INTO settings(key,value) VALUES('pix_key','qa@example.com'),('pix_key_type','EMAIL'),('pix_mp_enabled','0'),('company_city_state','Angra dos Reis/RJ');";
             cmd.ExecuteNonQuery();
         }
         using var owner = new MainForm();
@@ -44,6 +46,9 @@ internal static class Program
         void Verify(Form sales, string theme)
         {
             var palette = SalesPalette.For(theme);
+            var weather = Children(sales).OfType<SalesWeatherCard>().Single();
+            if (weather.Palette != palette) throw new Exception("Tema do tempo divergente");
+            if (weather.Reading?.Location.City != "Angra dos Reis") throw new Exception("Cidade do painel divergente");
             var controls = Children(sales).ToArray();
             var grid = controls.OfType<SalesItemsGrid>().Single();
             var status = controls.OfType<SalesGlowLabel>().Single();
@@ -172,5 +177,78 @@ internal static class Program
         reopening = true; stage = 0;
         open.Invoke(owner, null);
         if (checks.Count != 43) throw new Exception("Verificacoes incompletas");
+    }
+}
+
+internal static class WeatherChecks
+{
+    internal sealed class Handler : System.Net.Http.HttpMessageHandler
+    {
+        internal int GeoCount, ForecastCount;
+        internal bool Fail, WrongState, Conditional;
+        protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            if (Fail) throw new System.Net.Http.HttpRequestException("offline");
+            string json;
+            if (request.RequestUri!.Host.Contains("nominatim"))
+            {
+                GeoCount++;
+                bool curitiba = request.RequestUri.ToString().Contains("Curitiba");
+                json = System.Text.Json.JsonSerializer.Serialize(new[] { new { lat = curitiba ? "-25.4284" : "-23.0067", lon = curitiba ? "-49.2733" : "-44.3181", address = new System.Collections.Generic.Dictionary<string,string> { ["city"] = curitiba ? "Curitiba" : "Angra dos Reis", ["ISO3166-2-lvl4"] = WrongState ? "BR-SP" : curitiba ? "BR-PR" : "BR-RJ" } } });
+            }
+            else
+            {
+                ForecastCount++; Conditional |= request.Headers.IfModifiedSince != null;
+                var now = DateTimeOffset.UtcNow;
+                json = System.Text.Json.JsonSerializer.Serialize(new { properties = new { meta = new { updated_at = now.ToString("O") }, timeseries = new[] { new { time = now.ToString("O"), data = new { instant = new { details = new { air_temperature = request.RequestUri.Query.Contains("-25.4284") ? 16.0 : 27.0, relative_humidity = 75.0, wind_speed = 2.5 } }, next_1_hours = new { summary = new { symbol_code = "partlycloudy_day" } } } } } } });
+            }
+            var result = new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new System.Net.Http.StringContent(json) };
+            result.Content.Headers.Expires = DateTimeOffset.UtcNow.AddMinutes(15);
+            result.Content.Headers.LastModified = DateTimeOffset.UtcNow.AddMinutes(-10);
+            return Task.FromResult(result);
+        }
+    }
+    internal static SalesWeatherService FixtureService() => new(new System.Net.Http.HttpClient(new Handler()), Path.Combine(Path.GetTempPath(), "weather-ui-" + Guid.NewGuid()));
+    internal static async Task RunAsync()
+    {
+        var checks = new List<string>();
+        var handler = new Handler();
+        using var client = new System.Net.Http.HttpClient(handler);
+        string folder = Path.Combine(Path.GetTempPath(), "weather-checks-" + Guid.NewGuid());
+        var now = DateTimeOffset.UtcNow;
+        var service = new SalesWeatherService(client, folder, () => now);
+        var angra = await service.GetAsync("Angra dos Reis/RJ", CancellationToken.None);
+        var curitiba = await service.GetAsync("Curitiba - PR", CancellationToken.None);
+        if (angra.Location.State != "RJ" || curitiba.Location.State != "PR" || angra.Temperature != 27 || curitiba.Temperature != 16 || angra.Wind != 9) throw new Exception("Cidade/UF ou unidades divergentes");
+        checks.Add("Cidade/UF: Angra e Curitiba sem mistura de dados OK");
+        await service.GetAsync("Angra dos Reis/RJ", CancellationToken.None);
+        if (handler.GeoCount != 2 || handler.ForecastCount != 2) throw new Exception("Cache nao respeitado");
+        checks.Add("Cache local e prazo de atualizacao OK");
+        now = now.AddMinutes(16); handler.Fail = true;
+        var offline = await service.GetAsync("Angra dos Reis/RJ", CancellationToken.None);
+        if (!offline.Offline || offline.CheckedAt != angra.CheckedAt || offline.Location.State != "RJ") throw new Exception("Dados offline incorretos");
+        handler.Fail = false;
+        var recovered = await service.GetAsync("Angra dos Reis/RJ", CancellationToken.None);
+        if (recovered.Offline || !handler.Conditional || handler.GeoCount != 2) throw new Exception("Reconexao/cache de coordenadas falhou");
+        checks.Add("Offline identificado e reconexao com revalidacao HTTP OK");
+        bool rejected = false;
+        try { SalesWeatherService.ParseCity(""); } catch (InvalidOperationException) { rejected = true; }
+        if (!rejected) throw new Exception("Cidade ausente nao rejeitada");
+        handler.WrongState = true;
+        try { await new SalesWeatherService(client, folder + "-wrong").GetAsync("Angra dos Reis/RJ", CancellationToken.None); throw new Exception("UF incorreta aceita"); } catch (InvalidOperationException) { }
+        now = now.AddDays(12); handler.Fail = true;
+        try { await service.GetAsync("Angra dos Reis/RJ", CancellationToken.None); throw new Exception("Previsao vencida aceita"); } catch (InvalidOperationException) { }
+        checks.Add("Cidade ausente, UF incorreta e previsao vencida rejeitadas OK");
+        using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
+        try { await service.GetAsync("Curitiba/PR", cancelled.Token); throw new Exception("Cancelamento ignorado"); } catch (OperationCanceledException) { }
+        checks.Add("Cancelamento ao fechar OK");
+        var live = new SalesWeatherService(cacheFolder: folder + "-live");
+        foreach (string city in new[] { "Angra dos Reis/RJ", "Curitiba/PR" })
+        {
+            var reading = await live.GetAsync(city, CancellationToken.None);
+            checks.Add($"Online real: {reading.Location.City}/{reading.Location.State} {reading.Temperature:0}C, previsao {reading.ForecastAt:O} OK");
+        }
+        File.WriteAllText("visual-qa/weather-checks.json", System.Text.Json.JsonSerializer.Serialize(checks));
     }
 }
