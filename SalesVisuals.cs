@@ -69,6 +69,7 @@ internal sealed class SalesGlowLabel : Label
 
 internal sealed class SalesVisualButton : Button
 {
+    internal float LayoutScale { get; set; } = 1f;
     private bool hovered;
     private bool pressed;
     internal SalesVisualButton()
@@ -102,7 +103,9 @@ internal sealed class SalesVisualButton : Button
         string label = Text;
         bool method = label is "Dinheiro" or "PIX" or "Cartão" or "Múltiplo";
         var textRect = Rectangle.Inflate(ClientRectangle, -7, -5);
-        using var textFont = new Font("Segoe UI", method ? Math.Clamp(Height / 6f, 11, 16) : label.Contains("Finalizar") ? Math.Clamp(Width * .74f / 10f, 12, 20) : label.Contains("Remover") ? 10 : label.Contains("Cancelar") || label.Contains("Comprovante") ? Math.Clamp(Width / 12f, 8.5f, 11) : Font.Size, FontStyle.Bold);
+        float scale = LayoutScale;
+        Font PixelFont(float points) => new("Segoe UI", Math.Max(12, points * scale * 96f / 72f), FontStyle.Bold, GraphicsUnit.Pixel);
+        using var textFont = PixelFont(method ? Math.Clamp(Height / scale / 6f, 11, 16) : label.Contains("Finalizar") ? Math.Clamp(Width / scale * .74f / 10f, 12, 20) : label.Contains("Remover") ? 10 : label.Contains("Cancelar") || label.Contains("Comprovante") ? Math.Clamp(Width / scale / 12f, 8.5f, 11) : Font.SizeInPoints / scale);
         if (method)
         {
             float size = Math.Clamp(Height * .33f, 20, 35);
@@ -113,17 +116,17 @@ internal sealed class SalesVisualButton : Button
         {
             DrawIcon(g, "check", new RectangleF(Width * .08f, Height * .34f, Height * .3f, Height * .3f));
             textRect.X = (int)(Width * .24f); textRect.Width = Width - textRect.X - 10;
-            using var shortcutFont = new Font("Segoe UI", Math.Clamp(Height / 5f, 13, 22), FontStyle.Bold);
-            using var titleFont = new Font("Segoe UI", Math.Clamp(textRect.Width / 12f, 10, 18), FontStyle.Bold);
+            using var shortcutFont = PixelFont(Math.Clamp(Height / scale / 5f, 13, 22));
+            using var titleFont = PixelFont(Math.Clamp(textRect.Width / scale / 12f, 10, 18));
             TextRenderer.DrawText(g, "F4", shortcutFont, new Rectangle(textRect.X, 7, textRect.Width, (int)(Height * .42f)), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
             TextRenderer.DrawText(g, "Finalizar Venda", titleFont, new Rectangle(textRect.X, (int)(Height * .42f), textRect.Width, (int)(Height * .48f)), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.NoPadding);
             return;
         }
         else if (label.Contains("Comprovante") || label.Contains("Cancelar") || label == "SAIR")
         {
-            float size = Math.Clamp(Height * .32f, 18, 28);
-            DrawIcon(g, label.Contains("Comprovante") ? "print" : label == "SAIR" ? "exit" : "cancel", new RectangleF((Width - size) / 2, Height * .13f, size, size));
-            textRect.Y = (int)(Height * .5f); textRect.Height = Height - textRect.Y - 5;
+            float size = Math.Clamp(Height * .25f, 12, 28 * scale);
+            DrawIcon(g, label.Contains("Comprovante") ? "print" : label == "SAIR" ? "exit" : "cancel", new RectangleF((Width - size) / 2, Height * .08f, size, size));
+            textRect.Y = (int)(Height * .40f); textRect.Height = Height - textRect.Y - 5;
         }
         TextRenderer.DrawText(g, label, textFont, textRect, Enabled ? (BackColor.GetBrightness() > .65f ? Color.FromArgb(35, 58, 72) : Color.White) : Color.Silver,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
@@ -172,7 +175,7 @@ internal sealed class SalesItemsGrid : DataGridView
         if (RowCount != 0) return;
         if (ThemeTexture != null)
             e.Graphics.DrawImage(ThemeTexture, new Rectangle(0, ColumnHeadersHeight, Width, Math.Max(1, Height - ColumnHeadersHeight)));
-        using var font = new Font("Segoe UI", 12, FontStyle.Regular);
+        using var font = new Font(Font.FontFamily, Font.Size, FontStyle.Regular, Font.Unit);
         using var brush = new SolidBrush(ForeColor);
         using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         e.Graphics.DrawString("Nenhum item adicionado.\nUse F5 para buscar um produto.", font, brush,
