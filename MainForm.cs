@@ -6402,6 +6402,7 @@ private void ApplyFloatingTheme(Form f)
             brandPanel.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, brandPanel.ClientRectangle, palette: referencePalette, texture: referenceTexture);
             var weatherCard = new SalesWeatherCard(() => GetSetting("company_city_state")) { Palette = referencePalette };
             photoLayout.Controls.Add(weatherCard, 0, 3);
+            f.FormClosed += (_, _) => weatherCard.Dispose();
 
             // Cabeçalho com marca, status ao centro, relógio e somente Sair.
             header.Controls.Clear();
