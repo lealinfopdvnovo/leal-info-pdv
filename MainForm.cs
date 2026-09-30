@@ -4716,7 +4716,6 @@ private void ApplyFloatingTheme(Form f)
 
         var referencePalette = SalesPalette.For(GetSetting("sales_theme", "Futurista Azul"));
         Image? referenceTexture = null;
-        f.FormClosed += (_, _) => referenceTexture?.Dispose();
         Action<string>? synchronizeReferenceTheme = null;
         string? lastSaleReceipt = null;
         var cartItems = new List<CartItem>();
@@ -6331,6 +6330,13 @@ private void ApplyFloatingTheme(Form f)
         // As áreas riscadas (menu lateral, atalhos do topo e mascote) não são criadas.
         void ApplyReferenceSalesLayout()
         {
+            f.FormClosed += (_, _) =>
+            {
+                grid.ThemeTexture = null;
+                var texture = referenceTexture;
+                referenceTexture = null;
+                texture?.Dispose();
+            };
             f.SuspendLayout();
             body.SuspendLayout();
             Color navy = Color.FromArgb(3, 17, 32);

@@ -32,6 +32,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar captura" }
           $process = Start-Process ./visual-build/LealInfoPDV.exe -PassThru
           if (-not $process.WaitForExit(120000)) { $process.Kill(); throw "Captura nao encerrou" }
+          if ($process.ExitCode -ne 0) { throw "Captura encerrou com erro" }
+          if (Test-Path visual-qa/error.txt) { throw (Get-Content visual-qa/error.txt -Raw) }
+          if (-not (Test-Path visual-qa/sales-reopened.png)) { throw "Verificacao de reabertura ausente" }
           if (-not (Test-Path visual-qa/sales-1366.png)) { throw "Captura ausente" }
       - uses: actions/upload-artifact@v4
         if: always()
