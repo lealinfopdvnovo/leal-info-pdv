@@ -5780,7 +5780,24 @@ private void ApplyFloatingTheme(Form f)
             };
 
             var title = new Label { Text = "VENDA AVULSA", Dock = DockStyle.Top, Height = 62, BackColor = DarkBlue, ForeColor = Color.White, Font = new Font("Segoe UI", 18, FontStyle.Bold), TextAlign = ContentAlignment.MiddleCenter };
-            var description = new TextBox { Left = 34, Top = 105, Width = 475, Height = 36, Font = new Font("Segoe UI", 13), PlaceholderText = "Descrição do serviço" };
+            var description = new TextBox { Left = 34, Top = 105, Width = 425, Height = 36, Font = new Font("Segoe UI", 13), Text = "VENDA AVULSA", ReadOnly = true, TabStop = false, PlaceholderText = "Digite a descrição" };
+            var editDescription = new SalesVisualButton
+            {
+                Text = "+", Left = 469, Top = 102, Width = 40, Height = 40,
+                Font = new Font("Segoe UI", 18, FontStyle.Bold), FlatStyle = FlatStyle.Flat,
+                BackColor = referencePalette.Accent, ForeColor = Color.White,
+                Cursor = Cursors.Hand, AccessibleName = "Escrever descrição personalizada"
+            };
+            editDescription.FlatAppearance.BorderSize = 0;
+            Round(editDescription, 10);
+            editDescription.Click += (_, _) =>
+            {
+                if (description.ReadOnly) description.Clear();
+                description.ReadOnly = false;
+                description.TabStop = true;
+                description.Focus();
+                description.SelectAll();
+            };
             var value = new TextBox { Left = 34, Top = 185, Width = 475, Height = 40, Text = "0,00", Font = new Font("Segoe UI", 16, FontStyle.Bold), TextAlign = HorizontalAlignment.Right };
             value.Enter += (_, _) => value.SelectAll();
             value.KeyPress += (_, e) =>
@@ -5798,9 +5815,9 @@ private void ApplyFloatingTheme(Form f)
             };
             var addLoose = new Button { Text = "ADICIONAR À VENDA", Left = 274, Top = 248, Width = 235, Height = 48, BackColor = Color.FromArgb(0, 163, 224), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 11, FontStyle.Bold), DialogResult = DialogResult.OK };
             var cancelLoose = new Button { Text = "CANCELAR", Left = 34, Top = 248, Width = 220, Height = 48, BackColor = Color.FromArgb(55, 88, 115), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 11, FontStyle.Bold), DialogResult = DialogResult.Cancel };
-            vf.Controls.AddRange(new Control[] { title, new Label { Text = "DESCRIÇÃO DO SERVIÇO", Left = 34, Top = 82, Width = 300, ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, description, new Label { Text = "VALOR", Left = 34, Top = 162, Width = 150, ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, value, cancelLoose, addLoose });
+            vf.Controls.AddRange(new Control[] { title, new Label { Text = "DESCRIÇÃO DO SERVIÇO", Left = 34, Top = 82, Width = 300, ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, description, editDescription, new Label { Text = "VALOR", Left = 34, Top = 162, Width = 150, ForeColor = DarkBlue, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, value, cancelLoose, addLoose });
             vf.AcceptButton = addLoose; vf.CancelButton = cancelLoose; ApplyFloatingTheme(vf);
-            vf.Shown += (_, _) => description.Focus();
+            vf.Shown += (_, _) => { value.Focus(); value.SelectAll(); };
 
             if (vf.ShowDialog(f) != DialogResult.OK) return;
             var desc = description.Text.Trim();
