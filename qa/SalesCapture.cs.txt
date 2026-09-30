@@ -141,10 +141,25 @@ internal static class Program
             {
                 var loose = Dialog("Venda Avulsa - F10"); VerifyDialog(loose, "F10-avulsa");
                 var inputs = Children(loose).OfType<TextBox>().OrderBy(box => box.Top).ToArray();
-                inputs[0].Text = "Servico QA"; inputs[1].Text = "1000";
+                if (inputs[0].Text != "VENDA AVULSA" || !inputs[0].ReadOnly) throw new Exception("Descricao padrao incorreta");
+                if (themeIndex % 2 == 1)
+                {
+                    Children(loose).OfType<Button>().Single(button => button.Text == "+").PerformClick();
+                    if (inputs[0].ReadOnly || inputs[0].Text != "") throw new Exception("Botao + nao liberou a descricao");
+                    inputs[0].Text = "Servico QA";
+                    Capture(loose, "F10-personalizada-" + themeIndex);
+                }
+                inputs[1].Text = "1000";
+                if (inputs[1].Text != "10,00") throw new Exception("Valor da venda avulsa alterado");
                 stage = 8; Children(loose).OfType<Button>().Single(button => button.Text == "ADICIONAR À VENDA").PerformClick(); return;
             }
-            if (stage == 8) { stage = 9; SendKey(sales, Keys.F4); return; }
+            if (stage == 8)
+            {
+                var grid = Children(sales).OfType<SalesItemsGrid>().Single();
+                string expected = themeIndex % 2 == 0 ? "VENDA AVULSA" : "Servico QA";
+                if (grid.Rows[0].Cells[1].Value?.ToString() != expected) throw new Exception("Descricao incorreta no carrinho");
+                stage = 9; SendKey(sales, Keys.F4); return;
+            }
             if (stage == 9)
             {
                 var payment = Dialog("Finalizar Venda"); VerifyDialog(payment, "F4-pagamento");
