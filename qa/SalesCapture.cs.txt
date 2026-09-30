@@ -24,7 +24,7 @@ internal static class Program
         Database.Initialize();
         using var owner = new MainForm();
         using var timer = new System.Windows.Forms.Timer { Interval = 600 };
-        var themes = new[] { "Futurista Azul", "Clean Pro", "Dark Premium", "Blue Red Racing", "Azul Texturizado", "PDV Rosa" };
+        var themes = new[] { "Azul Texturizado", "Futurista Azul", "Clean Pro", "Dark Premium", "Blue Red Racing", "PDV Rosa" };
         int themeIndex = 0;
         int stage = 0;
         bool reopening = false;
