@@ -43,6 +43,12 @@ public sealed class PdvTransaction : IDisposable
         if (Local != null) Local.Commit(); else connection.Send(new() { Operation = "commit" });
         ended = true;
     }
+    public void Rollback()
+    {
+        if (ended) return;
+        if (Local != null) Local.Rollback(); else connection.Send(new() { Operation = "rollback" });
+        ended = true;
+    }
     public void Dispose()
     {
         if (Local != null) Local.Dispose();

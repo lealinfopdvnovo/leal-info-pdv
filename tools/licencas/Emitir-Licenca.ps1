@@ -19,12 +19,22 @@ if ($Modalidade -eq 'mensal') {
 $terms = [ordered]@{ ServerSerial=$Servidor;ComputerLimit=$Computadores;BillingMode=$Modalidade;ExpiresUtc=$expires;
     SellerContact=$Contato;Revision=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();LicenseId=[Guid]::NewGuid().ToString() }
 $payload = [Text.Encoding]::UTF8.GetBytes(($terms | ConvertTo-Json -Compress))
-$rsa = [Security.Cryptography.RSA]::Create()
-try {
-    $rsa.ImportFromPem((Get-Content -LiteralPath $Chave -Raw))
-    $signature = $rsa.SignData($payload,[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pss)
-    $signed = @{ Payload=[Convert]::ToBase64String($payload);Signature=[Convert]::ToBase64String($signature) } | ConvertTo-Json
-    Set-Content -LiteralPath $Saida -Value $signed -Encoding utf8NoBOM
-    Write-Host "Licenca criada: $Saida"
-    Write-Host "Computadores totais (incluindo servidor): $Computadores | Modalidade: $Modalidade"
-} finally { $rsa.Dispose() }
+# A ponte em C# evita limitações de binding de ReadOnlySpan<char> em versões do PowerShell.
+if (-not ('LealLicenseSigner' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System.Security.Cryptography;
+public static class LealLicenseSigner {
+    public static byte[] Sign(string pem, byte[] payload) {
+        using (RSA rsa = RSA.Create()) {
+            rsa.ImportFromPem(pem);
+            return rsa.SignData(payload, HashAlgorithmName.SHA256, RSASignaturePadding.Pss);
+        }
+    }
+}
+'@
+}
+$signature = [LealLicenseSigner]::Sign((Get-Content -LiteralPath $Chave -Raw),$payload)
+$signed = @{ Payload=[Convert]::ToBase64String($payload);Signature=[Convert]::ToBase64String($signature) } | ConvertTo-Json
+Set-Content -LiteralPath $Saida -Value $signed -Encoding utf8NoBOM
+Write-Host "Licenca criada: $Saida"
+Write-Host "Computadores totais (incluindo servidor): $Computadores | Modalidade: $Modalidade"

@@ -48,6 +48,16 @@ try
     var state = ProtectedFile.Read<LicenseState>(path); state.LastSeenUtc = DateTimeOffset.UtcNow.AddDays(31); ProtectedFile.Write(path, state);
     var expired = new NetworkLicense(path, "SERVIDOR", publicKey); Reject(expired.CheckAccess, "mensal está vencida");
     expired.Import(Signed(seller, new("SERVIDOR", 3, "mensal", DateTimeOffset.UtcNow.AddDays(60), "VENDEDOR", 3, "renovada"))); expired.CheckAccess();
+    // Testar o emissor PowerShell entregue ao vendedor, sem a chave real.
+    var keyPath = Path.Combine(folder, "seller.pem"); File.WriteAllText(keyPath, seller.ExportPkcs8PrivateKeyPem());
+    var licencePath = Path.Combine(folder, "seller.leallicenca");
+    var processInfo = new System.Diagnostics.ProcessStartInfo("pwsh") { UseShellExecute=false, RedirectStandardOutput=true, RedirectStandardError=true };
+    foreach (var argument in new[] { "-NoProfile", "-File", Path.GetFullPath("tools/licencas/Emitir-Licenca.ps1"), "-Servidor", "SERVIDOR", "-Computadores", "4", "-Modalidade", "unico", "-Chave", keyPath, "-Saida", licencePath }) processInfo.ArgumentList.Add(argument);
+    using (var process = System.Diagnostics.Process.Start(processInfo)!) {
+        var output = process.StandardOutput.ReadToEnd(); var error = process.StandardError.ReadToEnd(); process.WaitForExit();
+        Assert(process.ExitCode == 0, "Emissor do vendedor falhou: " + output + error);
+    }
+    expired.Import(File.ReadAllText(licencePath)); Assert(expired.Terms.ComputerLimit == 4 && expired.Terms.BillingMode == "unico", "Emissor não criou licença válida.");
     // Duas inscrições simultâneas disputam a única vaga restante.
     var race = new NetworkLicense(Path.Combine(folder, "race"), "S", publicKey); var accepted = 0;
     Parallel.For(0, 8, i => { try { race.Register("T"+i, "K"+i, "T"+i); Interlocked.Increment(ref accepted); } catch(InvalidOperationException) { } });
