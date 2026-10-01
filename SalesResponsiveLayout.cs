@@ -24,7 +24,7 @@ internal sealed class SalesResponsiveLayout : IDisposable
             foreach (Control c in parent.Controls)
             {
                 var table = c as TableLayoutPanel;
-                metrics.Add(new(c, c.Padding, c.Margin, c.Font.SizeInPoints * 96f / 72f,
+                metrics.Add(new(c, c.Padding, c.Margin, (c is DataGridView g ? g.DefaultCellStyle.Font ?? c.Font : c.Font).SizeInPoints * 96f / 72f,
                     c.Font.Style, c.Font.FontFamily.Name,
                     table?.RowStyles.Cast<RowStyle>().Select(r => r.SizeType == SizeType.Absolute ? r.Height : -1).ToArray() ?? Array.Empty<float>(),
                     table?.ColumnStyles.Cast<ColumnStyle>().Select(r => r.SizeType == SizeType.Absolute ? r.Width : -1).ToArray() ?? Array.Empty<float>()));
@@ -69,7 +69,7 @@ internal sealed class SalesResponsiveLayout : IDisposable
                     for (int i = 0; i < m.Columns.Length; i++) if (m.Columns[i] >= 0) table.ColumnStyles[i].Width = Px(m.Columns[i]);
                 }
                 // Prefer DPI sizing when room permits, cap at the available area.
-                float pixels = Math.Max(Math.Min(12f * dpi, 16f * scale), m.FontPixels * scale);
+                float pixels = Math.Max(12f, Math.Max(Math.Min(12f * dpi, 16f * scale), m.FontPixels * scale));
                 if (!fonts.TryGetValue(c, out var old) || Math.Abs(old.Size - pixels) > .05f)
                 {
                     var font = new Font(m.Family, pixels, m.Style, GraphicsUnit.Pixel);
@@ -94,6 +94,7 @@ internal sealed class SalesResponsiveLayout : IDisposable
         finally
         {
             form.ResumeLayout(true);
+            foreach (var metric in metrics) metric.Control.PerformLayout();
             form.PerformLayout();
             applying = false;
         }
