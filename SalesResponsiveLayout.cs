@@ -89,7 +89,7 @@ internal sealed class SalesResponsiveLayout : IDisposable
             }
             header.Height = Math.Max(84, Px(108));
             footer.AutoSize = false; footer.Height = Math.Max(24, Px(30));
-            actions.Width = Math.Max(104, (int)(header.ClientSize.Width * .12f));
+            actions.Width = Math.Max(104, (int)(form.ClientSize.Width * .12f));
         }
         finally
         {

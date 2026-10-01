@@ -69,7 +69,7 @@ internal sealed class SalesGlowLabel : Label
 
 internal sealed class SalesVisualButton : Button
 {
-    internal float LayoutScale { get; set; } = 1f;
+    internal float LayoutScale { get; set; };
     private bool hovered;
     private bool pressed;
     internal SalesVisualButton()
@@ -103,9 +103,9 @@ internal sealed class SalesVisualButton : Button
         string label = Text;
         bool method = label is "Dinheiro" or "PIX" or "Cartão" or "Múltiplo";
         var textRect = Rectangle.Inflate(ClientRectangle, -7, -5);
-        float scale = LayoutScale;
+        float scale = LayoutScale > 0 ? LayoutScale : DeviceDpi / 96f;
         Font PixelFont(float points) => new("Segoe UI", Math.Max(12, points * scale * 96f / 72f), FontStyle.Bold, GraphicsUnit.Pixel);
-        using var textFont = PixelFont(method ? Math.Clamp(Height / scale / 6f, 11, 16) : label.Contains("Finalizar") ? Math.Clamp(Width / scale * .74f / 10f, 12, 20) : label.Contains("Remover") ? 10 : label.Contains("Cancelar") || label.Contains("Comprovante") ? Math.Clamp(Width / scale / 12f, 8.5f, 11) : Font.SizeInPoints / scale);
+        using var textFont = PixelFont(method ? Math.Clamp(Height / scale / 6f, 11, 16) : label.Contains("Finalizar") ? Math.Clamp(Width / scale * .74f / 10f, 12, 20) : label.Contains("Remover") ? 10 : label.Contains("Cancelar") || label.Contains("Comprovante") ? Math.Clamp(Width / scale / 12f, 8.5f, 11) : LayoutScale > 0 ? Font.SizeInPoints / scale : Font.SizeInPoints);
         if (method)
         {
             float size = Math.Clamp(Height * .33f, 20, 35);
