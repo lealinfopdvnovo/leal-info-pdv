@@ -15,7 +15,7 @@ internal static class Program
     [STAThread]
     static void Main()
     {
-        Application.SetHighDpiMode(HighDpiMode.SystemAware);
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
@@ -39,8 +39,18 @@ internal static class Program
         var checks = new List<string>();
         void Capture(Form sales, string name)
         {
-            using var bitmap = new Bitmap(sales.Width, sales.Height);
-            sales.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
+            bool responsive = sales.Tag is SalesResponsiveLayout;
+            using var bitmap = new Bitmap(responsive ? sales.ClientSize.Width : sales.Width, responsive ? sales.ClientSize.Height : sales.Height);
+            if (responsive)
+            {
+                // CI's virtual monitor is 1024px. Render the real root controls
+                // directly so the simulated larger viewport is not clipped by it.
+                using (var graphics = Graphics.FromImage(bitmap)) graphics.Clear(sales.BackColor);
+                foreach (Control root in sales.Controls)
+                    if (root.Visible && root.Width > 0 && root.Height > 0)
+                        root.DrawToBitmap(bitmap, root.Bounds);
+            }
+            else sales.DrawToBitmap(bitmap, new Rectangle(0, 0, bitmap.Width, bitmap.Height));
             bitmap.Save("visual-qa/" + name + ".png", System.Drawing.Imaging.ImageFormat.Png);
         }
         void Verify(Form sales, string theme)
@@ -88,12 +98,62 @@ internal static class Program
             File.WriteAllText("visual-qa/theme-checks.json", JsonSerializer.Serialize(checks));
             Capture(dialog, name + "-" + themeIndex);
         }
-        timer.Tick += (_, _) =>
+        async Task VerifyResponsiveMatrix(Form sales)
+        {
+            var responsive = (SalesResponsiveLayout)sales.Tag!;
+            var report = new List<object>();
+            foreach (var resolution in new[] { new Size(1366, 768), new Size(1600, 900), new Size(1920, 1080) })
+            foreach (int dpi in new[] { 96, 120, 144 })
+            {
+                // Exercise the production calculation with physical client space:
+                // taskbar and non-client chrome grow with Windows scaling.
+                sales.ClientSize = new Size(resolution.Width - (int)(16 * dpi / 96f), resolution.Height - (int)(79 * dpi / 96f));
+                responsive.Apply(dpi);
+                sales.PerformLayout();
+                var controls = Children(sales).ToArray();
+                var status = controls.OfType<SalesGlowLabel>().Single();
+                var statusCenter = sales.PointToClient(status.PointToScreen(new Point(status.Width / 2, 0))).X;
+                if (Math.Abs(statusCenter - sales.ClientSize.Width / 2) > 3) throw new Exception("Status fora do centro");
+                foreach (var button in controls.OfType<SalesVisualButton>().Where(c => c.Visible))
+                    if (button.Width < 32 || button.Height < 28) throw new Exception("Botao espremido: " + button.Text);
+                foreach (var c in controls.Where(c => c.Visible && c.Height > 0 && c.Width > 0 && c.Parent != null))
+                {
+                    if (c.Parent is NumericUpDown) continue;
+                    if (c.Bounds.Left < 0 || c.Bounds.Top < 0 || c.Bounds.Right > c.Parent!.ClientSize.Width + 1 || c.Bounds.Bottom > c.Parent.ClientSize.Height + 1)
+                        throw new Exception($"Controle cortado: {c.GetType().Name} {c.Text} {c.Bounds} em {c.Parent.ClientSize}");
+                }
+                var weather = controls.OfType<SalesWeatherCard>().Single();
+                if (weather.Height < 130 || weather.Width < 200) throw new Exception("Clima espremido");
+                var photo = controls.OfType<PictureBox>().Single(c => c.Parent != null && c.Parent.Parent is TableLayoutPanel);
+                if (photo.Height < 170 || photo.SizeMode != PictureBoxSizeMode.Zoom) throw new Exception("Foto cortada");
+                foreach (var caption in controls.OfType<Label>().Where(l => l.Text is "Qtd." or "Preço" or "Subtotal"))
+                    if (TextRenderer.MeasureText(caption.Text, caption.Font).Width > caption.Width)
+                        throw new Exception("Legenda cortada: " + caption.Text);
+                Capture(sales, $"responsive-online-{resolution.Width}x{resolution.Height}-{dpi}");
+                var before = controls.Select(c => c.Bounds).ToArray();
+                using (var cn = Database.Open()) using (var cmd = cn.CreateCommand())
+                { cmd.CommandText = "UPDATE settings SET value='' WHERE key='company_city_state'"; cmd.ExecuteNonQuery(); }
+                await weather.RefreshWeatherAsync();
+                if (weather.Reading != null || !before.SequenceEqual(controls.Select(c => c.Bounds))) throw new Exception("Falha do clima alterou layout");
+                Capture(sales, $"responsive-{resolution.Width}x{resolution.Height}-{dpi}");
+                responsive.Apply(dpi);
+                if (!before.SequenceEqual(controls.Select(c => c.Bounds))) throw new Exception("Resize acumulativo: " + string.Join("; ", controls.Select((c, i) => (c, i)).Where(x => before[x.i] != x.c.Bounds).Select(x => $"{x.c.GetType().Name} {x.c.Text}: {before[x.i]} -> {x.c.Bounds}")));
+                using (var cn = Database.Open()) using (var cmd = cn.CreateCommand())
+                { cmd.CommandText = "UPDATE settings SET value='Angra dos Reis/RJ' WHERE key='company_city_state'"; cmd.ExecuteNonQuery(); }
+                await weather.RefreshWeatherAsync();
+                report.Add(new { Resolution = resolution.ToString(), Dpi = dpi, ActualDeviceDpi = sales.DeviceDpi, Client = sales.ClientSize.ToString(), StatusCenter = statusCenter, Weather = weather.Bounds.ToString(), Result = "OK" });
+            }
+            File.WriteAllText("visual-qa/responsive-matrix.json", JsonSerializer.Serialize(report));
+            sales.Bounds = new Rectangle(0, 0, 1366, 730);
+            responsive.Apply();
+        }
+        timer.Tick += async (_, _) =>
         {
             var sales = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f.Text.Contains("TELA DE VENDA"));
             if (sales == null) return;
             if (stage == 0)
             {
+                sales.MaximumSize = new Size(4000, 2400);
                 sales.WindowState = FormWindowState.Normal;
                 sales.Bounds = new Rectangle(0, 0, 1366, 730);
                 sales.PerformLayout();
@@ -108,7 +168,12 @@ internal static class Program
             }
             if (stage == 1)
             {
-                if (themeIndex == 0) Capture(sales, "sales-1366");
+                if (themeIndex == 0)
+                {
+                    stage = -1;
+                    await VerifyResponsiveMatrix(sales);
+                    Capture(sales, "sales-1366");
+                }
                 stage = 2;
                 Children(sales).OfType<Button>().Single(b => b.Text == "ESTILO").PerformClick();
                 return;

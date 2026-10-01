@@ -208,7 +208,7 @@ internal sealed class SalesWeatherCard : Control
         if (scale <= 0) return;
         void Text(string value, float x, float y, float w, float h, float size, Color color, bool bold = false)
         {
-            using var font = new Font("Segoe UI", Math.Max(7, size * scale), bold ? FontStyle.Bold : FontStyle.Regular);
+            using var font = new Font("Segoe UI", Math.Max(10, size * scale * 96f / 72f), bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
             TextRenderer.DrawText(g, value, font, new Rectangle((int)x, (int)y, (int)w, (int)h), color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
         string location = Reading == null ? city().Trim() : Reading.Location.City + "/" + Reading.Location.State;

@@ -4707,7 +4707,7 @@ private void ApplyFloatingTheme(Form f)
         {
             Text = "LEAL INFO CONECTADO - TELA DE VENDAS • V10.130",
             WindowState = FormWindowState.Maximized,
-            MinimumSize = new Size(1180, 700),
+            MinimumSize = Size.Empty,
             AutoScaleMode = AutoScaleMode.None,
             BackColor = Color.FromArgb(7, 24, 43),
             Font = new Font("Segoe UI", 10),
@@ -6444,9 +6444,9 @@ private void ApplyFloatingTheme(Form f)
                 BackColor = Color.Transparent
             };
             headerGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
-            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 58));
-            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 12));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52));
+            headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24));
             var logo = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
             var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_brand_header.png");
             if (File.Exists(logoPath))
@@ -6463,7 +6463,6 @@ private void ApplyFloatingTheme(Form f)
             statusFrame.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, statusFrame.ClientRectangle, true, referencePalette, referenceTexture);
             headerInfo.Dock = DockStyle.Fill;
             headerInfo.AutoSize = false;
-            headerInfo.Anchor = AnchorStyles.None;
             headerInfo.TextAlign = ContentAlignment.MiddleCenter;
             headerInfo.Font = new Font("Segoe UI", 11);
             headerInfo.Margin = Padding.Empty;
@@ -6479,6 +6478,8 @@ private void ApplyFloatingTheme(Form f)
             headerGrid.Controls.Add(headerCenter, 1, 0);
             close.Text = "SAIR";
             var headerActions = Rows(-50, -50);
+            headerActions.Dock = DockStyle.Right;
+            headerActions.Width = 160;
             styleButton.Text = "ESTILO";
             styleButton.Font = new Font("Segoe UI", 12, FontStyle.Bold);
             styleButton.BackColor = Color.FromArgb(112, 72, 190);
@@ -6604,12 +6605,6 @@ private void ApplyFloatingTheme(Form f)
             var summaryNames = new[] { "Itens:", "Subtotal:", "Desconto:", "Acréscimo:", "Total:" };
             subtotalValue.ForeColor = Color.FromArgb(100, 245, 130);
             subtotalValue.Font = new Font("Segoe UI", 22, FontStyle.Bold);
-            subtotalValue.Resize += (_, _) =>
-            {
-                var oldFont = subtotalValue.Font;
-                subtotalValue.Font = new Font("Segoe UI", Math.Clamp(subtotalValue.Width / 7.3f, 14, 26), FontStyle.Bold);
-                oldFont.Dispose();
-            };
             for (int i = 0; i < 5; i++)
             {
                 summary.RowStyles.Add(new RowStyle(SizeType.Percent, i == 4 ? 28 : 18));
@@ -6743,6 +6738,7 @@ private void ApplyFloatingTheme(Form f)
             synchronizeReferenceTheme(GetSetting("sales_theme", "Futurista Azul"));
             body.ResumeLayout(true);
             f.ResumeLayout(true);
+            _ = new SalesResponsiveLayout(f, header, footer, headerActions);
         }
         ApplyReferenceSalesLayout();
 
