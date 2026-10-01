@@ -70,7 +70,7 @@ try
     NetworkConfiguration.Load(); Database.Initialize();
     using var probe = new TcpListener(IPAddress.Loopback, 0); probe.Start(); var port = ((IPEndPoint)probe.LocalEndpoint).Port; probe.Stop();
     var config = NetworkConfiguration.NewServer(port);
-    using var server = new NetworkDatabaseServer(config); server.Start();
+    using var server = new NetworkDatabaseServer(config); server.Diagnostic = ex => Console.WriteLine("Servidor TLS: " + ex); server.Start();
     var terminal = new NetworkConfiguration { Mode = "terminal", Host = "127.0.0.1", Port = port, PairingSecret = config.PairingSecret, CertificateHash = server.CertificateHash };
     var firstIdentity = Identity();
     using var first = new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", firstIdentity);

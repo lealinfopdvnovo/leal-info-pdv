@@ -21,6 +21,7 @@ public sealed class NetworkDatabaseServer : IDisposable
     public NetworkLicense License { get; }
     public string CertificateHash => certificate.GetCertHashString(HashAlgorithmName.SHA256);
     public static NetworkDatabaseServer? Current { get; private set; }
+    internal Action<Exception>? Diagnostic { get; set; }
     public NetworkDatabaseServer(NetworkConfiguration configuration)
     {
         this.configuration = configuration;
@@ -34,7 +35,7 @@ public sealed class NetworkDatabaseServer : IDisposable
     private static X509Certificate2 LoadCertificate()
     {
         var path = Path.Combine(Database.AppFolder, "network.certificate");
-        if (File.Exists(path)) return new X509Certificate2(Convert.FromBase64String(ProtectedFile.Read<string>(path)), (string?)null, X509KeyStorageFlags.EphemeralKeySet);
+        if (File.Exists(path)) return new X509Certificate2(Convert.FromBase64String(ProtectedFile.Read<string>(path)), (string?)null, X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.PersistKeySet);
         using var rsa = RSA.Create(3072);
         var request = new CertificateRequest("CN=LEAL INFO PDV Servidor", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
@@ -42,7 +43,7 @@ public sealed class NetworkDatabaseServer : IDisposable
         using var issued = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(10));
         var bytes = issued.Export(X509ContentType.Pfx);
         ProtectedFile.Write(path, Convert.ToBase64String(bytes));
-        return new X509Certificate2(bytes, (string?)null, X509KeyStorageFlags.EphemeralKeySet);
+        return new X509Certificate2(bytes, (string?)null, X509KeyStorageFlags.UserKeySet | X509KeyStorageFlags.PersistKeySet);
     }
     public void Start()
     {
@@ -134,7 +135,7 @@ public sealed class NetworkDatabaseServer : IDisposable
             }
             finally { transaction?.Dispose(); }
         }
-        catch (Exception ex) when (ex is IOException or SocketException or AuthenticationException or InvalidDataException or ObjectDisposedException) { }
+        catch (Exception ex) { Diagnostic?.Invoke(ex); }
         finally { clients.TryRemove(client, out _); client.Dispose(); }
     }
     public void Dispose()
