@@ -6463,7 +6463,6 @@ private void ApplyFloatingTheme(Form f)
             statusFrame.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, statusFrame.ClientRectangle, true, referencePalette, referenceTexture);
             headerInfo.Dock = DockStyle.Fill;
             headerInfo.AutoSize = false;
-            headerInfo.Anchor = AnchorStyles.None;
             headerInfo.TextAlign = ContentAlignment.MiddleCenter;
             headerInfo.Font = new Font("Segoe UI", 11);
             headerInfo.Margin = Padding.Empty;

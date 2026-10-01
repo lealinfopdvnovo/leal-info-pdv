@@ -87,6 +87,16 @@ internal sealed class SalesResponsiveLayout : IDisposable
                 }
                 c.ResumeLayout(false);
             }
+            // Text can grow faster than fixed caption columns at high DPI.
+            // Reserve the measured width without changing the entry-row structure.
+            foreach (var m in metrics.Where(m => m.Control is TableLayoutPanel))
+            {
+                var table = (TableLayoutPanel)m.Control;
+                for (int i = 0; i < m.Columns.Length; i++)
+                    if (m.Columns[i] >= 0 && table.GetControlFromPosition(i, 0) is Label label)
+                        table.ColumnStyles[i].Width = Math.Max(Px(m.Columns[i]),
+                            TextRenderer.MeasureText(label.Text, label.Font).Width + label.Margin.Horizontal + label.Padding.Horizontal + 2);
+            }
             header.Height = Math.Max(84, Px(108));
             footer.AutoSize = false; footer.Height = Math.Max(24, Px(30));
             actions.Width = Math.Max(104, (int)(form.ClientSize.Width * .12f));

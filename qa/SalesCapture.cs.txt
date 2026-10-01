@@ -126,6 +126,10 @@ internal static class Program
                 if (weather.Height < 130 || weather.Width < 200) throw new Exception("Clima espremido");
                 var photo = controls.OfType<PictureBox>().Single(c => c.Parent != null && c.Parent.Parent is TableLayoutPanel);
                 if (photo.Height < 170 || photo.SizeMode != PictureBoxSizeMode.Zoom) throw new Exception("Foto cortada");
+                foreach (var caption in controls.OfType<Label>().Where(l => l.Text is "Qtd." or "Preço" or "Subtotal"))
+                    if (TextRenderer.MeasureText(caption.Text, caption.Font).Width > caption.Width)
+                        throw new Exception("Legenda cortada: " + caption.Text);
+                Capture(sales, $"responsive-online-{resolution.Width}x{resolution.Height}-{dpi}");
                 var before = controls.Select(c => c.Bounds).ToArray();
                 using (var cn = Database.Open()) using (var cmd = cn.CreateCommand())
                 { cmd.CommandText = "UPDATE settings SET value='' WHERE key='company_city_state'"; cmd.ExecuteNonQuery(); }

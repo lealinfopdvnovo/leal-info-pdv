@@ -124,9 +124,9 @@ internal sealed class SalesVisualButton : Button
         }
         else if (label.Contains("Comprovante") || label.Contains("Cancelar") || label == "SAIR")
         {
-            float size = Math.Clamp(Height * .25f, 12, 28 * scale);
-            DrawIcon(g, label.Contains("Comprovante") ? "print" : label == "SAIR" ? "exit" : "cancel", new RectangleF((Width - size) / 2, Height * .08f, size, size));
-            textRect.Y = (int)(Height * .40f); textRect.Height = Height - textRect.Y - 5;
+            float size = Math.Clamp(Height * .22f, 12, 28 * scale);
+            DrawIcon(g, label.Contains("Comprovante") ? "print" : label == "SAIR" ? "exit" : "cancel", new RectangleF((Width - size) / 2, Height * .06f, size, size));
+            textRect.Y = (int)(Height * .30f); textRect.Height = Height - textRect.Y - 5;
         }
         TextRenderer.DrawText(g, label, textFont, textRect, Enabled ? (BackColor.GetBrightness() > .65f ? Color.FromArgb(35, 58, 72) : Color.White) : Color.Silver,
             TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
