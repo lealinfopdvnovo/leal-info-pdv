@@ -10,6 +10,8 @@ public static class DatabaseBackupService
 
     private static async Task<string> CreateZipAsync(CancellationToken cancellationToken = default)
     {
+        if (Network.NetworkConfiguration.Current.Mode == "terminal")
+            throw new InvalidOperationException("Faça o backup no computador servidor, que contém os dados compartilhados.");
         Directory.CreateDirectory(Database.BackupFolder);
         var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         var snapshotPath = Path.Combine(Database.BackupFolder, $"LEAL_INFO_PDV_{stamp}.db");
@@ -59,6 +61,10 @@ public static class DatabaseBackupService
 
     public static async Task RestoreAsync(string selectedPath, CancellationToken cancellationToken = default)
     {
+        if (Network.NetworkConfiguration.Current.Mode == "terminal")
+            throw new InvalidOperationException("Restaure o backup no computador servidor.");
+        if (Network.NetworkDatabaseServer.Current != null)
+            throw new InvalidOperationException("Para restaurar com segurança, feche o PDV do servidor e dos terminais. Abra o servidor com o argumento --manutencao, restaure o backup e reinicie normalmente.");
         if (!File.Exists(selectedPath)) throw new FileNotFoundException("Arquivo de backup não encontrado.", selectedPath);
 
         await OperationGate.WaitAsync(cancellationToken);

@@ -1,4 +1,6 @@
-﻿using Microsoft.Data.Sqlite;
+using SqliteConnection = LealInfoPDV.Network.PdvConnection;
+using SqliteCommand = LealInfoPDV.Network.PdvCommand;
+using Microsoft.Data.Sqlite;
 using System.Data;
 using System.Drawing;
 using System.Drawing.Printing;
@@ -3258,6 +3260,15 @@ private void ApplyFloatingTheme(Form f)
         tabs.TabPages.Add(pixTab);
         tabs.TabPages.Add(systemTab);
         tabs.TabPages.Add(equipmentTab);
+        var networkTab = new TabPage("REDE E LICENÇA") { BackColor = Color.FromArgb(224,239,248), Padding = new Padding(26) };
+        var networkButton = new Button { Text = "CONFIGURAR REDE E LICENÇA", Dock = DockStyle.Top, Height = 64,
+            BackColor = Color.FromArgb(4,70,112), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        networkButton.Click += (_,_) =>
+        {
+            if (!Auth.IsAdmin) { Info("Somente ADMINISTRADOR pode configurar a rede."); return; }
+            using var networkSettings = new Network.NetworkSettingsForm(); networkSettings.ShowDialog(f);
+        };
+        networkTab.Controls.Add(networkButton); tabs.TabPages.Add(networkTab);
         f.Controls.Add(tabs);
         tabs.BringToFront();
 
@@ -3353,7 +3364,7 @@ private void ApplyFloatingTheme(Form f)
         system.Controls.Add(ConfigButton("RESTAURAR BACKUP",()=>_ = RestoreBackupAsync()),1,2);
         system.Controls.Add(ConfigButton("ATUALIZAÇÕES DO SISTEMA",()=>UpdateManager.ShowUpdateCenter(f)),0,3);
         system.Controls.Add(ConfigButton("TUTORIAL DE PRIMEIRO ACESSO",()=>OpenFirstAccessTutorial(false)),1,3);
-        var systemInfo=new Label{Text=$"Sistema: LEAL INFO PDV   •   Versão: V{UpdateManager.CurrentVersion}\nSerial: {Database.DeviceSerial()}\nBanco local: {Database.DbPath}",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",9.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter};
+        var systemInfo=new Label{Text=$"Sistema: LEAL INFO PDV   •   Versão: V{UpdateManager.CurrentVersion}\nSerial: {Database.DeviceSerial()}\nBanco: {(Network.NetworkConfiguration.Current.Mode == "terminal" ? "Servidor " + Network.NetworkConfiguration.Current.Host : Database.DbPath)}",Dock=DockStyle.Fill,ForeColor=DarkBlue,Font=new Font("Segoe UI",9.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter};
         system.SetColumnSpan(systemInfo,2);system.Controls.Add(systemInfo,0,4);
 
         ApplyFloatingTheme(f);

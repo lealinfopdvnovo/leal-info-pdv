@@ -1,3 +1,5 @@
+using SqliteConnection = LealInfoPDV.Network.PdvConnection;
+using SqliteCommand = LealInfoPDV.Network.PdvCommand;
 using Microsoft.Data.Sqlite;
 using System.Diagnostics;
 using System.Globalization;
