@@ -135,6 +135,11 @@ internal static class Program
                 { cmd.CommandText = "UPDATE settings SET value='' WHERE key='company_city_state'"; cmd.ExecuteNonQuery(); }
                 await weather.RefreshWeatherAsync();
                 if (weather.Reading != null || !before.SequenceEqual(controls.Select(c => c.Bounds))) throw new Exception("Falha do clima alterou layout");
+                int openForms = Application.OpenForms.Count;
+                typeof(Control).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(weather, new object[] { EventArgs.Empty });
+                await Task.Delay(100);
+                if (Application.OpenForms.Count != openForms || !before.SequenceEqual(controls.Select(c => c.Bounds)))
+                    throw new Exception("Clique no clima abriu janela ou alterou layout");
                 Capture(sales, $"responsive-{resolution.Width}x{resolution.Height}-{dpi}");
                 responsive.Apply(dpi);
                 if (!before.SequenceEqual(controls.Select(c => c.Bounds))) throw new Exception("Resize acumulativo: " + string.Join("; ", controls.Select((c, i) => (c, i)).Where(x => before[x.i] != x.c.Bounds).Select(x => $"{x.c.GetType().Name} {x.c.Text}: {before[x.i]} -> {x.c.Bounds}")));
@@ -143,6 +148,23 @@ internal static class Program
                 await weather.RefreshWeatherAsync();
                 report.Add(new { Resolution = resolution.ToString(), Dpi = dpi, ActualDeviceDpi = sales.DeviceDpi, Client = sales.ClientSize.ToString(), StatusCenter = statusCenter, Weather = weather.Bounds.ToString(), Result = "OK" });
             }
+            var cityCard = Children(sales).OfType<SalesWeatherCard>().Single();
+            using (var cn = Database.Open()) using (var cmd = cn.CreateCommand())
+            { cmd.CommandText = "UPDATE settings SET value='Curitiba/PR' WHERE key='company_city_state'"; cmd.ExecuteNonQuery(); }
+            int formsBeforeFailure = Application.OpenForms.Count;
+            var cardBounds = cityCard.Bounds;
+            WeatherChecks.UiOffline = true;
+            try { await cityCard.RefreshWeatherAsync(); } finally { WeatherChecks.UiOffline = false; }
+            var failureMessage = typeof(SalesWeatherCard).GetField("message", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cityCard)?.ToString();
+            if (cityCard.Reading != null || failureMessage != "Tempo indisponível. Tentando novamente." || cityCard.Bounds != cardBounds || Application.OpenForms.Count != formsBeforeFailure)
+                throw new Exception("Falha de rede nao ficou contida no card");
+            Capture(sales, "clima-falha-rede");
+            await cityCard.RefreshWeatherAsync();
+            if (cityCard.Reading?.Location.City != "Curitiba" || cityCard.Reading.Temperature != 16) throw new Exception("Card nao acompanhou cadastro da cidade");
+            Capture(sales, "clima-curitiba");
+            using (var cn = Database.Open()) using (var cmd = cn.CreateCommand())
+            { cmd.CommandText = "UPDATE settings SET value='Angra dos Reis/RJ' WHERE key='company_city_state'"; cmd.ExecuteNonQuery(); }
+            await cityCard.RefreshWeatherAsync();
             File.WriteAllText("visual-qa/responsive-matrix.json", JsonSerializer.Serialize(report));
             sales.Bounds = new Rectangle(0, 0, 1366, 730);
             responsive.Apply();
@@ -150,7 +172,7 @@ internal static class Program
         timer.Tick += async (_, _) =>
         {
             var sales = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f.Text.Contains("TELA DE VENDA"));
-            if (sales == null) return;
+            if (sales == null || stage < 0) return;
             if (stage == 0)
             {
                 sales.MaximumSize = new Size(4000, 2400);
@@ -269,7 +291,7 @@ internal static class WeatherChecks
         protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            if (Fail) throw new System.Net.Http.HttpRequestException("offline");
+            if (Fail || UiOffline) throw new System.Net.Http.HttpRequestException("offline");
             string json;
             if (request.RequestUri!.Host.Contains("nominatim"))
             {
@@ -289,6 +311,7 @@ internal static class WeatherChecks
             return Task.FromResult(result);
         }
     }
+    internal static bool UiOffline;
     internal static SalesWeatherService FixtureService() => new(new System.Net.Http.HttpClient(new Handler()), Path.Combine(Path.GetTempPath(), "weather-ui-" + Guid.NewGuid()));
     internal static async Task RunAsync()
     {

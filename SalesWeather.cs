@@ -157,6 +157,8 @@ internal sealed class SalesWeatherCard : Control
     private readonly System.Windows.Forms.Timer timer = new() { Interval = (15 * 60 + Random.Shared.Next(30, 180)) * 1000 };
     private readonly ToolTip tip = new();
     private bool loading;
+    private string displayCity = "";
+    private readonly int refreshInterval;
     private string message = "Consultando o tempo…";
     internal WeatherReading? Reading { get; private set; }
     internal SalesPalette Palette { get; set; } = SalesPalette.For("Futurista Azul");
@@ -164,14 +166,11 @@ internal sealed class SalesWeatherCard : Control
     internal SalesWeatherCard(Func<string> city)
     {
         this.city = city; service = ServiceFactory?.Invoke() ?? new SalesWeatherService();
+        refreshInterval = timer.Interval;
         SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
         Dock = DockStyle.Fill; Margin = new Padding(0, 6, 0, 0); Cursor = Cursors.Hand;
         timer.Tick += async (_, _) => await RefreshWeatherAsync();
-        Click += (_, _) => MessageBox.Show(this,
-            "A cidade vem de Configuração > Cadastro da Empresa (cidade/UF).\n\nPrevisão atualizada automaticamente enquanto a venda está aberta.\n" +
-            "Dados: MET Norway • CC BY 4.0\nhttps://api.met.no/\nhttps://creativecommons.org/licenses/by/4.0/\n" +
-            "Localização: © OpenStreetMap contributors • ODbL\nhttps://www.openstreetmap.org/copyright",
-            "Tempo da cidade", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        Click += async (_, _) => await RefreshWeatherAsync();
     }
     protected override async void OnHandleCreated(EventArgs e)
     {
@@ -181,9 +180,10 @@ internal sealed class SalesWeatherCard : Control
     {
         if (loading || IsDisposed) return;
         loading = true;
-        string requestedCity = city();
         try
         {
+            string requestedCity = city();
+            displayCity = requestedCity.Trim();
             if (Reading != null)
             {
                 var expected = SalesWeatherService.ParseCity(requestedCity);
@@ -191,11 +191,20 @@ internal sealed class SalesWeatherCard : Control
             }
             var reading = await service.GetAsync(requestedCity, cancellation.Token);
             if (IsDisposed || cancellation.IsCancellationRequested) return;
-            Reading = reading; message = "";
-            tip.SetToolTip(this, $"{reading.Location.City}/{reading.Location.State}\nPrevisão para {reading.ForecastAt.ToLocalTime():dd/MM HH:mm}\nModelo atualizado: {reading.UpdatedAt.ToLocalTime():dd/MM HH:mm}\nConsulta: {reading.CheckedAt.ToLocalTime():dd/MM HH:mm}\nMET Norway • CC BY 4.0 | © OpenStreetMap contributors\nClique para informações.");
+            Reading = reading; message = ""; timer.Interval = refreshInterval;
+            tip.SetToolTip(this, $"{reading.Location.City}/{reading.Location.State}\nPrevisão para {reading.ForecastAt.ToLocalTime():dd/MM HH:mm}\nModelo atualizado: {reading.UpdatedAt.ToLocalTime():dd/MM HH:mm}\nConsulta: {reading.CheckedAt.ToLocalTime():dd/MM HH:mm}\nMET Norway • CC BY 4.0 | © OpenStreetMap contributors\nClique para atualizar.");
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { if (!IsDisposed) { Reading = null; message = ex is InvalidOperationException ? ex.Message : "Tempo indisponível. Aguardando conexão."; } }
+        catch (Exception)
+        {
+            if (!IsDisposed)
+            {
+                Reading = null;
+                message = string.IsNullOrWhiteSpace(displayCity) ? "Cadastre Cidade/UF da empresa." : "Tempo indisponível. Tentando novamente.";
+                timer.Interval = 60_000;
+                tip.SetToolTip(this, "Clique para tentar atualizar o tempo.");
+            }
+        }
         finally { loading = false; if (!IsDisposed) Invalidate(); }
     }
     internal static string Description(string symbol) => symbol.Contains("thunder") ? "Trovoadas" : symbol.Contains("snow") || symbol.Contains("sleet") ? "Neve / granizo" : symbol.Contains("rain") ? "Chuva" : symbol.Contains("fog") ? "Neblina" : symbol.StartsWith("clearsky") ? "Céu limpo" : symbol.StartsWith("fair") || symbol.StartsWith("partlycloudy") ? (symbol.EndsWith("_night") ? "Parcialmente nublado" : "Sol entre nuvens") : "Nublado";
@@ -211,7 +220,7 @@ internal sealed class SalesWeatherCard : Control
             using var font = new Font("Segoe UI", Math.Max(10, size * scale * 96f / 72f), bold ? FontStyle.Bold : FontStyle.Regular, GraphicsUnit.Pixel);
             TextRenderer.DrawText(g, value, font, new Rectangle((int)x, (int)y, (int)w, (int)h), color, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
         }
-        string location = Reading == null ? city().Trim() : Reading.Location.City + "/" + Reading.Location.State;
+        string location = Reading == null ? displayCity : Reading.Location.City + "/" + Reading.Location.State;
         Text(location.Length > 0 ? location : "TEMPO DA CIDADE", 8, 4, Width - 16, 24 * scale, 11, Palette.Foreground, true);
         if (Reading == null)
         {
