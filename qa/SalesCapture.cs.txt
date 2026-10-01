@@ -151,6 +151,14 @@ internal static class Program
             var cityCard = Children(sales).OfType<SalesWeatherCard>().Single();
             using (var cn = Database.Open()) using (var cmd = cn.CreateCommand())
             { cmd.CommandText = "UPDATE settings SET value='Curitiba/PR' WHERE key='company_city_state'"; cmd.ExecuteNonQuery(); }
+            int formsBeforeFailure = Application.OpenForms.Count;
+            var cardBounds = cityCard.Bounds;
+            WeatherChecks.UiOffline = true;
+            try { await cityCard.RefreshWeatherAsync(); } finally { WeatherChecks.UiOffline = false; }
+            var failureMessage = typeof(SalesWeatherCard).GetField("message", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cityCard)?.ToString();
+            if (cityCard.Reading != null || failureMessage != "Tempo indisponível. Tentando novamente." || cityCard.Bounds != cardBounds || Application.OpenForms.Count != formsBeforeFailure)
+                throw new Exception("Falha de rede nao ficou contida no card");
+            Capture(sales, "clima-falha-rede");
             await cityCard.RefreshWeatherAsync();
             if (cityCard.Reading?.Location.City != "Curitiba" || cityCard.Reading.Temperature != 16) throw new Exception("Card nao acompanhou cadastro da cidade");
             Capture(sales, "clima-curitiba");
@@ -283,7 +291,7 @@ internal static class WeatherChecks
         protected override Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, CancellationToken token)
         {
             token.ThrowIfCancellationRequested();
-            if (Fail) throw new System.Net.Http.HttpRequestException("offline");
+            if (Fail || UiOffline) throw new System.Net.Http.HttpRequestException("offline");
             string json;
             if (request.RequestUri!.Host.Contains("nominatim"))
             {
@@ -303,6 +311,7 @@ internal static class WeatherChecks
             return Task.FromResult(result);
         }
     }
+    internal static bool UiOffline;
     internal static SalesWeatherService FixtureService() => new(new System.Net.Http.HttpClient(new Handler()), Path.Combine(Path.GetTempPath(), "weather-ui-" + Guid.NewGuid()));
     internal static async Task RunAsync()
     {
