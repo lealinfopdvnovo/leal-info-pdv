@@ -172,7 +172,7 @@ internal static class Program
         timer.Tick += async (_, _) =>
         {
             var sales = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f.Text.Contains("TELA DE VENDA"));
-            if (sales == null) return;
+            if (sales == null || stage < 0) return;
             if (stage == 0)
             {
                 sales.MaximumSize = new Size(4000, 2400);
