@@ -69,7 +69,7 @@ internal sealed class SalesGlowLabel : Label
 
 internal sealed class SalesVisualButton : Button
 {
-    internal float LayoutScale { get; set; };
+    internal float LayoutScale { get; set; }
     private bool hovered;
     private bool pressed;
     internal SalesVisualButton()
