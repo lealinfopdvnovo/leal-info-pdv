@@ -25,7 +25,19 @@ internal static class Program
 
         try
         {
+            Network.NetworkConfiguration.Load();
+            if (Environment.GetCommandLineArgs().Contains("--rede"))
+            {
+                using var settings = new Network.NetworkSettingsForm();
+                settings.ShowDialog();
+                return;
+            }
+            // O servidor permanece ativo enquanto este PDV estiver aberto.
+            using var networkServer = Network.NetworkConfiguration.Current.Mode == "server"
+                ? new Network.NetworkDatabaseServer(Network.NetworkConfiguration.Current) : null;
+            networkServer?.License.CheckAccess();
             Database.Initialize();
+            if (!Environment.GetCommandLineArgs().Contains("--manutencao")) networkServer?.Start();
 
             // Nunca bloqueia a abertura do caixa aguardando Internet.
             // A verificação silenciosa continua depois que a tela principal já abriu.
@@ -120,6 +132,10 @@ internal static class Program
                 Application.Run(main);
                 if (!main.LogoutRequested) return;
             }
+        }
+        catch (Network.NetworkAccessException ex)
+        {
+            MessageBox.Show(ex.Message, "Licença / conexão do PDV", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         catch (Exception ex)
         {

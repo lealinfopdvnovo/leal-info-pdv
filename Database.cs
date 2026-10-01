@@ -1,3 +1,5 @@
+using SqliteConnection = LealInfoPDV.Network.PdvConnection;
+using SqliteCommand = LealInfoPDV.Network.PdvCommand;
 using Microsoft.Data.Sqlite;
 using Microsoft.Win32;
 using System.Security.Cryptography;
@@ -18,6 +20,14 @@ public static class Database
     {
         Directory.CreateDirectory(AppFolder);
         Directory.CreateDirectory(BackupFolder);
+        if (Network.NetworkConfiguration.Current.Mode == "terminal")
+        {
+            using var remote = Open();
+            using var test = remote.CreateCommand();
+            test.CommandText = "SELECT 1";
+            test.ExecuteScalar();
+            return; // Migrações e banco pertencem exclusivamente ao servidor.
+        }
 
         using var cn = Open();
         using var cmd = cn.CreateCommand();
@@ -305,6 +315,7 @@ public static class Database
 
     public static SqliteConnection Open()
     {
+        Network.NetworkDatabaseServer.Current?.License.CheckAccess();
         var cn = new SqliteConnection(ConnectionString);
         cn.Open();
         return cn;

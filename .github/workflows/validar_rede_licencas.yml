@@ -1,0 +1,35 @@
+name: Validar rede e licencas do PDV
+on:
+  push:
+    branches: ['codex/pdv-rede-*']
+  pull_request:
+    branches: [main]
+    paths: ['Network/**', 'qa/network/**', 'Database.cs', 'DatabaseBackupService.cs', 'Program.cs', 'MainForm.cs', 'ProductRegistrationForm.cs', 'LealInfoPDV.csproj', 'tools/licencas/**', '.github/workflows/validar_rede_licencas.yml']
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Aplicar ajustes usados na publicacao
+        shell: powershell
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar PDV com rede
+        run: dotnet build LealInfoPDV.csproj -c Release
+      - name: Validar licencas e rede TLS com banco central
+        run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release
+      - name: Preparar pacote de teste
+        run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o network-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDV-rede-validacao
+          path: network-build/
