@@ -12,6 +12,7 @@ public sealed class PdvConnection : IDisposable, IAsyncDisposable
     {
         if (localOnly || NetworkConfiguration.Current.Mode != "terminal") Local = new(connectionString);
     }
+    internal PdvConnection(NetworkDatabaseClient connectedClient) => remote = connectedClient;
     public void Open()
     {
         if (Local != null) Local.Open(); else remote = new(NetworkConfiguration.Current);

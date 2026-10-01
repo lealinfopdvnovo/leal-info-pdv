@@ -89,6 +89,14 @@ try
     // Nova sessão aguarda SQLite liberar rollback da sessão desconectada.
     using (var again = new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", firstIdentity))
         Assert(Convert.ToInt64(again.Send(new() { Operation="scalar", Sql="SELECT COUNT(*) FROM qa_network" }).Scalar!.ToObject()) == 1, "Desconexão não desfez transação pendente.");
+    using (var bridge = new PdvConnection(new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", firstIdentity))) {
+        using var tx = bridge.BeginTransaction(); using var command = bridge.CreateCommand(); command.Transaction = tx;
+        command.CommandText = "INSERT INTO qa_network(value) VALUES($v); SELECT last_insert_rowid();";
+        command.Parameters.AddWithValue("$v", "Ponte PDV"); Assert(Convert.ToInt64(command.ExecuteScalar()) == 2, "Ponte perdeu identificador da transação.");
+        tx.Rollback(); using var read = bridge.CreateCommand(); read.CommandText = "SELECT id AS ID,value AS Nome FROM qa_network";
+        using var rows = read.ExecuteReader(); var table = new DataTable(); table.Load(rows);
+        Assert(table.Rows.Count == 1 && table.Rows[0]["Nome"].Equals("Confirmada"), "Ponte do PDV não preservou rollback/leitura.");
+    }
     Reject(() => { var wrong = new NetworkConfiguration { Host="127.0.0.1",Port=port,PairingSecret=config.PairingSecret,CertificateHash=new string('0',64) }; using var client = new NetworkDatabaseClient(wrong,"QA-TERMINAL-1",firstIdentity); }, "Não foi possível conectar");
     Reject(() => { using var clone = new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", Identity()); }, "identidade mudou");
     Console.WriteLine("PASS: limites, concorrência, persistência, assinatura, modalidades, renovação, relógio, tipos, TLS, banco central, commit, rollback e desconexão.");
