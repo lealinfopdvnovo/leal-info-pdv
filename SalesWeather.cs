@@ -44,6 +44,15 @@ internal sealed class SalesWeatherService
         if (state.Length > 0 && !States.ContainsKey(state)) throw new InvalidOperationException("Confira a UF no cadastro da empresa.");
         return (city, state);
     }
+    internal static string[] CityCandidates(string value)
+    {
+        // Try the complete municipal name first (including genuine hyphenated
+        // names). Only fall back to suffixes for legacy Bairro - Cidade input.
+        var parts = Regex.Split(value, @"(?:\s+[-–—]\s+|\s*,\s*)");
+        return new[] { value }.Concat(Enumerable.Range(1, Math.Max(0, parts.Length - 1))
+            .TakeLast(3).Select(i => string.Join(" - ", parts.Skip(i))))
+            .Where(c => c.Trim().Length >= 2).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
     private static string Normalize(string value) => new string(value.Normalize(NormalizationForm.FormD)
         .Where(c => CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark).ToArray()).ToUpperInvariant();
     private static readonly Dictionary<string, string> States = new()
@@ -102,31 +111,35 @@ internal sealed class SalesWeatherService
         await GeoGate.WaitAsync(token);
         try
         {
-            var wait = lastGeoRequest.AddSeconds(1.1) - DateTimeOffset.UtcNow;
-            if (wait > TimeSpan.Zero) await Task.Delay(wait, token);
-            lastGeoRequest = DateTimeOffset.UtcNow;
-            string url = geocoder + "?format=jsonv2&addressdetails=1&featureType=city&countrycodes=br&limit=5&city=" + Uri.EscapeDataString(city);
-            if (state.Length > 0) url += "&state=" + Uri.EscapeDataString(States[state]);
-            using var response = await client.GetAsync(url, token);
-            response.EnsureSuccessStatusCode();
-            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
-            var matches = new List<WeatherLocation>();
-            foreach (var entry in doc.RootElement.EnumerateArray())
+            foreach (string candidate in state.Length > 0 ? CityCandidates(city) : new[] { city })
             {
-                var address = entry.GetProperty("address");
-                string name = "";
-                foreach (string field in new[] { "city", "town", "municipality", "village" })
-                    if (address.TryGetProperty(field, out var value)) { name = value.GetString() ?? ""; break; }
-                if (Normalize(name) != Normalize(city)) continue;
-                string uf = address.TryGetProperty("ISO3166-2-lvl4", out var iso) ? (iso.GetString() ?? "").Replace("BR-", "") : "";
-                if (uf.Length == 0 && address.TryGetProperty("state", out var stateName))
-                    uf = States.FirstOrDefault(pair => Normalize(pair.Value) == Normalize(stateName.GetString() ?? "")).Key ?? "";
-                if (state.Length > 0 && uf != state) continue;
-                if (uf.Length == 0) continue;
-                matches.Add(new WeatherLocation(name, uf, double.Parse(entry.GetProperty("lat").GetString()!, CultureInfo.InvariantCulture), double.Parse(entry.GetProperty("lon").GetString()!, CultureInfo.InvariantCulture)));
+                var wait = lastGeoRequest.AddSeconds(1.1) - DateTimeOffset.UtcNow;
+                if (wait > TimeSpan.Zero) await Task.Delay(wait, token);
+                lastGeoRequest = DateTimeOffset.UtcNow;
+                string url = geocoder + "?format=jsonv2&addressdetails=1&featureType=city&countrycodes=br&limit=5&city=" + Uri.EscapeDataString(candidate);
+                if (state.Length > 0) url += "&state=" + Uri.EscapeDataString(States[state]);
+                using var response = await client.GetAsync(url, token);
+                response.EnsureSuccessStatusCode();
+                using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+                var matches = new List<WeatherLocation>();
+                foreach (var entry in doc.RootElement.EnumerateArray())
+                {
+                    var address = entry.GetProperty("address");
+                    string name = "";
+                    foreach (string field in new[] { "city", "town", "municipality", "village" })
+                        if (address.TryGetProperty(field, out var value)) { name = value.GetString() ?? ""; break; }
+                    if (Normalize(name) != Normalize(candidate)) continue;
+                    string uf = address.TryGetProperty("ISO3166-2-lvl4", out var iso) ? (iso.GetString() ?? "").Replace("BR-", "") : "";
+                    if (uf.Length == 0 && address.TryGetProperty("state", out var stateName))
+                        uf = States.FirstOrDefault(pair => Normalize(pair.Value) == Normalize(stateName.GetString() ?? "")).Key ?? "";
+                    if (state.Length > 0 && uf != state) continue;
+                    if (uf.Length == 0) continue;
+                    matches.Add(new WeatherLocation(name, uf, double.Parse(entry.GetProperty("lat").GetString()!, CultureInfo.InvariantCulture), double.Parse(entry.GetProperty("lon").GetString()!, CultureInfo.InvariantCulture)));
+                }
+                if (matches.Select(match => match.State).Distinct().Count() > 1) throw new InvalidOperationException("Informe cidade e UF no cadastro da empresa.");
+                if (matches.Count > 0) return matches[0];
             }
-            if (matches.Select(match => match.State).Distinct().Count() > 1) throw new InvalidOperationException("Informe cidade e UF no cadastro da empresa.");
-            return matches.FirstOrDefault() ?? throw new InvalidOperationException("Cidade não localizada. Confira cidade/UF da empresa.");
+            throw new InvalidOperationException("Cidade não localizada. Confira cidade/UF da empresa.");
         }
         finally { GeoGate.Release(); }
     }
@@ -187,7 +200,7 @@ internal sealed class SalesWeatherCard : Control
             if (Reading != null)
             {
                 var expected = SalesWeatherService.ParseCity(requestedCity);
-                if (!Reading.Location.City.Equals(expected.City, StringComparison.OrdinalIgnoreCase) || (expected.State.Length > 0 && Reading.Location.State != expected.State)) Reading = null;
+                if (!SalesWeatherService.CityCandidates(expected.City).Contains(Reading.Location.City, StringComparer.OrdinalIgnoreCase) || (expected.State.Length > 0 && Reading.Location.State != expected.State)) Reading = null;
             }
             var reading = await service.GetAsync(requestedCity, cancellation.Token);
             if (IsDisposed || cancellation.IsCancellationRequested) return;

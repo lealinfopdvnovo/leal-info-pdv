@@ -150,6 +150,11 @@ internal static class Program
             }
             var cityCard = Children(sales).OfType<SalesWeatherCard>().Single();
             using (var cn = Database.Open()) using (var cmd = cn.CreateCommand())
+            { cmd.CommandText = "UPDATE settings SET value='JAPUIBA - ANGRA DOS REIS - RJ' WHERE key='company_city_state'"; cmd.ExecuteNonQuery(); }
+            await cityCard.RefreshWeatherAsync();
+            if (cityCard.Reading?.Location.City != "Angra dos Reis" || cityCard.Reading.Location.State != "RJ") throw new Exception("Card nao resolveu cadastro do print");
+            Capture(sales, "clima-bairro-municipio");
+            using (var cn = Database.Open()) using (var cmd = cn.CreateCommand())
             { cmd.CommandText = "UPDATE settings SET value='Curitiba/PR' WHERE key='company_city_state'"; cmd.ExecuteNonQuery(); }
             int formsBeforeFailure = Application.OpenForms.Count;
             var cardBounds = cityCard.Bounds;
@@ -346,8 +351,15 @@ internal static class WeatherChecks
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
         try { await service.GetAsync("Curitiba/PR", cancelled.Token); throw new Exception("Cancelamento ignorado"); } catch (OperationCanceledException) { }
         checks.Add("Cancelamento ao fechar OK");
+        handler.Fail = false; handler.WrongState = false;
+        var legacy = await new SalesWeatherService(client, folder + "-legacy").GetAsync("JAPUIBA - ANGRA DOS REIS - RJ", CancellationToken.None);
+        var other = await new SalesWeatherService(client, folder + "-other").GetAsync("CENTRO - Curitiba - PR", CancellationToken.None);
+        if (legacy.Location.City != "Angra dos Reis" || legacy.Location.State != "RJ" || other.Location.City != "Curitiba" || other.Location.State != "PR")
+            throw new Exception("Bairro confundido com municipio");
+        if (SalesWeatherService.CityCandidates("Pindaré - Mirim")[0] != "Pindaré - Mirim") throw new Exception("Nome completo do municipio nao foi priorizado");
+        checks.Add("Bairro - Municipio - UF: municipio confirmado pelo geocodificador, sem cidade fixa OK");
         var live = new SalesWeatherService(cacheFolder: folder + "-live");
-        foreach (string city in new[] { "Angra dos Reis/RJ", "Curitiba/PR" })
+        foreach (string city in new[] { "JAPUIBA - ANGRA DOS REIS - RJ", "Curitiba/PR" })
         {
             var reading = await live.GetAsync(city, CancellationToken.None);
             checks.Add($"Online real: {reading.Location.City}/{reading.Location.State} {reading.Temperature:0}C, previsao {reading.ForecastAt:O} OK");
