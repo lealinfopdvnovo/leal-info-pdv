@@ -451,9 +451,13 @@ public sealed class MainForm : Form
                 var html = $@"<!doctype html><html><body style='margin:0;background:#020a16;display:flex;height:100vh;align-items:center;justify-content:center;overflow:hidden'><video id='v' controls autoplay style='width:100%;height:100%;object-fit:contain;background:black'><source src='{uri}' type='video/mp4'></video><script>document.getElementById('v').addEventListener('ended',()=>chrome.webview.postMessage('video-ended'));</script></body></html>";
                 web.NavigateToString(html);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                MessageBox.Show("Não foi possível iniciar o vídeo do tutorial.\n\n" + ex.Message, "Tutorial");
+                // O tutorial não pode bloquear o PDV quando o WebView2 Runtime estiver ausente.
+                web.Visible = false;
+                action.Enabled = true;
+                action.Text = "CONTINUAR SEM O VÍDEO";
+                action.BackColor = Color.FromArgb(0, 163, 224);
             }
         };
         f.Show(this);
