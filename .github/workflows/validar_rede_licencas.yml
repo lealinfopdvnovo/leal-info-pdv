@@ -27,6 +27,22 @@ jobs:
         run: dotnet build LealInfoPDV.csproj -c Release
       - name: Validar licencas e rede TLS com banco central
         run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release
+      - name: Capturar ativacao e login reais
+        shell: pwsh
+        run: |
+          Copy-Item Program.cs Program.cs.original
+          Copy-Item qa/ActivationCapture.cs.txt Program.cs -Force
+          dotnet build LealInfoPDV.csproj -c Release -t:Rebuild -o activation-ui
+          if($LASTEXITCODE -ne 0){throw 'Falha ao compilar fluxo'}
+          $p=Start-Process ./activation-ui/LealInfoPDV.exe -PassThru
+          if(-not $p.WaitForExit(90000)){$p.Kill();throw 'Fluxo nao encerrou'}
+          if($p.ExitCode -ne 0 -or (Test-Path activation-qa/error.txt)){if(Test-Path activation-qa/error.txt){Get-Content activation-qa/error.txt};throw 'Falha no fluxo'}
+          Move-Item Program.cs.original Program.cs -Force
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ativacao-login-windows
+          path: activation-qa/
       - name: Preparar pacote de teste
         run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o network-build
       - uses: actions/upload-artifact@v4

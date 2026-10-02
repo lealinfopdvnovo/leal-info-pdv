@@ -10,8 +10,7 @@ internal sealed class ActivationForm : Form
         var layout=new TableLayoutPanel { Dock=DockStyle.Fill,Padding=new Padding(28),ColumnCount=1,RowCount=6 };
         foreach(var h in new[]{60,75,50,100,65,70})layout.RowStyles.Add(new RowStyle(SizeType.Absolute,h));Controls.Add(layout);
         layout.Controls.Add(new Label {Text="ATIVAÇÃO DA LICENÇA",Dock=DockStyle.Fill,ForeColor=Color.Gold,Font=new Font("Segoe UI",20,FontStyle.Bold)},0,0);
-        layout.Controls.Add(new Label {Text="Envie o serial deste computador ao vendedor.
-Cole a chave recebida ou importe o arquivo de licença.",Dock=DockStyle.Fill},0,1);
+        layout.Controls.Add(new Label {Text="Envie o serial deste computador ao vendedor.\nCole a chave recebida ou importe o arquivo de licença.",Dock=DockStyle.Fill},0,1);
         var serial=new TextBox {Text=Database.DeviceSerial(),ReadOnly=true,Dock=DockStyle.Fill};layout.Controls.Add(serial,0,2);
         var key=new TextBox {Multiline=true,Dock=DockStyle.Fill,PlaceholderText="Cole a chave de ativação recebida"};layout.Controls.Add(key,0,3);
         var buttons=new FlowLayoutPanel {Dock=DockStyle.Fill};layout.Controls.Add(buttons,0,4);
