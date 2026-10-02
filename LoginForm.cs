@@ -54,9 +54,9 @@ public sealed class LoginForm : Form
 
         // Cartão integrado ao ambiente fullscreen.
         var card=new GlassTablePanel{ColumnCount=1,RowCount=3,Padding=new Padding(2)};
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute,104));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute,76));
         card.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute,42));
+        card.RowStyles.Add(new RowStyle(SizeType.Absolute,36));
         stage.Controls.Add(card);
 
         var header=new GlassHeaderPanel{Dock=DockStyle.Fill};
@@ -64,7 +64,7 @@ public sealed class LoginForm : Form
             ForeColor=Color.White,Font=new Font("Segoe UI",22,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter};
         header.Controls.Add(headerTitle); card.Controls.Add(header,0,0);
 
-        var p=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,Padding=new Padding(62,22,62,18),BackColor=Color.FromArgb(10,25,46)};
+        var p=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,Padding=new Padding(42,14,42,12),BackColor=Color.FromArgb(10,25,46)};
         card.Controls.Add(p,0,1);
         card.Controls.Add(new Label{Text="LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V"+UpdateManager.CurrentVersion,Dock=DockStyle.Fill,
             BackColor=Color.Transparent,ForeColor=Color.FromArgb(120,220,255),Font=new Font("Segoe UI",8.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter},0,2);
@@ -77,7 +77,7 @@ public sealed class LoginForm : Form
         if(Auth.UserCount()==0) BuildFirstAdmin(p,Box,Lab);
         else BuildLogin(p,Box,Lab);
 
-        const int finalW=650, finalH=650;
+        const int finalW=560, finalH=540;
         int anim=0;
         var cinematic=new System.Windows.Forms.Timer{Interval=16};
 
@@ -90,7 +90,8 @@ public sealed class LoginForm : Form
 
             int w=(int)(finalW*scale), h=(int)(finalH*scale);
             int x=(sw-w)/2;
-            int targetY=Math.Max(190,(sh-finalH)/2+70);
+            int targetY=Math.Max(205,(sh-finalH)/2+70);
+            targetY=Math.Min(targetY,Math.Max(12,sh-finalH-12));
             int y=(int)(targetY+(1-progress)*70+(finalH-h)/2);
             card.Bounds=new Rectangle(x,y,w,h);
             ApplyRoundedRegion(card,28);
@@ -100,11 +101,12 @@ public sealed class LoginForm : Form
             // Mantém o conjunto centralizado e deixa espaço real antes do cartão.
             int brandW=Math.Min(900,Math.Max(520,sw-120));
             int brandX=(sw-brandW)/2;
-            int brandTop=Math.Max(24,targetY-230);
+            int brandTop=Math.Max(0,targetY-202);
 
             accent.SetBounds((sw-120)/2,brandTop,120,5);
             int logoWidth=Math.Min(560,brandW);
-            customerLogo.SetBounds((sw-logoWidth)/2,brandTop+12,logoWidth,190);
+            int logoHeight=Math.Min(190,Math.Max(76,targetY-15));
+            customerLogo.SetBounds((sw-logoWidth)/2,brandTop+12,logoWidth,logoHeight);
             brand.SetBounds(brandX,brandTop+16,brandW,62);
             connected.SetBounds(brandX,brandTop+76,brandW,62);
             product.SetBounds(brandX,brandTop+138,brandW,42);

@@ -1,1 +1,1 @@
-Cliente 002: destaca o botão para escolher/trocar o logotipo na tela Dados da Empresa; a imagem salva aparece no login e na tela principal.
+Cliente 002: compacta o painel de login e reposiciona o logotipo da empresa para que fique visível, mantendo campos e ações.

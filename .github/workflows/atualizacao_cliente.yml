@@ -78,9 +78,19 @@ jobs:
           $manifest = @{ Version=$env:VERSION; PackageUrl=$assetUrl; Sha256=$sha; SourceCommit=$env:GITHUB_SHA; TargetClientCode=$env:CLIENT_CODE; Notes=$notes; Mandatory=$false } | ConvertTo-Json
           $contentBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $path = "clients/$env:CLIENT_CODE/version.json"
-          $existingSha = gh api "repos/$env:UPDATE_REPO/contents/$path?ref=main" --jq '.sha' 2>$null
-          if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($existingSha)) {
-            gh api --method PUT "repos/$env:UPDATE_REPO/contents/$path" -f message="Atualizacao $env:CLIENT_CODE V$env:VERSION" -f content="$contentBase64" -f sha="$existingSha"
-          } else {
-            gh api --method PUT "repos/$env:UPDATE_REPO/contents/$path" -f message="Atualizacao inicial $env:CLIENT_CODE V$env:VERSION" -f content="$contentBase64"
+          $existingSha = ''
+          $existingManifestJson = gh api "repos/$env:UPDATE_REPO/contents/$path?ref=main" 2>$null
+          $manifestReadExitCode = $LASTEXITCODE
+          if ($manifestReadExitCode -eq 0) {
+            $existingManifest = $existingManifestJson | ConvertFrom-Json -ErrorAction Stop
+            $existingSha = [string]$existingManifest.sha
+            if ([string]::IsNullOrWhiteSpace($existingSha)) { throw 'O manifesto existente nao retornou SHA.' }
+          } elseif ($manifestReadExitCode -ne 1) {
+            throw "Nao foi possivel consultar o manifesto do cliente ($manifestReadExitCode)."
           }
+          $payload = @{ message="Atualizacao $env:CLIENT_CODE V$env:VERSION"; content=$contentBase64 }
+          if (-not [string]::IsNullOrWhiteSpace($existingSha)) { $payload.sha = $existingSha }
+          $requestPath = Join-Path $env:RUNNER_TEMP 'client-manifest-request.json'
+          $payload | ConvertTo-Json -Compress | Set-Content $requestPath -Encoding utf8
+          gh api --method PUT "repos/$env:UPDATE_REPO/contents/$path" --input $requestPath
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao gravar o manifesto do cliente.' }
