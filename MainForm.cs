@@ -1855,8 +1855,8 @@ private void ApplyFloatingTheme(Form f)
     {
         var sales = Application.OpenForms.Cast<Form>()
             .FirstOrDefault(form => form.Visible && form.Text.Contains("TELA DE VENDA"));
-        if (sales == null || dialog == sales) return;
-        SalesDialogTheme.Apply(dialog, GetSetting("sales_theme", "Futurista Azul"), sales.BackgroundImage);
+        if (dialog == sales || dialog.Text.Contains("TELA DE VENDA", StringComparison.OrdinalIgnoreCase)) return;
+        SalesDialogTheme.Apply(dialog, GetSetting("sales_theme", "Futurista Azul"), sales?.BackgroundImage);
     }
 
     private void RefreshDashboard()
