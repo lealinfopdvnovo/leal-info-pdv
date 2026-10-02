@@ -38,7 +38,19 @@ public sealed class LoginForm : Form
             Font=new Font("Segoe UI",16,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
         var tagline=new Label{Text="TECNOLOGIA QUE CONECTA",AutoSize=false,ForeColor=Color.FromArgb(104,151,181),BackColor=Color.Transparent,
             Font=new Font("Segoe UI",10.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
-        identity.Controls.Add(brand); identity.Controls.Add(connected); identity.Controls.Add(product); identity.Controls.Add(tagline);
+        var customerLogo=new PictureBox{SizeMode=PictureBoxSizeMode.Zoom,BackColor=Color.Transparent,Image=Licensing.CompanyBranding.LoadLogo(false)};
+        var customerName=GetCustomerDisplayName();
+        if(customerLogo.Image!=null)
+        {
+            brand.Visible=false;connected.Visible=false;product.Visible=false;tagline.Visible=false;
+        }
+        else
+        {
+            brand.Text=customerName;
+            connected.Visible=false;
+            tagline.Visible=false;
+        }
+        identity.Controls.Add(brand); identity.Controls.Add(connected); identity.Controls.Add(product); identity.Controls.Add(tagline); identity.Controls.Add(customerLogo);
 
         // Cartão integrado ao ambiente fullscreen.
         var card=new GlassTablePanel{ColumnCount=1,RowCount=3,Padding=new Padding(2)};
@@ -91,6 +103,8 @@ public sealed class LoginForm : Form
             int brandTop=Math.Max(24,targetY-230);
 
             accent.SetBounds((sw-120)/2,brandTop,120,5);
+            int logoWidth=Math.Min(560,brandW);
+            customerLogo.SetBounds((sw-logoWidth)/2,brandTop+12,logoWidth,190);
             brand.SetBounds(brandX,brandTop+16,brandW,62);
             connected.SetBounds(brandX,brandTop+76,brandW,62);
             product.SetBounds(brandX,brandTop+138,brandW,42);
@@ -108,6 +122,7 @@ public sealed class LoginForm : Form
             product.BringToFront();
             tagline.BringToFront();
             accent.BringToFront();
+            if(customerLogo.Visible && customerLogo.Image!=null) customerLogo.BringToFront();
         }
 
         Resize+=(_,_)=>LayoutScene(1,1);
@@ -136,6 +151,18 @@ public sealed class LoginForm : Form
             if(t>=1.0){
                 LayoutScene(1.0,1.0);cinematic.Stop();Opacity=1;LayoutScene(1,1);}
         };
+        FormClosed+=(_,_)=>customerLogo.Image?.Dispose();
+    }
+
+    string GetCustomerDisplayName()
+    {
+        try
+        {
+            var name=Licensing.CompanyBranding.Get("company_trade_name").Trim();
+            if(string.IsNullOrWhiteSpace(name)) name=Licensing.CompanyBranding.Get("company_name").Trim();
+            return string.IsNullOrWhiteSpace(name) ? "LEAL INFO" : name.ToUpperInvariant();
+        }
+        catch { return "LEAL INFO"; }
     }
 
     async Task SpeakLoginAssistAsync(string text)
