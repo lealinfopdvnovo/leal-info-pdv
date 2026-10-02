@@ -125,16 +125,15 @@ internal static class SalesDialogTheme
                         panel.BackgroundImage = null;
                         Round(panel, 14);
                         break;
-                    case Label label:
-                        label.BackColor = Color.Transparent;
-                        if (IsNeutral(label.ForeColor)) label.ForeColor = palette.Foreground;
-                        else if (!IsStatusColor(label.ForeColor)) label.ForeColor = palette.Foreground;
-                        break;
                     case LinkLabel link:
                         link.BackColor = Color.Transparent;
                         link.LinkColor = palette.Accent;
                         link.ActiveLinkColor = ControlPaint.Light(palette.Accent);
                         link.VisitedLinkColor = palette.Accent;
+                        break;
+                    case Label label:
+                        label.BackColor = Color.Transparent;
+                        if (IsNeutral(label.ForeColor) || !IsStatusColor(label.ForeColor)) label.ForeColor = palette.Foreground;
                         break;
                     case CheckBox or RadioButton:
                         control.BackColor = palette.Panel;
