@@ -33,7 +33,7 @@ internal static class Program
             using(var cn=Database.Open()){using var cmd=cn.CreateCommand();cmd.CommandText="INSERT OR REPLACE INTO settings(key,value) VALUES('company_registered','1'),('security_setup_completed','1'),('first_access_tutorial_completed','1');";cmd.ExecuteNonQuery();}
             using(var main=new MainForm()) {
                 using var timer=new System.Windows.Forms.Timer {Interval=900};
-                timer.Tick+=(_,_)=>{timer.Stop();Capture(main,"main-standard");var lia=All(main).FirstOrDefault(c=>c.Name=="btnAssistenteAI");if(lia!=null && lia.Visible)throw new Exception("Esfera LIA no Standard");if(!All(main).OfType<PictureBox>().Any(p=>p.Image!=null && p.Visible))throw new Exception("Logo ausente na tela principal");main.Close();};main.Shown+=(_,_)=>timer.Start();Application.Run(main);
+                timer.Tick+=(_,_)=>{timer.Stop();Capture(main,"main-standard");var lia=All(main).FirstOrDefault(c=>c.Name=="btnAssistenteAI");if(lia!=null && lia.Visible)throw new Exception("Esfera LIA no Standard");var brand=(PictureBox?)typeof(MainForm).GetField("companyLogoPicture",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(main);if(brand?.Image?.Width!=120 || !brand.Visible)throw new Exception("Logo cadastrado ausente na tela principal");main.Close();};main.Shown+=(_,_)=>timer.Start();Application.Run(main);
             }
             File.WriteAllText("activation-qa/success.txt","PASS: tela de ativação, chave colada, persistência, fade Standard, login real, logo e LIA desabilitada.");File.Delete(path);
         }catch(Exception ex){File.WriteAllText("activation-qa/error.txt",ex.ToString());Environment.ExitCode=1;}

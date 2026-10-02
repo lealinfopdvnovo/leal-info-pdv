@@ -142,7 +142,7 @@ jobs:
           foreach($name in $before.Keys){if((Get-FileHash (Join-Path $data $name)).Hash -ne $before[$name]){throw "Atualizacao alterou $name"}}
           'PASS: setup novo e reinstalacao preservam os dados locais' | Set-Content setup-preservation-success.txt
       - name: Publicar Release
-        if: github.ref == 'refs/heads/main' 
+        if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
           $setup="SETUP_PRONTO/$env:SETUP_FILE"

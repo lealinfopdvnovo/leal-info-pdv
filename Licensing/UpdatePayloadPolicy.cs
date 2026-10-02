@@ -9,6 +9,7 @@ internal static class UpdatePayloadPolicy
         var extension=Path.GetExtension(file).ToLowerInvariant();
         if(extension is ".pem" or ".db" or ".sqlite" or ".license" or ".config" or ".identity" or ".certificate" or ".protected" or ".leallicenca" or ".lealrede" or ".dat")return false;
         if(path.StartsWith("Assets/",StringComparison.OrdinalIgnoreCase))return extension is ".png" or ".jpg" or ".jpeg" or ".mp4" or ".ico";
+        if(extension==".xml" && file.StartsWith("Microsoft.Web.WebView2.",StringComparison.OrdinalIgnoreCase))return true; // Documentação do SDK, sem configurações do cliente.
         return extension is ".exe" or ".dll" or ".pdb" || file.EndsWith(".deps.json",StringComparison.OrdinalIgnoreCase) || file.EndsWith(".runtimeconfig.json",StringComparison.OrdinalIgnoreCase);
     }
     internal static void Validate(string zip)
