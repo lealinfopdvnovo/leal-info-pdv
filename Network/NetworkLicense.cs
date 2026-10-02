@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace LealInfoPDV.Network;
 
 public sealed record LicenseTerms(string ServerSerial, int ComputerLimit, string BillingMode,
-    DateTimeOffset? ExpiresUtc, string SellerContact, long Revision, string LicenseId);
+    DateTimeOffset? ExpiresUtc, string SellerContact, long Revision, string LicenseId, string Plan = "plus");
 public sealed record SignedLicense(string Payload, string Signature);
 internal sealed record RegisteredDevice(string Serial, string PublicKey, string Name);
 internal sealed class LicenseState
@@ -47,7 +47,7 @@ public sealed class NetworkLicense
         if (!rsa.VerifyData(payload, Convert.FromBase64String(envelope.Signature), HashAlgorithmName.SHA256, RSASignaturePadding.Pss))
             throw new InvalidDataException("A assinatura da licença é inválida. Contate o vendedor.");
         var terms = JsonSerializer.Deserialize<LicenseTerms>(payload) ?? throw new InvalidDataException("Licença inválida.");
-        if (terms.ServerSerial != serial || terms.ComputerLimit < 2 || terms.ComputerLimit > 1000 || terms.Revision < 1 ||
+        if (terms.ServerSerial != serial || terms.Plan is not ("standard" or "plus" or "pro") || terms.ComputerLimit < (terms.Plan == "standard" ? 1 : 2) || terms.ComputerLimit > 1000 || terms.Revision < 1 ||
             terms.BillingMode is not ("unico" or "mensal") || (terms.BillingMode == "mensal" && terms.ExpiresUtc == null) ||
             (terms.BillingMode == "unico" && terms.ExpiresUtc != null) || string.IsNullOrWhiteSpace(terms.LicenseId))
             throw new InvalidDataException("Esta licença não é válida para este servidor ou modalidade.");
