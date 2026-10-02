@@ -4,7 +4,7 @@ on:
     branches: ['client/**']
     paths-ignore: ['README.md']
 concurrency:
-  group: atualizacao-cliente-\${{ github.ref_name }}
+  group: atualizacao-cliente-${{ github.ref_name }}
   cancel-in-progress: true
 permissions:
   contents: read
@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-latest
     env:
       UPDATE_REPO: lealinfopdvnovo/leal-info-pdv-updates
-      GH_TOKEN: \${{ secrets.UPDATE_REPO_TOKEN }}
+      GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -54,19 +54,19 @@ jobs:
       - name: Gerar pacote de atualizacao (sem instalador)
         shell: pwsh
         env:
-          PACKAGE: \${{ steps.meta.outputs.PACKAGE }}
+          PACKAGE: ${{ steps.meta.outputs.PACKAGE }}
         run: Compress-Archive -Path 'publish_update/*' -DestinationPath $env:PACKAGE -CompressionLevel Optimal
       - name: Validar pacote pelo validador do PDV
         env:
-          PACKAGE: \${{ steps.meta.outputs.PACKAGE }}
+          PACKAGE: ${{ steps.meta.outputs.PACKAGE }}
         run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package $env:PACKAGE
       - name: Publicar pacote e manifesto apenas neste ID
         shell: pwsh
         env:
-          CLIENT_CODE: \${{ steps.meta.outputs.CLIENT_CODE }}
-          VERSION: \${{ steps.meta.outputs.VERSION }}
-          TAG: \${{ steps.meta.outputs.TAG }}
-          PACKAGE: \${{ steps.meta.outputs.PACKAGE }}
+          CLIENT_CODE: ${{ steps.meta.outputs.CLIENT_CODE }}
+          VERSION: ${{ steps.meta.outputs.VERSION }}
+          TAG: ${{ steps.meta.outputs.TAG }}
+          PACKAGE: ${{ steps.meta.outputs.PACKAGE }}
         run: |
           $ErrorActionPreference = 'Stop'
           $notesPath = 'CLIENT_UPDATE_NOTES.txt'
