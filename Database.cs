@@ -241,6 +241,7 @@ public static class Database
         cmd.ExecuteNonQuery();
 
         EnsureSaleItemsAllowsLooseSales(cn);
+        StoreLicensedClientUpdateId();
 
         // Migração compatível com bancos já existentes.
         try
@@ -311,6 +312,18 @@ public static class Database
             foreignKeys.CommandText = "PRAGMA foreign_keys=ON";
             foreignKeys.ExecuteNonQuery();
         }
+    }
+
+    private static void StoreLicensedClientUpdateId()
+    {
+        if (Network.NetworkConfiguration.Current.Mode == "terminal") return;
+        var code = Licensing.InstallationLicense.Current?.ClientCode ?? "";
+        if (!ClientUpdateIdentity.IsValidClientCode(code)) return;
+        using var cn = Open();
+        using var cmd = cn.CreateCommand();
+        cmd.CommandText = "INSERT INTO settings(key,value) VALUES('client_update_id',$v) ON CONFLICT(key) DO UPDATE SET value=excluded.value";
+        cmd.Parameters.AddWithValue("$v", code);
+        cmd.ExecuteNonQuery();
     }
 
     public static SqliteConnection Open()

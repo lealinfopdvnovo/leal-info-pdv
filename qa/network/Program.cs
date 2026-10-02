@@ -100,6 +100,11 @@ try
     }
     Reject(() => { var wrong = new NetworkConfiguration { Host="127.0.0.1",Port=port,PairingSecret=config.PairingSecret,CertificateHash=new string('0',64) }; using var client = new NetworkDatabaseClient(wrong,"QA-TERMINAL-1",firstIdentity); }, "Não foi possível conectar");
     Reject(() => { using var clone = new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", Identity()); }, "identidade mudou");
+    Assert(ClientUpdateIdentity.GetManifestPath("002") == "clients/002/version.json", "Cliente 002 deve usar seu manifesto proprio.");
+    Assert(ClientUpdateIdentity.GetManifestPath("003") == "clients/003/version.json", "Cliente 003 deve usar seu manifesto proprio.");
+    Assert(ClientUpdateIdentity.GetManifestPath("010") == "clients/010/version.json", "IDs numericos devem manter zeros iniciais.");
+    Assert(ClientUpdateIdentity.GetManifestPath("Z02") == null && ClientUpdateIdentity.GetManifestPath("02") == null, "IDs invalidos nao podem selecionar canal individual.");
+    Assert(ClientUpdateIdentity.ManifestMatches("002", "002") && !ClientUpdateIdentity.ManifestMatches("002", "003"), "Manifesto de outro cliente deve ser rejeitado.");
     ActivationChecks.Run();
     Console.WriteLine("PASS: limites, concorrência, persistência, assinatura, modalidades, renovação, relógio, tipos, TLS, banco central, commit, rollback e desconexão.");
 }
