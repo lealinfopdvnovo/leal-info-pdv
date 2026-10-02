@@ -4995,15 +4995,19 @@ private void ApplyFloatingTheme(Form f)
                 }
             }
 
-            // Estado vazio: mantém a logomarca na vitrine.
-            // Produto selecionado sem foto: não confundir a logo com a foto do produto.
+            // Sem produto selecionado, prioriza o logotipo salvo no cadastro desta empresa.
+            // A marca padrão do PDV é usada somente quando não há logotipo cadastrado.
             if (!productId.HasValue)
             {
-                var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_brand_product.png");
-                if (File.Exists(logoPath))
+                productPicture.Image = Licensing.CompanyBranding.LoadLogo(false);
+                if (productPicture.Image == null)
                 {
-                    using var img = Image.FromFile(logoPath);
-                    productPicture.Image = new Bitmap(img);
+                    var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_brand_product.png");
+                    if (File.Exists(logoPath))
+                    {
+                        using var img = Image.FromFile(logoPath);
+                        productPicture.Image = new Bitmap(img);
+                    }
                 }
                 photoProductName.Text = "Selecione um produto";
             }
@@ -6504,13 +6508,18 @@ private void ApplyFloatingTheme(Form f)
             headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52));
             headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24));
             var logo = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
-            var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_brand_header.png");
-            if (File.Exists(logoPath))
+            // Usa o logotipo da empresa cadastrada; preserva a marca padrão como reserva.
+            logo.Image = Licensing.CompanyBranding.LoadLogo(false);
+            if (logo.Image == null)
             {
-                using var source = Image.FromFile(logoPath);
-                logo.Image = new Bitmap(source);
-                f.FormClosed += (_, _) => logo.Image?.Dispose();
+                var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_brand_header.png");
+                if (File.Exists(logoPath))
+                {
+                    using var source = Image.FromFile(logoPath);
+                    logo.Image = new Bitmap(source);
+                }
             }
+            f.FormClosed += (_, _) => logo.Image?.Dispose();
             var headerCenter = Rows(-100, 27);
             statusFrame.Margin = new Padding(6, 0, 6, 0);
             statusBox.Font = new Font("Segoe UI", 28, FontStyle.Bold);

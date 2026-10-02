@@ -1,1 +1,1 @@
-Cliente 002: compacta o painel de login e reposiciona o logotipo da empresa para que fique visível, mantendo campos e ações.
+Cliente 002: usa o logotipo salvo no cadastro da empresa no cabeçalho da tela de vendas e na vitrine vazia de produtos; preserva a marca padrão quando nao houver logo cadastrado.
