@@ -54,7 +54,7 @@ public sealed class LoginForm : Form
 
         var p=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,Padding=new Padding(62,22,62,18),BackColor=Color.FromArgb(10,25,46)};
         card.Controls.Add(p,0,1);
-        card.Controls.Add(new Label{Text="LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V10.130",Dock=DockStyle.Fill,
+        card.Controls.Add(new Label{Text="LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V"+UpdateManager.CurrentVersion,Dock=DockStyle.Fill,
             BackColor=Color.Transparent,ForeColor=Color.FromArgb(120,220,255),Font=new Font("Segoe UI",8.5f,FontStyle.Bold),TextAlign=ContentAlignment.MiddleCenter},0,2);
 
         TextBox Box(bool password=false)=>new(){Dock=DockStyle.Fill,Font=new Font("Segoe UI",12,FontStyle.Bold),
@@ -140,6 +140,7 @@ public sealed class LoginForm : Form
 
     async Task SpeakLoginAssistAsync(string text)
     {
+        if(!Licensing.InstallationLicense.HasLia)return;
         try { await Task.Run(()=>{using var speaker=new SpeechSynthesizer();var voice=speaker.GetInstalledVoices().FirstOrDefault(v=>v.Enabled&&(v.VoiceInfo.Culture.Name.Equals("pt-BR",StringComparison.OrdinalIgnoreCase)||v.VoiceInfo.Name.Contains("Francisca",StringComparison.OrdinalIgnoreCase)||v.VoiceInfo.Name.Contains("Maria",StringComparison.OrdinalIgnoreCase)));if(voice!=null)speaker.SelectVoice(voice.VoiceInfo.Name);speaker.Rate=-1;speaker.Volume=100;speaker.Speak(text);}); } catch { }
     }
 
