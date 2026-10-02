@@ -105,12 +105,25 @@ public sealed class SplashForm : Form
         introLayer.BringToFront();
     }
 
+    private static string GetCustomerDisplayName()
+    {
+        try
+        {
+            using var cn = Database.Open();
+            using var cmd = cn.CreateCommand();
+            cmd.CommandText = "SELECT COALESCE(NULLIF((SELECT value FROM settings WHERE key='company_trade_name'), ''), NULLIF((SELECT value FROM settings WHERE key='company_name'), ''), 'LEAL INFO PDV')";
+            return Convert.ToString(cmd.ExecuteScalar())?.Trim() is { Length: > 0 } name ? name.ToUpperInvariant() : "LEAL INFO PDV";
+        }
+        catch { return "LEAL INFO PDV"; }
+    }
+
     private static void ApplyCurrentVersionToLogin(Control root)
     {
         foreach (Control control in root.Controls)
         {
             if (control is Label label && label.Text.Contains("ACESSO SEGURO", StringComparison.OrdinalIgnoreCase))
-                label.Text = $"LEAL INFO CONECTADO  •  ACESSO SEGURO  •  V{UpdateManager.CurrentVersion}";
+                var customerName = GetCustomerDisplayName();
+                label.Text = $"{customerName}  •  ACESSO SEGURO  •  V{UpdateManager.CurrentVersion}";
             if (control.HasChildren) ApplyCurrentVersionToLogin(control);
         }
     }

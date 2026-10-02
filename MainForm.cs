@@ -359,7 +359,7 @@ public sealed class MainForm : Form
 
         var f = new Form
         {
-            Text = "LEAL INFO • Tutorial de Primeiro Acesso",
+            Text = $"{GetCompanyDisplayName()} • Tutorial de Primeiro Acesso",
             StartPosition = FormStartPosition.Manual,
             Width = 520,
             Height = 700,
@@ -381,7 +381,7 @@ public sealed class MainForm : Form
 
         root.Controls.Add(new Label
         {
-            Text = "CONHEÇA SEU LEAL INFO PDV\nAssista, pause e faça cada etapa no sistema.",
+            Text = $"CONHEÇA {GetCompanyDisplayName()}\nAssista, pause e faça cada etapa no sistema.",
             Dock = DockStyle.Fill,
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 12, FontStyle.Bold),
@@ -453,12 +453,29 @@ public sealed class MainForm : Form
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Não foi possível iniciar o vídeo do tutorial.\n\n" + ex.Message, "Tutorial");
+                action.Enabled = true;
+                action.Text = "CONTINUAR PARA CADASTRAR MEU PRIMEIRO PRODUTO";
+                action.BackColor = Color.FromArgb(0, 163, 224);
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(videoPath) { UseShellExecute = true });
+                }
+                catch { }
+                MessageBox.Show(
+                    "O player interno não está disponível. O vídeo foi aberto no player do Windows, e você já pode continuar no PDV.\\n\\n" + ex.Message,
+                    "Tutorial");
             }
         };
         f.Show(this);
     }
 
+
+    private static string GetCompanyDisplayName()
+    {
+        var name = GetSetting("company_trade_name").Trim();
+        if (string.IsNullOrWhiteSpace(name)) name = GetSetting("company_name").Trim();
+        return string.IsNullOrWhiteSpace(name) ? "LEAL INFO PDV" : name.ToUpperInvariant();
+    }
 
     private static string GetSetting(string key, string fallback = "")
     {

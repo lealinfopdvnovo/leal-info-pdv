@@ -1,0 +1,1 @@
+Cliente 002: personaliza a abertura e o tutorial com o nome cadastrado da empresa e permite continuar quando o WebView2 nao esta disponivel.
