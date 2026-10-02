@@ -21,7 +21,7 @@ internal sealed class ActivationForm : Form
                 var json=text.Trim();
                 if(json.StartsWith("LEAL1-"))json=System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(json[6..]));
                 if(InstallationLicense.Store==null)InstallationLicense.LoadLocal();
-                InstallationLicense.Store!.Import(json);InstallationLicense.RefreshLocal();
+                InstallationLicense.Store!.Activate(json);InstallationLicense.RefreshLocal();
                 if(!InstallationLicense.IsActivated(InstallationLicense.Current!))throw new InvalidDataException("Solicite ao vendedor uma licença com o código do cliente e o plano contratado.");
                 DialogResult=DialogResult.OK;Close();
             } catch(Exception ex){status.Text=ex.Message;}

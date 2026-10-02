@@ -4,7 +4,7 @@ on:
     branches: ['codex/pdv-rede-*']
   pull_request:
     branches: [main]
-    paths: ['Network/**', 'qa/network/**', 'Database.cs', 'DatabaseBackupService.cs', 'Program.cs', 'MainForm.cs', 'ProductRegistrationForm.cs', 'LealInfoPDV.csproj', 'tools/licencas/**', '.github/workflows/validar_rede_licencas.yml']
+    paths: ['Network/**', 'Licensing/**', 'tools/SellerGui/**', 'qa/ActivationCapture.cs.txt', 'qa/network/**', 'Database.cs', 'DatabaseBackupService.cs', 'Program.cs', 'MainForm.cs', 'ProductRegistrationForm.cs', 'LealInfoPDV.csproj', 'tools/licencas/**', '.github/workflows/validar_rede_licencas.yml']
 permissions:
   contents: read
 jobs:

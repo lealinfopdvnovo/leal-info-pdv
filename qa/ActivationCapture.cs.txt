@@ -16,8 +16,9 @@ internal static class Program
             var path=Path.Combine(Path.GetTempPath(),"activation-ui-"+Guid.NewGuid());
             var store=new NetworkLicense(path,Database.DeviceSerial(),key.ExportSubjectPublicKeyInfoPem());
             typeof(InstallationLicense).GetProperty("Store",BindingFlags.Static|BindingFlags.NonPublic)!.SetValue(null,store);
-            var terms=new LicenseTerms(Database.DeviceSerial(),1,"unico",null,"QA",1,"UI","standard","001");
+            var terms=new LicenseTerms(Database.DeviceSerial(),2,"unico",null,"QA",1,"UI","standard","001");
             var bytes=JsonSerializer.SerializeToUtf8Bytes(terms);var signed=JsonSerializer.Serialize(new SignedLicense(Convert.ToBase64String(bytes),Convert.ToBase64String(key.SignData(bytes,HashAlgorithmName.SHA256,RSASignaturePadding.Pss))));
+            store.Import(signed); // simula chave gravada antes da conclusão visual da ativação
             using(var activation=new ActivationForm()) {
                 using var timer=new System.Windows.Forms.Timer {Interval=500};timer.Tick+=(_,_)=>{timer.Stop();Capture(activation,"activation");All(activation).OfType<TextBox>().Single(t=>t.Multiline).Text="LEAL1-"+Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(signed));((Button)activation.AcceptButton!).PerformClick();};activation.Shown+=(_,_)=>timer.Start();
                 if(activation.ShowDialog()!=DialogResult.OK)throw new Exception("Ativação visual falhou");

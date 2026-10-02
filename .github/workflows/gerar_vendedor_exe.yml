@@ -1,7 +1,7 @@
 name: Gerar EXE do vendedor
 on:
   push:
-    branches: ['codex/vendedor-exe','codex/ativacao-planos']
+    branches: ['codex/vendedor-exe','codex/ativacao-planos','codex/pdv-rede-ativacao-v10.357']
 permissions:
   contents: read
 jobs:

@@ -2,6 +2,9 @@
 param(
     [Parameter(Mandatory=$true)][string]$Servidor,
     [ValidateRange(2,1000)][int]$Computadores = 2,
+    [ValidateRange(0,998)][int]$TerminaisAdicionais = 0,
+    [ValidateSet('standard','plus','pro')][string]$Plano = 'plus',
+    [Parameter(Mandatory=$true)][ValidatePattern('^[0-9]{3,9}$')][string]$CodigoCliente,
     [Parameter(Mandatory=$true)][ValidateSet('unico','mensal')][string]$Modalidade,
     [string]$Validade,
     [string]$Contato = '',
@@ -10,6 +13,10 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'Use PowerShell 7 (pwsh).' }
+if ($PSBoundParameters.ContainsKey('TerminaisAdicionais')) {
+    if ($PSBoundParameters.ContainsKey('Computadores') -and $Computadores -ne 2 + $TerminaisAdicionais) { throw 'Total deve ser 2 + terminais adicionais.' }
+    $Computadores = 2 + $TerminaisAdicionais
+}
 $expires = $null
 if ($Modalidade -eq 'mensal') {
     if ([string]::IsNullOrWhiteSpace($Validade)) { throw 'Informe -Validade em ISO 8601 com fuso, exemplo 2026-11-01T23:59:59-03:00.' }
@@ -17,7 +24,7 @@ if ($Modalidade -eq 'mensal') {
     if ([DateTimeOffset]::Parse($expires) -le [DateTimeOffset]::UtcNow) { throw 'Validade deve estar no futuro.' }
 } elseif (-not [string]::IsNullOrWhiteSpace($Validade)) { throw 'Pagamento unico nao utiliza validade.' }
 $terms = [ordered]@{ ServerSerial=$Servidor;ComputerLimit=$Computadores;BillingMode=$Modalidade;ExpiresUtc=$expires;
-    SellerContact=$Contato;Revision=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();LicenseId=[Guid]::NewGuid().ToString() }
+    SellerContact=$Contato;Revision=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();LicenseId=[Guid]::NewGuid().ToString();Plan=$Plano;ClientCode=$CodigoCliente;Active=$true;AdditionalTerminals=$Computadores-2 }
 $payload = [Text.Encoding]::UTF8.GetBytes(($terms | ConvertTo-Json -Compress))
 # A ponte em C# evita limitações de binding de ReadOnlySpan<char> em versões do PowerShell.
 if (-not ('LealLicenseSigner' -as [type])) {

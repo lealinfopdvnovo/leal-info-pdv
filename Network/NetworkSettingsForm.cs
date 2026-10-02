@@ -18,7 +18,7 @@ public sealed class NetworkSettingsForm : Form
             button.Click += (_,_) => { try { action(); } catch(Exception ex) { MessageBox.Show(this, ex.Message, "Rede e licença", MessageBoxButtons.OK, MessageBoxIcon.Warning); } }; return button;
         }
         var current = NetworkConfiguration.Current;
-        panel.Controls.Add(Label("Standard: 1 computador. Plus / Pro: rede conforme os pontos da licença.\nO servidor também conta como um computador.", 60));
+        panel.Controls.Add(Label("Standard / Plus / Pro: 2 computadores incluídos + pontos adicionais.\nO servidor também conta como um computador.", 60));
         panel.Controls.Add(Label("Modalidades disponíveis: pagamento único ou mensalidade. A modalidade e os pontos são liberados pelo vendedor através da licença.", 54));
         panel.Controls.Add(Label("Serial deste computador: " + Database.DeviceSerial(), 30));
         var status = Label("", 74); panel.Controls.Add(status);
@@ -26,7 +26,7 @@ public sealed class NetworkSettingsForm : Form
         void RefreshStatus()
         {
             if (licence == null) status.Text = current.Mode == "terminal" ? "TERMINAL • Servidor: " + current.Host + "\nA licença é validada no servidor a cada conexão." : "MODO LOCAL • Rede ainda não configurada.";
-            else { var t = licence.Terms; status.Text = $"Cliente {t.ClientCode} • {t.Plan.ToUpperInvariant()} • {(t.Active ? "ATIVA" : "INATIVA")}\n{licence.RegisteredCount}/{t.ComputerLimit} computadores cadastrados\nModalidade: {(t.BillingMode == "unico" ? "Pagamento único" : t.BillingMode == "mensal" ? "Mensalidade" : "A definir pelo vendedor")}" + (t.ExpiresUtc == null ? "" : " • Válida até: " + t.ExpiresUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")); }
+            else { var t = licence.Terms; status.Text = $"Cliente {t.ClientCode} • {t.Plan.ToUpperInvariant()} • {(t.Active ? "ATIVA" : "INATIVA")}\n{licence.RegisteredCount}/{t.TotalComputers} computadores cadastrados\nModalidade: {(t.BillingMode == "unico" ? "Pagamento único" : t.BillingMode == "mensal" ? "Mensalidade" : "A definir pelo vendedor")}" + (t.ExpiresUtc == null ? "" : " • Válida até: " + t.ExpiresUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")); }
         }
         RefreshStatus();
         if (current.Mode == "local")
@@ -35,7 +35,6 @@ public sealed class NetworkSettingsForm : Form
             panel.Controls.Add(Label("Porta do servidor (padrão: 47821)", 26)); panel.Controls.Add(port);
             panel.Controls.Add(Button("USAR ESTE COMPUTADOR COMO SERVIDOR", () =>
             {
-                if(licence!.Terms.Plan=="standard")throw new InvalidOperationException("Rede disponível nas edições Plus e Pro.");
                 NetworkConfiguration.Save(NetworkConfiguration.NewServer((int)port.Value));
                 MessageBox.Show(this, "Servidor configurado. Feche e abra o PDV para ativar a rede. Depois exporte o arquivo de conexão para o terminal.\n\nNo Firewall do Windows, permita o PDV somente na rede privada."); Close();
             }));
