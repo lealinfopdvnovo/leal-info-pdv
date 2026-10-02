@@ -6,6 +6,7 @@ internal static class InstallationLicense
     internal static LicenseTerms? Current { get; private set; }
     internal static string Edition => Current?.Plan.ToUpperInvariant() ?? "NAO ATIVADO";
     internal static bool HasLia => Current is { Active: true, Plan: "plus" or "pro" };
+    internal static bool HasMotoboy => Current is { Active: true, Plan: "plus" or "pro" };
     internal static bool HasNetwork => Current is { Active: true, Plan: "standard" or "plus" or "pro" };
     internal static bool IsActivated(LicenseTerms terms) => terms.Active && terms.ClientCode.Length > 0 && terms.Revision > 0;
     internal static void LoadLocal()

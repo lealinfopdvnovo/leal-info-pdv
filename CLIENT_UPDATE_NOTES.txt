@@ -1,1 +1,2 @@
 Cliente 002: usa o logotipo salvo no cadastro da empresa no cabeçalho da tela de vendas e na vitrine vazia de produtos; preserva a marca padrão quando nao houver logo cadastrado.
+Cliente 002: no plano Standard, o primeiro acesso usa tutorial em slides sem vídeo; Motoboy fica disponível somente nos planos Plus e Pro.
