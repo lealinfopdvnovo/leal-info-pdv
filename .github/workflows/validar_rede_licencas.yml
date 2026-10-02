@@ -1,7 +1,7 @@
 name: Validar rede e licencas do PDV
 on:
   push:
-    branches: ['codex/pdv-rede-*']
+    branches: ['codex/pdv-rede-*','codex/ativacao-planos']
   pull_request:
     branches: [main]
     paths: ['Network/**', 'qa/network/**', 'Database.cs', 'DatabaseBackupService.cs', 'Program.cs', 'MainForm.cs', 'ProductRegistrationForm.cs', 'LealInfoPDV.csproj', 'tools/licencas/**', '.github/workflows/validar_rede_licencas.yml']

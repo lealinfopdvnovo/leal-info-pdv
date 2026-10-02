@@ -5,7 +5,7 @@ using System.Text.Json;
 namespace LealInfoPDV.Network;
 
 public sealed record LicenseTerms(string ServerSerial, int ComputerLimit, string BillingMode,
-    DateTimeOffset? ExpiresUtc, string SellerContact, long Revision, string LicenseId);
+    DateTimeOffset? ExpiresUtc, string SellerContact, long Revision, string LicenseId, string Plan = "plus", string ClientCode = "", bool Active = true);
 public sealed record SignedLicense(string Payload, string Signature);
 internal sealed record RegisteredDevice(string Serial, string PublicKey, string Name);
 internal sealed class LicenseState
@@ -39,7 +39,8 @@ public sealed class NetworkLicense
     public int RegisteredCount { get { lock (gate) return 1 + state.Devices.Count; } }
     private LicenseTerms TermsUnsafe() => string.IsNullOrEmpty(state.SignedLicense)
         ? new(serial, 2, "a_definir", null, "", 0, "BASE") : Verify(state.SignedLicense);
-    private LicenseTerms Verify(string text)
+    private LicenseTerms Verify(string text) => Decode(text, serial, publicKey);
+    internal static LicenseTerms Decode(string text, string serial, string publicKey)
     {
         var envelope = JsonSerializer.Deserialize<SignedLicense>(text) ?? throw new InvalidDataException("Licença inválida.");
         var payload = Convert.FromBase64String(envelope.Payload);
@@ -47,7 +48,9 @@ public sealed class NetworkLicense
         if (!rsa.VerifyData(payload, Convert.FromBase64String(envelope.Signature), HashAlgorithmName.SHA256, RSASignaturePadding.Pss))
             throw new InvalidDataException("A assinatura da licença é inválida. Contate o vendedor.");
         var terms = JsonSerializer.Deserialize<LicenseTerms>(payload) ?? throw new InvalidDataException("Licença inválida.");
-        if (terms.ServerSerial != serial || terms.ComputerLimit < 2 || terms.ComputerLimit > 1000 || terms.Revision < 1 ||
+        if (terms.ServerSerial != serial || terms.Plan is not ("standard" or "plus" or "pro") ||
+            (terms.Plan == "standard" && terms.ComputerLimit != 1) ||
+            (terms.ClientCode.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(terms.ClientCode, @"^[0-9]{3,9}$")) || terms.ComputerLimit < (terms.Plan == "standard" ? 1 : 2) || terms.ComputerLimit > 1000 || terms.Revision < 1 ||
             terms.BillingMode is not ("unico" or "mensal") || (terms.BillingMode == "mensal" && terms.ExpiresUtc == null) ||
             (terms.BillingMode == "unico" && terms.ExpiresUtc != null) || string.IsNullOrWhiteSpace(terms.LicenseId))
             throw new InvalidDataException("Esta licença não é válida para este servidor ou modalidade.");
@@ -58,6 +61,7 @@ public sealed class NetworkLicense
         lock (gate)
         {
             var terms = Verify(text);
+            if (TermsUnsafe().ClientCode.Length>0 && terms.ClientCode!=TermsUnsafe().ClientCode)throw new InvalidDataException("A licença pertence a outro código de cliente.");
             if (terms.Revision <= TermsUnsafe().Revision) throw new InvalidDataException("Esta licença já foi aplicada ou foi substituída por uma mais recente.");
             if (terms.ComputerLimit < RegisteredCount) throw new InvalidDataException("A licença possui menos pontos que os computadores já cadastrados.");
             if (terms.ExpiresUtc <= EffectiveNow()) throw new InvalidDataException("A licença está vencida. Contate o vendedor.");
@@ -75,11 +79,14 @@ public sealed class NetworkLicense
         lock (gate)
         {
             var terms = TermsUnsafe();
+            if (!terms.Active) throw new InvalidOperationException("A licença está inativa. Entre em contato com o vendedor.");
             var now = EffectiveNow(); Save();
             if (terms.ExpiresUtc <= now) throw new InvalidOperationException("A licença mensal está vencida. Entre em contato com o vendedor para renovar." +
                 (string.IsNullOrWhiteSpace(terms.SellerContact) ? "" : "\nContato: " + terms.SellerContact));
         }
     }
+    internal void Reload() { lock(gate) state=ProtectedFile.Read<LicenseState>(path); }
+    internal string SignedText { get { lock(gate) return state.SignedLicense; } }
     internal void Register(string deviceSerial, string key, string name)
     {
         lock (gate)

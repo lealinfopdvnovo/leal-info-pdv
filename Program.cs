@@ -26,12 +26,24 @@ internal static class Program
         try
         {
             Network.NetworkConfiguration.Load();
+            if (Environment.GetCommandLineArgs().Contains("--check-lia"))
+            {
+                try {
+                    if(Network.NetworkConfiguration.Current.Mode=="terminal") { using var remote=Database.Open(); }
+                    else { Licensing.InstallationLicense.LoadLocal(); Licensing.InstallationLicense.RefreshLocal(); }
+                    Environment.ExitCode=Licensing.InstallationLicense.HasLia && Licensing.InstallationLicense.IsActivated(Licensing.InstallationLicense.Current!) ? 0:2;
+                }catch { Environment.ExitCode=2; }
+                return;
+            }
             if (Environment.GetCommandLineArgs().Contains("--rede"))
             {
                 using var settings = new Network.NetworkSettingsForm();
                 settings.ShowDialog();
                 return;
             }
+            if (Network.NetworkConfiguration.Current.Mode != "terminal" && !Licensing.InstallationLicense.EnsureActivated()) return;
+            if (Network.NetworkConfiguration.Current.Mode == "server" && !Licensing.InstallationLicense.HasNetwork)
+                throw new InvalidOperationException("A edição Standard usa somente este computador. Contate o vendedor para contratar Plus ou Pro.");
             // O servidor permanece ativo enquanto este PDV estiver aberto.
             using var networkServer = Network.NetworkConfiguration.Current.Mode == "server"
                 ? new Network.NetworkDatabaseServer(Network.NetworkConfiguration.Current) : null;
@@ -114,8 +126,12 @@ internal static class Program
                 DialogResult loginResult;
                 if (firstAccess)
                 {
-                    using var entry = new SplashForm();
-                    loginResult = entry.ShowDialog();
+                    if (Licensing.InstallationLicense.Current?.Plan == "standard")
+                    {
+                        using(var opening = new Licensing.BrandSplashForm()) opening.ShowDialog();
+                        using var standardLogin = new LoginForm();loginResult = standardLogin.ShowDialog();
+                    }
+                    else { using var entry = new SplashForm(); loginResult = entry.ShowDialog(); }
                     firstAccess = false;
                 }
                 else

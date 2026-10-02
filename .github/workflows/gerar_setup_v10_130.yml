@@ -1,4 +1,4 @@
-name: Publicar atualizacao LEAL INFO PDV V10.355
+name: Publicar atualizacao LEAL INFO PDV V10.356
 on:
   workflow_dispatch:
   push:
@@ -13,10 +13,10 @@ jobs:
   publicar-atualizacao:
     runs-on: windows-latest
     env:
-      UPDATE_VERSION: "10.355"
-      UPDATE_TAG: "v10.355"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_355_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_355_UPDATE.zip"
+      UPDATE_VERSION: "10.356"
+      UPDATE_TAG: "v10.356"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_356_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_356_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -26,11 +26,11 @@ jobs:
         shell: powershell
         run: |
           $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw -Encoding UTF8
-          $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.355"')
-          $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_355_FINAL')
+          $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.356"')
+          $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_356_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.355\.0</Version>') { throw "csproj nao esta em V10.355" }
-          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.355"') { throw "UpdateManager nao esta em V10.355" }
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.356\.0</Version>') { throw "csproj nao esta em V10.356" }
+          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.356"') { throw "UpdateManager nao esta em V10.356" }
       - name: Restaurar Azul Texturizado
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_tema_azul_texturizado_v10_306.ps1"
@@ -98,8 +98,22 @@ jobs:
           if($project -notmatch 'PackageReference Include="Microsoft.CognitiveServices.Speech"'){ $project=$project.Replace('</ItemGroup>','    <PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.45.0" />' + [Environment]::NewLine + '  </ItemGroup>') }
           if($project -notmatch 'PackageReference Include="System.Speech"'){ $project=$project.Replace('</ItemGroup>','    <PackageReference Include="System.Speech" Version="8.0.0" />' + [Environment]::NewLine + '  </ItemGroup>') }
           Set-Content "LIC-AI\LicAi.csproj" $project -Encoding UTF8
+      - name: Aplicar licenciamento da LIA
+        shell: pwsh
+        run: |
+          Copy-Item realtime/LiaLicenseGate.cs LIC-AI/LiaLicenseGate.cs -Force
+          $program=Get-Content LIC-AI/Program.cs -Raw
+          if(-not $program.Contains('ApplicationConfiguration.Initialize();')){throw 'Entrada LIA nao encontrada'}
+          $program=$program.Replace('ApplicationConfiguration.Initialize();','ApplicationConfiguration.Initialize(); if(!LiaLicenseGate.Allowed()){ MessageBox.Show("LIA disponivel somente com licenca ativa Plus ou Pro."); return; }')
+          Set-Content LIC-AI/Program.cs $program -Encoding UTF8
       - run: dotnet restore LIC-AI/LicAi.csproj
       - run: dotnet publish LIC-AI/LicAi.csproj -c Release -r win-x64 --self-contained true -o publish_setup/LIC-AI
+      - name: Garantir pacote neutro
+        shell: pwsh
+        run: |
+          $forbidden=Get-ChildItem publish_setup -Recurse -File | Where-Object { $_.Extension -in '.db','.sqlite','.pem','.license','.protected','.config','.dat','.leallicenca','.lealrede' }
+          if($forbidden){throw 'Dados particulares encontrados no pacote'}
+          if(Test-Path publish_setup/LEAL_INFO_VENDEDOR_REDE.exe){throw 'Gerador privado nao pode ser distribuido'}
       - name: Gerar ZIP
         shell: powershell
         run: Compress-Archive -Path "publish_setup\*" -DestinationPath $env:UPDATE_PACKAGE -CompressionLevel Optimal
@@ -114,7 +128,7 @@ jobs:
         run: |
           $setup="SETUP_PRONTO/$env:SETUP_FILE"
           gh release delete $env:UPDATE_TAG --repo $env:UPDATE_REPO --cleanup-tag --yes 2>$null
-          gh release create $env:UPDATE_TAG $env:UPDATE_PACKAGE $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.355: Rede local com servidor e terminais. Licenca inicial para 2 computadores, pontos adicionais, pagamento unico ou mensalidade e aviso ao exceder a quantidade contratada."
+          gh release create $env:UPDATE_TAG $env:UPDATE_PACKAGE $setup --repo $env:UPDATE_REPO --title "LEAL INFO PDV V$env:UPDATE_VERSION" --notes "V10.356: Ativacao por cliente e edicao, Standard sem LIA, logotipo local e atualizacao preservando dados."
       - name: Validar e ativar
         shell: pwsh
         run: |
@@ -125,8 +139,8 @@ jobs:
           $setupAsset=$release.assets|Where-Object{$_.name -eq $env:SETUP_FILE}
           if(-not $setupAsset){throw "Setup ausente"}
           $hash=(Get-FileHash $env:UPDATE_PACKAGE -Algorithm SHA256).Hash.ToLowerInvariant()
-          $notes="V10.355: Rede local com servidor e terminais. Licenca inicial para 2 computadores, pontos adicionais, pagamento unico ou mensalidade e aviso ao exceder a quantidade contratada."
-          $manifest=@{Version=$env:UPDATE_VERSION;PackageUrl=$asset.browser_download_url;Sha256=$hash;Notes=$notes;DownloadUrl=$setupAsset.browser_download_url;Mandatory=$false}|ConvertTo-Json
+          $notes="V10.356: Ativacao por cliente e edicao, Standard sem LIA, logotipo local e atualizacao preservando dados."
+          $manifest=@{Version=$env:UPDATE_VERSION;PackageUrl=$asset.browser_download_url;Sha256=$hash;Notes=$notes;DownloadUrl=$setupAsset.browser_download_url;Mandatory=$false;SourceCommit=$env:GITHUB_SHA;Editions=@("STANDARD","PLUS","PRO")}|ConvertTo-Json
           $encoded=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $sha=gh api "repos/$env:UPDATE_REPO/contents/version.json" --jq ".sha"
-          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.355" -f content="$encoded" -f sha="$sha"
+          gh api --method PUT "repos/$env:UPDATE_REPO/contents/version.json" -f message="Ativar V10.356" -f content="$encoded" -f sha="$sha"

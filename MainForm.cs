@@ -23,6 +23,8 @@ public sealed class MainForm : Form
     [DllImport("user32.dll")]
     private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
     private PictureBox? mainScreenPicture;
+    private PictureBox? companyLogoPicture;
+    private readonly System.Windows.Forms.Timer licenseTimer = new() { Interval=60000 };
 
     private readonly Color Blue = Color.FromArgb(10, 104, 157);
     private readonly Color DarkBlue = Color.FromArgb(4, 70, 112);
@@ -45,13 +47,23 @@ public sealed class MainForm : Form
         Font = new Font("Segoe UI", 10);
         BuildUi();
         RefreshDashboard();
+        Licensing.CompanyBranding.Changed += RefreshCompanyLogo;
+        licenseTimer.Tick += (_,_) => {
+            try {
+                var old=Licensing.InstallationLicense.Current;
+                if(Network.NetworkConfiguration.Current.Mode=="terminal") { using var remote=Database.Open(); }
+                else Licensing.InstallationLicense.RefreshLocal();
+                if(old!=Licensing.InstallationLicense.Current)throw new InvalidOperationException("A licença foi alterada. Abra novamente o PDV para aplicar a edição.");
+            }catch(Exception ex){licenseTimer.Stop();MessageBox.Show(this,ex.Message,"Licença do PDV",MessageBoxButtons.OK,MessageBoxIcon.Warning);Close();}
+        };
+        licenseTimer.Start();
         FormClosing += MainForm_FormClosing;
 
         Shown += (_, _) =>
         {
             MaximizedBounds = Screen.FromControl(this).WorkingArea;
             WindowState = FormWindowState.Maximized;
-            StartNavigationListener();
+            if (Licensing.InstallationLicense.HasLia) StartNavigationListener();
 
             if (GetSetting("company_registered", "0") != "1")
             {
@@ -72,6 +84,7 @@ public sealed class MainForm : Form
 
         FormClosed += (_, _) =>
         {
+            licenseTimer.Dispose();Licensing.CompanyBranding.Changed -= RefreshCompanyLogo;companyLogoPicture?.Image?.Dispose();
             navigationListenerCts.Cancel();
             navigationListenerCts.Dispose();
         };
@@ -163,6 +176,7 @@ public sealed class MainForm : Form
 
     private void StartNavigationListener()
     {
+        if(!Licensing.InstallationLicense.HasLia)return;
         if (navigationListenerStarted) return;
         navigationListenerStarted = true;
         _ = ListenForNavigationCommandsAsync(navigationListenerCts.Token);
@@ -614,6 +628,7 @@ public sealed class MainForm : Form
 
         actions.Controls.Add(save);
         actions.Controls.Add(cancel);
+        var logoButton=new Button {Text="LOGOTIPO",Width=140,Height=44};logoButton.Click+=(_,_)=>Licensing.CompanyBranding.ChooseLogo(f);actions.Controls.Add(logoButton);
         page.Controls.Add(actions, 0, 2);
 
         save.Click += (_, _) =>
@@ -855,6 +870,8 @@ public sealed class MainForm : Form
         mainScreenPicture.Image = homeImage;
         body.Controls.Add(mainScreenPicture);
         mainScreenPicture.SendToBack();
+        companyLogoPicture = new PictureBox {Size=new Size(230,150),SizeMode=PictureBoxSizeMode.Zoom,BackColor=Color.Black,Anchor=AnchorStyles.Top|AnchorStyles.Left,Location=new Point(24,24)};
+        body.Controls.Add(companyLogoPicture);companyLogoPicture.BringToFront();RefreshCompanyLogo();
 
         var monitor = new Panel
         {
@@ -3310,7 +3327,9 @@ private void ApplyFloatingTheme(Form f)
 
         var saveCompany = new Button { Text="SALVAR DADOS DA EMPRESA",Dock=DockStyle.Right,Width=260,Height=46,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold),Margin=new Padding(4,10,4,4) };
         saveCompany.FlatAppearance.BorderSize=0;
-        company.SetColumnSpan(saveCompany,2); company.Controls.Add(saveCompany,0,7);
+        var companyActions=new FlowLayoutPanel {Dock=DockStyle.Fill};
+        var changeLogo=new Button {Text="LOGOTIPO DA EMPRESA",Width=240,Height=44};changeLogo.Click+=(_,_)=>{if(Auth.IsAdmin)Licensing.CompanyBranding.ChooseLogo(f);};
+        companyActions.Controls.Add(changeLogo);saveCompany.Dock=DockStyle.None;companyActions.Controls.Add(saveCompany);company.SetColumnSpan(companyActions,2);company.Controls.Add(companyActions,0,7);
         saveCompany.Click += (_,_) =>
         {
             if(string.IsNullOrWhiteSpace(companyName.Text)) { Info("Informe o nome da empresa."); companyName.Focus(); return; }
@@ -3458,6 +3477,11 @@ private void ApplyFloatingTheme(Form f)
     private string DefaultMainScreenImagePath =>
         Path.Combine(AppContext.BaseDirectory, "Assets", "tela_principal.png");
 
+    private void RefreshCompanyLogo()
+    {
+        if(companyLogoPicture==null)return;
+        var image=Licensing.CompanyBranding.LoadLogo(false);var previous=companyLogoPicture.Image;companyLogoPicture.Image=image;companyLogoPicture.Visible=image!=null;previous?.Dispose();
+    }
     private Image? LoadMainScreenImage()
     {
         try

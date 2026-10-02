@@ -38,6 +38,8 @@ internal sealed class NetworkResponse
     public string Error { get; set; } = "";
     public int SqliteErrorCode { get; set; }
     public string Challenge { get; set; } = "";
+    public string SignedLicense { get; set; } = "";
+    public string ServerSerial { get; set; } = "";
     public int Affected { get; set; }
     public WireValue? Scalar { get; set; }
     public List<string> Columns { get; set; } = new();
