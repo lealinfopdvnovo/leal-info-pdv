@@ -3346,9 +3346,10 @@ private void ApplyFloatingTheme(Form f)
 
         var saveCompany = new Button { Text="SALVAR DADOS DA EMPRESA",Dock=DockStyle.Right,Width=260,Height=46,BackColor=Color.FromArgb(0,163,224),ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold),Margin=new Padding(4,10,4,4) };
         saveCompany.FlatAppearance.BorderSize=0;
-        var companyActions=new FlowLayoutPanel {Dock=DockStyle.Fill};
-        var changeLogo=new Button {Text="LOGOTIPO DA EMPRESA",Width=240,Height=44};changeLogo.Click+=(_,_)=>{if(Auth.IsAdmin)Licensing.CompanyBranding.ChooseLogo(f);};
-        companyActions.Controls.Add(changeLogo);saveCompany.Dock=DockStyle.None;companyActions.Controls.Add(saveCompany);company.SetColumnSpan(companyActions,2);company.Controls.Add(companyActions,0,7);
+        var companyActions=new FlowLayoutPanel {Dock=DockStyle.Fill,FlowDirection=FlowDirection.LeftToRight,WrapContents=false,AutoSize=false,Padding=new Padding(0),Margin=new Padding(4,8,4,4)};
+        var changeLogo=new Button {Text="ESCOLHER LOGOTIPO",Width=240,Height=44,BackColor=DarkBlue,ForeColor=Color.White,FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",10,FontStyle.Bold),Margin=new Padding(4,4,12,4)};
+        changeLogo.FlatAppearance.BorderSize=0;changeLogo.Click+=(_,_)=>{if(Auth.IsAdmin)Licensing.CompanyBranding.ChooseLogo(f);else Info("Somente ADMINISTRADOR pode alterar o logotipo.");};
+        companyActions.Controls.Add(changeLogo);saveCompany.Dock=DockStyle.None;saveCompany.Margin=new Padding(4);companyActions.Controls.Add(saveCompany);company.SetColumnSpan(companyActions,2);company.Controls.Add(companyActions,0,7);
         saveCompany.Click += (_,_) =>
         {
             if(string.IsNullOrWhiteSpace(companyName.Text)) { Info("Informe o nome da empresa."); companyName.Focus(); return; }

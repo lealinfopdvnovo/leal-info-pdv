@@ -1,1 +1,1 @@
-Cliente 002: exibe o logo cadastrado no login e na tela principal, personaliza o cabeçalho do tutorial e permite continuar quando o WebView2 nao esta disponivel.
+Cliente 002: destaca o botão para escolher/trocar o logotipo na tela Dados da Empresa; a imagem salva aparece no login e na tela principal.
