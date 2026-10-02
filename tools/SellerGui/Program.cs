@@ -52,7 +52,7 @@ internal sealed class SellerForm : Form
     internal SellerForm()
     {
         Text="LEAL INFO • GERADOR DE PLANOS"; StartPosition=FormStartPosition.CenterScreen;
-        ClientSize=new Size(700,680); MinimumSize=new Size(680,719); BackColor=Color.FromArgb(18,20,25);
+        ClientSize=new Size(700,750); MinimumSize=new Size(680,789); BackColor=Color.FromArgb(18,20,25);
         ForeColor=Color.White; Font=new Font("Segoe UI",11); AutoScaleMode=AutoScaleMode.Dpi;
         var layout = new TableLayoutPanel { Dock=DockStyle.Fill,Padding=new Padding(28),ColumnCount=2,RowCount=11 };
         layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,190));layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
