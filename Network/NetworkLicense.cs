@@ -5,7 +5,11 @@ using System.Text.Json;
 namespace LealInfoPDV.Network;
 
 public sealed record LicenseTerms(string ServerSerial, int ComputerLimit, string BillingMode,
-    DateTimeOffset? ExpiresUtc, string SellerContact, long Revision, string LicenseId, string Plan = "plus", string ClientCode = "", bool Active = true);
+    DateTimeOffset? ExpiresUtc, string SellerContact, long Revision, string LicenseId, string Plan = "plus", string ClientCode = "", bool Active = true,
+    int? AdditionalTerminals = null)
+{
+    public int TotalComputers => AdditionalTerminals is int extra ? 2 + extra : Math.Max(2, ComputerLimit);
+}
 public sealed record SignedLicense(string Payload, string Signature);
 internal sealed record RegisteredDevice(string Serial, string PublicKey, string Name);
 internal sealed class LicenseState
@@ -29,8 +33,8 @@ public sealed class NetworkLicense
         if (!File.Exists(path)) Save();
     }
     public static string LimitNotice(int limit, string contact = "") =>
-        $"Esta licença permite o uso do sistema em somente {limit} computadores (servidor incluído).\n\n" +
-        "Para utilizar mais computadores, contrate um ponto adicional. Entre em contato com o vendedor." +
+        "LIMITE DE COMPUTADORES ATINGIDO\n\nSua licença já está utilizando todos os computadores disponíveis.\n\n" +
+        "Para adicionar outro caixa ou terminal, adquira uma licença de ponto adicional.\n\nEntre em contato com o vendedor." +
         (string.IsNullOrWhiteSpace(contact) ? "" : $"\n\nContato: {contact}");
     public LicenseTerms Terms
     {
@@ -49,8 +53,8 @@ public sealed class NetworkLicense
             throw new InvalidDataException("A assinatura da licença é inválida. Contate o vendedor.");
         var terms = JsonSerializer.Deserialize<LicenseTerms>(payload) ?? throw new InvalidDataException("Licença inválida.");
         if (terms.ServerSerial != serial || terms.Plan is not ("standard" or "plus" or "pro") ||
-            (terms.Plan == "standard" && terms.ComputerLimit != 1) ||
-            (terms.ClientCode.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(terms.ClientCode, @"^[0-9]{3,9}$")) || terms.ComputerLimit < (terms.Plan == "standard" ? 1 : 2) || terms.ComputerLimit > 1000 || terms.Revision < 1 ||
+            (terms.ClientCode.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(terms.ClientCode, @"^[0-9]{3,9}$")) || terms.ComputerLimit < (terms.Plan == "standard" && terms.AdditionalTerminals == null ? 1 : 2) || terms.ComputerLimit > 1000 || terms.Revision < 1 ||
+            terms.AdditionalTerminals is < 0 or > 998 || (terms.AdditionalTerminals != null && terms.ComputerLimit != terms.TotalComputers) ||
             terms.BillingMode is not ("unico" or "mensal") || (terms.BillingMode == "mensal" && terms.ExpiresUtc == null) ||
             (terms.BillingMode == "unico" && terms.ExpiresUtc != null) || string.IsNullOrWhiteSpace(terms.LicenseId))
             throw new InvalidDataException("Esta licença não é válida para este servidor ou modalidade.");
@@ -63,9 +67,26 @@ public sealed class NetworkLicense
             var terms = Verify(text);
             if (TermsUnsafe().ClientCode.Length>0 && terms.ClientCode!=TermsUnsafe().ClientCode)throw new InvalidDataException("A licença pertence a outro código de cliente.");
             if (terms.Revision <= TermsUnsafe().Revision) throw new InvalidDataException("Esta licença já foi aplicada ou foi substituída por uma mais recente.");
-            if (terms.ComputerLimit < RegisteredCount) throw new InvalidDataException("A licença possui menos pontos que os computadores já cadastrados.");
+            if (terms.TotalComputers < RegisteredCount) throw new InvalidDataException("A licença possui menos pontos que os computadores já cadastrados.");
             if (terms.ExpiresUtc <= EffectiveNow()) throw new InvalidDataException("A licença está vencida. Contate o vendedor.");
             state.SignedLicense = text; Save();
+        }
+    }
+    // A mesma chave pode concluir uma ativação interrompida; uma revisão substituída nunca volta a valer.
+    internal void Activate(string text)
+    {
+        lock (gate)
+        {
+            var terms = Verify(text);
+            if (terms.ClientCode.Length == 0) throw new InvalidDataException("Esta licença antiga não contém o código do cliente. Solicite ao vendedor uma nova chave de ativação para este serial.");
+            var current = TermsUnsafe();
+            if (terms == current)
+            {
+                CheckAccess();
+                return;
+            }
+            Import(text);
+            CheckAccess();
         }
     }
     private DateTimeOffset EffectiveNow()
@@ -104,7 +125,7 @@ public sealed class NetworkLicense
             }
             if (state.Devices.Any(d => d.PublicKey == key)) throw new InvalidOperationException("Identidade já utilizada por outro computador. Contate o vendedor.");
             var terms = TermsUnsafe();
-            if (RegisteredCount >= terms.ComputerLimit) throw new InvalidOperationException(LimitNotice(terms.ComputerLimit, terms.SellerContact));
+            if (RegisteredCount >= terms.TotalComputers) throw new InvalidOperationException(LimitNotice(terms.TotalComputers, terms.SellerContact));
             state.Devices.Add(new(deviceSerial, key, name)); Save();
         }
     }

@@ -29,10 +29,10 @@ try
     licence.Register("A", "KEY-A", "Terminal A");
     licence.Register("A", "KEY-A", "Terminal A");
     Assert(licence.RegisteredCount == 2, "Reconectar não pode consumir outro ponto.");
-    Reject(() => licence.Register("B", "KEY-B", "Terminal B"), "somente 2 computadores");
+    Reject(() => licence.Register("B", "KEY-B", "Terminal B"), "LIMITE DE COMPUTADORES ATINGIDO");
     Reject(() => licence.Register("A", "KEY-OUTRA", "Terminal copiado"), "identidade mudou");
     licence = new NetworkLicense(path, "SERVIDOR", publicKey);
-    Reject(() => licence.Register("B", "KEY-B", "Terminal B"), "somente 2 computadores");
+    Reject(() => licence.Register("B", "KEY-B", "Terminal B"), "LIMITE DE COMPUTADORES ATINGIDO");
     Assert(NetworkLicense.LimitNotice(2).Contains("Entre em contato com o vendedor"), "Aviso deve orientar contato.");
     Reject(() => licence.Import(Signed(seller, new("OUTRO", 3, "unico", null, "VENDEDOR", 1, "x"))), "não é válida");
     var unsigned = Signed(seller, new("SERVIDOR", 3, "unico", null, "VENDEDOR", 1, "x"));
@@ -53,7 +53,7 @@ try
     var keyPath = Path.Combine(folder, "seller.pem"); File.WriteAllText(keyPath, seller.ExportPkcs8PrivateKeyPem());
     var licencePath = Path.Combine(folder, "seller.leallicenca");
     var processInfo = new System.Diagnostics.ProcessStartInfo("pwsh") { UseShellExecute=false, RedirectStandardOutput=true, RedirectStandardError=true };
-    foreach (var argument in new[] { "-NoProfile", "-File", Path.GetFullPath("tools/licencas/Emitir-Licenca.ps1"), "-Servidor", "SERVIDOR", "-Computadores", "4", "-Modalidade", "unico", "-Chave", keyPath, "-Saida", licencePath }) processInfo.ArgumentList.Add(argument);
+    foreach (var argument in new[] { "-NoProfile", "-File", Path.GetFullPath("tools/licencas/Emitir-Licenca.ps1"), "-Servidor", "SERVIDOR", "-Computadores", "4", "-CodigoCliente", "001", "-Modalidade", "unico", "-Chave", keyPath, "-Saida", licencePath }) processInfo.ArgumentList.Add(argument);
     using (var process = System.Diagnostics.Process.Start(processInfo)!) {
         var output = process.StandardOutput.ReadToEnd(); var error = process.StandardError.ReadToEnd(); process.WaitForExit();
         Assert(process.ExitCode == 0, "Emissor do vendedor falhou: " + output + error);
@@ -75,7 +75,7 @@ try
     var terminal = new NetworkConfiguration { Mode = "terminal", Host = "127.0.0.1", Port = port, PairingSecret = config.PairingSecret, CertificateHash = server.CertificateHash };
     var firstIdentity = Identity();
     using var first = new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", firstIdentity);
-    Reject(() => { using var denied = new NetworkDatabaseClient(terminal, "QA-TERMINAL-2", Identity()); }, "somente 2 computadores");
+    Reject(() => { using var denied = new NetworkDatabaseClient(terminal, "QA-TERMINAL-2", Identity()); }, "LIMITE DE COMPUTADORES ATINGIDO");
     using (var reconnect = new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", firstIdentity))
         Assert(reconnect.Send(new() { Operation="scalar", Sql="SELECT 1" }).Scalar!.ToObject().Equals(1L), "Reconexão falhou.");
     first.Send(new() { Operation="nonquery", Sql="CREATE TABLE IF NOT EXISTS qa_network(id INTEGER PRIMARY KEY,value TEXT); DELETE FROM qa_network;" });

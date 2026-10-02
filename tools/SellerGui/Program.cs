@@ -30,13 +30,13 @@ internal static class Issuer
         serial=serial.Trim().ToUpperInvariant();
         if (!Regex.IsMatch(serial,@"^LI-(?:[0-9A-F]{4}-){3}[0-9A-F]{4}$")) throw new ArgumentException("Copie o serial completo do PDV servidor. Exemplo: LI-1234-5678-ABCD-EF90.");
         if(plan is not ("standard" or "plus" or "pro")) throw new ArgumentException("Escolha Standard, Plus ou Pro.");
-        if(computers < (plan=="standard"?1:2) || computers >1000 || plan=="standard" && computers!=1) throw new ArgumentException("Confira a quantidade de computadores do plano, incluindo o servidor.");
+        if(computers < 2 || computers >1000) throw new ArgumentException("A licença base inclui 2 computadores. Confira os pontos adicionais.");
         if(mode is not ("unico" or "mensal") || mode=="unico" && expires!=null || mode=="mensal" && (expires==null || expires<=DateTimeOffset.UtcNow)) throw new ArgumentException("Informe uma validade futura para a mensalidade.");
         if(!Regex.IsMatch(clientCode,@"^[0-9]{3,9}$"))throw new ArgumentException("Código do cliente inválido.");
         using var key=RSA.Create(); key.ImportFromPem(privatePem);
         using var expected=RSA.Create(); expected.ImportFromPem(publicPem??SellerPublicKey.Pem);
         if(!CryptographicOperations.FixedTimeEquals(key.ExportSubjectPublicKeyInfo(),expected.ExportSubjectPublicKeyInfo())) throw new InvalidDataException("Esta chave não corresponde ao seu PDV. Use a chave original do kit do vendedor.");
-        var terms = new LicenseTerms(serial,computers,mode,expires?.ToUniversalTime(),contact.Trim(),DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),Guid.NewGuid().ToString(),plan,clientCode,active);
+        var terms = new LicenseTerms(serial,computers,mode,expires?.ToUniversalTime(),contact.Trim(),DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),Guid.NewGuid().ToString(),plan,clientCode,active,computers-2);
         var payload=JsonSerializer.SerializeToUtf8Bytes(terms);
         return JsonSerializer.Serialize(new SignedLicense(Convert.ToBase64String(payload),Convert.ToBase64String(key.SignData(payload,HashAlgorithmName.SHA256,RSASignaturePadding.Pss))));
     }
@@ -44,7 +44,7 @@ internal static class Issuer
 internal sealed class SellerForm : Form
 {
     private readonly TextBox serial = new() { CharacterCasing=CharacterCasing.Upper };
-    private readonly NumericUpDown computers = new() { Minimum=2,Maximum=1000,Value=2 };
+    private readonly NumericUpDown computers = new() { Minimum=0,Maximum=998,Value=0 };
     private readonly ComboBox customer = new() { DropDownStyle=ComboBoxStyle.DropDownList };
     private readonly TextBox customerName = new();
     private readonly TextBox document = new();
@@ -75,19 +75,18 @@ internal sealed class SellerForm : Form
         }
         serial.PlaceholderText="LI-1234-5678-ABCD-EF90";serial.MaxLength=22;
         plan.Items.AddRange(new object[]{"Standard","Plus","Pro"});
-        plan.SelectedIndexChanged+=(_,_)=> { computers.Maximum=plan.SelectedIndex==0?1:1000; computers.Minimum=plan.SelectedIndex==0?1:2; computers.Value=computers.Minimum; };
         plan.SelectedIndex=1;
         customer.Items.Add("NOVO CLIENTE • próximo código "+CustomerLedger.NextCode());
         foreach(var c in CustomerLedger.Read())customer.Items.Add(c);
         customer.SelectedIndex=0;
-        customer.SelectedIndexChanged+=(_,_)=>{if(customer.SelectedItem is Customer c){customerName.Text=c.Name;document.Text=c.Document;serial.Text=c.Serial;plan.SelectedIndex=Array.IndexOf(new[]{"standard","plus","pro"},c.Plan);computers.Value=Math.Clamp(c.Computers, (int)computers.Minimum,(int)computers.Maximum);active.Checked=c.Active;}else{customerName.Clear();document.Clear();serial.Clear();active.Checked=true;}};
+        customer.SelectedIndexChanged+=(_,_)=>{if(customer.SelectedItem is Customer c){customerName.Text=c.Name;document.Text=c.Document;serial.Text=c.Serial;plan.SelectedIndex=Array.IndexOf(new[]{"standard","plus","pro"},c.Plan);computers.Value=Math.Clamp(c.Computers-2, 0,998);active.Checked=c.Active;}else{customerName.Clear();document.Clear();serial.Clear();computers.Value=0;active.Checked=true;}};
         Field("Cliente / código",customer,2);Field("Nome do cliente",customerName,3);Field("CPF / CNPJ",document,4);
-        Field("Plano",plan,5);Field("Serial do PDV",serial,6);Field("Computadores totais",computers,7);
+        Field("Plano",plan,5);Field("Serial do PDV",serial,6);Field("Pontos adicionais",computers,7);
         mode.Items.AddRange(new object[]{"Pagamento único","Mensalidade"});mode.SelectedIndex=0;
         mode.SelectedIndexChanged+=(_,_)=>expires.Enabled=mode.SelectedIndex==1;
         Field("Modalidade",mode,8);Field("Válida até",expires,9);
         contact.PlaceholderText="Seu WhatsApp ou telefone";Field("Contato do vendedor",contact,10);Field("Situação",active,11);
-        var note=new Label { Text="A quantidade inclui o servidor. Exemplo: 3 = servidor + 2 terminais.\nMensalidade válida até 23:59:59 da data escolhida, no horário deste PC.",Dock=DockStyle.Fill,Font=new Font("Segoe UI",9),ForeColor=Color.LightGray };
+        var note=new Label { Text="Todos os planos incluem 2 PCs. Total = 2 + pontos adicionais.\nMensalidade válida até 23:59:59 da data escolhida, no horário deste PC.",Dock=DockStyle.Fill,Font=new Font("Segoe UI",9),ForeColor=Color.LightGray };
         layout.Controls.Add(note,0,12);layout.SetColumnSpan(note,2);
         var generate=new Button { Text="GERAR E SALVAR LICENÇA",Dock=DockStyle.Fill,BackColor=gold,ForeColor=Color.FromArgb(18,20,25),FlatStyle=FlatStyle.Flat,Font=new Font("Segoe UI",12,FontStyle.Bold),Margin=new Padding(0,5,0,10) };
         generate.FlatAppearance.BorderSize=0;generate.Click+=(_,_)=>Generate();AcceptButton=generate;
@@ -106,10 +105,10 @@ internal sealed class SellerForm : Form
             if(string.IsNullOrWhiteSpace(customerName.Text))throw new ArgumentException("Informe o nome do cliente.");
             var selectedPlan=new[]{"standard","plus","pro"}[plan.SelectedIndex];
             var code=(customer.SelectedItem as Customer)?.Code??CustomerLedger.NextCode();
-            var text=Issuer.Issue(serial.Text,(int)computers.Value,mode.SelectedIndex==0?"unico":"mensal",validity,contact.Text,File.ReadAllText(keyPath),plan:selectedPlan,clientCode:code,active:active.Checked);
+            var text=Issuer.Issue(serial.Text,2+(int)computers.Value,mode.SelectedIndex==0?"unico":"mensal",validity,contact.Text,File.ReadAllText(keyPath),plan:selectedPlan,clientCode:code,active:active.Checked);
             using var dialog=new SaveFileDialog { Title="Salvar licença para o cliente",Filter="Licença LEAL INFO|*.leallicenca",DefaultExt="leallicenca",AddExtension=true,FileName="Licenca_"+plan.Text+"_"+serial.Text.Trim()+".leallicenca",InitialDirectory=Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory) };
             if(dialog.ShowDialog(this)!=DialogResult.OK)return;
-            var entry=new Customer(code,customerName.Text.Trim(),document.Text.Trim(),serial.Text.Trim().ToUpperInvariant(),selectedPlan,(int)computers.Value,active.Checked);
+            var entry=new Customer(code,customerName.Text.Trim(),document.Text.Trim(),serial.Text.Trim().ToUpperInvariant(),selectedPlan,2+(int)computers.Value,active.Checked);
             CustomerLedger.Save(entry);
             File.WriteAllText(dialog.FileName,text);
             File.WriteAllText(Path.ChangeExtension(dialog.FileName,"chave.txt"),"LEAL1-"+Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(text)));
@@ -136,15 +135,20 @@ internal static class SelfTest
             var monthlyLicense=new NetworkLicense(Path.Combine(folder,"monthly"),serial,pub);monthlyLicense.Import(monthly);monthlyLicense.CheckAccess();
             if(monthlyLicense.Terms.BillingMode!="mensal" || monthlyLicense.Terms.Plan!="plus")throw new Exception("Licença mensal incompatível com PDV.");
             foreach(var tier in new[]{"standard","plus","pro"}) {
-                var issued=Issuer.Issue(serial,tier=="standard"?1:2,"unico",null,"",pem,pub,tier);
+                var issued=Issuer.Issue(serial,2,"unico",null,"",pem,pub,tier);
                 var check=new NetworkLicense(Path.Combine(folder,tier),serial,pub);check.Import(issued);
-                if(check.Terms.Plan!=tier)throw new Exception("Plano perdido na assinatura.");
+                if(check.Terms.Plan!=tier || check.Terms.AdditionalTerminals!=0 || check.Terms.TotalComputers!=2)throw new Exception("Plano ou base perdido na assinatura.");
+                foreach(var extra in new[]{1,2}) {
+                    var add=Issuer.Issue(serial,2+extra,"unico",null,"",pem,pub,tier,"001");
+                    var added=new NetworkLicense(Path.Combine(folder,tier+extra),serial,pub);added.Import(add);
+                    if(added.Terms.Plan!=tier || added.Terms.ClientCode!="001" || added.Terms.AdditionalTerminals!=extra || added.Terms.TotalComputers!=2+extra)throw new Exception("Pontos adicionais alteraram cliente/plano.");
+                }
             }
             var inactive=Issuer.Issue(serial,2,"unico",null,"",pem,pub,"plus","002",false);
             var blocked=new NetworkLicense(Path.Combine(folder,"inactive"),serial,pub);blocked.Import(inactive);
             try {blocked.CheckAccess();throw new Exception("Inativa liberou acesso.");}catch(InvalidOperationException) { }
             void Reject(Action action) {try{action();}catch(ArgumentException){return;}catch(InvalidDataException){return;}throw new Exception("Dados inválidos foram aceitos.");}
-            Reject(()=>Issuer.Issue(serial,2,"unico",null,"",pem,pub,"standard"));
+            Reject(()=>Issuer.Issue(serial,1,"unico",null,"",pem,pub,"standard"));
             Reject(()=>Issuer.Issue("errado",3,"unico",null,"",pem,pub));Reject(()=>Issuer.Issue(serial,1,"unico",null,"",pem,pub));
             Reject(()=>Issuer.Issue(serial,3,"mensal",DateTimeOffset.UtcNow.AddDays(-1),"",pem,pub));
             using var wrong=RSA.Create(2048);Reject(()=>Issuer.Issue(serial,3,"unico",null,"",wrong.ExportPkcs8PrivateKeyPem(),pub));

@@ -43,7 +43,7 @@ internal static class Program
             }
             if (Network.NetworkConfiguration.Current.Mode != "terminal" && !Licensing.InstallationLicense.EnsureActivated()) return;
             if (Network.NetworkConfiguration.Current.Mode == "server" && !Licensing.InstallationLicense.HasNetwork)
-                throw new InvalidOperationException("A edição Standard usa somente este computador. Contate o vendedor para contratar Plus ou Pro.");
+                throw new InvalidOperationException("Ative a licença do servidor antes de abrir o PDV em rede.");
             // O servidor permanece ativo enquanto este PDV estiver aberto.
             using var networkServer = Network.NetworkConfiguration.Current.Mode == "server"
                 ? new Network.NetworkDatabaseServer(Network.NetworkConfiguration.Current) : null;
