@@ -24,6 +24,7 @@ public sealed class MainForm : Form
     private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
     private PictureBox? mainScreenPicture;
     private PictureBox? companyLogoPicture;
+    private string? lastLogoContent;
     private readonly System.Windows.Forms.Timer licenseTimer = new() { Interval=60000 };
 
     private readonly Color Blue = Color.FromArgb(10, 104, 157);
@@ -53,6 +54,7 @@ public sealed class MainForm : Form
                 var old=Licensing.InstallationLicense.Current;
                 if(Network.NetworkConfiguration.Current.Mode=="terminal") { using var remote=Database.Open(); }
                 else Licensing.InstallationLicense.RefreshLocal();
+                RefreshCompanyLogo();
                 if(old!=Licensing.InstallationLicense.Current)throw new InvalidOperationException("A licença foi alterada. Abra novamente o PDV para aplicar a edição.");
             }catch(Exception ex){licenseTimer.Stop();MessageBox.Show(this,ex.Message,"Licença do PDV",MessageBoxButtons.OK,MessageBoxIcon.Warning);Close();}
         };
@@ -3480,6 +3482,7 @@ private void ApplyFloatingTheme(Form f)
     private void RefreshCompanyLogo()
     {
         if(companyLogoPicture==null)return;
+        var content=Licensing.CompanyBranding.Get("company_logo_base64");if(content==lastLogoContent)return;lastLogoContent=content;
         var image=Licensing.CompanyBranding.LoadLogo(false);var previous=companyLogoPicture.Image;companyLogoPicture.Image=image;companyLogoPicture.Visible=image!=null;previous?.Dispose();
     }
     private Image? LoadMainScreenImage()
