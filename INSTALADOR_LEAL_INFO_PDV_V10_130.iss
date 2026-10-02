@@ -51,3 +51,6 @@ Source: "publish_setup\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Name: "{group}\LEAL INFO PDV"; Filename: "{app}\LealInfoPDV.exe"; WorkingDir: "{app}"
 Name: "{autodesktop}\LEAL INFO PDV"; Filename: "{app}\LealInfoPDV.exe"; WorkingDir: "{app}"
 Name: "{group}\LIC AI"; Filename: "{app}\LIC-AI\LicAi.exe"; WorkingDir: "{app}\LIC-AI"
+
+[Run]
+Filename: "{app}\MicrosoftEdgeWebView2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Instalando componente do tutorial..."; Flags: runhidden waituntilterminated
