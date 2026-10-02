@@ -117,6 +117,8 @@ jobs:
       - name: Gerar ZIP
         shell: powershell
         run: Compress-Archive -Path "publish_setup\*" -DestinationPath $env:UPDATE_PACKAGE -CompressionLevel Optimal
+      - name: Validar ZIP no atualizador real
+        run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package ${{ env.UPDATE_PACKAGE }}
       - name: Instalar Inno
         shell: powershell
         run: choco install innosetup --yes --no-progress

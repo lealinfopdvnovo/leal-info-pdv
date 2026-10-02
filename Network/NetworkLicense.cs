@@ -74,13 +74,15 @@ public sealed class NetworkLicense
         if (now > state.LastSeenUtc) state.LastSeenUtc = now;
         return state.LastSeenUtc;
     }
-    public void CheckAccess()
+    public void CheckAccess() => CheckAccessCore(true);
+    internal void CheckAccessReadOnly() => CheckAccessCore(false);
+    private void CheckAccessCore(bool persist)
     {
         lock (gate)
         {
             var terms = TermsUnsafe();
             if (!terms.Active) throw new InvalidOperationException("A licença está inativa. Entre em contato com o vendedor.");
-            var now = EffectiveNow(); Save();
+            var now = EffectiveNow(); if(persist)Save();
             if (terms.ExpiresUtc <= now) throw new InvalidOperationException("A licença mensal está vencida. Entre em contato com o vendedor para renovar." +
                 (string.IsNullOrWhiteSpace(terms.SellerContact) ? "" : "\nContato: " + terms.SellerContact));
         }

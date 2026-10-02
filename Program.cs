@@ -30,7 +30,7 @@ internal static class Program
             {
                 try {
                     if(Network.NetworkConfiguration.Current.Mode=="terminal") { using var remote=Database.Open(); }
-                    else { Licensing.InstallationLicense.LoadLocal(); Licensing.InstallationLicense.RefreshLocal(); }
+                    else { Licensing.InstallationLicense.LoadLocal(); Licensing.InstallationLicense.Store!.CheckAccessReadOnly(); }
                     Environment.ExitCode=Licensing.InstallationLicense.HasLia && Licensing.InstallationLicense.IsActivated(Licensing.InstallationLicense.Current!) ? 0:2;
                 }catch { Environment.ExitCode=2; }
                 return;
