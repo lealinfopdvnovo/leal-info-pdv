@@ -2,8 +2,8 @@
 
 Um único pacote neutro contém o programa; o plano é determinado pela licença assinada. Não há pacotes com nome, logo ou dados de uma empresa.
 
-- Standard: recursos atuais de operação, 1 computador, sem LIA e sem terminais.
-- Plus e Pro: recursos atuais, LIA e rede conforme o limite contratado. Não foram inventados bloqueios adicionais entre Plus e Pro.
+- Standard: recursos de operação, até 2 computadores conforme a licença, tutorial de primeiro acesso por slides, sem vídeo e sem Motoboy.
+- Plus e Pro: recursos atuais, LIA, Motoboy e rede conforme o limite contratado. Não foram inventados bloqueios adicionais entre Plus e Pro.
 - Ativação: serial do Windows vinculado à assinatura RSA; código sequencial atribuído pelo gerador do proprietário; licença ativa/inativa, pagamento único ou mensal e expiração.
 - O programa verifica assinatura, serial, modalidade, plano e expiração. O estado é protegido por DPAPI do usuário do Windows e salvo em `%LOCALAPPDATA%/LealInfoPDV/network.license`.
 - O gerador fica separado do pacote do cliente. O cadastro administrativo reside somente no computador do vendedor, em `%LOCALAPPDATA%/LealInfoVendedor/clientes.protected`. A chave privada fica exclusivamente no kit particular do vendedor, nunca no repositório.
