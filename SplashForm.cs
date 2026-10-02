@@ -122,8 +122,10 @@ public sealed class SplashForm : Form
         foreach (Control control in root.Controls)
         {
             if (control is Label label && label.Text.Contains("ACESSO SEGURO", StringComparison.OrdinalIgnoreCase))
+            {
                 var customerName = GetCustomerDisplayName();
                 label.Text = $"{customerName}  •  ACESSO SEGURO  •  V{UpdateManager.CurrentVersion}";
+            }
             if (control.HasChildren) ApplyCurrentVersionToLogin(control);
         }
     }
