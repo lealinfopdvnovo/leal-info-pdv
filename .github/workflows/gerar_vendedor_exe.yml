@@ -1,0 +1,34 @@
+name: Gerar EXE do vendedor
+on:
+  push:
+    branches: ['codex/vendedor-exe']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Gerar aplicativo Windows independente
+        run: dotnet publish tools/SellerGui/LealInfoVendedor.csproj -c Release -r win-x64 --self-contained true -o seller-build
+      - name: Validar compatibilidade das licencas
+        shell: pwsh
+        run: |
+          $p=Start-Process ./seller-build/LEAL_INFO_VENDEDOR_REDE.exe -ArgumentList '--self-test' -PassThru -Wait
+          if($p.ExitCode -ne 0){if(Test-Path seller-test-error.txt){Get-Content seller-test-error.txt};throw 'Falha no emissor'}
+          Get-Content seller-test-success.txt
+      - name: Capturar janela
+        shell: pwsh
+        run: |
+          $p=Start-Process ./seller-build/LEAL_INFO_VENDEDOR_REDE.exe -ArgumentList '--capture' -PassThru
+          if(-not $p.WaitForExit(30000)){$p.Kill();throw 'Falha na captura'}
+          if(-not(Test-Path seller-preview.png)){throw 'Captura ausente'}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LEAL_INFO_VENDEDOR_EXE
+          path: |
+            seller-build/LEAL_INFO_VENDEDOR_REDE.exe
+            seller-preview.png
+            seller-test-success.txt
