@@ -1,0 +1,41 @@
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+using LealInfoPDV;
+using LealInfoPDV.Network;
+using LealInfoPDV.Licensing;
+internal static class Program
+{
+    static IEnumerable<Control> All(Control p){foreach(Control c in p.Controls){yield return c;foreach(var d in All(c))yield return d;}}
+    static void Capture(Form f,string name){using var bitmap=new Bitmap(f.Width,f.Height);f.DrawToBitmap(bitmap,new Rectangle(0,0,f.Width,f.Height));bitmap.Save("activation-qa/"+name+".png");}
+    [STAThread] static void Main()
+    {
+        ApplicationConfiguration.Initialize();Directory.CreateDirectory("activation-qa");
+        try {
+            NetworkConfiguration.Load();Database.Initialize();using var key=RSA.Create(2048);
+            var path=Path.Combine(Path.GetTempPath(),"activation-ui-"+Guid.NewGuid());
+            var store=new NetworkLicense(path,Database.DeviceSerial(),key.ExportSubjectPublicKeyInfoPem());
+            typeof(InstallationLicense).GetProperty("Store",BindingFlags.Static|BindingFlags.NonPublic)!.SetValue(null,store);
+            var terms=new LicenseTerms(Database.DeviceSerial(),1,"unico",null,"QA",1,"UI","standard","001");
+            var bytes=JsonSerializer.SerializeToUtf8Bytes(terms);var signed=JsonSerializer.Serialize(new SignedLicense(Convert.ToBase64String(bytes),Convert.ToBase64String(key.SignData(bytes,HashAlgorithmName.SHA256,RSASignaturePadding.Pss))));
+            using(var activation=new ActivationForm()) {
+                using var timer=new System.Windows.Forms.Timer {Interval=500};timer.Tick+=(_,_)=>{timer.Stop();Capture(activation,"activation");All(activation).OfType<TextBox>().Single(t=>t.Multiline).Text="LEAL1-"+Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(signed));((Button)activation.AcceptButton!).PerformClick();};activation.Shown+=(_,_)=>timer.Start();
+                if(activation.ShowDialog()!=DialogResult.OK)throw new Exception("Ativação visual falhou");
+            }
+            if(!InstallationLicense.IsActivated(new NetworkLicense(path,Database.DeviceSerial(),key.ExportSubjectPublicKeyInfoPem()).Terms))throw new Exception("Reinício perdeu ativação");
+            if(InstallationLicense.HasLia)throw new Exception("Standard liberou LIA");
+            using(var splash=new BrandSplashForm()){var elapsed=System.Diagnostics.Stopwatch.StartNew();splash.ShowDialog();if(elapsed.Elapsed.TotalSeconds>4)throw new Exception("Abertura lenta");}
+            Auth.CreateUser("QA Admin","ui-qa","QA-password-2026","ADMINISTRADOR","","",true);
+            using(var login=new LoginForm()) {
+                using var timer=new System.Windows.Forms.Timer {Interval=500};timer.Tick+=(_,_)=>{timer.Stop();Capture(login,"login");var boxes=All(login).OfType<TextBox>().ToArray();boxes.First(t=>!t.UseSystemPasswordChar).Text="ui-qa";boxes.First(t=>t.UseSystemPasswordChar).Text="QA-password-2026";((Button)login.AcceptButton!).PerformClick();};login.Shown+=(_,_)=>timer.Start();if(login.ShowDialog()!=DialogResult.OK)throw new Exception("Login visual falhou");
+            }
+            var logo=Path.Combine(Path.GetTempPath(),"brand-qa.png");using(var b=new Bitmap(120,80)){using(var g=Graphics.FromImage(b))g.Clear(Color.Gold);b.Save(logo);}CompanyBranding.SetLogo(logo);
+            using(var cn=Database.Open()){using var cmd=cn.CreateCommand();cmd.CommandText="INSERT OR REPLACE INTO settings(key,value) VALUES('company_registered','1'),('security_setup_completed','1'),('first_access_tutorial_completed','1');";cmd.ExecuteNonQuery();}
+            using(var main=new MainForm()) {
+                using var timer=new System.Windows.Forms.Timer {Interval=900};
+                timer.Tick+=(_,_)=>{timer.Stop();Capture(main,"main-standard");var lia=All(main).FirstOrDefault(c=>c.Name=="btnAssistenteAI");if(lia!=null && lia.Visible)throw new Exception("Esfera LIA no Standard");var brand=(PictureBox?)typeof(MainForm).GetField("companyLogoPicture",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(main);if(brand?.Image?.Width!=120 || !brand.Visible)throw new Exception("Logo cadastrado ausente na tela principal");main.Close();};main.Shown+=(_,_)=>timer.Start();Application.Run(main);
+            }
+            File.WriteAllText("activation-qa/success.txt","PASS: tela de ativação, chave colada, persistência, fade Standard, login real, logo e LIA desabilitada.");File.Delete(path);
+        }catch(Exception ex){File.WriteAllText("activation-qa/error.txt",ex.ToString());Environment.ExitCode=1;}
+    }
+}

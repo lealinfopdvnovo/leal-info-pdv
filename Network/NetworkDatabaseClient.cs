@@ -29,9 +29,11 @@ internal sealed class NetworkDatabaseClient : IDisposable
             var identity = deviceKey ?? NetworkIdentity.Key;
             using var rsa = RSA.Create(); rsa.ImportFromPem(identity.PrivateKey);
             var signature = Convert.ToBase64String(rsa.SignData(Convert.FromBase64String(challenge), HashAlgorithmName.SHA256, RSASignaturePadding.Pss));
-            Send(new() { Operation = "authenticate", Secret = configuration.PairingSecret,
+            var authenticated=Send(new() { Operation = "authenticate", Secret = configuration.PairingSecret,
                 Serial = deviceSerial ?? Database.DeviceSerial(), Name = Environment.MachineName, PublicKey = identity.PublicKey,
                 Signature = signature });
+            if(authenticated.SignedLicense.Length>0) Licensing.InstallationLicense.AcceptServer(authenticated.SignedLicense,authenticated.ServerSerial);
+            else if(deviceSerial==null)throw new NetworkAccessException("Atualize e ative o PDV servidor antes de conectar este terminal.");
         }
         catch (NetworkAccessException) { Dispose(); throw; }
         catch (Exception ex) { Dispose(); throw new NetworkAccessException("Não foi possível conectar ao servidor. Verifique se o PDV do servidor está aberto e os computadores estão na mesma rede.\n\n" + ex.Message); }

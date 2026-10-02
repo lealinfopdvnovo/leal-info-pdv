@@ -18,15 +18,15 @@ public sealed class NetworkSettingsForm : Form
             button.Click += (_,_) => { try { action(); } catch(Exception ex) { MessageBox.Show(this, ex.Message, "Rede e licença", MessageBoxButtons.OK, MessageBoxIcon.Warning); } }; return button;
         }
         var current = NetworkConfiguration.Current;
-        panel.Controls.Add(Label("1 servidor + 1 terminal incluído. Cada computador adicional exige um ponto contratado.\nO servidor também conta como um computador.", 60));
+        panel.Controls.Add(Label("Standard: 1 computador. Plus / Pro: rede conforme os pontos da licença.\nO servidor também conta como um computador.", 60));
         panel.Controls.Add(Label("Modalidades disponíveis: pagamento único ou mensalidade. A modalidade e os pontos são liberados pelo vendedor através da licença.", 54));
         panel.Controls.Add(Label("Serial deste computador: " + Database.DeviceSerial(), 30));
         var status = Label("", 74); panel.Controls.Add(status);
-        var licence = NetworkDatabaseServer.Current?.License ?? (current.Mode == "server" ? new NetworkLicense(Path.Combine(Database.AppFolder, "network.license"), Database.DeviceSerial()) : null);
+        var licence = NetworkDatabaseServer.Current?.License ?? Licensing.InstallationLicense.Store ?? (current.Mode != "terminal" ? new NetworkLicense(Path.Combine(Database.AppFolder, "network.license"), Database.DeviceSerial()) : null);
         void RefreshStatus()
         {
             if (licence == null) status.Text = current.Mode == "terminal" ? "TERMINAL • Servidor: " + current.Host + "\nA licença é validada no servidor a cada conexão." : "MODO LOCAL • Rede ainda não configurada.";
-            else { var t = licence.Terms; status.Text = $"SERVIDOR • {licence.RegisteredCount}/{t.ComputerLimit} computadores cadastrados\nModalidade: {(t.BillingMode == "unico" ? "Pagamento único" : t.BillingMode == "mensal" ? "Mensalidade" : "A definir pelo vendedor")}" + (t.ExpiresUtc == null ? "" : " • Válida até: " + t.ExpiresUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")); }
+            else { var t = licence.Terms; status.Text = $"Cliente {t.ClientCode} • {t.Plan.ToUpperInvariant()} • {(t.Active ? "ATIVA" : "INATIVA")}\n{licence.RegisteredCount}/{t.ComputerLimit} computadores cadastrados\nModalidade: {(t.BillingMode == "unico" ? "Pagamento único" : t.BillingMode == "mensal" ? "Mensalidade" : "A definir pelo vendedor")}" + (t.ExpiresUtc == null ? "" : " • Válida até: " + t.ExpiresUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")); }
         }
         RefreshStatus();
         if (current.Mode == "local")
@@ -35,6 +35,7 @@ public sealed class NetworkSettingsForm : Form
             panel.Controls.Add(Label("Porta do servidor (padrão: 47821)", 26)); panel.Controls.Add(port);
             panel.Controls.Add(Button("USAR ESTE COMPUTADOR COMO SERVIDOR", () =>
             {
+                if(licence!.Terms.Plan=="standard")throw new InvalidOperationException("Rede disponível nas edições Plus e Pro.");
                 NetworkConfiguration.Save(NetworkConfiguration.NewServer((int)port.Value));
                 MessageBox.Show(this, "Servidor configurado. Feche e abra o PDV para ativar a rede. Depois exporte o arquivo de conexão para o terminal.\n\nNo Firewall do Windows, permita o PDV somente na rede privada."); Close();
             }));
@@ -54,6 +55,9 @@ public sealed class NetworkSettingsForm : Form
                 File.WriteAllText(dialog.FileName, JsonSerializer.Serialize(connection));
                 MessageBox.Show(this, "Conexão exportada. Importe este arquivo no computador terminal. Guarde o arquivo com o administrador.");
             }));
+        }
+        if(current.Mode != "terminal")
+        {
             panel.Controls.Add(Button("IMPORTAR LICENÇA DO VENDEDOR / RENOVAÇÃO", () =>
             {
                 using var dialog = new OpenFileDialog { Filter = "Licença do PDV|*.leallicenca" };
@@ -62,6 +66,7 @@ public sealed class NetworkSettingsForm : Form
                 MessageBox.Show(this, "Licença validada. A quantidade de computadores e a modalidade foram atualizadas.");
             }));
         }
+
         if (current.Mode is "local" or "terminal")
             panel.Controls.Add(Button("IMPORTAR CONEXÃO E USAR COMO TERMINAL", () =>
             {

@@ -21,7 +21,7 @@ $insert = @'
             TabStop = true,
             Anchor = AnchorStyles.Bottom,
             Enabled = true,
-            Visible = true
+            Visible = Licensing.InstallationLicense.HasLia
         };
         var setStyle = licAiButton.GetType().GetMethod("SetStyle", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
         setStyle!.Invoke(licAiButton, new object[] { ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor | ControlStyles.Selectable, true });
@@ -85,6 +85,7 @@ $insert = @'
 
         async void btnAssistenteAI_Click(object? sender, EventArgs e)
         {
+            if (!Licensing.InstallationLicense.HasLia) return;
             if (System.Threading.Interlocked.Exchange(ref licAiInitializing, 1) == 1)
                 return;
 

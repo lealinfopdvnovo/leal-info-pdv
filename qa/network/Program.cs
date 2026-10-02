@@ -18,6 +18,7 @@ static string Signed(RSA seller, LicenseTerms terms)
     var payload = JsonSerializer.SerializeToUtf8Bytes(terms);
     return JsonSerializer.Serialize(new SignedLicense(Convert.ToBase64String(payload), Convert.ToBase64String(seller.SignData(payload, HashAlgorithmName.SHA256, RSASignaturePadding.Pss))));
 }
+if(args.Length==2 && args[0]=="--validate-package") {LealInfoPDV.Licensing.UpdatePayloadPolicy.Validate(args[1]);Console.WriteLine("PASS: pacote neutro aceito pelo atualizador real");return;}
 var folder = Path.Combine(Path.GetTempPath(), "leal-network-qa-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
 try
 {
@@ -99,6 +100,7 @@ try
     }
     Reject(() => { var wrong = new NetworkConfiguration { Host="127.0.0.1",Port=port,PairingSecret=config.PairingSecret,CertificateHash=new string('0',64) }; using var client = new NetworkDatabaseClient(wrong,"QA-TERMINAL-1",firstIdentity); }, "Não foi possível conectar");
     Reject(() => { using var clone = new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", Identity()); }, "identidade mudou");
+    ActivationChecks.Run();
     Console.WriteLine("PASS: limites, concorrência, persistência, assinatura, modalidades, renovação, relógio, tipos, TLS, banco central, commit, rollback e desconexão.");
 }
 finally { Directory.Delete(folder, true); }

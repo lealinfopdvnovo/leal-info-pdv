@@ -1,0 +1,90 @@
+name: Gerar EXE do vendedor
+on:
+  push:
+    branches: ['codex/vendedor-exe','codex/ativacao-planos']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Gerar aplicativo Windows independente
+        run: dotnet publish tools/SellerGui/LealInfoVendedor.csproj -c Release -r win-x64 --self-contained true -o seller-build
+      - name: Validar compatibilidade das licencas
+        shell: pwsh
+        run: |
+          $p=Start-Process ./seller-build/LEAL_INFO_VENDEDOR_REDE.exe -ArgumentList '--self-test' -PassThru -Wait
+          if($p.ExitCode -ne 0){if(Test-Path seller-test-error.txt){Get-Content seller-test-error.txt};throw 'Falha no emissor'}
+          Get-Content seller-test-success.txt
+      - name: Capturar janela
+        shell: pwsh
+        run: |
+          $p=Start-Process ./seller-build/LEAL_INFO_VENDEDOR_REDE.exe -ArgumentList '--capture' -PassThru
+          if(-not $p.WaitForExit(30000)){$p.Kill();throw 'Falha na captura'}
+          if(-not(Test-Path seller-preview.png)){throw 'Captura ausente'}
+      - name: Preparar transferencia
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory seller-parts -Force | Out-Null
+          $stream=[IO.File]::OpenRead('seller-build/LEAL_INFO_VENDEDOR_REDE.exe')
+          try {
+            $buffer=New-Object byte[] (24MB)
+            $i=0
+            while(($count=$stream.Read($buffer,0,$buffer.Length)) -gt 0){
+              $piece=New-Object byte[] $count
+              [Array]::Copy($buffer,$piece,$count)
+              [IO.File]::WriteAllBytes("seller-parts/part-$i.bin",$piece)
+              $i++
+            }
+          } finally {$stream.Dispose()}
+          (Get-FileHash seller-build/LEAL_INFO_VENDEDOR_REDE.exe -Algorithm SHA256).Hash | Set-Content seller-parts/hash.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendedor-preview
+          path: |
+            seller-preview.png
+            seller-test-success.txt
+            seller-parts/hash.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendedor-part-0
+          path: seller-parts/part-0.bin
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendedor-part-1
+          path: seller-parts/part-1.bin
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendedor-part-2
+          path: seller-parts/part-2.bin
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendedor-part-3
+          path: seller-parts/part-3.bin
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendedor-part-4
+          path: seller-parts/part-4.bin
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendedor-part-5
+          path: seller-parts/part-5.bin
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendedor-part-6
+          path: seller-parts/part-6.bin
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendedor-part-7
+          path: seller-parts/part-7.bin
+          if-no-files-found: ignore
