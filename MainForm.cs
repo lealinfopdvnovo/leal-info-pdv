@@ -339,6 +339,174 @@ public sealed class MainForm : Form
 
     private Form? firstAccessTutorial;
 
+    private void OpenFirstAccessSlides()
+    {
+        var slides = new (string Title, string Text)[]
+        {
+            ("1. DADOS DA EMPRESA", "Confira o nome, telefone, endereço e logotipo em Configurações > Dados da Empresa. Esses dados identificam sua loja no PDV e nos comprovantes."),
+            ("2. CADASTRE SEUS PRODUTOS", "Abra Cadastro > Produtos e informe a descrição, o preço e o código de barras. Você também pode adicionar uma foto para identificar o produto."),
+            ("3. CADASTRE CLIENTES E FORNECEDORES", "Use o menu Cadastro para registrar clientes e fornecedores. Os dados cadastrados ficam disponíveis nas vendas e nas consultas do sistema."),
+            ("4. FAÇA SUA PRIMEIRA VENDA", "Abra Tela de Vendas, localize o produto com F5, confira a quantidade e finalize com F4. Escolha a forma de pagamento para concluir."),
+            ("5. PRONTO PARA COMEÇAR", "Seu PDV está preparado para operar. Em Utilitários, faça backups regularmente. Para usar um segundo computador, configure a rede em Configurações > Rede e Licença.")
+        };
+
+        var f = new Form
+        {
+            Text = "LEAL INFO • Tutorial de Primeiro Acesso",
+            StartPosition = FormStartPosition.Manual,
+            Width = 520,
+            Height = 700,
+            MinimumSize = new Size(430, 560),
+            FormBorderStyle = FormBorderStyle.SizableToolWindow,
+            BackColor = Color.FromArgb(3, 18, 36),
+            TopMost = true,
+            ShowInTaskbar = false,
+            Font = new Font("Segoe UI", 10)
+        };
+        firstAccessTutorial = f;
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            RowCount = 4,
+            ColumnCount = 1,
+            Padding = new Padding(14),
+            BackColor = f.BackColor
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 72));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 64));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        f.Controls.Add(root);
+
+        var header = new Label
+        {
+            Text = "TUTORIAL DE PRIMEIRO ACESSO\nGuia rápido em etapas",
+            Dock = DockStyle.Fill,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 12, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        root.Controls.Add(header, 0, 0);
+
+        var card = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.FromArgb(8, 43, 82),
+            Padding = new Padding(24)
+        };
+        root.Controls.Add(card, 0, 1);
+
+        var cardLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
+        cardLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        cardLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 70));
+        cardLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        card.Controls.Add(cardLayout);
+
+        var progress = new Label
+        {
+            Dock = DockStyle.Fill,
+            ForeColor = Color.FromArgb(115, 220, 255),
+            Font = new Font("Segoe UI", 10, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        var title = new Label
+        {
+            Dock = DockStyle.Fill,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI", 15, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter
+        };
+        var description = new Label
+        {
+            Dock = DockStyle.Fill,
+            ForeColor = Color.WhiteSmoke,
+            Font = new Font("Segoe UI", 12),
+            TextAlign = ContentAlignment.TopCenter,
+            Padding = new Padding(4, 12, 4, 4)
+        };
+        cardLayout.Controls.Add(progress, 0, 0);
+        cardLayout.Controls.Add(title, 0, 1);
+        cardLayout.Controls.Add(description, 0, 2);
+
+        var navigation = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        navigation.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        navigation.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        root.Controls.Add(navigation, 0, 2);
+
+        Button MakeSlideButton(string text)
+        {
+            var button = new Button
+            {
+                Text = text,
+                Dock = DockStyle.Fill,
+                Margin = new Padding(4),
+                BackColor = Color.FromArgb(4, 112, 168),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold)
+            };
+            button.FlatAppearance.BorderSize = 0;
+            return button;
+        }
+
+        var back = MakeSlideButton("◀ VOLTAR");
+        var next = MakeSlideButton("AVANÇAR ▶");
+        navigation.Controls.Add(back, 0, 0);
+        navigation.Controls.Add(next, 1, 0);
+
+        root.Controls.Add(new Label
+        {
+            Text = "Você pode abrir este guia novamente em Ajuda.",
+            Dock = DockStyle.Fill,
+            ForeColor = Color.FromArgb(120, 200, 235),
+            Font = new Font("Segoe UI", 9, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleCenter
+        }, 0, 3);
+
+        int current = 0;
+        void RenderSlide()
+        {
+            progress.Text = $"ETAPA {current + 1} DE {slides.Length}";
+            title.Text = slides[current].Title;
+            description.Text = slides[current].Text;
+            back.Enabled = current > 0;
+            next.Text = current == slides.Length - 1 ? "CADASTRAR PRIMEIRO PRODUTO ▶" : "AVANÇAR ▶";
+        }
+
+        back.Click += (_, _) =>
+        {
+            if (current == 0) return;
+            current--;
+            RenderSlide();
+        };
+        next.Click += (_, _) =>
+        {
+            if (current < slides.Length - 1)
+            {
+                current++;
+                RenderSlide();
+                return;
+            }
+            SetSetting("first_access_tutorial_completed", "1");
+            f.Close();
+            OpenProducts();
+        };
+
+        void PlaceAtRight()
+        {
+            var area = Screen.FromControl(this).WorkingArea;
+            f.Height = Math.Min(720, Math.Max(560, area.Height - 80));
+            f.Left = area.Right - f.Width - 18;
+            f.Top = area.Top + Math.Max(18, (area.Height - f.Height) / 2);
+        }
+
+        RenderSlide();
+        PlaceAtRight();
+        f.FormClosed += (_, _) => firstAccessTutorial = null;
+        f.Show(this);
+    }
+
     private void OpenFirstAccessTutorial(bool automatic = false)
     {
         // V10.130: guia lateral de primeiro acesso. É modeless: o PDV continua clicável.
@@ -347,6 +515,12 @@ public sealed class MainForm : Form
         if (firstAccessTutorial != null && !firstAccessTutorial.IsDisposed)
         {
             firstAccessTutorial.Activate();
+            return;
+        }
+
+        if (Licensing.InstallationLicense.Current is { Active: true, Plan: "standard" })
+        {
+            OpenFirstAccessSlides();
             return;
         }
 
@@ -740,7 +914,7 @@ public sealed class MainForm : Form
                 AddMenu("Clientes", () => RunAllowed("customers", OpenCustomers));
                 AddMenu("Histórico de vendas", () => RunAllowed("sales_history", OpenHistory));
                 AddMenu("Ordens / OS", () => RunAllowed("orders", OpenOrders));
-                AddMenu("Motoboy / Entregas", () => RunAllowed("deliveries", OpenDeliveries));
+                if (Licensing.InstallationLicense.HasMotoboy) AddMenu("Motoboy / Entregas", () => RunAllowed("deliveries", OpenDeliveries));
                 AddMenu("Orçamentos", () => RunAllowed("quotes", OpenQuotes));
             }
             else if (title == "Movimentação")
@@ -804,7 +978,7 @@ public sealed class MainForm : Form
         AddTool(bar, "HISTÓRICO\nVENDAS", "history.png", () => RunAllowed("sales_history", OpenHistory));
         AddTool(bar, "FLUXO DE\nCAIXA", "finance.png", () => RunAllowed("cash", OpenFinance));
         AddTool(bar, "ORDENS /\nOS", "orders.png", () => RunAllowed("orders", OpenOrders));
-        AddTool(bar, "MOTOBOY /\nENTREGAS", "orders.png", () => RunAllowed("deliveries", OpenDeliveries));
+        if (Licensing.InstallationLicense.HasMotoboy) AddTool(bar, "MOTOBOY /\nENTREGAS", "orders.png", () => RunAllowed("deliveries", OpenDeliveries));
         AddTool(bar, "ORÇAMENTOS", "quotes.png", () => RunAllowed("quotes", OpenQuotes));
         AddTool(bar, "TELA DE\nVENDAS", "sales.png", () => RunAllowed("sales", OpenSales));
         AddTool(bar, "RELATÓRIOS", "reports.png", () => RunAllowed("reports", OpenReports));
@@ -933,6 +1107,12 @@ public sealed class MainForm : Form
 
     private void OpenDeliveries()
     {
+        if (!Licensing.InstallationLicense.HasMotoboy)
+        {
+            MessageBox.Show(this, "Motoboy e Entregas estão disponíveis nos planos Plus e Pro.",
+                "Recurso do plano", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         using var form = new DeliveryManagementForm();
         form.ShowDialog(this);
     }
