@@ -4,7 +4,7 @@ service cloud.firestore {
     function owner() {
       return request.auth != null
         && request.auth.token.email_verified == true
-        && request.auth.token.email == 'SUBSTITUA_PELO_EMAIL_DO_VENDEDOR';
+        && request.auth.token.email == 'lealinfopdvnovo@gmail.com';
     }
 
     match /clients/{clientCode} {
