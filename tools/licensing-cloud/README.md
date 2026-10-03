@@ -15,8 +15,8 @@ Painel web privado para emitir as mesmas licenças RSA-PSS que o PDV já valida.
    firebase deploy --project SEU_PROJECT_ID --only hosting,firestore:rules
    ```
 
-5. Entre no painel e cadastre uma vez os clientes atuais usando os códigos 001 e 002 e os dados que aparecem no gerador antigo. O painel bloqueia a criação automática enquanto esses dois registros não estiverem na nuvem; assim ele não pode reaproveitar o código 001 por engano. Ao salvar o 002, o próximo novo passa a ser 003. Depois dessa carga inicial, o número é reservado em uma transação do Firestore, então dois computadores não emitem o mesmo código.
-6. Importe a chave `chave-vendedor.pem` do kit original. O navegador confere se ela corresponde à chave pública embutida no PDV e a criptografa com AES-256-GCM/PBKDF2 antes de guardar o conteúdo cifrado. Escolha uma frase longa e exclusiva e use a mesma para desbloquear em outro computador. A chave privada não é enviada em texto aberto.
+5. Os clientes antigos 001 e 002 podem continuar sendo controlados manualmente no PDV atual e não precisam ser copiados para a nuvem. O gerador começa no código 003. Novos códigos são reservados em uma transação do Firestore, então dois computadores não emitem o mesmo código.
+6. Importe a chave privada de assinatura correspondente à chave pública embutida no PDV (`chave-vendedor.pem` do kit original). O navegador confere a correspondência e a criptografa com AES-256-GCM/PBKDF2 antes de guardar o conteúdo cifrado. Escolha uma frase longa e exclusiva e use a mesma para desbloquear em outro computador. A chave privada não é enviada em texto aberto.
 
 Os cadastros, documentos, seriais, licenças emitidas e a cópia criptografada da chave ficam em coleções protegidas por Authentication e regras do Firestore. Não coloque dados de clientes no código, em planilhas públicas, ou em commits.
 
@@ -31,7 +31,7 @@ Sem esses valores, o workflow pula a publicação sem falhar. Depois de configur
 
 ## Uso
 
-- Para migrar, use o campo **Código do cliente** e grave os números já existentes. Não emita outra licença durante a migração.
+- Para clientes atuais 001 e 002, continue usando o gerador e o processo manual existente.
 - Para clientes novos, deixe o código vazio e salve: o Firestore reserva o próximo número sequencial automaticamente, com no mínimo três dígitos.
 - Abra um cadastro e use **Gerar / renovar licença**. Para pagamento único a licença fica sem vencimento. Para mensalidade é obrigatório escolher a data final.
 - Baixe `.leallicenca` ou `.chave.txt` e envie ao cliente pelo canal habitual. Desativação passa a valer depois que uma licença inativa atualizada for importada no PDV, de acordo com o fluxo atual do programa.
