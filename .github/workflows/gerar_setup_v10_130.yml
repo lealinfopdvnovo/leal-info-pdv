@@ -1,9 +1,18 @@
 name: Publicar atualizacao LEAL INFO PDV V10.358
 on:
   workflow_dispatch:
+    inputs:
+      confirm_global_v10_358:
+        description: "Confirmo publicar a atualização global V10.358"
+        required: true
+        type: boolean
+        default: false
   push:
     branches: [main, codex/pdv-rede-ativacao-v10.358]
-    paths-ignore: ['README.md']
+    paths-ignore:
+      - 'README.md'
+      - 'tools/licensing-cloud/**'
+      - '.github/workflows/deploy_license_cloud.yml'
 concurrency:
   group: publicar-atualizacao-pdv
   cancel-in-progress: true
@@ -11,6 +20,7 @@ permissions:
   contents: read
 jobs:
   publicar-atualizacao:
+    if: github.event_name == 'workflow_dispatch' && inputs.confirm_global_v10_358
     runs-on: windows-latest
     env:
       UPDATE_VERSION: "10.358"
