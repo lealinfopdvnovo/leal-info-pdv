@@ -15,7 +15,7 @@ Painel web privado para emitir as mesmas licenças RSA-PSS que o PDV já valida.
    firebase deploy --project SEU_PROJECT_ID --only hosting,firestore:rules
    ```
 
-5. Entre no painel e importe uma vez os cadastros existentes informando manualmente os códigos atuais (001 e 002) e os dados que aparecem no gerador antigo. O código existente é preservado; o próximo novo passa a ser 003. Depois dessa carga inicial, o número é reservado em uma transação do Firestore, então dois computadores não emitem o mesmo código.
+5. Entre no painel e cadastre uma vez os clientes atuais usando os códigos 001 e 002 e os dados que aparecem no gerador antigo. O painel bloqueia a criação automática enquanto esses dois registros não estiverem na nuvem; assim ele não pode reaproveitar o código 001 por engano. Ao salvar o 002, o próximo novo passa a ser 003. Depois dessa carga inicial, o número é reservado em uma transação do Firestore, então dois computadores não emitem o mesmo código.
 6. Importe a chave `chave-vendedor.pem` do kit original. O navegador confere se ela corresponde à chave pública embutida no PDV e a criptografa com AES-256-GCM/PBKDF2 antes de guardar o conteúdo cifrado. Escolha uma frase longa e exclusiva e use a mesma para desbloquear em outro computador. A chave privada não é enviada em texto aberto.
 
 Os cadastros, documentos, seriais, licenças emitidas e a cópia criptografada da chave ficam em coleções protegidas por Authentication e regras do Firestore. Não coloque dados de clientes no código, em planilhas públicas, ou em commits.

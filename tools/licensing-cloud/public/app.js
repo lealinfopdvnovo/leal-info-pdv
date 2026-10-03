@@ -119,6 +119,8 @@ async function refreshClients() {
   const snapshot = await getDocs(query(collection(db, "clients"), orderBy("sequence", "asc")));
   clients = snapshot.docs.map(d => ({ ...d.data(), code: d.id }));
   await bootstrapCounter();
+  const migrationReady = clients.some(c => c.code === "001") && clients.some(c => c.code === "002");
+  $("new-client").disabled = !migrationReady;
   const body = $("clients-body"); body.replaceChildren();
   if (!clients.length) {
     const row = body.insertRow(); const cell = row.insertCell(); cell.colSpan=4; cell.className="empty"; cell.textContent="Cadastre os clientes 001 e 002 existentes para iniciar.";
@@ -133,7 +135,7 @@ async function refreshClients() {
   }
   const counter = await getDoc(doc(db, "system", "clientCounter"));
   const next = (Number(counter.data()?.lastIssued || 0) + 1).toString().padStart(3, "0");
-  $("client-code-badge").textContent = `PRÓXIMO CÓDIGO ${next}`;
+  $("client-code-badge").textContent = migrationReady ? `PRÓXIMO CÓDIGO ${next}` : "CADASTRE 001 E 002 PRIMEIRO";
 }
 
 function loadClient(c) {
@@ -194,6 +196,7 @@ async function saveClient(e) {
     if (!Number.isInteger(data.additionalTerminals) || data.additionalTerminals < 0 || data.additionalTerminals > 998) throw new Error("Pontos adicionais deve ficar entre 0 e 998.");
     if (data.expiresLocalDate && new Date(`${data.expiresLocalDate}T23:59:59`) <= new Date()) throw new Error("A data da mensalidade deve ser futura.");
     let code = data.code;
+    if (!code && !(clients.some(c => c.code === "001") && clients.some(c => c.code === "002"))) throw new Error("Cadastre primeiro os clientes 001 e 002 que já existem. Depois o próximo código será 003.");
     if (code) {
       const sequence = Number(code);
       const clientRef = doc(db, "clients", code);
