@@ -40,6 +40,7 @@ Sem esses valores, o workflow pula a publicação sem falhar. Depois de configur
 
 - A regra de proprietário usa e-mail verificado e igualdade exata do e-mail configurado.
 - A chave privada fica descriptografada apenas em memória enquanto o painel está aberto e desbloqueado; sair da conta apaga a referência em memória.
+- A chave trava automaticamente após 15 minutos sem atividade.
 - Guarde a frase secreta separadamente. Perder a frase significa precisar importar de novo a chave privada original.
 - O painel não processa pagamentos, não revoga licenças instantaneamente e não altera o banco de vendas do PDV.
 - O projeto precisa ser criado/configurado na conta Firebase do proprietário antes de o painel ter um endereço online.

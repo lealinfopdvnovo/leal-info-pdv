@@ -5,7 +5,7 @@ import { getFirestore, collection, doc, getDoc, getDocs, query, orderBy, limit, 
 const config = window.FIREBASE_CONFIG;
 const $ = id => document.getElementById(id);
 const notice = $("notice");
-let auth, db, user = null, privateKey = null, clients = [];
+let auth, db, user = null, privateKey = null, clients = [], keyLockTimer = null;
 
 function message(text, ok = false) {
   notice.textContent = text;
@@ -95,11 +95,11 @@ function wireAuth() {
     user = current;
     $("auth-panel").hidden = !!current;
     $("app-panel").hidden = !current;
-    if (!current) { privateKey = null; return; }
+    if (!current) { privateKey = null; clearTimeout(keyLockTimer); $("key-passphrase").value = ""; return; }
     $("session-email").textContent = current.email || "Conta do vendedor";
     $("uid-line").hidden = false;
     $("uid-line").textContent = `UID proprietário: ${current.uid}`;
-    $("signout").onclick = async () => { privateKey = null; $("key-passphrase").value = ""; await signOut(auth); };
+    $("signout").onclick = async () => { privateKey = null; clearTimeout(keyLockTimer); $("key-passphrase").value = ""; await signOut(auth); };
     try { await refreshClients(); await loadKeyState(); }
     catch (error) { message(explainError(error)); }
   });
@@ -248,6 +248,18 @@ async function checkKey(privatePem) {
   if (!await crypto.subtle.verify({ name: "RSA-PSS", saltLength: 32 }, publicKey, sig, test)) throw new Error("A chave privada não corresponde à chave pública do PDV.");
   return key;
 }
+function refreshKeyLock() {
+  clearTimeout(keyLockTimer);
+  if (!privateKey) return;
+  keyLockTimer = setTimeout(() => {
+    privateKey = null;
+    $("issue-license").disabled = true;
+    $("key-state").textContent = "Bloqueada por inatividade";
+    $("key-state").classList.remove("ready");
+    message("A chave foi bloqueada após 15 minutos sem atividade. Digite a frase secreta para desbloquear novamente.");
+  }, 15 * 60 * 1000);
+}
+for (const eventName of ["pointerdown", "keydown"]) document.addEventListener(eventName, refreshKeyLock, { passive:true });
 async function encryptPrivateKey(pem, passphrase) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -281,6 +293,7 @@ $("save-key").addEventListener("click", async () => {
     $("key-state").textContent = "Protegida e desbloqueada"; $("key-state").classList.add("ready");
     $("unlock-key").hidden = false; $("issue-license").disabled = !$("client-code").value;
     $("key-passphrase").value = "";
+    refreshKeyLock();
     message("Chave protegida e sincronizada. Guarde bem a frase secreta; ela será necessária nos outros computadores.", true);
   } catch (error) { privateKey = null; message(explainError(error)); }
 });
@@ -291,8 +304,10 @@ $("unlock-key").addEventListener("click", async () => {
     const snap = await getDoc(doc(db, "system", "signingKey"));
     if (!snap.exists()) throw new Error("A chave protegida ainda não foi configurada.");
     privateKey = await checkKey(await decryptPrivateKey(snap.data(), passphrase));
+    $("key-passphrase").value = "";
     $("key-state").textContent = "Desbloqueada neste navegador"; $("key-state").classList.add("ready");
     $("issue-license").disabled = !$("client-code").value;
+    refreshKeyLock();
     message("Chave desbloqueada neste navegador. Ela será esquecida ao sair da conta.", true);
   } catch (error) { privateKey = null; message(error?.name === "OperationError" ? "Frase secreta incorreta ou chave criptografada inválida." : explainError(error)); }
 });
