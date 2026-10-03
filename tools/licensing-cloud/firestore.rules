@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email == 'SUBSTITUA_PELO_EMAIL_DO_VENDEDOR';
+    }
+
+    match /clients/{clientCode} {
+      allow read, create, update: if owner();
+      allow delete: if false;
+      match /licenses/{licenseRevision} {
+        allow read, create: if owner();
+        allow update, delete: if false;
+      }
+    }
+
+    match /system/{document} {
+      allow read, create, update: if owner();
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

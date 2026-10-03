@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#071525">
+  <title>Leal Info • Gerador de Licenças</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="firebase-config.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand-mark">LI</div>
+      <div><p class="eyebrow">LEAL INFO CONECTADO</p><h1>Planos e licenças</h1></div>
+      <span class="cloud-badge"><i></i> GERADOR ONLINE</span>
+    </header>
+
+    <section id="notice" class="notice" role="status" hidden></section>
+
+    <section id="auth-panel" class="auth-card">
+      <div class="section-heading"><div><p class="eyebrow">ACESSO DO VENDEDOR</p><h2>Entre para continuar</h2></div></div>
+      <p class="muted">Os cadastros e a emissão ficam disponíveis somente na conta autorizada.</p>
+      <form id="auth-form" class="form-grid">
+        <label class="span-2">E-mail<input id="auth-email" type="email" autocomplete="username" required></label>
+        <label class="span-2">Senha<input id="auth-password" type="password" autocomplete="current-password" minlength="8" required></label>
+        <div class="span-2 button-row"><button id="auth-submit" class="primary" type="submit">ENTRAR</button><button id="signup-toggle" class="secondary" type="button">CRIAR ACESSO</button></div>
+      </form>
+      <p id="auth-hint" class="hint">Na primeira configuração, crie sua conta e confirme o e-mail. O acesso aos dados só libera para o e-mail proprietário definido nas regras do Firestore.</p>
+      <p id="uid-line" class="uid-line" hidden></p>
+    </section>
+
+    <section id="app-panel" hidden>
+      <div class="toolbar">
+        <div><p class="eyebrow">ÁREA DO VENDEDOR</p><h2>Clientes cadastrados</h2><p id="session-email" class="muted"></p></div>
+        <div class="button-row"><button id="new-client" class="primary" type="button">＋ NOVO CLIENTE</button><button id="signout" class="secondary" type="button">SAIR</button></div>
+      </div>
+
+      <section class="card key-card">
+        <div class="section-heading"><div><p class="eyebrow">ASSINATURA DIGITAL</p><h3>Chave do vendedor</h3></div><span id="key-state" class="pill">Não configurada</span></div>
+        <p class="muted">A chave privada é criptografada neste navegador antes de ir para o Firestore. Ela não é enviada em texto aberto.</p>
+        <div class="key-actions">
+          <label class="file-label">Importar chave privada (.pem)<input id="private-key-file" type="file" accept=".pem,.key,text/plain"></label>
+          <label>Frase secreta<input id="key-passphrase" type="password" autocomplete="new-password" minlength="12" placeholder="Use uma frase longa e exclusiva"></label>
+          <button id="save-key" class="secondary" type="button">PROTEGER CHAVE NA NUVEM</button>
+          <button id="unlock-key" class="secondary" type="button" hidden>DESBLOQUEAR NESTE NAVEGADOR</button>
+        </div>
+      </section>
+
+      <div class="workspace">
+        <section class="card editor-card">
+          <div class="section-heading"><div><p class="eyebrow">CADASTRO</p><h3 id="form-title">Novo cliente</h3></div><span id="client-code-badge" class="code-badge">PRÓXIMO CÓDIGO AUTOMÁTICO</span></div>
+          <form id="client-form" class="form-grid">
+            <label class="span-2">Código do cliente<input id="client-code" inputmode="numeric" maxlength="9" placeholder="Automático para novo cliente"></label>
+            <label class="span-2">Nome do cliente<input id="client-name" required maxlength="140"></label>
+            <label>CPF / CNPJ<input id="client-document" maxlength="24"></label>
+            <label>Serial do PDV<input id="client-serial" required maxlength="22" placeholder="LI-1234-5678-ABCD-EF90"></label>
+            <label>Plano<select id="client-plan"><option value="standard">Standard</option><option value="plus">Plus</option><option value="pro">Pro</option></select></label>
+            <label>Pontos adicionais<input id="client-extra" type="number" min="0" max="998" value="0"></label>
+            <label>Modalidade<select id="client-billing"><option value="unico">Pagamento único</option><option value="mensal">Mensalidade</option></select></label>
+            <label>Válida até<input id="client-expiry" type="date" disabled></label>
+            <label class="span-2">Contato do vendedor<input id="client-contact" maxlength="120" placeholder="WhatsApp ou telefone"></label>
+            <label class="check-label span-2"><input id="client-active" type="checkbox" checked> LICENÇA ATIVA</label>
+            <div class="span-2 button-row form-buttons"><button id="save-client" class="primary" type="submit">SALVAR CADASTRO</button><button id="issue-license" class="gold" type="button" disabled>GERAR / RENOVAR LICENÇA</button><button id="clear-form" class="secondary" type="button">LIMPAR</button></div>
+          </form>
+          <div id="downloads" class="downloads" hidden></div>
+        </section>
+
+        <section class="card list-card">
+          <div class="section-heading"><div><p class="eyebrow">FIRESTORE</p><h3>Carteira de clientes</h3></div><button id="refresh" class="icon-button" type="button" aria-label="Atualizar lista">↻</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Código</th><th>Cliente</th><th>Plano</th><th>Situação</th></tr></thead><tbody id="clients-body"><tr><td colspan="4" class="empty">Nenhum cliente carregado.</td></tr></tbody></table></div>
+          <p class="hint">Para trazer seus clientes atuais, cadastre cada código existente uma única vez (001, 002...). Depois disso, novos códigos são atribuídos automaticamente e sem duplicação entre computadores.</p>
+        </section>
+      </div>
+      <footer>LEAL INFO • Emissão assinada localmente • Dados sincronizados na nuvem</footer>
+    </section>
+  </main>
+</body>
+</html>

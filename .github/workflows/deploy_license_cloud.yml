@@ -1,0 +1,46 @@
+name: Deploy gerador de licenças
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/licensing-cloud/**'
+      - '.github/workflows/deploy_license_cloud.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check-config:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          PROJECT_ID: ${{ vars.LEAL_FIREBASE_PROJECT_ID }}
+          SERVICE_ACCOUNT: ${{ secrets.LEAL_FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$PROJECT_ID" ] && [ -n "$SERVICE_ACCOUNT" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "Firebase deploy is not configured yet; skipping." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  deploy:
+    needs: check-config
+    if: needs.check-config.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.LEAL_FIREBASE_SERVICE_ACCOUNT }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --global firebase-tools
+      - name: Publicar hospedagem e regras
+        working-directory: tools/licensing-cloud
+        env:
+          PROJECT_ID: ${{ vars.LEAL_FIREBASE_PROJECT_ID }}
+        run: firebase deploy --project "$PROJECT_ID" --only hosting,firestore:rules --non-interactive
