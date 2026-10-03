@@ -108,7 +108,8 @@ function wireAuth() {
 async function bootstrapCounter() {
   const counterRef = doc(db, "system", "clientCounter");
   const list = await getDocs(query(collection(db, "clients"), orderBy("sequence", "desc"), limit(1)));
-  const maxExisting = list.empty ? 0 : Number(list.docs[0].data().sequence || 0);
+  // Registros 001 e 002 permanecem no PDV atual; não precisam ser copiados para a nuvem.
+  const maxExisting = Math.max(2, list.empty ? 0 : Number(list.docs[0].data().sequence || 0));
   await runTransaction(db, async tx => {
     const snap = await tx.get(counterRef);
     const current = snap.exists() ? Number(snap.data().lastIssued || 0) : 0;
@@ -119,11 +120,10 @@ async function refreshClients() {
   const snapshot = await getDocs(query(collection(db, "clients"), orderBy("sequence", "asc")));
   clients = snapshot.docs.map(d => ({ ...d.data(), code: d.id }));
   await bootstrapCounter();
-  const migrationReady = clients.some(c => c.code === "001") && clients.some(c => c.code === "002");
-  $("new-client").disabled = !migrationReady;
+  $("new-client").disabled = false;
   const body = $("clients-body"); body.replaceChildren();
   if (!clients.length) {
-    const row = body.insertRow(); const cell = row.insertCell(); cell.colSpan=4; cell.className="empty"; cell.textContent="Cadastre os clientes 001 e 002 existentes para iniciar.";
+    const row = body.insertRow(); const cell = row.insertCell(); cell.colSpan=4; cell.className="empty"; cell.textContent="Nenhum cliente cadastrado na nuvem. O próximo código automático será 003.";
   }
   for (const client of clients) {
     const row = body.insertRow(); row.title = "Abrir cadastro";
@@ -135,7 +135,7 @@ async function refreshClients() {
   }
   const counter = await getDoc(doc(db, "system", "clientCounter"));
   const next = (Number(counter.data()?.lastIssued || 0) + 1).toString().padStart(3, "0");
-  $("client-code-badge").textContent = migrationReady ? `PRÓXIMO CÓDIGO ${next}` : "CADASTRE 001 E 002 PRIMEIRO";
+  $("client-code-badge").textContent = `PRÓXIMO CÓDIGO ${next}`;
 }
 
 function loadClient(c) {
@@ -196,7 +196,7 @@ async function saveClient(e) {
     if (!Number.isInteger(data.additionalTerminals) || data.additionalTerminals < 0 || data.additionalTerminals > 998) throw new Error("Pontos adicionais deve ficar entre 0 e 998.");
     if (data.expiresLocalDate && new Date(`${data.expiresLocalDate}T23:59:59`) <= new Date()) throw new Error("A data da mensalidade deve ser futura.");
     let code = data.code;
-    if (!code && !(clients.some(c => c.code === "001") && clients.some(c => c.code === "002"))) throw new Error("Cadastre primeiro os clientes 001 e 002 que já existem. Depois o próximo código será 003.");
+
     if (code) {
       const sequence = Number(code);
       const clientRef = doc(db, "clients", code);
