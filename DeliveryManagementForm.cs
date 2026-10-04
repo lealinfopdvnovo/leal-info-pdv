@@ -1,11 +1,18 @@
 using System.Diagnostics;
 using System.Globalization;
 using Microsoft.Data.Sqlite;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text.Json;
 
 namespace LealInfoPDV;
 
 public sealed class DeliveryManagementForm : Form
 {
+    private const string DatabaseUrl = "https://novo-91da7436-default-rtdb.firebaseio.com";
+    private const string TrackingPage = "https://novo-91da7436.web.app/track.html?t=";
+    private const string TrackingAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    private static readonly HttpClient TrackingHttp = new() { Timeout = TimeSpan.FromSeconds(12) };
     private readonly DataGridView _deliveries = Grid();
     private readonly DataGridView _drivers = Grid();
     private readonly ComboBox _status = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
@@ -46,6 +53,7 @@ public sealed class DeliveryManagementForm : Form
         Controls.Add(tabs);
         Controls.Add(header);
 
+        EnsureTrackingSchema();
         _status.Items.AddRange(new[] { "TODAS", "AGUARDANDO", "EM ROTA", "ENTREGUE", "CANCELADA" });
         _status.SelectedIndex = 0;
         _status.SelectedIndexChanged += (_, _) => LoadDeliveries();
@@ -114,21 +122,25 @@ public sealed class DeliveryManagementForm : Form
 
     private Control DeliveryBar()
     {
-        var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 62, Padding = new Padding(6), WrapContents = false };
+        var bar = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 104, Padding = new Padding(6), WrapContents = true };
         var add = Button("NOVA ENTREGA", Color.FromArgb(230, 95, 20));
         var edit = Button("EDITAR", Color.FromArgb(0, 125, 190), 110);
         var dispatch = Button("SAIU PARA ENTREGA", Color.FromArgb(185, 22, 38), 175);
         var delivered = Button("MARCAR ENTREGUE", Color.FromArgb(0, 145, 85), 165);
         var route = Button("ABRIR ROTA", Color.FromArgb(35, 105, 180), 135);
+        var sendDriver = Button("ENVIAR CÓDIGO AO MOTOBOY", Color.FromArgb(96, 62, 150), 190);
+        var sendCustomer = Button("ENVIAR LINK AO CLIENTE", Color.FromArgb(0, 145, 85), 180);
         var cancel = Button("CANCELAR", Color.FromArgb(100, 105, 112), 115);
         var filterLabel = new Label { Text = "Status:", AutoSize = true, Margin = new Padding(16, 13, 4, 0), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-        bar.Controls.AddRange(new Control[] { add, edit, dispatch, delivered, route, cancel, filterLabel, _status });
+        bar.Controls.AddRange(new Control[] { add, edit, dispatch, delivered, route, sendDriver, sendCustomer, cancel, filterLabel, _status });
         add.Click += (_, _) => EditDelivery(null);
         edit.Click += (_, _) => { var id = SelectedId(_deliveries); if (id.HasValue) EditDelivery(id); };
         dispatch.Click += (_, _) => SetDeliveryStatus("EM ROTA");
         delivered.Click += (_, _) => SetDeliveryStatus("ENTREGUE");
         cancel.Click += (_, _) => SetDeliveryStatus("CANCELADA");
         route.Click += (_, _) => OpenRoute();
+        sendDriver.Click += (_, _) => SendDriverCode();
+        sendCustomer.Click += async (_, _) => await SendCustomerTrackingLinkAsync();
         return bar;
     }
 
@@ -156,16 +168,100 @@ public sealed class DeliveryManagementForm : Form
         return Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value);
     }
 
+
+    private static void EnsureTrackingSchema()
+    {
+        using var cn=Database.Open();using var cmd=cn.CreateCommand();
+        cmd.CommandText="CREATE TABLE IF NOT EXISTS delivery_tracking(delivery_id INTEGER PRIMARY KEY,code TEXT NOT NULL UNIQUE,created_at TEXT NOT NULL,FOREIGN KEY(delivery_id) REFERENCES deliveries(id) ON DELETE CASCADE)";
+        cmd.ExecuteNonQuery();
+    }
+
+    private static string NewTrackingCode()
+    {
+        var chars=new char[12];
+        for(var i=0;i<chars.Length;i++)chars[i]=TrackingAlphabet[RandomNumberGenerator.GetInt32(TrackingAlphabet.Length)];
+        return new string(chars);
+    }
+
+    private static string EnsureTrackingCode(long deliveryId)
+    {
+        using var cn=Database.Open();using var read=cn.CreateCommand();
+        read.CommandText="SELECT code FROM delivery_tracking WHERE delivery_id=$id";read.Parameters.AddWithValue("$id",deliveryId);
+        var current=Convert.ToString(read.ExecuteScalar());if(!string.IsNullOrWhiteSpace(current))return current;
+        for(var attempt=0;attempt<5;attempt++)
+        {
+            var code=NewTrackingCode();using var add=cn.CreateCommand();
+            add.CommandText="INSERT OR IGNORE INTO delivery_tracking(delivery_id,code,created_at) VALUES($id,$code,$created)";
+            add.Parameters.AddWithValue("$id",deliveryId);add.Parameters.AddWithValue("$code",code);add.Parameters.AddWithValue("$created",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            add.ExecuteNonQuery();
+            using var confirm=cn.CreateCommand();confirm.CommandText="SELECT code FROM delivery_tracking WHERE delivery_id=$id";confirm.Parameters.AddWithValue("$id",deliveryId);
+            current=Convert.ToString(confirm.ExecuteScalar());if(!string.IsNullOrWhiteSpace(current))return current;
+        }
+        throw new InvalidOperationException("Não foi possível gerar o código desta entrega.");
+    }
+
+    private static long InsertDeliveryWithTracking(string createdAt,string customer,string phone,string address,string reference,string description,double amount,double fee,string payment,object driverId,string notes,string operatorName)
+    {
+        using var cn=Database.Open();using var cmd=cn.CreateCommand();
+        cmd.CommandText="INSERT INTO deliveries(created_at,customer_name,customer_phone,address,reference,order_description,amount,delivery_fee,payment,driver_id,notes,operator) VALUES($dt,$c,$ph,$a,$r,$d,$v,$f,$p,$m,$n,$o)";
+        cmd.Parameters.AddWithValue("$dt",createdAt);cmd.Parameters.AddWithValue("$c",customer);cmd.Parameters.AddWithValue("$ph",phone);cmd.Parameters.AddWithValue("$a",address);cmd.Parameters.AddWithValue("$r",reference);cmd.Parameters.AddWithValue("$d",description);cmd.Parameters.AddWithValue("$v",amount);cmd.Parameters.AddWithValue("$f",fee);cmd.Parameters.AddWithValue("$p",payment);cmd.Parameters.AddWithValue("$m",driverId);cmd.Parameters.AddWithValue("$n",notes);cmd.Parameters.AddWithValue("$o",operatorName);
+        cmd.ExecuteNonQuery();
+        using var idCommand=cn.CreateCommand();idCommand.CommandText="SELECT last_insert_rowid()";var id=Convert.ToInt64(idCommand.ExecuteScalar());
+        EnsureTrackingCode(id);return id;
+    }
+
+    private sealed record DeliveryShare(string Customer,string CustomerPhone,string Address,string DriverPhone,string Code);
+
+    private static DeliveryShare? ReadDeliveryShare(long id)
+    {
+        var code=EnsureTrackingCode(id);using var cn=Database.Open();using var cmd=cn.CreateCommand();
+        cmd.CommandText="SELECT d.customer_name,COALESCE(d.customer_phone,''),d.address,COALESCE(m.phone,'') FROM deliveries d LEFT JOIN delivery_drivers m ON m.id=d.driver_id WHERE d.id=$id";
+        cmd.Parameters.AddWithValue("$id",id);using var rd=cmd.ExecuteReader();if(!rd.Read())return null;
+        return new DeliveryShare(rd.GetString(0),rd.GetString(1),rd.GetString(2),rd.GetString(3),code);
+    }
+
+    private void SendDriverCode()
+    {
+        var id=SelectedId(_deliveries);if(!id.HasValue)return;var data=ReadDeliveryShare(id.Value);if(data==null)return;
+        if(string.IsNullOrWhiteSpace(data.DriverPhone)){MessageBox.Show("Cadastre o telefone do motoboy e selecione-o na entrega.","Telefone do motoboy",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
+        var message=$"Nova entrega da LEAL INFO PDV\nCliente: {data.Customer}\nEndereço: {data.Address}\nCódigo para iniciar o rastreamento: {data.Code}";
+        OpenWhatsApp(data.DriverPhone,message);
+    }
+
+    private async Task SendCustomerTrackingLinkAsync()
+    {
+        var id=SelectedId(_deliveries);if(!id.HasValue)return;var data=ReadDeliveryShare(id.Value);if(data==null)return;
+        if(string.IsNullOrWhiteSpace(data.CustomerPhone)){MessageBox.Show("Cadastre o telefone do cliente nesta entrega.","Telefone do cliente",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
+        try
+        {
+            var url=$"{DatabaseUrl}/pedidos/{Uri.EscapeDataString(data.Code)}/trackingToken.json";
+            using var response=await TrackingHttp.GetAsync(url);if(!response.IsSuccessStatusCode)throw new HttpRequestException("Não foi possível consultar a entrega no Firebase.");
+            var json=await response.Content.ReadAsStringAsync();var token=JsonSerializer.Deserialize<string>(json);
+            if(string.IsNullOrWhiteSpace(token)){MessageBox.Show("O motoboy ainda não iniciou esta entrega no aplicativo. Envie o código ao motoboy e tente novamente.","Rastreamento aguardando",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
+            var link=TrackingPage+Uri.EscapeDataString(token);var message=$"Olá, {data.Customer}! Acompanhe em tempo real a entrega do seu pedido: {link}";OpenWhatsApp(data.CustomerPhone,message);
+        }
+        catch(Exception ex){MessageBox.Show("Não foi possível preparar o link agora.\n\n"+ex.Message,"Rastreamento da entrega",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
+    }
+
+    private static void OpenWhatsApp(string phone,string message)
+    {
+        var digits=new string(phone.Where(char.IsDigit).ToArray());if(digits.Length is 10 or 11)digits="55"+digits;
+        var url="https://wa.me/"+digits+"?text="+Uri.EscapeDataString(message);
+        try{Process.Start(new ProcessStartInfo(url){UseShellExecute=true});}
+        catch(Exception ex){MessageBox.Show("Não foi possível abrir o WhatsApp.\n"+ex.Message);}
+    }
+
     private void LoadDeliveries()
     {
         using var cn = Database.Open();
         using var cmd = cn.CreateCommand();
         cmd.CommandText = """
-            SELECT d.id AS ID,d.created_at AS Criada,d.customer_name AS Cliente,d.customer_phone AS Telefone,
+            SELECT d.id AS ID,d.created_at AS Criada,COALESCE(t.code,'') AS Código,d.customer_name AS Cliente,d.customer_phone AS Telefone,
                    d.address AS Endereço,COALESCE(m.name,'NÃO DEFINIDO') AS Motoboy,d.status AS Status,
                    printf('R$ %.2f',d.amount) AS Pedido,printf('R$ %.2f',d.delivery_fee) AS Taxa,
                    d.payment AS Pagamento,d.departed_at AS Saída,d.delivered_at AS Entregue
             FROM deliveries d LEFT JOIN delivery_drivers m ON m.id=d.driver_id
+            LEFT JOIN delivery_tracking t ON t.delivery_id=d.id
             WHERE ($status='TODAS' OR d.status=$status) ORDER BY d.id DESC
             """;
         cmd.Parameters.AddWithValue("$status", _status.SelectedItem?.ToString() ?? "TODAS");
@@ -243,8 +339,7 @@ public sealed class DeliveryManagementForm : Form
             var driverId=driver.SelectedValue is long value?(object)value:DBNull.Value;
             if(id.HasValue) Exec("""UPDATE deliveries SET customer_name=$c,customer_phone=$ph,address=$a,reference=$r,order_description=$d,amount=$v,delivery_fee=$f,payment=$p,driver_id=$m,notes=$n WHERE id=$id""",
                 ("$c",customer.Box.Text),("$ph",phone.Box.Text),("$a",address.Box.Text),("$r",reference.Box.Text),("$d",description.Box.Text),("$v",Number(amount.Box.Text)),("$f",Number(fee.Box.Text)),("$p",payment.Box.Text),("$m",driverId),("$n",notes.Box.Text),("$id",id.Value));
-            else Exec("""INSERT INTO deliveries(created_at,customer_name,customer_phone,address,reference,order_description,amount,delivery_fee,payment,driver_id,notes,operator) VALUES($dt,$c,$ph,$a,$r,$d,$v,$f,$p,$m,$n,$o)""",
-                ("$dt",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),("$c",customer.Box.Text),("$ph",phone.Box.Text),("$a",address.Box.Text),("$r",reference.Box.Text),("$d",description.Box.Text),("$v",Number(amount.Box.Text)),("$f",Number(fee.Box.Text)),("$p",payment.Box.Text),("$m",driverId),("$n",notes.Box.Text),("$o",Auth.OperatorName));
+            else InsertDeliveryWithTracking(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),customer.Box.Text,phone.Box.Text,address.Box.Text,reference.Box.Text,description.Box.Text,Number(amount.Box.Text),Number(fee.Box.Text),payment.Box.Text,driverId,notes.Box.Text,Auth.OperatorName);
             f.DialogResult=DialogResult.OK;f.Close();
         };
         if(f.ShowDialog(this)==DialogResult.OK)LoadDeliveries();
