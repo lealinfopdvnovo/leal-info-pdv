@@ -23,8 +23,8 @@ jobs:
     env:
       UPDATE_VERSION: "10.359"
       UPDATE_TAG: "v10.359"
-      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_358_FINAL.exe"
-      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_358_UPDATE.zip"
+      SETUP_FILE: "Setup_LEAL_INFO_PDV_V10_359_FINAL.exe"
+      UPDATE_PACKAGE: "LEAL_INFO_PDV_V10_359_UPDATE.zip"
       UPDATE_REPO: "lealinfopdvnovo/leal-info-pdv-updates"
       GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
     steps:
@@ -35,10 +35,10 @@ jobs:
         run: |
           $i=Get-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" -Raw -Encoding UTF8
           $i=[regex]::Replace($i,'#define MyAppVersion[^\r\n]*','#define MyAppVersion "10.359"')
-          $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_358_FINAL')
+          $i=[regex]::Replace($i,'OutputBaseFilename=.*','OutputBaseFilename=Setup_LEAL_INFO_PDV_V10_359_FINAL')
           Set-Content "INSTALADOR_LEAL_INFO_PDV_V10_130.iss" $i -Encoding UTF8
-          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.358\.0</Version>') { throw "csproj nao esta em V10.359" }
-          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.358"') { throw "UpdateManager nao esta em V10.359" }
+          if ((Get-Content "LealInfoPDV.csproj" -Raw) -notmatch '<Version>10\.359\.0</Version>') { throw "csproj nao esta em V10.359" }
+          if ((Get-Content "UpdateManager.cs" -Raw) -notmatch 'CurrentVersion="10\.359"') { throw "UpdateManager nao esta em V10.359" }
       - name: Restaurar Azul Texturizado
         shell: powershell
         run: powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\aplicar_tema_azul_texturizado_v10_306.ps1"
