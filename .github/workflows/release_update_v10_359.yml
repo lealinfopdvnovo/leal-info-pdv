@@ -12,7 +12,7 @@ on:
     paths:
       - 'RELEASE_V10_359.trigger'
 concurrency:
-  group: publicar-atualizacao-pdv
+  group: publicar-atualizacao-pdv-v10-359
   cancel-in-progress: true
 permissions:
   contents: read
