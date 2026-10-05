@@ -80,6 +80,8 @@ jobs:
         with:
           name: retirada-pecas-validada
           path: retirada-pecas-qa.png
+      - name: Testar vinculo do motoboy e telefone cadastrado
+        run: dotnet run --project qa/driver-phone/LealInfoPDV.DriverTests.csproj -c Release
       - name: Publicar pacote e manifesto apenas neste ID
         shell: pwsh
         env:

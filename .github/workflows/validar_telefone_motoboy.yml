@@ -1,0 +1,19 @@
+name: Validar telefone motoboy 002
+on:
+  push:
+    branches: ['qa/driver-phone-002']
+concurrency:
+  group: validar-telefone-motoboy-002
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Testar vinculo e telefone corrigidos no Windows
+        run: dotnet run --project qa/driver-phone/LealInfoPDV.DriverTests.csproj -c Release

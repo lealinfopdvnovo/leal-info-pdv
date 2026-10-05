@@ -1,1 +1,1 @@
-Novo módulo NOTA DE SERVIÇO: cliente por ID e F11, itens com cálculos e máscara monetária, histórico persistente, finalização/garantia/valor pago, visualização e impressão A4 nativa com paginação automática. Sem movimentar vendas, estoque ou caixa.
+Correção pontual na Central de Motoboy: restaura e salva o ID real do motoboy na entrega, recupera automaticamente o telefone cadastrado e separa os avisos de entrega sem motoboy e motoboy sem telefone. Preserva endereço, código, envio ao Firebase, rastreamento e demais módulos. Atualização exclusiva do cliente 002.
