@@ -4,12 +4,18 @@ on:
     branches: ['qa/driver-phone-002']
 permissions:
   contents: read
+  actions: write
 jobs:
   validar:
     runs-on: windows-latest
+    timeout-minutes: 5
     steps:
+      - name: Encerrar teste anterior que ficou preso no diagnostico Windows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST repos/lealinfopdvnovo/leal-info-pdv/actions/runs/37351510557/cancel
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
-      - name: Testar vinculo e telefone corrigidos no Windows
+      - name: Testar vinculo existente no Windows
         run: dotnet run --project qa/driver-phone/LealInfoPDV.DriverTests.csproj -c Release

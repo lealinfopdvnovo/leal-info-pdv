@@ -55,11 +55,11 @@ internal static class Program
     }
     static void ExpectMessage(DeliveryManagementForm central,string expected,bool expectNetwork)
     {
-        bool seen=false;int before=fake.Requests;Exception? failure=null;
+        Console.WriteLine("QA botão: "+expected);bool seen=false;int before=fake.Requests;Exception? failure=null;
         using var timer=new System.Windows.Forms.Timer{Interval=80};
         timer.Tick+=(_,_)=>
         {
-            var hwnd=GetForegroundWindow();var text=new System.Text.StringBuilder(2048);GetWindowText(hwnd,text,text.Capacity);
+            var hwnd=FindWindow("#32770","Telefone do motoboy");if(hwnd==IntPtr.Zero)hwnd=FindWindow("#32770","Envio ao SpeedFood");var text=new System.Text.StringBuilder(2048);GetWindowText(hwnd,text,text.Capacity);
             if(text.ToString() is not ("Telefone do motoboy" or "Envio ao SpeedFood"))return;
             var messages=new List<string>();EnumChildWindows(hwnd,(child,_)=>{var b=new System.Text.StringBuilder(4096);GetWindowText(child,b,b.Capacity);messages.Add(b.ToString());return true;},IntPtr.Zero);
             seen=true;timer.Stop();if(!messages.Any(x=>x.Contains(expected)))failure=new Exception("Mensagem incorreta: "+string.Join("|",messages));
@@ -69,7 +69,7 @@ internal static class Program
         while(!seen){Application.DoEvents();Thread.Sleep(10);}
         if(failure!=null)throw failure;Check((fake.Requests>before)==expectNetwork,"Fluxo de envio/rejeição incorreto");
     }
-    [System.Runtime.InteropServices.DllImport("user32.dll")]static extern IntPtr GetForegroundWindow();
+    [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)]static extern IntPtr FindWindow(string? cls,string? title);
     [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)]static extern int GetWindowText(IntPtr h,System.Text.StringBuilder b,int n);
     delegate bool EnumProc(IntPtr h,IntPtr p);
     [System.Runtime.InteropServices.DllImport("user32.dll")]static extern bool EnumChildWindows(IntPtr h,EnumProc cb,IntPtr p);
@@ -77,7 +77,7 @@ internal static class Program
     [STAThread] static void Main(string[] args)
     {
         baseline=args.Contains("--baseline");
-        _=Task.Run(async()=>{await Task.Delay(90000);Environment.FailFast("Timeout driver QA");});
+        _=Task.Run(async()=>{await Task.Delay(90000);Console.Error.WriteLine("Timeout driver QA");Environment.Exit(2);});
         Application.ThreadException+=(_,e)=>{Console.Error.WriteLine(e.Exception);Environment.Exit(1);};
         Application.EnableVisualStyles();Database.Initialize();Invoke("EnsureTrackingSchema",null);InstallFake();
         var before=Convert.ToString(Scalar("SELECT (SELECT COUNT(*) FROM sales)||':'||(SELECT COUNT(*) FROM cash_movements)||':'||(SELECT COALESCE(SUM(stock),0) FROM products)"));
