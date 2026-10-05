@@ -14,7 +14,13 @@ internal sealed class ServiceNoteForm : Form
         var actions=Bar();actions.Controls.Add(Button("NOVA NOTA","newNote",()=>Edit(new())));actions.Controls.Add(Button("ABRIR / EDITAR","openNote",OpenSelected));actions.Controls.Add(Button("VISUALIZAR","previewNote",()=>PrintSelected(false)));actions.Controls.Add(Button("REIMPRIMIR A4","printNote",()=>PrintSelected(true)));actions.Controls.Add(Button("FECHAR","closeNotes",Close));
         Controls.Add(_history);Controls.Add(_search);Controls.Add(header);Controls.Add(actions);_search.TextChanged+=(_,_)=>Reload();_history.CellDoubleClick+=(_,e)=>{if(e.RowIndex>=0)OpenSelected();};Reload();_theme(this);
     }
-    private void Reload(){Bind(_history,ServiceNote.History(_search.Text));_history.Columns["ID"].Visible=false;_history.Columns["VALOR TOTAL"].DefaultCellStyle.Format="C2";_history.Columns["VALOR TOTAL"].DefaultCellStyle.FormatProvider=ServiceNote.Brazilian;}
+    private void Reload()
+    {
+        Bind(_history,ServiceNote.History(_search.Text));_history.Columns["ID"].Visible=false;
+        _history.Columns["VALOR TOTAL"].DefaultCellStyle.Format="C2";_history.Columns["VALOR TOTAL"].DefaultCellStyle.FormatProvider=ServiceNote.Brazilian;
+        // Hiding the bound ID column clears CurrentCell; select a visible cell after filtering.
+        if(_history.Rows.Count>0)_history.CurrentCell=_history.Rows[0].Cells["Nº NOTA"];
+    }
     private long? Selected()=>_history.CurrentRow==null?null:Convert.ToInt64(_history.CurrentRow.Cells["ID"].Value);
     private void OpenSelected(){if(Selected() is long id)Guard(()=>Edit(ServiceNote.Load(id)));}
     private void PrintSelected(bool print){if(Selected() is long id)Guard(()=>{using var job=new ServiceNotePrint(ServiceNote.Load(id));if(print)job.Print(this);else job.Preview(this);});}
