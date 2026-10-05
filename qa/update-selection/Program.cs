@@ -5,6 +5,8 @@ using System.Text.Json;
 using System.IO.Compression;
 using System.Diagnostics;
 using System.Security.Cryptography;
+using System.Reflection.Metadata;
+using System.Reflection.PortableExecutable;
 using LealInfoPDV;
 
 internal static class Program
@@ -86,9 +88,13 @@ internal static class Program
                 Check(Convert.ToHexString(SHA256.HashData(bytes)).Equals(Read("Sha256"),StringComparison.OrdinalIgnoreCase),"Hash do pacote baixado não corresponde ao manifesto");
                 var zip=Path.Combine(root,"update.zip");File.WriteAllBytes(zip,bytes);Policy(zip);
                 var stage=Path.Combine(root,"inspect");ZipFile.ExtractToDirectory(zip,stage);
-                var assembly=Assembly.LoadFile(Path.Combine(stage,"LealInfoPDV.dll"));
-                var hasParts=assembly.GetType("LealInfoPDV.PartsWithdrawal",false)!=null;
-                var hasNotes=assembly.GetType("LealInfoPDV.ServiceNote",false)!=null;
+                bool hasParts,hasNotes;
+                using(var pe=new PEReader(File.OpenRead(Path.Combine(stage,"LealInfoPDV.dll"))))
+                {
+                    var metadata=pe.GetMetadataReader();
+                    bool Has(string name)=>metadata.TypeDefinitions.Any(h=>{var t=metadata.GetTypeDefinition(h);return metadata.GetString(t.Namespace)=="LealInfoPDV"&&metadata.GetString(t.Name)==name;});
+                    hasParts=Has("PartsWithdrawal");hasNotes=Has("ServiceNote");
+                }
                 Check(code=="002"?(hasParts&&hasNotes):(!hasParts&&!hasNotes),"Módulos exclusivos propagados ou removidos");
                 ApplyTest(zip,"UpdateManager.cs");
                 Console.WriteLine("PASS LIVE: "+code+" consultou mecanismo publicado, selecionou V10.371, baixou pacote, confirmou SHA-256, neutralidade, módulos e preservação local");
