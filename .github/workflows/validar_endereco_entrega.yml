@@ -32,3 +32,7 @@ jobs:
         run: dotnet build qa/delivery-address/LealInfoPDV.AddressTests.csproj -c Release
       - name: Consultar CEP real e persistir endereco completo
         run: dotnet run --project qa/delivery-address/LealInfoPDV.AddressTests.csproj -c Release --no-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nova-entrega-cep
+          path: nova-entrega-cep.png
