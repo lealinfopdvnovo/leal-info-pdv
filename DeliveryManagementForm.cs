@@ -139,7 +139,7 @@ public sealed class DeliveryManagementForm : Form
         delivered.Click += (_, _) => SetDeliveryStatus("ENTREGUE");
         cancel.Click += (_, _) => SetDeliveryStatus("CANCELADA");
         route.Click += (_, _) => OpenRoute();
-        sendDriver.Click += (_, _) => SendDriverCode();
+        sendDriver.Click += async (_, _) => await SendDriverCodeAsync();
         sendCustomer.Click += async (_, _) => await SendCustomerTrackingLinkAsync();
         return bar;
     }
@@ -220,12 +220,17 @@ public sealed class DeliveryManagementForm : Form
         return new DeliveryShare(rd.GetString(0),rd.GetString(1),rd.GetString(2),rd.GetString(3),code);
     }
 
-    private void SendDriverCode()
+    private async Task SendDriverCodeAsync()
     {
         var id=SelectedId(_deliveries);if(!id.HasValue)return;var data=ReadDeliveryShare(id.Value);if(data==null)return;
         if(string.IsNullOrWhiteSpace(data.DriverPhone)){MessageBox.Show("Cadastre o telefone do motoboy e selecione-o na entrega.","Telefone do motoboy",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
         var message=$"Nova entrega da LEAL INFO PDV\nCliente: {data.Customer}\nEndereço: {data.Address}\nCódigo para iniciar o rastreamento: {data.Code}";
-        OpenWhatsApp(data.DriverPhone,message);
+        try
+        {
+            await FirebaseDeliverySync.PublishAsync(this, data.Code, data.Address);
+            OpenWhatsApp(data.DriverPhone,message);
+        }
+        catch(Exception ex) { MessageBox.Show(ex.Message,"Envio ao SpeedFood",MessageBoxButtons.OK,MessageBoxIcon.Warning); }
     }
 
     private async Task SendCustomerTrackingLinkAsync()
@@ -333,13 +338,23 @@ public sealed class DeliveryManagementForm : Form
                 if(!rd.IsDBNull(8)) driver.SelectedValue=rd.GetInt64(8);
             }
         }
-        save.Click+=(_,_)=>
+        save.Click+=async (_,_)=>
         {
             if(string.IsNullOrWhiteSpace(customer.Box.Text)||string.IsNullOrWhiteSpace(address.Box.Text)){MessageBox.Show("Cliente e endereço são obrigatórios.");return;}
             var driverId=driver.SelectedValue is long value?(object)value:DBNull.Value;
             if(id.HasValue) Exec("""UPDATE deliveries SET customer_name=$c,customer_phone=$ph,address=$a,reference=$r,order_description=$d,amount=$v,delivery_fee=$f,payment=$p,driver_id=$m,notes=$n WHERE id=$id""",
                 ("$c",customer.Box.Text),("$ph",phone.Box.Text),("$a",address.Box.Text),("$r",reference.Box.Text),("$d",description.Box.Text),("$v",Number(amount.Box.Text)),("$f",Number(fee.Box.Text)),("$p",payment.Box.Text),("$m",driverId),("$n",notes.Box.Text),("$id",id.Value));
-            else InsertDeliveryWithTracking(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),customer.Box.Text,phone.Box.Text,address.Box.Text,reference.Box.Text,description.Box.Text,Number(amount.Box.Text),Number(fee.Box.Text),payment.Box.Text,driverId,notes.Box.Text,Auth.OperatorName);
+            else id = InsertDeliveryWithTracking(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),customer.Box.Text,phone.Box.Text,address.Box.Text,reference.Box.Text,description.Box.Text,Number(amount.Box.Text),Number(fee.Box.Text),payment.Box.Text,driverId,notes.Box.Text,Auth.OperatorName);
+            save.Enabled = false;
+            try
+            {
+                var delivery = ReadDeliveryShare(id!.Value);
+                if (delivery != null) await FirebaseDeliverySync.PublishAsync(f, delivery.Code, delivery.Address);
+            }
+            catch(Exception ex)
+            {
+                MessageBox.Show("Entrega salva no PDV, mas ainda não enviada ao SpeedFood.\n" + ex.Message + "\nUse Enviar código ao motoboy para tentar novamente.","Envio pendente",MessageBoxButtons.OK,MessageBoxIcon.Warning);
+            }
             f.DialogResult=DialogResult.OK;f.Close();
         };
         if(f.ShowDialog(this)==DialogResult.OK)LoadDeliveries();
