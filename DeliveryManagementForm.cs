@@ -14,6 +14,7 @@ public sealed class DeliveryManagementForm : Form
     private readonly DataGridView _deliveries = Grid();
     private readonly DataGridView _drivers = Grid();
     private readonly ComboBox _status = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
+    private Action<string,string,MessageBoxIcon> _driverMessage = (text,title,icon) => MessageBox.Show(text,title,MessageBoxButtons.OK,icon);
 
     public DeliveryManagementForm()
     {
@@ -223,15 +224,15 @@ public sealed class DeliveryManagementForm : Form
     private async Task SendDriverCodeAsync()
     {
         var id=SelectedId(_deliveries);if(!id.HasValue)return;var data=ReadDeliveryShare(id.Value);if(data==null)return;
-        if(!data.DriverId.HasValue){MessageBox.Show("Selecione um motoboy para esta entrega.","Telefone do motoboy",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
-        if(string.IsNullOrWhiteSpace(data.DriverPhone)){MessageBox.Show("O motoboy selecionado não possui telefone cadastrado.","Telefone do motoboy",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
+        if(!data.DriverId.HasValue){_driverMessage("Selecione um motoboy para esta entrega.","Telefone do motoboy",MessageBoxIcon.Information);return;}
+        if(string.IsNullOrWhiteSpace(data.DriverPhone)){_driverMessage("O motoboy selecionado não possui telefone cadastrado.","Telefone do motoboy",MessageBoxIcon.Information);return;}
         var message=$"Nova entrega da LEAL INFO PDV\nCliente: {data.Customer}\nEndereço: {data.Address}\nCódigo para iniciar o rastreamento: {data.Code}";
         try
         {
             await FirebaseDeliverySync.PublishAsync(this, data.Code, data.Address);
             OpenWhatsApp(data.DriverPhone,message);
         }
-        catch(Exception ex) { MessageBox.Show(ex.Message,"Envio ao SpeedFood",MessageBoxButtons.OK,MessageBoxIcon.Warning); }
+        catch(Exception ex) { _driverMessage(ex.Message,"Envio ao SpeedFood",MessageBoxIcon.Warning); }
     }
 
     private async Task SendCustomerTrackingLinkAsync()

@@ -55,25 +55,15 @@ internal static class Program
     }
     static void ExpectMessage(DeliveryManagementForm central,string expected,bool expectNetwork)
     {
-        Console.WriteLine("QA botão: "+expected);bool seen=false;int before=fake.Requests;Exception? failure=null;
-        using var timer=new System.Windows.Forms.Timer{Interval=80};
-        timer.Tick+=(_,_)=>
-        {
-            var hwnd=FindWindow("#32770","Telefone do motoboy");if(hwnd==IntPtr.Zero)hwnd=FindWindow("#32770","Envio ao SpeedFood");var text=new System.Text.StringBuilder(2048);GetWindowText(hwnd,text,text.Capacity);
-            if(text.ToString() is not ("Telefone do motoboy" or "Envio ao SpeedFood"))return;
-            var messages=new List<string>();EnumChildWindows(hwnd,(child,_)=>{var b=new System.Text.StringBuilder(4096);GetWindowText(child,b,b.Capacity);messages.Add(b.ToString());return true;},IntPtr.Zero);
-            seen=true;timer.Stop();if(!messages.Any(x=>x.Contains(expected)))failure=new Exception("Mensagem incorreta: "+string.Join("|",messages));
-            Console.WriteLine("QA modal reconhecido: "+string.Join("|",messages));SendMessage(hwnd,0x10,IntPtr.Zero,IntPtr.Zero);
-        };
-        timer.Start();Button(central,"ENVIAR CÓDIGO AO MOTOBOY").PerformClick();
-        var until=DateTime.UtcNow.AddSeconds(12);while(!seen){Application.DoEvents();Thread.Sleep(10);if(DateTime.UtcNow>until)throw new Exception("Mensagem esperada não abriu: "+expected);}
-        if(failure!=null)throw failure;Check((fake.Requests>before)==expectNetwork,"Fluxo de envio/rejeição incorreto");
+        Console.WriteLine("QA botão: "+expected);
+        string? message=null;int before=fake.Requests;
+        T.GetField("_driverMessage",I)!.SetValue(central,new Action<string,string,MessageBoxIcon>((text,title,icon)=>message=text));
+        Button(central,"ENVIAR CÓDIGO AO MOTOBOY").PerformClick();
+        var until=DateTime.UtcNow.AddSeconds(12);
+        while(message==null){Application.DoEvents();Thread.Sleep(10);Check(DateTime.UtcNow<until,"Botão não produziu resultado: "+expected);}
+        Check(message.Contains(expected),"Mensagem incorreta: "+message);
+        Check((fake.Requests>before)==expectNetwork,"Fluxo de envio/rejeição incorreto");
     }
-    [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)]static extern IntPtr FindWindow(string? cls,string? title);
-    [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)]static extern int GetWindowText(IntPtr h,System.Text.StringBuilder b,int n);
-    delegate bool EnumProc(IntPtr h,IntPtr p);
-    [System.Runtime.InteropServices.DllImport("user32.dll")]static extern bool EnumChildWindows(IntPtr h,EnumProc cb,IntPtr p);
-    [System.Runtime.InteropServices.DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr h,uint m,IntPtr w,IntPtr l);
     [STAThread] static void Main(string[] args)
     {
         baseline=args.Contains("--baseline");
