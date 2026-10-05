@@ -30,11 +30,13 @@ internal static class Program
         TextBox Box(Form f,string name)=>Children(f).OfType<TextBox>().Single(b=>b.Name==name);
         for(var round=0;round<3;round++)
         {
-            var phase=0;Exception? failure=null;var started=DateTime.UtcNow;
+            var phase=0;var ticks=0;Exception? failure=null;var started=DateTime.UtcNow;
             using var timer=new System.Windows.Forms.Timer{Interval=100};
             timer.Tick+=(_,_)=>
             {
-                var forms=Application.OpenForms.Cast<Form>().ToArray();var history=forms.FirstOrDefault(f=>f.Text=="RETIRADA DE PEÇAS");if(history==null)return;
+                var forms=Application.OpenForms.Cast<Form>().ToArray();
+                if(++ticks%50==0)Console.WriteLine("QA WAIT phase="+phase+" forms="+string.Join(";",forms.Select(f=>f.Text+" visible="+f.Visible+" enabled="+f.Enabled))+" records="+Count("parts_withdrawals"));
+                var history=forms.FirstOrDefault(f=>f.Text=="RETIRADA DE PEÇAS");if(history==null)return;
                 try
                 {
                     if(DateTime.UtcNow-started>TimeSpan.FromSeconds(30))throw new Exception("Timeout da tela");
@@ -58,7 +60,7 @@ internal static class Program
                     if(phase==3&&entry!=null){Check(Box(entry,"customer").Text=="QA EMPRESA ABC","Nome vinculado errado");phase=4;Console.WriteLine("QA: salvar e aguardar confirmação");entry.BeginInvoke(new Action(()=>Button(entry,"saveWithdrawal").PerformClick()));return;}
                     if(phase==4&&confirm!=null)
                     {
-                        Check(Count("parts_withdrawals")==round,"Gravou antes de confirmar");phase=5;Console.WriteLine("QA: confirmar retirada");confirm.BeginInvoke(new Action(()=>Button(confirm,"confirmWithdrawal").PerformClick()));return;
+                        Check(Count("parts_withdrawals")==round,"Gravou antes de confirmar");phase=5;Console.WriteLine("QA: confirmar retirada");confirm.BeginInvoke(new Action(()=>{var button=Button(confirm,"confirmWithdrawal");Console.WriteLine("QA CONFIRM enabled="+button.Enabled+" visible="+button.Visible+" canSelect="+button.CanSelect);button.PerformClick();Console.WriteLine("QA CONFIRM click finished");}));return;
                     }
                     if(phase==5&&entry==null&&confirm==null)
                     {
