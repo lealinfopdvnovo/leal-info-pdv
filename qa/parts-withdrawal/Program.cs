@@ -5,6 +5,7 @@ internal static class Program
     const BindingFlags Private=BindingFlags.Static|BindingFlags.NonPublic;
     [STAThread] static void Main(string[] args)
     {
+        Application.ThreadException+=(_,e)=>{Console.Error.WriteLine(e.Exception.ToString());Environment.Exit(1);};
         Database.Initialize();Application.EnableVisualStyles();
         _=Task.Run(async()=>{await Task.Delay(TimeSpan.FromSeconds(100));Environment.FailFast("Timeout da automação de retirada");});
         void Check(bool v,string reason){if(!v)throw new Exception(reason);}
