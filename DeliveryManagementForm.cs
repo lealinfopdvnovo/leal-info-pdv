@@ -315,13 +315,52 @@ public sealed class DeliveryManagementForm : Form
     {
         using var f = Dialog(id.HasValue ? "Editar Entrega" : "Nova Entrega", 720, 690);
         var customer=Field("Cliente");var phone=Field("Telefone");var address=Field("Endereço completo");
+        var cep=Field("CEP");var street=Field("Rua/Logradouro");var number=Field("Número");
+        var complement=Field("Complemento");var district=Field("Bairro");var city=Field("Cidade");var uf=Field("UF");
+        cep.Box.MaxLength=9;uf.Box.MaxLength=2;uf.Box.CharacterCasing=CharacterCasing.Upper;
         var reference=Field("Referência");var description=Field("Descrição do pedido");var amount=Field("Valor do pedido");
         var fee=Field("Taxa de entrega");var payment=Field("Pagamento");var notes=Field("Observações");
         var driver = new ComboBox { Dock=DockStyle.Bottom,Height=32,DropDownStyle=ComboBoxStyle.DropDownList,DisplayMember="Text",ValueMember="Value" };
         var driverPanel = Labeled("Motoboy", driver);
         LoadDriverCombo(driver);
         var save=Button("SALVAR ENTREGA",Color.FromArgb(0,145,85),190);
-        AddVertical(f,customer.Panel,phone.Panel,address.Panel,reference.Panel,description.Panel,amount.Panel,fee.Panel,payment.Panel,driverPanel,notes.Panel,save);
+        if(id.HasValue)
+            AddVertical(f,customer.Panel,phone.Panel,address.Panel,reference.Panel,description.Panel,amount.Panel,fee.Panel,payment.Panel,driverPanel,notes.Panel,save);
+        else
+            AddVertical(f,customer.Panel,phone.Panel,AddressRow(cep.Panel,street.Panel),AddressRow(number.Panel,complement.Panel),AddressRow(district.Panel,city.Panel,uf.Panel),reference.Panel,description.Panel,amount.Panel,fee.Panel,payment.Panel,driverPanel,notes.Panel,save);
+        var cepStatus=new Label{AutoSize=false,Height=22,ForeColor=Color.FromArgb(4,70,112)};
+        if(!id.HasValue){cep.Panel.Parent!.Height=79;cepStatus.Dock=DockStyle.Bottom;cep.Panel.Controls.Add(cepStatus);cepStatus.BringToFront();}
+        CancellationTokenSource? lookup=null;
+        var generation=0;
+        cep.Box.TextChanged+=async (_,_)=>
+        {
+            var revision=++generation;
+            lookup?.Cancel();
+            var digits=DeliveryAddress.NormalizeCep(cep.Box.Text);
+            cepStatus.Text="";
+            if(digits.Length!=8)return;
+            var request=new CancellationTokenSource();lookup=request;
+            try
+            {
+                await Task.Delay(350,request.Token);
+                cepStatus.Text="Consultando CEP...";
+                var valuesBefore=new[]{street.Box.Text,district.Box.Text,city.Box.Text,uf.Box.Text};
+                var result=await DeliveryAddress.LookupAsync(digits,request.Token);
+                if(f.IsDisposed||revision!=generation)return;
+                var fields=new[]{street.Box,district.Box,city.Box,uf.Box};
+                var values=new[]{result.Street,result.District,result.City,result.Uf};
+                for(var i=0;i<fields.Length;i++)
+                    if(fields[i].Text==valuesBefore[i])fields[i].Text=values[i];
+                cepStatus.Text="CEP encontrado";
+            }
+            catch(OperationCanceledException){}
+            catch(Exception)
+            {
+                if(!f.IsDisposed&&revision==generation)
+                    cepStatus.Text="Preencha manualmente";
+            }
+        };
+        f.FormClosed+=(_,_)=>{generation++;lookup?.Cancel();};
         if(id.HasValue)
         {
             using var cn=Database.Open();using var cmd=cn.CreateCommand();
@@ -338,11 +377,16 @@ public sealed class DeliveryManagementForm : Form
         }
         save.Click+=async (_,_)=>
         {
+            if(!id.HasValue)
+            {
+                try{address.Box.Text=DeliveryAddress.Compose(cep.Box.Text,street.Box.Text,number.Box.Text,district.Box.Text,city.Box.Text,uf.Box.Text);}
+                catch(ArgumentException ex){MessageBox.Show(f,ex.Message,"Endereço da entrega",MessageBoxButtons.OK,MessageBoxIcon.Warning);return;}
+            }
             if(string.IsNullOrWhiteSpace(customer.Box.Text)||string.IsNullOrWhiteSpace(address.Box.Text)){MessageBox.Show("Cliente e endereço são obrigatórios.");return;}
             var driverId=driver.SelectedValue is long value?(object)value:DBNull.Value;
             if(id.HasValue) Exec("""UPDATE deliveries SET customer_name=$c,customer_phone=$ph,address=$a,reference=$r,order_description=$d,amount=$v,delivery_fee=$f,payment=$p,driver_id=$m,notes=$n WHERE id=$id""",
                 ("$c",customer.Box.Text),("$ph",phone.Box.Text),("$a",address.Box.Text),("$r",reference.Box.Text),("$d",description.Box.Text),("$v",Number(amount.Box.Text)),("$f",Number(fee.Box.Text)),("$p",payment.Box.Text),("$m",driverId),("$n",notes.Box.Text),("$id",id.Value));
-            else id = InsertDeliveryWithTracking(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),customer.Box.Text,phone.Box.Text,address.Box.Text,reference.Box.Text,description.Box.Text,Number(amount.Box.Text),Number(fee.Box.Text),payment.Box.Text,driverId,notes.Box.Text,Auth.OperatorName);
+            else id = InsertDeliveryWithTracking(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),customer.Box.Text,phone.Box.Text,address.Box.Text,DeliveryAddress.Additional(complement.Box.Text,reference.Box.Text),description.Box.Text,Number(amount.Box.Text),Number(fee.Box.Text),payment.Box.Text,driverId,notes.Box.Text,Auth.OperatorName);
             save.Enabled = false;
             try
             {
@@ -450,6 +494,18 @@ public sealed class DeliveryManagementForm : Form
         cmd.CommandText="SELECT id,name FROM delivery_drivers WHERE active=1 ORDER BY name";using var rd=cmd.ExecuteReader();
         while(rd.Read())list.Add(new Choice(rd.GetInt64(0),rd.GetString(1)));
         combo.DataSource=list;
+    }
+
+    private static Panel AddressRow(params Panel[] fields)
+    {
+        var row=new TableLayoutPanel{Height=fields.Max(p=>p.Height),ColumnCount=fields.Length,RowCount=1,Margin=new Padding(0,3,0,3)};
+        for(var i=0;i<fields.Length;i++)
+        {
+            row.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100f/fields.Length));
+            fields[i].Dock=DockStyle.Fill;fields[i].Margin=new Padding(0,0,i==fields.Length-1?0:10,0);
+            row.Controls.Add(fields[i],i,0);
+        }
+        return row;
     }
 
     private sealed record Choice(long? Value,string Text);
