@@ -116,7 +116,8 @@ internal sealed class ServiceNotePrint : IDisposable
             if(cell.Header)graphics.FillRectangle(headerBrush,cell.Bounds);
             if(cell.Border)graphics.DrawRectangle(pen,cell.Bounds.X,cell.Bounds.Y,cell.Bounds.Width,cell.Bounds.Height);
             using var format=new StringFormat{Alignment=cell.Center?StringAlignment.Center:cell.Right?StringAlignment.Far:StringAlignment.Near,LineAlignment=StringAlignment.Near,Trimming=StringTrimming.None,FormatFlags=StringFormatFlags.NoWrap};
-            graphics.DrawString(cell.Text,cell.Font,Brushes.Black,new RectangleF(cell.Bounds.X+6,cell.Bounds.Y+5,cell.Bounds.Width-12,cell.Bounds.Height-7),format);
+            var side=cell.Border?6f:0f;var top=cell.Border?5f:0f;var bottom=cell.Border?2f:0f;
+            graphics.DrawString(cell.Text,cell.Font,Brushes.Black,new RectangleF(cell.Bounds.X+side,cell.Bounds.Y+top,cell.Bounds.Width-2*side,cell.Bounds.Height-top-bottom),format);
         }
         graphics.Restore(state);
     }
