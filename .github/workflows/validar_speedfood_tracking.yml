@@ -1,0 +1,45 @@
+name: Validar consulta de rastreamento do PDV
+on:
+  pull_request:
+    paths:
+      - 'DeliveryManagementForm.cs'
+      - 'FirebaseDeliverySync.cs'
+      - 'qa/speedfood/**'
+      - '.github/workflows/validar_speedfood_tracking.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Aplicar ajustes existentes da compilacao
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar PDV e teste
+        run: dotnet build qa/speedfood/LealInfoPDV.SpeedFoodTests.csproj -c Release
+      - name: Validar geracao real do codigo no PDV
+        run: dotnet run --project qa/speedfood/LealInfoPDV.SpeedFoodTests.csproj -c Release --no-build
+      - name: Preparar autenticacao temporaria no Firebase existente
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.LEAL_FIREBASE_SERVICE_ACCOUNT }}
+        run: node qa/speedfood/prepare-live-auth.cjs
+      - name: Consultar pedido real e abrir link sem modificar dados
+        run: dotnet run --project qa/speedfood/LealInfoPDV.SpeedFoodTests.csproj -c Release --no-build -- --tracking
+      - name: Remover credenciais temporarias
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:SPEEDFOOD_TEST_TOKEN_FILE -and (Test-Path $env:SPEEDFOOD_TEST_TOKEN_FILE)) { Remove-Item $env:SPEEDFOOD_TEST_TOKEN_FILE -Force }

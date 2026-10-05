@@ -13,7 +13,7 @@ internal static class Program
     private const BindingFlags StaticPrivate = BindingFlags.Static | BindingFlags.NonPublic;
 
     [STAThread]
-    private static async Task Main()
+    private static async Task Main(string[] args)
     {
         var tokenFile = Environment.GetEnvironmentVariable("SPEEDFOOD_TEST_TOKEN_FILE");
         Database.Initialize();
@@ -27,6 +27,7 @@ internal static class Program
         var publisher = tokens.RootElement.GetProperty("publisher").GetString()!;
         SyncType.GetField("_idToken", StaticPrivate)!.SetValue(null, publisher);
         SyncType.GetField("_expires", StaticPrivate)!.SetValue(null, DateTime.UtcNow.AddMinutes(15));
+        if (args.Contains("--tracking")) { await VerifyExistingTrackingAsync(publisher); return; }
         var address = "ENDEREÇO FICTÍCIO DE TESTE SPEEDFOOD — Japuíba, Angra dos Reis/RJ";
         var code = CreatePdvOrder(address);
         await PublishAsync(code.ToLowerInvariant(), address);
@@ -68,6 +69,29 @@ internal static class Program
         File.WriteAllText("speedfood-qa/pedido-confirmado.json", output);
         Console.WriteLine("PASS: PDV gerou e publicou pedido; motoboy consultou e assumiu sem sobrescrever endereço.");
         Console.WriteLine("CODIGO_PARA_TESTE_NO_CELULAR=" + freeCode);
+    }
+
+    private static async Task VerifyExistingTrackingAsync(string publisher)
+    {
+        const string code = "P5D58CDKBWXB";
+        using var http = new HttpClient();
+        using var anonymous = await http.GetAsync($"{DatabaseUrl}/pedidos/{code}/trackingToken.json");
+        Check(anonymous.StatusCode == HttpStatusCode.Unauthorized || anonymous.StatusCode == HttpStatusCode.Forbidden,
+            "A consulta antiga sem autenticação não reproduziu o erro.");
+        var method = SyncType.GetMethod("ReadTrackingTokenAsync", StaticPrivate)!;
+        var tracking = await (Task<string?>)method.Invoke(null, new object?[] { null, " p5d58cdkbwxb " })!;
+        Check(!string.IsNullOrWhiteSpace(tracking), "Entrega real encontrada, mas o motoboy ainda não iniciou o rastreamento.");
+        using var order = JsonDocument.Parse(await http.GetStringAsync($"{DatabaseUrl}/pedidos/{code}.json?auth=" + Uri.EscapeDataString(publisher)));
+        Check(order.RootElement.GetProperty("trackingToken").GetString() == tracking, "Link usa token de outra entrega.");
+        var link = "https://novo-91da7436.web.app/track.html?t=" + Uri.EscapeDataString(tracking!);
+        var html = await http.GetStringAsync(link);
+        Check(html.Contains("rastreamentos/") && html.Contains("data.latitude") && html.Contains("data.longitude"), "Página não usa o rastreamento existente.");
+        using var publicTracking = JsonDocument.Parse(await http.GetStringAsync($"{DatabaseUrl}/rastreamentos/{Uri.EscapeDataString(tracking!)}.json"));
+        Check(publicTracking.RootElement.ValueKind == JsonValueKind.Object, "Link não localizou o rastreamento público.");
+        Check(publicTracking.RootElement.GetProperty("codigo").GetString() == code, "Rastreamento pertence a outro código.");
+        Check(publicTracking.RootElement.TryGetProperty("latitude", out var lat) && lat.TryGetDouble(out _), "SpeedFood ainda não publicou latitude.");
+        Check(publicTracking.RootElement.TryGetProperty("longitude", out var lon) && lon.TryGetDouble(out _), "SpeedFood ainda não publicou longitude.");
+        Console.WriteLine("PASS: P5D58CDKBWXB consultado com sessão do PDV; link abriu e recuperou localização do mesmo pedido. Nenhum dado alterado.");
     }
 
     private static async Task VerifyOfflineAsync()
