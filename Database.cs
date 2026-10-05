@@ -60,6 +60,17 @@ public static class Database
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         );
 
+        CREATE TABLE IF NOT EXISTS parts_withdrawals(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            occurred_at TEXT NOT NULL,
+            description TEXT NOT NULL,
+            customer_id INTEGER,
+            customer_name TEXT NOT NULL DEFAULT '',
+            collected_by TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE SET NULL
+        );
+
         CREATE TABLE IF NOT EXISTS suppliers(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,

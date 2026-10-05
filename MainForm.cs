@@ -938,6 +938,7 @@ public sealed class MainForm : Form
                 AddMenu("Tela de Vendas", () => RunAllowed("sales", OpenSales));
                 AddMenu("Histórico de vendas", () => RunAllowed("sales_history", OpenHistory));
                 AddMenu("Ordens / OS", () => RunAllowed("orders", OpenOrders));
+                AddMenu("RETIRADA DE PEÇAS", () => RunAllowed("customers", OpenPartsWithdrawals));
             }
             else if (title == "Financeiro")
             {
@@ -1001,6 +1002,7 @@ public sealed class MainForm : Form
         AddTool(bar, "FAZER\nBACKUP", "backup.png", () => RunAllowed("backup", () => _ = BackupAsync()));
         AddTool(bar, "RESTAURAR\nBACKUP", "restore.png", () => RunAllowed("restore", () => _ = RestoreBackupAsync()));
         AddTool(bar, "CONFIGURAÇÕES", "settings.png", () => RunAllowed("settings", OpenSettings));
+        AddTool(bar, "RETIRADA DE\nPEÇAS", "orders.png", () => RunAllowed("customers", OpenPartsWithdrawals));
         AddTool(bar, "LOGOUT", "exit.png", ConfirmLogout);
         AddTool(bar, "SAIR", "exit.png", ConfirmExit);
 
@@ -2666,6 +2668,12 @@ private void ApplyFloatingTheme(Form f)
             if(id.HasValue) Exec("UPDATE quotes SET customer_name=$c,description=$d,amount=$a,status=$s WHERE id=$id",("$c",v[0]),("$d",v[1]),("$a",Num(v[2])),("$s",v[3]),("$id",id.Value));
             else Exec("INSERT INTO quotes(created_at,customer_name,description,amount,status) VALUES($dt,$c,$d,$a,$s)",("$dt",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),("$c",v[0]),("$d",v[1]),("$a",Num(v[2])),("$s",string.IsNullOrWhiteSpace(v[3])?"PENDENTE":v[3]));
         }
+    }
+
+    private void OpenPartsWithdrawals()
+    {
+        using var form=new PartsWithdrawalForm(ApplyFloatingTheme);
+        form.ShowDialog(this);
     }
 
     private void OpenFinance()

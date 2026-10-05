@@ -62,6 +62,14 @@ jobs:
         run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package $env:PACKAGE
       - name: Testar fluxo de caixa na base do cliente 002
         run: dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release
+      - name: Testar retirada de pecas na interface
+        run: dotnet run --project qa/parts-withdrawal/LealInfoPDV.PartsTests.csproj -c Release
+      - name: Reiniciar processo e verificar persistencia sem efeitos colaterais
+        run: dotnet run --project qa/parts-withdrawal/LealInfoPDV.PartsTests.csproj -c Release --no-build -- --verify-restart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retirada-pecas-validada
+          path: retirada-pecas-qa.png
       - name: Publicar pacote e manifesto apenas neste ID
         shell: pwsh
         env:
@@ -81,7 +89,7 @@ jobs:
           $contentBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $path = "clients/$env:CLIENT_CODE/version.json"
           $existingSha = ''
-          $existingManifestJson = gh api "repos/$env:UPDATE_REPO/contents/$path?ref=main" 2>$null
+          $existingManifestJson = gh api "repos/$env:UPDATE_REPO/contents/$path" 2>$null
           $manifestReadExitCode = $LASTEXITCODE
           if ($manifestReadExitCode -eq 0) {
             $existingManifest = $existingManifestJson | ConvertFrom-Json -ErrorAction Stop

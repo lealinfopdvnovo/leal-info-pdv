@@ -1,1 +1,1 @@
-Cliente 002 V10.366: adiciona ENTRADA e SAÍDA manual validadas no Fluxo de Caixa, histórico persistente e resumo com saldo final. Preserva os ajustes visuais existentes da V10.365 e demais funções.
+Cliente 002 V10.367: novo módulo RETIRADA DE PEÇAS, com confirmação, histórico, cliente opcional vinculado por ID e busca F8. Sem baixa de estoque, venda ou movimento financeiro. Preserva Fluxo de Caixa e demais funções.
