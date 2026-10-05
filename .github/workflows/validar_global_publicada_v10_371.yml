@@ -1,0 +1,19 @@
+name: Validar mecanismo global publicado V10.371
+on:
+  push:
+    branches: ['qa/live-global-371']
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    env:
+      EXPECTED_GLOBAL_SOURCE: 58d736c0e556cf69e38d1a9329d2c23b236aceba
+      EXPECTED_COMPAT_SOURCE: 1ddbb42281b6bdf9197ae7cbaa3606628ae73fe4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Ler feeds publicados, baixar pacotes e confirmar dados preservados
+        run: dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- --live

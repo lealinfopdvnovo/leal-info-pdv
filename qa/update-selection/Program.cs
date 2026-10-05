@@ -65,8 +65,41 @@ internal static class Program
         }
         finally{Directory.Delete(root,true);}
     }
+
+    static async Task VerifyLive()
+    {
+        using var http=new HttpClient{Timeout=TimeSpan.FromMinutes(3)};
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-QA/10.371");
+        var method=Updater.GetMethod("LoadManifestAsync",S,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
+        foreach(var code in new[]{"001","002"})
+        {
+            var task=(Task)method.Invoke(null,new object[]{http,code,code=="002"?"10.370":"10.364"})!;await task;
+            var m=task.GetType().GetProperty("Result")!.GetValue(task);Check(m!=null,"Manifesto publicado não encontrado: "+code);
+            string Read(string name)=>(string)m!.GetType().GetProperty(name)!.GetValue(m)!;
+            Check(Read("Version")=="10.371","Versão ativa inesperada");
+            Check(Read("TargetClientCode")==(code=="002"?"002":""),"Canal ativo incorreto");
+            Check(Read("SourceCommit")==Environment.GetEnvironmentVariable(code=="002"?"EXPECTED_COMPAT_SOURCE":"EXPECTED_GLOBAL_SOURCE"),"Fonte publicada incorreta");
+            var root=Path.Combine(Path.GetTempPath(),"pdv-live-qa-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+            try
+            {
+                var bytes=await http.GetByteArrayAsync(Read("PackageUrl"));
+                Check(Convert.ToHexString(SHA256.HashData(bytes)).Equals(Read("Sha256"),StringComparison.OrdinalIgnoreCase),"Hash do pacote baixado não corresponde ao manifesto");
+                var zip=Path.Combine(root,"update.zip");File.WriteAllBytes(zip,bytes);Policy(zip);
+                var stage=Path.Combine(root,"inspect");ZipFile.ExtractToDirectory(zip,stage);
+                var assembly=Assembly.LoadFile(Path.Combine(stage,"LealInfoPDV.dll"));
+                var hasParts=assembly.GetType("LealInfoPDV.PartsWithdrawal",false)!=null;
+                var hasNotes=assembly.GetType("LealInfoPDV.ServiceNote",false)!=null;
+                Check(code=="002"?(hasParts&&hasNotes):(!hasParts&&!hasNotes),"Módulos exclusivos propagados ou removidos");
+                ApplyTest(zip,"UpdateManager.cs");
+                Console.WriteLine("PASS LIVE: "+code+" consultou mecanismo publicado, selecionou V10.371, baixou pacote, confirmou SHA-256, neutralidade, módulos e preservação local");
+            }
+            finally{Directory.Delete(root,true);}
+        }
+    }
+
     static async Task Main(string[] args)
     {
+        if(args.Contains("--live")){await VerifyLive();return;}
         await Test("A sem canal direcionado recebe global","","10.364",Manifest("10.371"),null,"10.371",requests:1);
         await Test("A ID comum sem manifesto recebe global","001","10.364",Manifest("10.371"),null,"10.371",requests:2);
         await Test("B 002 recebe pacote compatível na mesma versão","002","10.370",Manifest("10.371"),Manifest("10.371","002"),"10.371","002",2);
