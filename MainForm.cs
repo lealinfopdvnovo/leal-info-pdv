@@ -2472,14 +2472,41 @@ private void ApplyFloatingTheme(Form f)
         }
     }
 
-    private void OpenFinance() => ShowCrud("FLUXO DE CAIXA",
-        "SELECT id AS ID,occurred_at AS Data,type AS Tipo,description AS Descrição,printf('R$ %.2f',amount) AS Valor FROM cash_movements ORDER BY id DESC",
-        () =>
+    private void OpenFinance()
+    {
+        using var f=GridForm("FLUXO DE CAIXA",CashFlow.HistorySql,out var grid);
+        var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};
+        p.Controls.Add(ActionButton("NOVO",()=>{RegisterCashMovement();ReloadGrid(grid,CashFlow.HistorySql);}));
+        p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue&&Confirm("Excluir este lançamento?")){Exec("DELETE FROM cash_movements WHERE id=$id",("$id",id.Value));ReloadGrid(grid,CashFlow.HistorySql);}}));
+        p.Controls.Add(ActionButton("RESUMO DO CAIXA",()=>MessageBox.Show(f,CashFlow.ReadSummary(DateTime.Today,DateTime.Today.AddDays(1)).Display,"Resumo do caixa de hoje",MessageBoxButtons.OK,MessageBoxIcon.Information)));
+        p.Controls.Add(ActionButton("FECHAR",f.Close));f.Controls.Add(p);ApplyFloatingTheme(f);f.ShowDialog(this);
+    }
+
+    private void RegisterCashMovement()
+    {
+        using var f=Editor("Nova movimentação manual",new[]{"Tipo","Descrição/Motivo","Valor"});
+        var fields=(List<TextBox>)f.Tag!;
+        var oldType=fields[0];
+        var type=new ComboBox{Left=oldType.Left,Top=oldType.Top,Width=oldType.Width,DropDownStyle=ComboBoxStyle.DropDownList};
+        type.Items.AddRange(new[]{"ENTRADA","SAÍDA"});type.SelectedIndex=0;f.Controls.Remove(oldType);oldType.Dispose();f.Controls.Add(type);
+        var oldSave=f.Controls.OfType<Button>().Single(b=>b.Text=="SALVAR");
+        var save=ActionButton("SALVAR",()=>{});save.Left=oldSave.Left;save.Top=oldSave.Top;f.Controls.Remove(oldSave);oldSave.Dispose();f.Controls.Add(save);
+        save.Click+=(_,_)=>
         {
-            var f=Editor("Lançamento Financeiro",new[]{"Tipo (ENTRADA/SAÍDA)","Descrição","Valor"});
-            if(f.ShowDialog(this)==DialogResult.OK){var v=EditorValues(f);Exec("INSERT INTO cash_movements(occurred_at,type,description,amount) VALUES($d,$t,$x,$a)",("$d",DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")),("$t",v[0]),("$x",v[1]),("$a",Num(v[2])));}
-        }, null,
-        id=>{if(Confirm("Excluir este lançamento?"))Exec("DELETE FROM cash_movements WHERE id=$id",("$id",id));});
+            try
+            {
+                var amount=CashFlow.ParseAmount(fields[2].Text);
+                if(string.IsNullOrWhiteSpace(fields[1].Text))throw new ArgumentException("Informe a descrição/motivo.");
+                var selected=type.SelectedItem!.ToString()!;
+                if(MessageBox.Show(f,$"Confirmar {selected} de {amount.ToString("C2",CashFlow.Brazilian)}?","Confirmar movimentação",MessageBoxButtons.YesNo,MessageBoxIcon.Question,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
+                save.Enabled=false;
+                CashFlow.Register(selected,fields[1].Text,amount);
+                f.DialogResult=DialogResult.OK;f.Close();
+            }
+            catch(Exception ex){save.Enabled=true;MessageBox.Show(f,ex.Message,"Movimentação não registrada",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
+        };
+        ApplyFloatingTheme(f);f.ShowDialog(this);
+    }
 
     private void OpenHistory() => ShowReadOnly("HISTÓRICO DE VENDAS",
         "SELECT id AS Venda,sold_at AS Data,payment AS Pagamento,printf('R$ %.2f',subtotal) AS Subtotal,printf('R$ %.2f',discount) AS Desconto,printf('R$ %.2f',total) AS Total,operator AS Operador FROM sales ORDER BY id DESC");
@@ -2738,7 +2765,8 @@ private void ApplyFloatingTheme(Form f)
             var allEntries = QueryValue(cn, "SELECT COALESCE(SUM(amount),0) FROM cash_movements WHERE occurred_at >= $from AND occurred_at < $to AND upper(type) NOT LIKE '%SAÍDA%'", start, endExclusive);
             lastGross = lastSales - lastCost;
             lastNet = lastGross + lastOtherEntries - lastExpenses;
-            lastBalance = allEntries - lastExpenses;
+            var cashSummary = CashFlow.ReadSummary(start, endExclusive);
+            lastBalance = (double)cashSummary.Final;
 
             salesCard.Text = "FATURAMENTO\n" + Money(lastSales);
             costCard.Text = "CUSTO DOS PRODUTOS\n" + Money(lastCost);
@@ -2749,7 +2777,7 @@ private void ApplyFloatingTheme(Form f)
             netCard.BackColor = lastNet >= 0 ? Color.FromArgb(95, 72, 175) : Color.FromArgb(180, 45, 45);
 
             FormatGrid(movementGrid); FormatGrid(salesGrid); FormatGrid(productGrid); FormatGrid(paymentGrid);
-            statusText.Text = $"  Período: {start:dd/MM/yyyy} a {to.Value:dd/MM/yyyy}  •  {lastSaleCount} venda(s)  •  Entradas avulsas: {Money(lastOtherEntries)}  •  Atualizado em {DateTime.Now:dd/MM/yyyy HH:mm}";
+            statusText.Text = $"  Período: {start:dd/MM/yyyy} a {to.Value:dd/MM/yyyy}  •  {lastSaleCount} venda(s)  •  Entradas manuais: {Money(lastOtherEntries)}  •  Saídas manuais: {cashSummary.ManualExits.ToString("C2",CashFlow.Brazilian)}  •  Saldo inicial: {cashSummary.Opening.ToString("C2",CashFlow.Brazilian)}  •  Atualizado em {DateTime.Now:dd/MM/yyyy HH:mm}";
         }
 
         string CsvCell(object? value)
@@ -2801,6 +2829,9 @@ private void ApplyFloatingTheme(Form f)
                 {
                     var resume = $"Faturamento: {Money(lastSales)}   |   Custo: {Money(lastCost)}   |   Lucro bruto: {Money(lastGross)}   |   Despesas: {Money(lastExpenses)}   |   Resultado líquido: {Money(lastNet)}   |   Saldo: {Money(lastBalance)}";
                     graphics.DrawString(resume, headerFont, headerBrush, new RectangleF(e.MarginBounds.Left, y, width, 35));
+                    y += 38;
+                    var cashSummary=CashFlow.ReadSummary(from.Value.Date,to.Value.Date.AddDays(1));
+                    graphics.DrawString($"Saldo inicial: {cashSummary.Opening.ToString("C2",CashFlow.Brazilian)} | Entradas manuais: {cashSummary.ManualEntries.ToString("C2",CashFlow.Brazilian)} | Saídas manuais: {cashSummary.ManualExits.ToString("C2",CashFlow.Brazilian)} | Saldo final: {cashSummary.Final.ToString("C2",CashFlow.Brazilian)}",headerFont,headerBrush,new RectangleF(e.MarginBounds.Left,y,width,35));
                     y += 38;
                 }
 
