@@ -14,7 +14,7 @@ internal sealed class PartsWithdrawalForm : Form
         var header=new Label{Text="RETIRADA DE PEÇAS",Dock=DockStyle.Top,Height=62,TextAlign=ContentAlignment.MiddleLeft,Padding=new Padding(22,0,0,0),Font=new Font("Segoe UI",18,FontStyle.Bold),BackColor=Color.FromArgb(4,70,112),ForeColor=Color.White};Controls.Add(header);
         Reload();_theme(this);
     }
-    private void Reload()=>_history.DataSource=PartsWithdrawal.History();
+    private void Reload()=>Bind(_history,PartsWithdrawal.History());
     private void NewWithdrawal()
     {
         using var f=new Form{Text="NOVA RETIRADA",Width=680,Height=490,MinimumSize=new Size(550,440),StartPosition=FormStartPosition.CenterParent,KeyPreview=true,AutoScaleMode=AutoScaleMode.Dpi};
@@ -52,7 +52,7 @@ internal sealed class PartsWithdrawalForm : Form
     {
         using var f=new Form{Text="BUSCAR CLIENTE CADASTRADO",Width=880,Height=580,MinimumSize=new Size(650,420),StartPosition=FormStartPosition.CenterParent,AutoScaleMode=AutoScaleMode.Dpi};
         var grid=Grid();var search=new TextBox{Name="customerSearch",Dock=DockStyle.Top,PlaceholderText="Nome, CPF/CNPJ, telefone ou ID"};
-        void Refresh()=>grid.DataSource=PartsWithdrawal.FindCustomers(search.Text);search.TextChanged+=(_,_)=>Refresh();Refresh();
+        void Refresh()=>Bind(grid,PartsWithdrawal.FindCustomers(search.Text));search.TextChanged+=(_,_)=>Refresh();Refresh();
         (long Id,string Name)? selected=null;
         void Select(){if(grid.CurrentRow==null)return;selected=(Convert.ToInt64(grid.CurrentRow.Cells["ID"].Value),Convert.ToString(grid.CurrentRow.Cells["Nome"].Value)??"");f.DialogResult=DialogResult.OK;f.Close();}
         grid.CellDoubleClick+=(_,e)=>{if(e.RowIndex>=0)Select();};
@@ -63,6 +63,13 @@ internal sealed class PartsWithdrawalForm : Form
         using var f=new Form{Text="CONFIRMAR RETIRADA?",Width=650,Height=430,MinimumSize=new Size(500,350),StartPosition=FormStartPosition.CenterParent,AutoScaleMode=AutoScaleMode.Dpi};
         f.Controls.Add(new TextBox{ReadOnly=true,Multiline=true,Dock=DockStyle.Fill,ScrollBars=ScrollBars.Vertical,Text=$"Cliente: {customer}\r\n\r\nRetirado por: {person.Trim()}\r\n\r\nDescrição: {description.Trim()}\r\n\r\nData: {when:dd/MM/yyyy}\r\nHora: {when:HH:mm:ss}"});
         var bar=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=70,Padding=new Padding(12)};bar.Controls.Add(Button("CONFIRMAR","confirmWithdrawal",()=>{f.DialogResult=DialogResult.OK;f.Close();}));bar.Controls.Add(Button("CANCELAR","cancelConfirmation",f.Close));f.Controls.Add(bar);_theme(f);return f.ShowDialog(owner)==DialogResult.OK;
+    }
+    private static void Bind(DataGridView grid,System.Data.DataTable data)
+    {
+        grid.DataSource=null;grid.Columns.Clear();grid.AutoGenerateColumns=false;
+        foreach(System.Data.DataColumn column in data.Columns)
+            grid.Columns.Add(new DataGridViewTextBoxColumn{Name=column.ColumnName,HeaderText=column.ColumnName,DataPropertyName=column.ColumnName});
+        grid.DataSource=data;
     }
     private static DataGridView Grid()=>new(){Dock=DockStyle.Fill,ReadOnly=true,AllowUserToAddRows=false,AllowUserToDeleteRows=false,SelectionMode=DataGridViewSelectionMode.FullRowSelect,MultiSelect=false,AutoSizeColumnsMode=DataGridViewAutoSizeColumnsMode.Fill,RowHeadersVisible=false,Name="withdrawalGrid"};
     private static Button Button(string text,string name,Action action,int width=170){var b=new Button{Text=text,Name=name,Width=width,Height=42,BackColor=Color.FromArgb(4,70,112),ForeColor=Color.White,Font=new Font("Segoe UI",10,FontStyle.Bold),Margin=new Padding(5)};b.Click+=(_,_)=>action();return b;}
