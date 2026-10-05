@@ -68,6 +68,14 @@ jobs:
         run: dotnet run --project qa/parts-withdrawal/LealInfoPDV.PartsTests.csproj -c Release
       - name: Reiniciar processo e verificar persistencia sem efeitos colaterais
         run: dotnet run --project qa/parts-withdrawal/LealInfoPDV.PartsTests.csproj -c Release --no-build -- --verify-restart
+      - name: Testar Nota de Servico e impressao A4
+        run: dotnet run --project qa/service-note/LealInfoPDV.ServiceNoteTests.csproj -c Release
+      - name: Reiniciar processo e verificar persistencia da Nota
+        run: dotnet run --project qa/service-note/LealInfoPDV.ServiceNoteTests.csproj -c Release --no-build -- --verify-restart
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nota-servico-validada
+          path: nota-servico-qa
       - uses: actions/upload-artifact@v4
         with:
           name: retirada-pecas-validada

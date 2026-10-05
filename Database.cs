@@ -71,6 +71,43 @@ public static class Database
             FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE SET NULL
         );
 
+
+        CREATE TABLE IF NOT EXISTS service_notes(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            customer_id INTEGER,
+            customer_name TEXT NOT NULL,
+            customer_document TEXT NOT NULL DEFAULT '',
+            customer_phone TEXT NOT NULL DEFAULT '',
+            customer_details TEXT NOT NULL,
+            equipment TEXT NOT NULL,
+            order_date TEXT NOT NULL,
+            payment TEXT NOT NULL,
+            observations TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'ABERTA' CHECK(status IN ('ABERTA','FINALIZADA')),
+            completed_at TEXT NOT NULL DEFAULT '',
+            warranty TEXT NOT NULL DEFAULT '',
+            paid_cents INTEGER NOT NULL DEFAULT 0 CHECK(paid_cents>=0),
+            total_cents INTEGER NOT NULL DEFAULT 0 CHECK(total_cents>=0),
+            created_at TEXT NOT NULL,
+            user_id INTEGER,
+            operator TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE SET NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+        );
+        CREATE TABLE IF NOT EXISTS service_note_items(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            service_note_id INTEGER NOT NULL,
+            position INTEGER NOT NULL,
+            code TEXT NOT NULL DEFAULT '',
+            description TEXT NOT NULL,
+            quantity TEXT NOT NULL,
+            unit_cents INTEGER NOT NULL CHECK(unit_cents>=0),
+            total_cents INTEGER NOT NULL CHECK(total_cents>=0),
+            FOREIGN KEY(service_note_id) REFERENCES service_notes(id) ON DELETE CASCADE,
+            UNIQUE(service_note_id,position)
+        );
+        CREATE INDEX IF NOT EXISTS ix_service_notes_customer ON service_notes(customer_id);
+
         CREATE TABLE IF NOT EXISTS suppliers(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,

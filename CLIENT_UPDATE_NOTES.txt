@@ -1,1 +1,1 @@
-Correção pontual no Fluxo de Caixa: campo Valor de Entrada/Saída com máscara monetária brasileira automática, centavos da direita para a esquerda e Backspace. Cálculos e banco preservados.
+Novo módulo NOTA DE SERVIÇO: cliente por ID e F11, itens com cálculos e máscara monetária, histórico persistente, finalização/garantia/valor pago, visualização e impressão A4 nativa com paginação automática. Sem movimentar vendas, estoque ou caixa.
