@@ -2,12 +2,21 @@ using System.Reflection;
 using LealInfoPDV;
 internal static class Program
 {
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)] static extern int GetWindowText(IntPtr h,System.Text.StringBuilder text,int capacity);
+    delegate bool ChildCallback(IntPtr h,IntPtr parameter);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr h,ChildCallback callback,IntPtr parameter);
+    static void NativeDiagnostic()
+    {
+        var h=GetForegroundWindow();var b=new System.Text.StringBuilder(2048);GetWindowText(h,b,b.Capacity);Console.WriteLine("QA FOREGROUND: "+b);
+        EnumChildWindows(h,(child,_)=>{var text=new System.Text.StringBuilder(2048);GetWindowText(child,text,text.Capacity);if(text.Length>0)Console.WriteLine("QA WINDOW: "+text);return true;},IntPtr.Zero);
+    }
     const BindingFlags Private=BindingFlags.Static|BindingFlags.NonPublic;
     [STAThread] static void Main(string[] args)
     {
         Application.ThreadException+=(_,e)=>{Console.Error.WriteLine(e.Exception.ToString());Environment.Exit(1);};
         Database.Initialize();Application.EnableVisualStyles();
-        _=Task.Run(async()=>{await Task.Delay(TimeSpan.FromSeconds(100));Environment.FailFast("Timeout da automação de retirada");});
+        _=Task.Run(async()=>{await Task.Delay(TimeSpan.FromSeconds(10));NativeDiagnostic();await Task.Delay(TimeSpan.FromSeconds(90));Environment.FailFast("Timeout da automação de retirada");});
         void Check(bool v,string reason){if(!v)throw new Exception(reason);}
         long Count(string table){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText="SELECT COUNT(*) FROM "+table;return Convert.ToInt64(q.ExecuteScalar());}
         double Stock(){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText="SELECT COALESCE(SUM(stock),0) FROM products";return Convert.ToDouble(q.ExecuteScalar());}
