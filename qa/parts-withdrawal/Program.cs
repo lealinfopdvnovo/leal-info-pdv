@@ -6,6 +6,7 @@ internal static class Program
     [STAThread] static void Main(string[] args)
     {
         Database.Initialize();Application.EnableVisualStyles();
+        _=Task.Run(async()=>{await Task.Delay(TimeSpan.FromSeconds(100));Environment.FailFast("Timeout da automação de retirada");});
         void Check(bool v,string reason){if(!v)throw new Exception(reason);}
         long Count(string table){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText="SELECT COUNT(*) FROM "+table;return Convert.ToInt64(q.ExecuteScalar());}
         double Stock(){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText="SELECT COALESCE(SUM(stock),0) FROM products";return Convert.ToDouble(q.ExecuteScalar());}
@@ -41,23 +42,23 @@ internal static class Program
                     if(phase==0)
                     {
                         if(round==2){Check(Count("parts_withdrawals")==2,"Reabertura perdeu registros");timer.Stop();history.Close();return;}
-                        phase=1;Button(history,"newWithdrawal").PerformClick();return;
+                        phase=1;Console.WriteLine("QA: abrir Nova Retirada");history.BeginInvoke(new Action(()=>Button(history,"newWithdrawal").PerformClick()));return;
                     }
                     if(phase==1&&entry!=null)
                     {
                         Box(entry,"description").Text=round==0?"Fonte ATX 500W":"Notebook Dell Inspiron";Box(entry,"collectedBy").Text=round==0?"MARIA AVULSA":"JOÃO DA SILVA";
-                        if(round==1){phase=2;typeof(Control).GetMethod("OnKeyDown",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(entry,new object[]{new KeyEventArgs(Keys.F8)});return;}
-                        phase=4;Button(entry,"saveWithdrawal").PerformClick();return;
+                        if(round==1){phase=2;Console.WriteLine("QA: executar F8");entry.BeginInvoke(new Action(()=>typeof(Control).GetMethod("OnKeyDown",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(entry,new object[]{new KeyEventArgs(Keys.F8)})));return;}
+                        phase=4;Console.WriteLine("QA: salvar e aguardar confirmação");entry.BeginInvoke(new Action(()=>Button(entry,"saveWithdrawal").PerformClick()));return;
                     }
                     if(phase==2&&search!=null)
                     {
                         Box(search,"customerSearch").Text="QA EMPRESA ABC";var grid=Children(search).OfType<DataGridView>().Single();
-                        Check(Convert.ToInt64(grid.CurrentRow!.Cells["ID"].Value)==customer,"Cliente selecionado incorreto");phase=3;Button(search,"selectCustomer").PerformClick();return;
+                        Check(Convert.ToInt64(grid.CurrentRow!.Cells["ID"].Value)==customer,"Cliente selecionado incorreto");phase=3;Console.WriteLine("QA: selecionar cliente real");search.BeginInvoke(new Action(()=>Button(search,"selectCustomer").PerformClick()));return;
                     }
-                    if(phase==3&&entry!=null){Check(Box(entry,"customer").Text=="QA EMPRESA ABC","Nome vinculado errado");phase=4;Button(entry,"saveWithdrawal").PerformClick();return;}
+                    if(phase==3&&entry!=null){Check(Box(entry,"customer").Text=="QA EMPRESA ABC","Nome vinculado errado");phase=4;Console.WriteLine("QA: salvar e aguardar confirmação");entry.BeginInvoke(new Action(()=>Button(entry,"saveWithdrawal").PerformClick()));return;}
                     if(phase==4&&confirm!=null)
                     {
-                        Check(Count("parts_withdrawals")==round,"Gravou antes de confirmar");phase=5;Button(confirm,"confirmWithdrawal").PerformClick();return;
+                        Check(Count("parts_withdrawals")==round,"Gravou antes de confirmar");phase=5;Console.WriteLine("QA: confirmar retirada");confirm.BeginInvoke(new Action(()=>Button(confirm,"confirmWithdrawal").PerformClick()));return;
                     }
                     if(phase==5&&entry==null&&confirm==null)
                     {
