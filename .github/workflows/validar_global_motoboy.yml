@@ -1,0 +1,38 @@
+name: Validar promocao global motoboy
+on:
+  push:
+    branches: ['qa/global-motoboy-371']
+permissions:
+  contents: read
+concurrency:
+  group: validar-global-motoboy-371
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Restaurar ajustes aprovados
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar pacote global
+        run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_global
+      - name: Empacotar programa
+        run: Compress-Archive -Path 'publish_global/*' -DestinationPath global-qa.zip -CompressionLevel Optimal
+      - name: Validar pacote
+        run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package global-qa.zip
+      - name: Testar selecao global versus ID e preservacao local
+        run: dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- global-qa.zip UpdateManager.cs
+      - name: Regressao do Fluxo de Caixa global
+        run: dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release
+      - name: Repetir teste validado do motoboy
+        run: dotnet run --project qa/driver-phone/LealInfoPDV.DriverTests.csproj -c Release
