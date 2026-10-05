@@ -210,20 +210,21 @@ public sealed class DeliveryManagementForm : Form
         EnsureTrackingCode(id);return id;
     }
 
-    private sealed record DeliveryShare(string Customer,string CustomerPhone,string Address,string DriverPhone,string Code);
+    private sealed record DeliveryShare(string Customer,string CustomerPhone,string Address,string DriverPhone,string Code,long? DriverId);
 
     private static DeliveryShare? ReadDeliveryShare(long id)
     {
         var code=EnsureTrackingCode(id);using var cn=Database.Open();using var cmd=cn.CreateCommand();
-        cmd.CommandText="SELECT d.customer_name,COALESCE(d.customer_phone,''),d.address,COALESCE(m.phone,'') FROM deliveries d LEFT JOIN delivery_drivers m ON m.id=d.driver_id WHERE d.id=$id";
+        cmd.CommandText="SELECT d.customer_name,COALESCE(d.customer_phone,''),d.address,COALESCE(m.phone,''),d.driver_id FROM deliveries d LEFT JOIN delivery_drivers m ON m.id=d.driver_id WHERE d.id=$id";
         cmd.Parameters.AddWithValue("$id",id);using var rd=cmd.ExecuteReader();if(!rd.Read())return null;
-        return new DeliveryShare(rd.GetString(0),rd.GetString(1),rd.GetString(2),rd.GetString(3),code);
+        return new DeliveryShare(rd.GetString(0),rd.GetString(1),rd.GetString(2),rd.GetString(3),code,rd.IsDBNull(4)?null:rd.GetInt64(4));
     }
 
     private async Task SendDriverCodeAsync()
     {
         var id=SelectedId(_deliveries);if(!id.HasValue)return;var data=ReadDeliveryShare(id.Value);if(data==null)return;
-        if(string.IsNullOrWhiteSpace(data.DriverPhone)){MessageBox.Show("Cadastre o telefone do motoboy e selecione-o na entrega.","Telefone do motoboy",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
+        if(!data.DriverId.HasValue){MessageBox.Show("Selecione um motoboy para esta entrega.","Telefone do motoboy",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
+        if(string.IsNullOrWhiteSpace(data.DriverPhone)){MessageBox.Show("O motoboy selecionado não possui telefone cadastrado.","Telefone do motoboy",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
         var message=$"Nova entrega da LEAL INFO PDV\nCliente: {data.Customer}\nEndereço: {data.Address}\nCódigo para iniciar o rastreamento: {data.Code}";
         try
         {
@@ -246,10 +247,15 @@ public sealed class DeliveryManagementForm : Form
         catch(Exception ex){MessageBox.Show("Não foi possível preparar o link agora.\n\n"+ex.Message,"Rastreamento da entrega",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
     }
 
-    private static void OpenWhatsApp(string phone,string message)
+    private static string BuildWhatsAppUrl(string phone,string message)
     {
         var digits=new string(phone.Where(char.IsDigit).ToArray());if(digits.Length is 10 or 11)digits="55"+digits;
-        var url="https://wa.me/"+digits+"?text="+Uri.EscapeDataString(message);
+        return "https://wa.me/"+digits+"?text="+Uri.EscapeDataString(message);
+    }
+
+    private static void OpenWhatsApp(string phone,string message)
+    {
+        var url=BuildWhatsAppUrl(phone,message);
         try{Process.Start(new ProcessStartInfo(url){UseShellExecute=true});}
         catch(Exception ex){MessageBox.Show("Não foi possível abrir o WhatsApp.\n"+ex.Message);}
     }
@@ -322,7 +328,7 @@ public sealed class DeliveryManagementForm : Form
         var fee=Field("Taxa de entrega");var payment=Field("Pagamento");var notes=Field("Observações");
         var driver = new ComboBox { Dock=DockStyle.Bottom,Height=32,DropDownStyle=ComboBoxStyle.DropDownList,DisplayMember="Text",ValueMember="Value" };
         var driverPanel = Labeled("Motoboy", driver);
-        LoadDriverCombo(driver);
+        LoadDriverCombo(driver,id);
         var save=Button("SALVAR ENTREGA",Color.FromArgb(0,145,85),190);
         if(id.HasValue)
             AddVertical(f,customer.Panel,phone.Panel,address.Panel,reference.Panel,description.Panel,amount.Panel,fee.Panel,payment.Panel,driverPanel,notes.Panel,save);
@@ -378,7 +384,12 @@ public sealed class DeliveryManagementForm : Form
                 reference.Box.Text=rd.IsDBNull(3)?"":rd.GetString(3);description.Box.Text=rd.IsDBNull(4)?"":rd.GetString(4);
                 amount.Box.Text=rd.GetDouble(5).ToString("0.00");fee.Box.Text=rd.GetDouble(6).ToString("0.00");
                 payment.Box.Text=rd.IsDBNull(7)?"":rd.GetString(7);notes.Box.Text=rd.IsDBNull(9)?"":rd.GetString(9);
-                if(!rd.IsDBNull(8)) driver.SelectedValue=rd.GetInt64(8);
+                if(!rd.IsDBNull(8))
+                {
+                    var linkedId=rd.GetInt64(8);
+                    for(var i=0;i<driver.Items.Count;i++)
+                        if(driver.Items[i] is Choice choice&&choice.Value==linkedId){driver.SelectedIndex=i;break;}
+                }
             }
         }
         save.Click+=async (_,_)=>
@@ -389,7 +400,7 @@ public sealed class DeliveryManagementForm : Form
                 catch(ArgumentException ex){MessageBox.Show(f,ex.Message,"Endereço da entrega",MessageBoxButtons.OK,MessageBoxIcon.Warning);return;}
             }
             if(string.IsNullOrWhiteSpace(customer.Box.Text)||string.IsNullOrWhiteSpace(address.Box.Text)){MessageBox.Show("Cliente e endereço são obrigatórios.");return;}
-            var driverId=driver.SelectedValue is long value?(object)value:DBNull.Value;
+            var driverId=driver.SelectedItem is Choice { Value: long value }?(object)value:DBNull.Value;
             if(id.HasValue) Exec("""UPDATE deliveries SET customer_name=$c,customer_phone=$ph,address=$a,reference=$r,order_description=$d,amount=$v,delivery_fee=$f,payment=$p,driver_id=$m,notes=$n WHERE id=$id""",
                 ("$c",customer.Box.Text),("$ph",phone.Box.Text),("$a",address.Box.Text),("$r",reference.Box.Text),("$d",description.Box.Text),("$v",Number(amount.Box.Text)),("$f",Number(fee.Box.Text)),("$p",payment.Box.Text),("$m",driverId),("$n",notes.Box.Text),("$id",id.Value));
             else id = InsertDeliveryWithTracking(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),customer.Box.Text,phone.Box.Text,address.Box.Text,DeliveryAddress.Additional(complement.Box.Text,reference.Box.Text),description.Box.Text,Number(amount.Box.Text),Number(fee.Box.Text),payment.Box.Text,driverId,notes.Box.Text,Auth.OperatorName);
@@ -493,13 +504,15 @@ public sealed class DeliveryManagementForm : Form
         catch(Exception ex){MessageBox.Show("Não foi possível abrir o Google Maps.\n"+ex.Message);}
     }
 
-    private void LoadDriverCombo(ComboBox combo)
+    private void LoadDriverCombo(ComboBox combo,long? deliveryId)
     {
         var list=new List<Choice>{new(null,"NÃO DEFINIDO")};
         using var cn=Database.Open();using var cmd=cn.CreateCommand();
-        cmd.CommandText="SELECT id,name FROM delivery_drivers WHERE active=1 ORDER BY name";using var rd=cmd.ExecuteReader();
+        cmd.CommandText="SELECT id,name FROM delivery_drivers WHERE active=1 OR id=(SELECT driver_id FROM deliveries WHERE id=$delivery) ORDER BY name";
+        cmd.Parameters.AddWithValue("$delivery",(object?)deliveryId??DBNull.Value);using var rd=cmd.ExecuteReader();
         while(rd.Read())list.Add(new Choice(rd.GetInt64(0),rd.GetString(1)));
-        combo.DataSource=list;
+        combo.Items.AddRange(list.Cast<object>().ToArray());
+        combo.SelectedIndex=0;
     }
 
     private static Panel AddressRow(params Panel[] fields)

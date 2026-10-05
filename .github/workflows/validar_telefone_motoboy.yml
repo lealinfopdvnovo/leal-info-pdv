@@ -11,5 +11,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
-      - name: Testar vinculo existente no Windows
-        run: dotnet run --project qa/driver-phone/LealInfoPDV.DriverTests.csproj -c Release -- --baseline
+      - name: Testar vinculo e telefone corrigidos no Windows
+        run: dotnet run --project qa/driver-phone/LealInfoPDV.DriverTests.csproj -c Release

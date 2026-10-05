@@ -80,13 +80,14 @@ internal static class Program
         _=Task.Run(async()=>{await Task.Delay(90000);Environment.FailFast("Timeout driver QA");});
         Application.ThreadException+=(_,e)=>{Console.Error.WriteLine(e.Exception);Environment.Exit(1);};
         Application.EnableVisualStyles();Database.Initialize();Invoke("EnsureTrackingSchema",null);InstallFake();
-        var before=Convert.ToString(Scalar("SELECT (SELECT COUNT(*) FROM sales)||':'||(SELECT COUNT(*) FROM cash_movements)||':'||(SELECT SUM(stock) FROM products)"));
+        var before=Convert.ToString(Scalar("SELECT (SELECT COUNT(*) FROM sales)||':'||(SELECT COUNT(*) FROM cash_movements)||':'||(SELECT COALESCE(SUM(stock),0) FROM products)"));
         using var central=new DeliveryManagementForm();central.Show();Application.DoEvents();
         Dialog(central,"EditDriver",null,"Novo Motoboy",f=>{Field(f,"Nome").Text="QA JOAO";Field(f,"Telefone").Text="(24) 99999-9999";},true);
         var driver=Convert.ToInt64(Scalar("SELECT id FROM delivery_drivers WHERE name='QA JOAO' ORDER BY id DESC LIMIT 1"));
         Check(Convert.ToString(Scalar($"SELECT phone FROM delivery_drivers WHERE id={driver}"))=="(24) 99999-9999","Telefone não persistiu");
         Console.WriteLine("PASS: cadastro real salvou telefone em delivery_drivers.phone; id="+driver);
         var delivery=(long)Invoke("InsertDeliveryWithTracking",null,DateTime.Now.ToString("s"),"QA CLIENTE","","Rua QA, 125, Centro, Angra dos Reis - RJ","","QA",0d,0d,"",driver,"","QA")!;
+        Exec("INSERT INTO delivery_drivers(name,phone) VALUES('QA JOAO','11988887777')");
         var code=Convert.ToString(Scalar($"SELECT code FROM delivery_tracking WHERE delivery_id={delivery}"));
         bool restored=false;
         Dialog(central,"EditDelivery",delivery,"Editar Entrega",f=>
@@ -110,7 +111,7 @@ internal static class Program
         Exec($"UPDATE delivery_drivers SET phone='24999999999',active=0 WHERE id={driver}");
         Dialog(reopened,"EditDelivery",delivery,"Editar Entrega",f=>Check(ChoiceId(All(f).OfType<ComboBox>().Single())==driver,"Perdeu motoboy inativo já vinculado"),false);
         Check(Convert.ToString(Scalar($"SELECT code FROM delivery_tracking WHERE delivery_id={delivery}"))==code,"Código alterado");
-        Check(Convert.ToString(Scalar("SELECT (SELECT COUNT(*) FROM sales)||':'||(SELECT COUNT(*) FROM cash_movements)||':'||(SELECT SUM(stock) FROM products)"))==before,"Venda/caixa/estoque modificados");
+        Check(Convert.ToString(Scalar("SELECT (SELECT COUNT(*) FROM sales)||':'||(SELECT COUNT(*) FROM cash_movements)||':'||(SELECT COALESCE(SUM(stock),0) FROM products)"))==before,"Venda/caixa/estoque modificados");
         Console.WriteLine("PASS: sem motoboy, sem telefone, inativo, código preservado e sem movimentações externas");
         reopened.Close();
     }
