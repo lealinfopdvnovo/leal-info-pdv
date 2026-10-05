@@ -1,0 +1,42 @@
+name: Validar Nota de Servico 002
+on:
+  push:
+    branches: ['qa/service-note-002']
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restaurar ajustes aprovados
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar
+        run: dotnet build LealInfoPDV.csproj -c Release
+      - name: Testar Fluxo de Caixa
+        run: dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release
+      - name: Testar mascara monetaria
+        run: dotnet run --project qa/cash-mask/LealInfoPDV.MaskTests.csproj -c Release
+      - name: Testar Retirada de Pecas
+        run: dotnet run --project qa/parts-withdrawal/LealInfoPDV.PartsTests.csproj -c Release
+      - name: Verificar reinicio de Retirada
+        run: dotnet run --project qa/parts-withdrawal/LealInfoPDV.PartsTests.csproj -c Release --no-build -- --verify-restart
+      - name: Testar Nota de Servico
+        run: dotnet run --project qa/service-note/LealInfoPDV.ServiceNoteTests.csproj -c Release
+      - name: Verificar reinicio da Nota
+        run: dotnet run --project qa/service-note/LealInfoPDV.ServiceNoteTests.csproj -c Release --no-build -- --verify-restart
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nota-servico-validacao
+          path: nota-servico-qa
