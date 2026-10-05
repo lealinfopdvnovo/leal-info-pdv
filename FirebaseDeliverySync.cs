@@ -73,6 +73,24 @@ internal static class FirebaseDeliverySync
         return _idToken;
     }
 
+    internal static async Task<string?> ReadTrackingTokenAsync(IWin32Window owner, string code)
+    {
+        code = Regex.Replace(code.Trim().ToUpperInvariant(), @"[\s-]", "");
+        if (code.Length != 12 || code.Any(c => !char.IsAsciiLetterUpper(c) && !char.IsAsciiDigit(c)))
+            throw new InvalidOperationException("Código da entrega inválido.");
+        var token = await TokenAsync(owner);
+        var url = $"{DatabaseUrl}/pedidos/{Uri.EscapeDataString(code)}.json?auth={Uri.EscapeDataString(token)}";
+        using var response = await Http.GetAsync(url);
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException("Não foi possível consultar a entrega no Firebase.");
+        using var order = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        if (order.RootElement.ValueKind == JsonValueKind.Null)
+            throw new InvalidOperationException("Esta entrega não foi encontrada no Firebase.");
+        if (!order.RootElement.TryGetProperty("trackingToken", out var tracking) || tracking.ValueKind == JsonValueKind.Null)
+            return null;
+        return tracking.GetString();
+    }
+
     internal static async Task PublishAsync(IWin32Window owner, string code, string address)
     {
         code = Regex.Replace(code.Trim().ToUpperInvariant(), @"[\s-]", "");

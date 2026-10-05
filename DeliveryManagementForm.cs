@@ -9,10 +9,8 @@ namespace LealInfoPDV;
 
 public sealed class DeliveryManagementForm : Form
 {
-    private const string DatabaseUrl = "https://novo-91da7436-default-rtdb.firebaseio.com";
     private const string TrackingPage = "https://novo-91da7436.web.app/track.html?t=";
     private const string TrackingAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    private static readonly HttpClient TrackingHttp = new() { Timeout = TimeSpan.FromSeconds(12) };
     private readonly DataGridView _deliveries = Grid();
     private readonly DataGridView _drivers = Grid();
     private readonly ComboBox _status = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 180 };
@@ -239,9 +237,7 @@ public sealed class DeliveryManagementForm : Form
         if(string.IsNullOrWhiteSpace(data.CustomerPhone)){MessageBox.Show("Cadastre o telefone do cliente nesta entrega.","Telefone do cliente",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
         try
         {
-            var url=$"{DatabaseUrl}/pedidos/{Uri.EscapeDataString(data.Code)}/trackingToken.json";
-            using var response=await TrackingHttp.GetAsync(url);if(!response.IsSuccessStatusCode)throw new HttpRequestException("Não foi possível consultar a entrega no Firebase.");
-            var json=await response.Content.ReadAsStringAsync();var token=JsonSerializer.Deserialize<string>(json);
+            var token = await FirebaseDeliverySync.ReadTrackingTokenAsync(this, data.Code);
             if(string.IsNullOrWhiteSpace(token)){MessageBox.Show("O motoboy ainda não iniciou esta entrega no aplicativo. Envie o código ao motoboy e tente novamente.","Rastreamento aguardando",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
             var link=TrackingPage+Uri.EscapeDataString(token);var message=$"Olá, {data.Customer}! Acompanhe em tempo real a entrega do seu pedido: {link}";OpenWhatsApp(data.CustomerPhone,message);
         }
