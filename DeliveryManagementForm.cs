@@ -128,14 +128,16 @@ public sealed class DeliveryManagementForm : Form
         var route = Button("ABRIR ROTA", Color.FromArgb(35, 105, 180), 135);
         var sendDriver = Button("ENVIAR CÓDIGO AO MOTOBOY", Color.FromArgb(96, 62, 150), 190);
         var sendCustomer = Button("ENVIAR LINK AO CLIENTE", Color.FromArgb(0, 145, 85), 180);
+        var delete = Button("EXCLUIR PEDIDO", Color.FromArgb(185, 22, 38), 150);
         var cancel = Button("CANCELAR", Color.FromArgb(100, 105, 112), 115);
         var filterLabel = new Label { Text = "Status:", AutoSize = true, Margin = new Padding(16, 13, 4, 0), Font = new Font("Segoe UI", 9, FontStyle.Bold) };
-        bar.Controls.AddRange(new Control[] { add, edit, dispatch, delivered, route, sendDriver, sendCustomer, cancel, filterLabel, _status });
+        bar.Controls.AddRange(new Control[] { add, edit, dispatch, delivered, route, sendDriver, sendCustomer, cancel, delete, filterLabel, _status });
         add.Click += (_, _) => EditDelivery(null);
         edit.Click += (_, _) => { var id = SelectedId(_deliveries); if (id.HasValue) EditDelivery(id); };
         dispatch.Click += (_, _) => SetDeliveryStatus("EM ROTA");
         delivered.Click += (_, _) => SetDeliveryStatus("ENTREGUE");
         cancel.Click += (_, _) => SetDeliveryStatus("CANCELADA");
+        delete.Click += (_, _) => DeleteSelectedDelivery();
         route.Click += (_, _) => OpenRoute();
         sendDriver.Click += async (_, _) => await SendDriverCodeAsync();
         sendCustomer.Click += async (_, _) => await SendCustomerTrackingLinkAsync();
@@ -354,6 +356,48 @@ public sealed class DeliveryManagementForm : Form
             f.DialogResult=DialogResult.OK;f.Close();
         };
         if(f.ShowDialog(this)==DialogResult.OK)LoadDeliveries();
+    }
+
+    private void DeleteSelectedDelivery()
+    {
+        var id = SelectedId(_deliveries);
+        if (!id.HasValue) return;
+        var code = Convert.ToString(_deliveries.CurrentRow!.Cells["Código"].Value) ?? "";
+        if (MessageBox.Show(this, "Deseja realmente excluir este pedido?", "Excluir pedido",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+        try
+        {
+            DeleteLocalDelivery(id.Value, code);
+            LoadDeliveries();
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, "Não foi possível excluir este pedido.\n" + ex.Message,
+                "Excluir pedido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    // Match both immutable identifiers within one transaction; never contacts Firebase.
+    internal static void DeleteLocalDelivery(long id, string code)
+    {
+        if (id <= 0 || string.IsNullOrWhiteSpace(code))
+            throw new InvalidOperationException("Selecione um pedido com código válido.");
+        using var cn = Database.Open();
+        using var transaction = cn.BeginTransaction();
+        using var delete = cn.CreateCommand();
+        delete.Transaction = transaction;
+        delete.CommandText = "DELETE FROM deliveries WHERE id=$id AND EXISTS(SELECT 1 FROM delivery_tracking WHERE delivery_id=$id AND code=$code)";
+        delete.Parameters.AddWithValue("$id", id);
+        delete.Parameters.AddWithValue("$code", code);
+        if (delete.ExecuteNonQuery() != 1)
+            throw new InvalidOperationException("O pedido selecionado mudou ou já foi excluído. Atualize a lista.");
+        using var tracking = cn.CreateCommand();
+        tracking.Transaction = transaction;
+        tracking.CommandText = "DELETE FROM delivery_tracking WHERE delivery_id=$id AND code=$code";
+        tracking.Parameters.AddWithValue("$id", id);
+        tracking.Parameters.AddWithValue("$code", code);
+        tracking.ExecuteNonQuery();
+        transaction.Commit();
     }
 
     private void SetDeliveryStatus(string status)
