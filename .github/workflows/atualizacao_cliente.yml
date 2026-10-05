@@ -82,6 +82,8 @@ jobs:
           path: retirada-pecas-qa.png
       - name: Testar vinculo do motoboy e telefone cadastrado
         run: dotnet run --project qa/driver-phone/LealInfoPDV.DriverTests.csproj -c Release
+      - name: Testar precedencia global e preservar dados locais
+        run: dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- ${{ steps.meta.outputs.PACKAGE }} UpdateManager.cs
       - name: Publicar pacote e manifesto apenas neste ID
         shell: pwsh
         env:

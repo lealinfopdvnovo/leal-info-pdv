@@ -13,7 +13,7 @@ using System.Text.Json;
 namespace LealInfoPDV;
 internal static class UpdateManager
 {
-    public const string CurrentVersion="10.370";
+    public const string CurrentVersion="10.371";
  private const string LatestReleaseApi="https://api.github.com/repos/lealinfopdvnovo/leal-info-pdv-updates/releases/latest";
  private static readonly string UpdatesFolder=Path.Combine(Database.AppFolder,"Updates");
  private sealed class UpdateManifest{public string Version{get;set;}="";public string PackageUrl{get;set;}="";public string Notes{get;set;}="";public string Sha256{get;set;}="";public string SourceCommit{get;set;}="";public string TargetClientCode{get;set;}="";}
@@ -26,13 +26,27 @@ internal static class UpdateManager
  {
   using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(20)};
   http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/"+CurrentVersion);
-  var clientCode=GetClientCode();
+  return await LoadManifestAsync(http,GetClientCode(),CurrentVersion);
+ }
+ private static async Task<UpdateManifest?> LoadManifestAsync(HttpClient http,string clientCode,string currentVersion)
+ {
+  UpdateManifest? targeted=null;
   if(ClientUpdateIdentity.GetManifestPath(clientCode) is string path)
-  {
-   var targeted=await TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/"+path);
-   if(targeted!=null && ClientUpdateIdentity.ManifestMatches(clientCode,targeted.TargetClientCode) && IsNewer(targeted.Version,CurrentVersion) && IsSafeClientPackage(targeted,clientCode))return targeted;
-  }
-  return await TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json");
+   targeted=await TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/"+path);
+  var global=await TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json");
+  return SelectManifest(clientCode,currentVersion,global,targeted);
+ }
+ private static UpdateManifest? SelectManifest(string clientCode,string currentVersion,UpdateManifest? global,UpdateManifest? targeted)
+ {
+  var validGlobal=global!=null && string.IsNullOrEmpty(global.TargetClientCode) && IsSafeGlobalPackage(global) && IsNewer(global.Version,currentVersion);
+  var validTargeted=targeted!=null && ClientUpdateIdentity.ManifestMatches(clientCode,targeted.TargetClientCode) && IsSafeClientPackage(targeted,clientCode) && IsNewer(targeted.Version,currentVersion);
+  if(validTargeted && (!validGlobal || !IsNewer(global!.Version,targeted!.Version)))return targeted;
+  return validGlobal?global:null;
+ }
+ private static bool IsSafeGlobalPackage(UpdateManifest manifest)
+ {
+  if(!Uri.TryCreate(manifest.PackageUrl,UriKind.Absolute,out var uri)||uri.Scheme!="https"||uri.Host!="github.com")return false;
+  return uri.AbsolutePath.StartsWith("/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v",StringComparison.OrdinalIgnoreCase)&&manifest.Sha256.Length==64;
  }
  private static async Task<UpdateManifest?> TryLoadManifestAsync(HttpClient http,string url)
  {
