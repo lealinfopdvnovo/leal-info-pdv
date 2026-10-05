@@ -63,10 +63,10 @@ internal static class Program
             if(text.ToString() is not ("Telefone do motoboy" or "Envio ao SpeedFood"))return;
             var messages=new List<string>();EnumChildWindows(hwnd,(child,_)=>{var b=new System.Text.StringBuilder(4096);GetWindowText(child,b,b.Capacity);messages.Add(b.ToString());return true;},IntPtr.Zero);
             seen=true;timer.Stop();if(!messages.Any(x=>x.Contains(expected)))failure=new Exception("Mensagem incorreta: "+string.Join("|",messages));
-            SendMessage(hwnd,0x111,(IntPtr)1,IntPtr.Zero);
+            Console.WriteLine("QA modal reconhecido: "+string.Join("|",messages));SendMessage(hwnd,0x10,IntPtr.Zero,IntPtr.Zero);
         };
         timer.Start();Button(central,"ENVIAR CÓDIGO AO MOTOBOY").PerformClick();
-        while(!seen){Application.DoEvents();Thread.Sleep(10);}
+        var until=DateTime.UtcNow.AddSeconds(12);while(!seen){Application.DoEvents();Thread.Sleep(10);if(DateTime.UtcNow>until)throw new Exception("Mensagem esperada não abriu: "+expected);}
         if(failure!=null)throw failure;Check((fake.Requests>before)==expectNetwork,"Fluxo de envio/rejeição incorreto");
     }
     [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)]static extern IntPtr FindWindow(string? cls,string? title);
@@ -104,6 +104,9 @@ internal static class Program
         Console.WriteLine("PASS: ID real salvo e restaurado após reabrir entrega e Central");
         var data=Invoke("ReadDeliveryShare",null,delivery)!;Check((string)data.GetType().GetProperty("DriverPhone")!.GetValue(data)! =="(24) 99999-9999","Telefone incorreto recuperado");
         var normalized=(string)Invoke("BuildWhatsAppUrl",null,"(24) 99999-9999","QA TESTE")!;Check(normalized.StartsWith("https://wa.me/5524999999999?text="),"Normalização incorreta");
+        var grid=(DataGridView)T.GetField("_deliveries",I)!.GetValue(reopened)!;
+        grid.CurrentCell=grid.Rows.Cast<DataGridViewRow>().Single(r=>Convert.ToInt64(r.Cells["ID"].Value)==delivery).Cells["ID"];
+        Console.WriteLine("QA entrega selecionada="+grid.CurrentRow!.Cells["ID"].Value+" botao visivel="+Button(reopened,"ENVIAR CÓDIGO AO MOTOBOY").Visible);
         fake.StopAtSend=true;ExpectMessage(reopened,"QA_FLUXO_ENVIO_ALCANCADO",true);
         Console.WriteLine("PASS: botão recuperou telefone e continuou fluxo existente; sem rede real/WhatsApp");
         Exec($"UPDATE deliveries SET driver_id=NULL WHERE id={delivery}");ExpectMessage(reopened,"Selecione um motoboy para esta entrega.",false);
