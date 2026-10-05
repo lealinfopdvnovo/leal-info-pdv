@@ -60,6 +60,8 @@ jobs:
         env:
           PACKAGE: ${{ steps.meta.outputs.PACKAGE }}
         run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package $env:PACKAGE
+      - name: Testar fluxo de caixa na base do cliente 002
+        run: dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release
       - name: Publicar pacote e manifesto apenas neste ID
         shell: pwsh
         env:
