@@ -332,10 +332,17 @@ public sealed class DeliveryManagementForm : Form
         if(!id.HasValue){cep.Panel.Parent!.Height=79;cepStatus.Dock=DockStyle.Bottom;cep.Panel.Controls.Add(cepStatus);cepStatus.BringToFront();}
         CancellationTokenSource? lookup=null;
         var generation=0;
+        string[]? lastAutomatic=null;
         cep.Box.TextChanged+=async (_,_)=>
         {
             var revision=++generation;
             lookup?.Cancel();
+            var fields=new[]{street.Box,district.Box,city.Box,uf.Box};
+            if(lastAutomatic!=null)
+                for(var i=0;i<fields.Length;i++)
+                    if(fields[i].Text==lastAutomatic[i])fields[i].Clear();
+            lastAutomatic=null;
+            var valuesBefore=fields.Select(b=>b.Text).ToArray();
             var digits=DeliveryAddress.NormalizeCep(cep.Box.Text);
             cepStatus.Text="";
             if(digits.Length!=8)return;
@@ -344,13 +351,12 @@ public sealed class DeliveryManagementForm : Form
             {
                 await Task.Delay(350,request.Token);
                 cepStatus.Text="Consultando CEP...";
-                var valuesBefore=new[]{street.Box.Text,district.Box.Text,city.Box.Text,uf.Box.Text};
                 var result=await DeliveryAddress.LookupAsync(digits,request.Token);
                 if(f.IsDisposed||revision!=generation)return;
-                var fields=new[]{street.Box,district.Box,city.Box,uf.Box};
                 var values=new[]{result.Street,result.District,result.City,result.Uf};
                 for(var i=0;i<fields.Length;i++)
                     if(fields[i].Text==valuesBefore[i])fields[i].Text=values[i];
+                lastAutomatic=values;
                 cepStatus.Text="CEP encontrado";
             }
             catch(OperationCanceledException){}
