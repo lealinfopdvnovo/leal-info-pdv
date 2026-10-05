@@ -1,0 +1,27 @@
+name: Validar finalizacao da corrida SpeedFood 1.0.9
+on:
+  pull_request:
+    paths:
+      - 'qa/speedfood-ride/**'
+      - '.github/workflows/validar_corrida_speedfood109.yml'
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Autenticar teste no Firebase existente
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.LEAL_FIREBASE_SERVICE_ACCOUNT }}
+        run: node qa/speedfood/prepare-live-auth.cjs
+      - name: Finalizar entrega ficticia usando payload do app
+        run: node qa/speedfood-ride/validate.cjs
+      - name: Remover arquivo temporario de credenciais
+        if: always()
+        shell: pwsh
+        run: |
+          if ($env:SPEEDFOOD_TEST_TOKEN_FILE -and (Test-Path $env:SPEEDFOOD_TEST_TOKEN_FILE)) { Remove-Item $env:SPEEDFOOD_TEST_TOKEN_FILE -Force }
