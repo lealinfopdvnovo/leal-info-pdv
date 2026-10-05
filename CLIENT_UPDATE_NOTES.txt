@@ -1,1 +1,1 @@
-Cliente 002 V10.367: novo módulo RETIRADA DE PEÇAS, com confirmação, histórico, cliente opcional vinculado por ID e busca F8. Sem baixa de estoque, venda ou movimento financeiro. Preserva Fluxo de Caixa e demais funções.
+Correção pontual no Fluxo de Caixa: campo Valor de Entrada/Saída com máscara monetária brasileira automática, centavos da direita para a esquerda e Backspace. Cálculos e banco preservados.

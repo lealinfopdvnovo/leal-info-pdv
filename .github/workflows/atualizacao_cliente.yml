@@ -62,6 +62,8 @@ jobs:
         run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package $env:PACKAGE
       - name: Testar fluxo de caixa na base do cliente 002
         run: dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release
+      - name: Testar mascara monetaria e valores persistidos
+        run: dotnet run --project qa/cash-mask/LealInfoPDV.MaskTests.csproj -c Release
       - name: Testar retirada de pecas na interface
         run: dotnet run --project qa/parts-withdrawal/LealInfoPDV.PartsTests.csproj -c Release
       - name: Reiniciar processo e verificar persistencia sem efeitos colaterais

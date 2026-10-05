@@ -2690,6 +2690,7 @@ private void ApplyFloatingTheme(Form f)
     {
         using var f=Editor("Nova movimentação manual",new[]{"Tipo","Descrição/Motivo","Valor"});
         var fields=(List<TextBox>)f.Tag!;
+  CashAmountMask.Attach(fields[2]);
         var oldType=fields[0];
         var type=new ComboBox{Left=oldType.Left,Top=oldType.Top,Width=oldType.Width,DropDownStyle=ComboBoxStyle.DropDownList};
         type.Items.AddRange(new[]{"ENTRADA","SAÍDA"});type.SelectedIndex=0;f.Controls.Remove(oldType);oldType.Dispose();f.Controls.Add(type);
