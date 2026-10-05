@@ -61,11 +61,11 @@ internal sealed class ServiceNoteForm : Form
         var warranty=Box("warranty",note.Warranty);Row(finish,"GARANTIA",warranty);
         var paid=Box("paidAmount","");CashAmountMask.Attach(paid);paid.Text=(note.PaidCents/100m).ToString("N2",ServiceNote.Brazilian);Row(finish,"VALOR PAGO",paid);
         var observations=Box("observations",note.Observations);observations.Multiline=true;observations.ScrollBars=ScrollBars.Vertical;Row(finish,"OBSERVAÇÕES",observations,160);
-        FullRow(finish,new Label{Text=$"Criação: {(note.CreatedAt.Length==0?"Ao salvar":note.CreatedAt)}  •  Responsável: {(note.Operator.Length==0?Auth.OperatorName:note.Operator)}\nEste controle não gera venda, estoque ou movimentação financeira.",Dock=DockStyle.Fill,AutoSize=true},65);
+        var creation=new Label{Name="noteCreation",Text=$"Criação: {(note.CreatedAt.Length==0?"Ao salvar":note.CreatedAt)}  •  Responsável: {(note.Operator.Length==0?Auth.OperatorName:note.Operator)}",Dock=DockStyle.Fill,AutoSize=true};FullRow(finish,creation,50);
         var bottom=Bar(88);var saved=new Label{Name="saveNoteResult",AutoSize=true,Margin=new Padding(10,13,0,0)};
         void Capture()
         {foreach(var pair in fields)note.Customer[pair.Key]=pair.Value.Text.Trim();note.Equipment=equipment.Text;note.OrderDate=orderDate.Value.Date;note.Payment=payment.SelectedItem?.ToString()??"OUTRO";note.Status=status.SelectedItem?.ToString()??"ABERTA";note.CompletedAt=completed.Checked?completed.Value:null;note.Warranty=warranty.Text;note.PaidCents=ServiceNote.ParseMoney(paid.Text);note.Observations=observations.Text;}
-        void Save(){Capture();ServiceNote.Save(note);f.Text=$"NOTA DE SERVIÇO Nº {note.Id:000000}";saved.Text=$"Nota {note.Id:000000} salva";}
+        void Save(){Capture();ServiceNote.Save(note);f.Text=$"NOTA DE SERVIÇO Nº {note.Id:000000}";saved.Text=$"Nota {note.Id:000000} salva";creation.Text=$"Criação: {note.CreatedAt}  •  Responsável: {note.Operator}";}
         void Print(bool print)
         {Capture();if(note.Id==0){MessageBox.Show(f,"Salve a nota antes de visualizar ou imprimir.","Nota de Serviço");return;}using var job=new ServiceNotePrint(note);if(print)job.Print(f);else job.Preview(f);}
         bottom.Controls.Add(Button("SALVAR NOTA","saveNote",()=>Guard(Save)));bottom.Controls.Add(Button("VISUALIZAR IMPRESSÃO","previewDraft",()=>Guard(()=>Print(false)),220));bottom.Controls.Add(Button("IMPRIMIR A4","printDraft",()=>Guard(()=>Print(true))));bottom.Controls.Add(Button("FECHAR","closeNoteEditor",f.Close));bottom.Controls.Add(saved);

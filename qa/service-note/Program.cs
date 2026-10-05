@@ -4,6 +4,11 @@ using System.Globalization;
 using LealInfoPDV;
 internal static class Program
 {
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
+    [System.Runtime.InteropServices.DllImport("user32.dll",CharSet=System.Runtime.InteropServices.CharSet.Unicode)] static extern int GetWindowText(IntPtr h,System.Text.StringBuilder text,int size);
+    delegate bool ChildCallback(IntPtr h,IntPtr p);
+    [System.Runtime.InteropServices.DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr h,ChildCallback c,IntPtr p);
+    static void Diagnostic(){var h=GetForegroundWindow();var b=new System.Text.StringBuilder(2048);GetWindowText(h,b,b.Capacity);Console.WriteLine("QA FOREGROUND: "+b);EnumChildWindows(h,(c,_)=>{var t=new System.Text.StringBuilder(2048);GetWindowText(c,t,t.Capacity);if(t.Length>0)Console.WriteLine("QA WINDOW: "+t);return true;},IntPtr.Zero);}
     static void Check(bool value,string message){if(!value)throw new Exception(message);}
     static long Count(string table){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText="SELECT COUNT(*) FROM "+table;return Convert.ToInt64(q.ExecuteScalar());}
     static string SideEffects()
@@ -17,7 +22,7 @@ internal static class Program
     [STAThread] static void Main(string[] args)
     {
         Application.ThreadException+=(_,e)=>{Console.Error.WriteLine(e.Exception);Environment.Exit(1);};
-        _=Task.Run(async()=>{await Task.Delay(TimeSpan.FromSeconds(90));Environment.FailFast("Timeout da Nota de Serviço");});
+        _=Task.Run(async()=>{await Task.Delay(TimeSpan.FromSeconds(10));Diagnostic();await Task.Delay(TimeSpan.FromSeconds(80));Environment.FailFast("Timeout da Nota de Serviço");});
         Database.Initialize();Application.EnableVisualStyles();Directory.CreateDirectory("nota-servico-qa");
         if(args.Contains("--verify-restart"))
         {
@@ -31,12 +36,13 @@ internal static class Program
         Check(ServiceNote.Customer(customer)["address"].Contains("125"),"Cliente sem endereço");
         foreach(var term in new[]{"QA CLIENTE NOTA","12345678000195","24988887777",customer.ToString()})Check(PartsWithdrawal.FindCustomers(term).Rows.Cast<System.Data.DataRow>().Any(r=>Convert.ToInt64(r["ID"])==customer),"Busca de cliente falhou");
         using var owner=new MainForm();var open=typeof(MainForm).GetMethod("OpenServiceNotes",BindingFlags.Instance|BindingFlags.NonPublic)!;
-        Exception? failure=null;long savedId=0;var phase=0;var adding=0;var reopen=false;var started=DateTime.UtcNow;
+        Exception? failure=null;long savedId=0;var phase=0;var adding=0;var reopen=false;var started=DateTime.UtcNow;var ticks=0;
         using(var timer=new System.Windows.Forms.Timer{Interval=100})
         {
             timer.Tick+=(_,_)=>
             {
                 var forms=Application.OpenForms.Cast<Form>().ToArray();var history=forms.FirstOrDefault(f=>f.Text=="NOTA DE SERVIÇO");if(history==null)return;
+                if(++ticks%50==0)Console.WriteLine("QA phase="+phase+" forms="+string.Join(";",forms.Select(f=>f.Text)));
                 var editor=forms.FirstOrDefault(f=>f.Text=="NOVA NOTA DE SERVIÇO"||f.Text.StartsWith("NOTA DE SERVIÇO Nº"));var search=forms.FirstOrDefault(f=>f.Text=="BUSCAR CLIENTE — NOTA DE SERVIÇO");var item=forms.FirstOrDefault(f=>f.Text=="ITEM / SERVIÇO DA NOTA");
                 try
                 {
@@ -71,7 +77,7 @@ internal static class Program
                         savedId=Convert.ToInt64(ServiceNote.History("QA CLIENTE NOTA").Rows[0]["ID"]);var note=ServiceNote.Load(savedId);Check(note.CustomerId==customer&&note.Items.Count==2&&note.TotalCents==14000&&note.PaidCents==14000&&note.CompletedAt.HasValue&&note.Status=="FINALIZADA","Dados salvos incorretos");Check(ServiceNote.Customer(customer)["address"].Contains("125"),"Cadastro original alterado");Snapshot(editor,"nota-servico-qa/editor-finalizacao.png");phase=9;Click(editor,"closeNoteEditor");return;
                     }
                     if(phase==9&&editor==null)
-                    {Control<TextBox>(history,"noteSearch").Text=savedId.ToString("000000");Check(Control<DataGridView>(history,"noteHistory").Rows.Count==1,"Histórico não encontrou nota");Snapshot(history,"nota-servico-qa/historico.png");phase=10;Click(history,"openNote");return;}
+                    {Control<TextBox>(history,"noteSearch").Text=savedId.ToString("000000");Check(Control<DataGridView>(history,"noteHistory").Rows.Count==1,"Histórico não encontrou nota");Snapshot(history,"nota-servico-qa/historico.png");phase=10;history.BeginInvoke(new Action(()=>{var grid=Control<DataGridView>(history,"noteHistory");var button=Control<Button>(history,"openNote");Console.WriteLine("QA OPEN current="+grid.CurrentRow?.Cells["ID"].Value+" enabled="+button.Enabled+" visible="+button.Visible);button.PerformClick();Console.WriteLine("QA OPEN returned");}));return;}
                     if(phase==10&&editor!=null)
                     {Check(Control<TextBox>(editor,"name").Text=="QA CLIENTE NOTA"&&Control<TextBox>(editor,"warranty").Text=="3 MESES"&&Control<TextBox>(editor,"paidAmount").Text=="140,00","Reabertura perdeu valores");Control<TabControl>(editor,"noteTabs").SelectedIndex=1;Snapshot(editor,"nota-servico-qa/editor-itens.png");phase=11;Click(editor,"closeNoteEditor");return;}
                     if(phase==11&&editor==null){timer.Stop();history.Close();}

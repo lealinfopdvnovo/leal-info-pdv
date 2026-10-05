@@ -14,7 +14,7 @@ internal sealed class ServiceNotePrint : IDisposable
     private readonly Font _bold=new("Arial",12,FontStyle.Bold,GraphicsUnit.Pixel);
     private readonly Font _title=new("Arial",20,FontStyle.Bold,GraphicsUnit.Pixel);
     private readonly List<List<Cell>> _pages=new();
-    private sealed record Cell(RectangleF Bounds,string Text,Font Font,bool Border=false,bool Header=false,bool Right=false);
+    private sealed record Cell(RectangleF Bounds,string Text,Font Font,bool Border=false,bool Header=false,bool Right=false,bool Center=false);
     internal int PageCount=>_pages.Count;
     internal IReadOnlyList<string> PageTexts=>_pages.Select(p=>string.Join("\n",p.Select(c=>c.Text))).ToList();
     internal bool HasLogo=>_logo!=null;
@@ -30,7 +30,7 @@ internal sealed class ServiceNotePrint : IDisposable
     {
         using var bitmap=new Bitmap(1,1);bitmap.SetResolution(100,100);using var g=Graphics.FromImage(bitmap);g.PageUnit=GraphicsUnit.Pixel;
         var y=50f;List<Cell> page=null!;
-        void Add(float x,float top,float width,float height,string text,Font? font=null,bool border=false,bool header=false,bool right=false)=>page.Add(new(new(x,top,width,height),text,font??_body,border,header,right));
+        void Add(float x,float top,float width,float height,string text,Font? font=null,bool border=false,bool header=false,bool right=false,bool center=false)=>page.Add(new(new(x,top,width,height),text,font??_body,border,header,right,center));
         void NewPage(bool first=false)
         {
             page=new();_pages.Add(page);y=50;
@@ -43,7 +43,7 @@ internal sealed class ServiceNotePrint : IDisposable
                 foreach(var line in lines.Where(s=>s.Length>0).SelectMany(s=>Wrap(g,s,_body,w))){Add(x,y,w,17,line);y+=17;}
                 y=Math.Max(y,145)+10;
             }
-            Add(Left,y,Width,32,"NOTA DE SERVIÇO",_title,border:true);y+=32;
+            Add(Left,y,Width,32,"NOTA DE SERVIÇO",_title,border:true,center:true);y+=32;
             Add(Left,y,Width,25,$"Nº {_note.Id:000000}    •    {_note.Status}    •    Pedido: {_note.OrderDate:dd/MM/yyyy}",_bold,border:true);y+=32;
         }
         void Ensure(float height){if(y+height>Bottom)NewPage();}
@@ -115,7 +115,7 @@ internal sealed class ServiceNotePrint : IDisposable
         {
             if(cell.Header)graphics.FillRectangle(headerBrush,cell.Bounds);
             if(cell.Border)graphics.DrawRectangle(pen,cell.Bounds.X,cell.Bounds.Y,cell.Bounds.Width,cell.Bounds.Height);
-            using var format=new StringFormat{Alignment=cell.Right?StringAlignment.Far:StringAlignment.Near,LineAlignment=StringAlignment.Near,Trimming=StringTrimming.None,FormatFlags=StringFormatFlags.NoWrap};
+            using var format=new StringFormat{Alignment=cell.Center?StringAlignment.Center:cell.Right?StringAlignment.Far:StringAlignment.Near,LineAlignment=StringAlignment.Near,Trimming=StringTrimming.None,FormatFlags=StringFormatFlags.NoWrap};
             graphics.DrawString(cell.Text,cell.Font,Brushes.Black,new RectangleF(cell.Bounds.X+6,cell.Bounds.Y+5,cell.Bounds.Width-12,cell.Bounds.Height-7),format);
         }
         graphics.Restore(state);
