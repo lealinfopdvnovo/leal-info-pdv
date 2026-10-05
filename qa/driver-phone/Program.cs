@@ -101,7 +101,7 @@ internal static class Program
         central.Close();using var reopened=new DeliveryManagementForm();reopened.Show();Application.DoEvents();
         Dialog(reopened,"EditDelivery",delivery,"Editar Entrega",f=>Check(ChoiceId(All(f).OfType<ComboBox>().Single())==driver,"Perdeu vínculo após fechar/reabrir Central"),false);
         Console.WriteLine("PASS: ID real salvo e restaurado após reabrir entrega e Central");
-        var data=Invoke("ReadDeliveryShare",null,delivery)!;Check((string)data.GetType().GetProperty("DriverPhone")!.GetValue(data)!=="(24) 99999-9999","Telefone incorreto recuperado");
+        var data=Invoke("ReadDeliveryShare",null,delivery)!;Check((string)data.GetType().GetProperty("DriverPhone")!.GetValue(data)! =="(24) 99999-9999","Telefone incorreto recuperado");
         var normalized=(string)Invoke("BuildWhatsAppUrl",null,"(24) 99999-9999","QA TESTE")!;Check(normalized.StartsWith("https://wa.me/5524999999999?text="),"Normalização incorreta");
         fake.StopAtSend=true;ExpectMessage(reopened,"QA_FLUXO_ENVIO_ALCANCADO",true);
         Console.WriteLine("PASS: botão recuperou telefone e continuou fluxo existente; sem rede real/WhatsApp");
