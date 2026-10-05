@@ -12,6 +12,7 @@ namespace LealInfoPDV;
 internal static class FirebaseDeliverySync
 {
     private const string ApiKey = "AIzaSyCnU5br609C2UuUNznxUSq154cbN-yNU78";
+    private const string PublisherEmail = "lealinfopdvnovo@gmail.com";
     private const string PublisherUid = "Lme0kXlHalc9s6av0I9iJIoWxgJ2";
     private const string DatabaseUrl = "https://novo-91da7436-default-rtdb.firebaseio.com";
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
@@ -53,15 +54,14 @@ internal static class FirebaseDeliverySync
         }
         using var login = new Form { Text = "Conectar PDV ao SpeedFood", Width = 420, Height = 240,
             StartPosition = FormStartPosition.CenterParent, FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false };
-        var email = new TextBox { Left = 20, Top = 55, Width = 365, PlaceholderText = "E-mail da conta publicadora" };
-        var password = new TextBox { Left = 20, Top = 95, Width = 365, UseSystemPasswordChar = true, PlaceholderText = "Senha do Firebase Authentication" };
+        var password = new TextBox { Left = 20, Top = 65, Width = 365, UseSystemPasswordChar = true, PlaceholderText = "Senha do Firebase Authentication" };
         var submit = new Button { Left = 20, Top = 145, Width = 365, Text = "CONECTAR", DialogResult = DialogResult.OK };
         login.Controls.Add(new Label { Left = 20, Top = 15, Width = 365, Height = 35, Text = "Conecte uma vez para enviar os pedidos ao SpeedFood." });
-        login.Controls.AddRange(new Control[] { email, password, submit });
+        login.Controls.AddRange(new Control[] { password, submit });
         login.AcceptButton = submit;
         if (login.ShowDialog(owner) != DialogResult.OK) throw new OperationCanceledException("Conexão ao SpeedFood cancelada. O código não foi enviado.");
         using var signedIn = await Http.PostAsJsonAsync($"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={ApiKey}",
-            new { email = email.Text.Trim(), password = password.Text, returnSecureToken = true });
+            new { email = PublisherEmail, password = password.Text, returnSecureToken = true });
         password.Clear();
         if (!signedIn.IsSuccessStatusCode) throw new InvalidOperationException("Não foi possível entrar no SpeedFood. Confira a conta e a senha do Firebase Authentication.");
         using var credentials = JsonDocument.Parse(await signedIn.Content.ReadAsStringAsync());
