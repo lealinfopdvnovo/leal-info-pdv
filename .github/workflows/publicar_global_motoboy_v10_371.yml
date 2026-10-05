@@ -1,0 +1,71 @@
+name: Publicar correcao global motoboy V10.371
+on:
+  push:
+    branches: [main]
+    paths: ['RELEASE_GLOBAL_MOTOBOY_V10_371.trigger']
+permissions:
+  contents: read
+concurrency:
+  group: publicar-global-motoboy-v10-371
+  cancel-in-progress: true
+jobs:
+  publicar:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+      UPDATE_REPO: lealinfopdvnovo/leal-info-pdv-updates
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Confirmar versao e pacote compativel do 002
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          [xml]$project=Get-Content LealInfoPDV.csproj -Raw
+          if([string]$project.Project.PropertyGroup.Version -ne '10.371.0'){throw 'Versao global inesperada'}
+          if((Get-Content UpdateManager.cs -Raw) -notmatch 'CurrentVersion="10.371"'){throw 'Atualizador inesperado'}
+          $existing=gh api repos/$env:UPDATE_REPO/contents/clients/002/version.json | ConvertFrom-Json
+          $manifest=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($existing.content)) | ConvertFrom-Json
+          if($manifest.Version -ne '10.371' -or $manifest.TargetClientCode -ne '002' -or $manifest.SourceCommit -ne '1ddbb42281b6bdf9197ae7cbaa3606628ae73fe4'){throw 'Pacote compativel 002 ainda nao publicado e validado'}
+      - name: Restaurar ajustes aprovados
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar programa global
+        run: dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_global
+      - name: Gerar pacote global sem instalador
+        run: Compress-Archive -Path 'publish_global/*' -DestinationPath LEAL_INFO_PDV_V10_371_UPDATE.zip -CompressionLevel Optimal
+      - name: Validar pacote neutro
+        run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package LEAL_INFO_PDV_V10_371_UPDATE.zip
+      - name: Testar selecao global e direcionada e preservar dados locais
+        run: dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- LEAL_INFO_PDV_V10_371_UPDATE.zip UpdateManager.cs
+      - name: Testar Fluxo de Caixa global
+        run: dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release
+      - name: Repetir teste validado do motoboy
+        run: dotnet run --project qa/driver-phone/LealInfoPDV.DriverTests.csproj -c Release
+      - name: Publicar release e manifesto global
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $package='LEAL_INFO_PDV_V10_371_UPDATE.zip'
+          $notes='V10.371 global: promove somente a correcao validada do vinculo/telefone do motoboy e compara versoes global e direcionada. Mantem canais por ID. Pacote compativel do 002 preserva seus modulos existentes; nenhum dado particular incluido.'
+          $notes | Set-Content global-release-notes.txt -Encoding utf8
+          gh release create v10.371 $package --repo $env:UPDATE_REPO --title 'LEAL INFO PDV V10.371 Global' --notes-file global-release-notes.txt
+          if($LASTEXITCODE -ne 0){throw 'Falha ao publicar pacote'}
+          $sha=(Get-FileHash $package -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifest=@{Version='10.371';PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/v10.371/$package";Sha256=$sha;SourceCommit=$env:GITHUB_SHA;Notes=$notes;Mandatory=$false;Editions=@('STANDARD','PLUS','PRO')}
+          $existing=gh api repos/$env:UPDATE_REPO/contents/version.json | ConvertFrom-Json
+          if($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($existing.sha)){throw 'Nao foi possivel ler manifesto global'}
+          $old=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($existing.content)) | ConvertFrom-Json
+          if([version]$old.Version -ge [version]'10.371'){throw 'Global foi alterada concorrencialmente'}
+          $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($manifest | ConvertTo-Json)))
+          @{message='Atualizacao GLOBAL V10.371 motoboy';content=$content;sha=$existing.sha} | ConvertTo-Json -Compress | Set-Content global-manifest-request.json -Encoding utf8
+          gh api --method PUT repos/$env:UPDATE_REPO/contents/version.json --input global-manifest-request.json
+          if($LASTEXITCODE -ne 0){throw 'Falha ao publicar manifesto global'}
