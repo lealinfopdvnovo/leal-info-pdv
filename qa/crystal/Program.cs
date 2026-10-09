@@ -18,10 +18,17 @@ static class Program
         Auth.CreateUser("TESTE CRISTAL","qa_crystal","Senha_Ficticia_123","ADMINISTRADOR","qa@example.invalid","");
         Check(Auth.Login("qa_crystal","errada")==null,"Senha incorreta aceita");
         Directory.CreateDirectory("crystal-evidencias");
+        using(var actual=new LoginForm())
+        {
+            actual.Show();Pump(2400);var fields=All(actual).OfType<TextBox>().ToArray();
+            fields.Single(x=>!x.UseSystemPasswordChar).Text="qa_crystal";fields.Single(x=>x.UseSystemPasswordChar).Text="Senha_Ficticia_123";
+            All(actual).OfType<Button>().Single(x=>x.Text=="ENTRAR").PerformClick();Check(actual.DialogResult==DialogResult.OK,"Login nativo falhou");
+            Console.WriteLine("PASS login nativo top-level no desktop Windows real do runner");
+        }
         foreach(var size in new[]{new Size(1366,768),new Size(1600,900),new Size(1920,1080)})
         foreach(var scale in new[]{1f,1.25f,1.5f})
         {
-            using var f=new LoginForm();f.Show();Pump(2400);f.WindowState=FormWindowState.Normal;
+            using var host=new Form();using var f=new LoginForm();f.WindowState=FormWindowState.Normal;f.TopLevel=false;host.Controls.Add(f);host.Show();f.Show();Pump(2400);f.WindowState=FormWindowState.Normal;
             f.AutoScaleMode=AutoScaleMode.None;f.ClientSize=size;f.Font=new Font("Segoe UI",10f*scale);
             var labels=All(f).OfType<Label>().ToArray();
             var brand=labels.Single(x=>x.Text=="LEAL INFO");var connected=labels.Single(x=>x.Text=="CONECTADO");
