@@ -26,11 +26,12 @@ jobs:
           import os,subprocess
           bases={'global':'5dd0f5f46450839c46338eb4380f96c4756497ee','001':'ecece793e2812e3f2ccfa41e86de84010e318ff9','002':'25479b7e1097af50bf9c5ed091d777d1b1973c1f','003':'af0960bde7e9434f713ef6f086beff94903dc738'}
           base=bases[os.environ['FLAVOR']]
-          allowed={'MainForm.cs','UpdateManager.cs','qa/kitchen/Program.cs','qa/alert/Program.cs','qa/alert/LealInfoPDV.AlertTests.csproj','.github/workflows/validar_alerta_tipografia.yml'}
+          allowed={'MainForm.cs','UpdateManager.cs','LealInfoPDV.csproj','qa/kitchen/Program.cs','qa/alert/Program.cs','qa/alert/LealInfoPDV.AlertTests.csproj','.github/workflows/validar_alerta_tipografia.yml'}
           changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
           assert changed<=allowed,changed
-          for n in ['LoginForm.cs','Auth.cs','Database.cs','LealInfoPDV.csproj','ClientUpdateIdentity.cs','Assets/services.png','Assets/kitchen.png','Licensing/UpdatePayloadPolicy.cs']:
+          for n in ['LoginForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs','Assets/services.png','Assets/kitchen.png','Licensing/UpdatePayloadPolicy.cs']:
               assert subprocess.check_output(['git','show',base+':'+n])==subprocess.check_output(['git','show','HEAD:'+n]),n
+          assert subprocess.check_output(['git','show',base+':LealInfoPDV.csproj'])==subprocess.check_output(['git','show','HEAD:LealInfoPDV.csproj']).replace(b'10.378',b'10.377')
           old=subprocess.check_output(['git','show',base+':MainForm.cs']).decode()
           new=subprocess.check_output(['git','show','HEAD:MainForm.cs']).decode()
           assert old[:old.index('    private void AddTool(')]==new[:new.index('    private void AddTool(')]
@@ -70,7 +71,7 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Build falhou'}
           New-Item -ItemType Directory -Force package/Assets,kitchen-evidencias|Out-Null
           'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
-          Copy-Item publish/Assets/kitchen.png package/Assets/kitchen.png
+          Remove-Item package/Assets -Force
           [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path package).Path,[IO.Path]::GetFullPath("update-$env:FLAVOR.zip"))
           (Get-FileHash "update-$env:FLAVOR.zip").Hash.ToLowerInvariant()|Set-Content "kitchen-evidencias/sha-$env:FLAVOR.txt"
           git rev-parse HEAD|Set-Content "kitchen-evidencias/source-$env:FLAVOR.txt"
@@ -85,7 +86,7 @@ jobs:
                   for k in list(bag):
                       if k.startswith('LealInfoPDV/'):del bag[k]
           assert old==new,'Dependencias diferentes impedem update pequeno'
-          print('PASS dependencias preservadas; pacote somente programa e icone kitchen.png')
+          print('PASS dependencias preservadas; pacote somente EXE DLL deps; icones inalterados')
       - name: Login real, icones, clique, modal e ESC
         timeout-minutes: 4
         shell: pwsh
