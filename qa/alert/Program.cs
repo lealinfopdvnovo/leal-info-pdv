@@ -46,7 +46,7 @@ static class Program
    timer.Stop();seen=true;
    try{
     var text=new List<string>();EnumChildWindows(h,(child,_)=>{var b=new StringBuilder(2048);GetWindowText(child,b,b.Capacity);text.Add(b.ToString());return true;},IntPtr.Zero);
-    Check(text.Any(x=>x.Contains("NOVA ATUALIZAÇÃO DISPONÍVEL")&&x.Contains("10.378")),"Mensagem/versao do alerta ausente");
+    Check(text.Any(x=>x.Contains("NOVA ATUALIZAÇÃO DISPONÍVEL")&&x.Contains("10.379")),"Mensagem/versao do alerta ausente");
     GetWindowRect(h,out var r);using var bmp=new Bitmap(r.Right-r.Left,r.Bottom-r.Top);using(var gr=Graphics.FromImage(bmp))gr.CopyFromScreen(r.Left,r.Top,0,0,bmp.Size);bmp.Save("alerta-evidencias/"+name+".png");
    }catch(Exception e){error=e;}
    SendMessage(GetDlgItem(h,7),0xF5,IntPtr.Zero,IntPtr.Zero);
@@ -71,16 +71,16 @@ static class Program
  {
   Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true","Somente Windows QA isolado");Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);Application.EnableVisualStyles();Directory.CreateDirectory("alerta-evidencias");
   foreach(var id in new[]{"001","002","003"}){
-   Test("igual-"+id,id,"10.377",M("10.377"),M("10.377",id),null);
-   Test("global-superior-"+id,id,"10.377",M("10.378"),M("10.377",id),"10.378",alert:true);
-   Test("compativel-"+id,id,"10.377",M("10.378"),M("10.378",id),"10.378",id);
+   Test("igual-"+id,id,"10.378",M("10.378"),M("10.378",id),null);
+   Test("global-superior-"+id,id,"10.378",M("10.379"),M("10.378",id),"10.379",alert:true);
+   Test("compativel-"+id,id,"10.378",M("10.379"),M("10.379",id),"10.379",id);
   }
-  Test("direcionada-valida","001","10.377",M("10.377"),M("10.378","001"),"10.378","001",alert:true);
-  Test("outro-cliente","002","10.377",M("10.378"),M("10.379","003"),"10.378");
-  Test("global-transitoria","001","10.377",M("10.378"),null,"10.378",transient:true,alert:true);
-  Test("direcionada-lenta-nao-atrasou-consulta-global","001","10.377",M("10.378"),null,"10.378",slow:true);
-  Test("404-duplo","003","10.377",null,null,null);
-  Test("global-indisponivel-direcionada","003","10.377",null,M("10.378","003"),"10.378","003");
-  Test("downgrade","002","10.379",M("10.378"),M("10.378","002"),null);
+  Test("direcionada-valida","001","10.378",M("10.378"),M("10.379","001"),"10.379","001",alert:true);
+  Test("outro-cliente","002","10.378",M("10.379"),M("10.380","003"),"10.379");
+  Test("global-transitoria","001","10.378",M("10.379"),null,"10.379",transient:true,alert:true);
+  Test("direcionada-lenta-nao-atrasou-consulta-global","001","10.378",M("10.379"),null,"10.379",slow:true);
+  Test("404-duplo","003","10.378",null,null,null);
+  Test("global-indisponivel-direcionada","003","10.378",null,M("10.379","003"),"10.379","003");
+  Test("downgrade","002","10.380",M("10.379"),M("10.379","002"),null);
  }
 }
