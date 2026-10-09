@@ -1,1 +1,1 @@
-V10.375: personalizacao exclusiva de login cristal azul para este cliente. Preserva COZINHA V10.374, autenticacao, dados, licenca e configuracoes.
+V10.376: corrige exclusivamente o acabamento cristal azul e o espaco da marca acima do login. Preserva COZINHA, autenticacao, dados, licenca e configuracoes.
