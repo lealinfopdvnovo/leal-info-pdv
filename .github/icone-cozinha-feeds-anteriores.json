@@ -1,0 +1,42 @@
+{
+  "global": {
+    "Editions": [
+      "STANDARD",
+      "PLUS",
+      "PRO"
+    ],
+    "Version": "10.374",
+    "Sha256": "063bd64f1a90c093a72631bcef7e96d6fd4666d3a5098cae7ccd70c05b732d99",
+    "SourceCommit": "230ee1d78d47261fc74597d1f63e7684f7b6e917",
+    "Mandatory": false,
+    "Notes": "V10.374 GLOBAL: novo botao COZINHA no padrao do PDV. Ao clicar: Em desenvolvimento para proxima atualizacao. Preserva dados, licencas e configuracoes. Cliente 002 recebe pacote compativel proprio na mesma versao.",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.374/LEAL_INFO_PDV_V10_374_UPDATE.zip"
+  },
+  "001": {
+    "Notes": "V10.376: corrige exclusivamente o acabamento cristal azul e o espaco da marca acima do login. Preserva COZINHA, autenticacao, dados, licenca e configuracoes.",
+    "Mandatory": false,
+    "Version": "10.376",
+    "TargetClientCode": "001",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.376/LEAL_INFO_PDV_001_V10_376_UPDATE.zip",
+    "Sha256": "e5d47c3779d0cb08ccb8c42708c2af02e3e43749e379b1ce440201d8893f3270",
+    "SourceCommit": "e64526200612776c771b015c026b687a451d3fb2"
+  },
+  "002": {
+    "TargetClientCode": "002",
+    "SourceCommit": "3ee24e4563667e148ab9a4e81523454284ab22f3",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.374/LEAL_INFO_PDV_002_V10_374_UPDATE.zip",
+    "Mandatory": false,
+    "Notes": "V10.374: adiciona COZINHA com modal temporario. Preserva integralmente os modulos e particularidades da base 002 V10.371. Sem dados de cliente no pacote.",
+    "Sha256": "61690b84dd69692f17214ac2185fe4ddcc43889914d5e9cf49ef081b7fa62ea6",
+    "Version": "10.374"
+  },
+  "003": {
+    "Version": "10.376",
+    "TargetClientCode": "003",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.376/LEAL_INFO_PDV_003_V10_376_UPDATE.zip",
+    "SourceCommit": "b33c70fdb2e119712ef84defa70305aa7bf56779",
+    "Notes": "V10.376: corrige exclusivamente o acabamento cristal azul e o espaco da marca acima do login. Preserva COZINHA, autenticacao, dados, licenca e configuracoes.",
+    "Sha256": "3c786fc66cafa5074a6afe82034f9d98d97cfae02da93d0b8092865e2c42f671",
+    "Mandatory": false
+  }
+}

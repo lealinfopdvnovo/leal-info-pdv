@@ -1,0 +1,139 @@
+name: Publicar icone COZINHA validado - updater existente
+on:
+  push:
+    branches: ['release/icone-cozinha-validado-10377']
+    paths: ['.github/workflows/publicar_icone_cozinha_validado.yml']
+permissions: { contents: read, actions: read }
+concurrency: { group: publicar-icone-cozinha-10377, cancel-in-progress: false }
+jobs:
+  publicar:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      UPDATE_REPO: lealinfopdvnovo/leal-info-pdv-updates
+      QA_RUN: '37982502225'
+      GLOBAL_SOURCE: '84d6d1353391953422ed160c4f16d01a881e1c8f'
+      SOURCE_001: 'b6d0a3db8b5adc585e788759b17fbc372c3a12cd'
+      SOURCE_002: '41e5072537648a0b878c121668f211e1f78aab68'
+      SOURCE_003: '4ac6741da7bfc9e1d20e5ad63790437c30281a4a'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exigir quatro builds homologados antes de publicar
+        shell: pwsh
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          $ErrorActionPreference='Stop'
+          $run=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/$env:QA_RUN|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0 -or $run.conclusion -ne 'success' -or $run.head_sha -ne $env:GLOBAL_SOURCE){throw 'QA nao aprovada'}
+          $jobs=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/$env:QA_RUN/jobs|ConvertFrom-Json
+          if($jobs.jobs.Count -ne 4 -or ($jobs.jobs|Where-Object conclusion -ne 'success')){throw 'Bateria incompleta'}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: icone-cozinha-*
+          run-id: ${{ env.QA_RUN }}
+          github-token: ${{ github.token }}
+          path: payload
+      - name: Auditar artefatos aprovados e manifests reais atuais
+        shell: pwsh
+        env: { GH_TOKEN: '${{ secrets.UPDATE_REPO_TOKEN }}' }
+        run: |
+          $ErrorActionPreference='Stop'
+          $sources=@{global=$env:GLOBAL_SOURCE;'001'=$env:SOURCE_001;'002'=$env:SOURCE_002;'003'=$env:SOURCE_003}
+          $expected=Get-Content .github/icone-cozinha-feeds-anteriores.json -Raw|ConvertFrom-Json -AsHashtable
+          $dirs=gh api repos/$env:UPDATE_REPO/contents/clients|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0 -or @($dirs|Where-Object {$_.name -notin @('001','002','003')}).Count){throw 'Canal nao auditado apareceu; nao publicar global'}
+          foreach($flavor in @('global','001','002','003')){
+            $payload="payload/icone-cozinha-$flavor"
+            $zip="$payload/update-$flavor.zip"
+            if((Get-FileHash $zip).Hash.ToLowerInvariant() -ne (Get-Content "$payload/kitchen-evidencias/sha-$flavor.txt" -Raw).Trim()){throw 'Artefato mudou apos QA'}
+            if((Get-Content "$payload/kitchen-evidencias/source-$flavor.txt" -Raw).Trim() -ne $sources[$flavor]){throw 'Fonte nao homologada'}
+            $z=[IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip))
+            try{
+              $wanted=@('Assets/kitchen.png','LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe'|Sort-Object)
+              if(Compare-Object @($z.Entries.FullName|Sort-Object) $wanted){throw 'Arquivo inesperado no ZIP'}
+              $s=$z.GetEntry('Assets/kitchen.png').Open()
+              try{$hash=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($s)).ToLowerInvariant()}finally{$s.Dispose()}
+              if($hash -ne 'bf07fc592ead270d8440b5a75b9b18ee62dbc48e2e0338fd580776be70ea9ad3'){throw 'Icone inesperado'}
+            }finally{$z.Dispose()}
+            $path=if($flavor -eq 'global'){'version.json'}else{"clients/$flavor/version.json"}
+            $entry=gh api "repos/$env:UPDATE_REPO/contents/${path}?ref=main"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0){throw 'Feed nao pode ser lido'}
+            $old=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.content))|ConvertFrom-Json
+            foreach($key in @('Version','SourceCommit','Sha256','PackageUrl')){if($old.$key -ne $expected[$flavor][$key]){throw "Feed $flavor mudou concorrencialmente"}}
+            if($flavor -ne 'global' -and $old.TargetClientCode -ne $flavor){throw 'ID incorreto'}
+            $entry.sha|Set-Content "feed-sha-$flavor.txt"
+            $tag=if($flavor -eq 'global'){'v10.377'}else{"client-$flavor-v10.377"}
+            gh release view $tag --repo $env:UPDATE_REPO 2>$null
+            if($LASTEXITCODE -eq 0){throw 'Release existe; nao sobrescrever'}
+          }
+          Write-Host 'PASS quatro artefatos aprovados; feeds anteriores e personalizacoes auditados'
+      - name: Publicar primeiro pacotes compativeis 001 002 003
+        shell: pwsh
+        env: { GH_TOKEN: '${{ secrets.UPDATE_REPO_TOKEN }}' }
+        run: |
+          $ErrorActionPreference='Stop'
+          $sources=@{'001'=$env:SOURCE_001;'002'=$env:SOURCE_002;'003'=$env:SOURCE_003}
+          foreach($id in @('001','002','003')){
+            $package="LEAL_INFO_PDV_$($id)_V10_377_UPDATE.zip"
+            Copy-Item "payload/icone-cozinha-$id/update-$id.zip" $package
+            $tag="client-$id-v10.377"
+            $notes='V10.377: somente icone proprio azul 3D do botao COZINHA. Preserva SERVICOS, modal, dados, licenca e todas as particularidades deste cliente.'
+            $notes|Set-Content "notes-$id.txt"
+            gh release create $tag $package --repo $env:UPDATE_REPO --title "LEAL INFO PDV $id V10.377 - Icone Cozinha" --notes-file "notes-$id.txt" --latest=false
+            if($LASTEXITCODE -ne 0){throw 'Asset nao publicado; nao mudar feed'}
+            $m=@{Version='10.377';TargetClientCode=$id;PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/$tag/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$sources[$id];Notes=$notes;Mandatory=$false}
+            $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($m|ConvertTo-Json)))
+            @{message="Icone COZINHA 10.377 compativel $id";sha=(Get-Content "feed-sha-$id.txt" -Raw).Trim();content=$content}|ConvertTo-Json -Compress|Set-Content "request-$id.json"
+            gh api --method PUT "repos/$env:UPDATE_REPO/contents/clients/$id/version.json" --input "request-$id.json"
+            if($LASTEXITCODE -ne 0){throw 'Feed direcionado falhou; global permanece anterior'}
+          }
+      - name: Confirmar tres canais personalizados antes de ofertar global
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($id in @('001','002','003')){
+            $url="https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/clients/$id/version.json"
+            for($i=0;$i -lt 24;$i++){
+              $m=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -Headers @{'Cache-Control'='no-cache'}
+              if($m.Version -eq '10.377' -and $m.TargetClientCode -eq $id){break}
+              Start-Sleep -Seconds 5
+            }
+            if($m.Version -ne '10.377' -or $m.TargetClientCode -ne $id){throw 'Canal nao propagou; nao publicar global'}
+          }
+          1..4|ForEach-Object {Start-Sleep -Seconds 30}
+          Write-Host 'PASS 001/002/003 propagados antes do global; intervalo de protecao preservado'
+      - name: Publicar pacote e manifesto GLOBAL
+        shell: pwsh
+        env: { GH_TOKEN: '${{ secrets.UPDATE_REPO_TOKEN }}' }
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($id in @('001','002','003')){
+            $entry=gh api "repos/$env:UPDATE_REPO/contents/clients/$id/version.json"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0){throw 'Nao foi possivel conferir canal personalizado'}
+            $m=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.content))|ConvertFrom-Json
+            if($m.Version -ne '10.377' -or $m.TargetClientCode -ne $id){throw 'Canal personalizado mudou; bloquear global'}
+          }
+          $package='LEAL_INFO_PDV_V10_377_UPDATE.zip'
+          Copy-Item payload/icone-cozinha-global/update-global.zip $package
+          $notes='V10.377 GLOBAL: somente icone proprio azul 3D do botao COZINHA. SERVICOS e comportamento do modal inalterados. Pacotes compativeis 001/002/003 preservam suas personalizacoes. Sem dados, licencas ou configuracoes no pacote.'
+          $notes|Set-Content notes-global.txt
+          gh release create v10.377 $package --repo $env:UPDATE_REPO --title 'LEAL INFO PDV V10.377 Global - Icone Cozinha' --notes-file notes-global.txt --latest
+          if($LASTEXITCODE -ne 0){throw 'Asset global falhou; nao mudar feed'}
+          $m=@{Version='10.377';PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/v10.377/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$env:GLOBAL_SOURCE;Notes=$notes;Mandatory=$false;Editions=@('STANDARD','PLUS','PRO')}
+          $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($m|ConvertTo-Json)))
+          @{message='Icone COZINHA 10.377 GLOBAL';sha=(Get-Content feed-sha-global.txt -Raw).Trim();content=$content}|ConvertTo-Json -Compress|Set-Content request-global.json
+          gh api --method PUT repos/$env:UPDATE_REPO/contents/version.json --input request-global.json
+          if($LASTEXITCODE -ne 0){throw 'Feed global falhou'}
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Conferir selecao e downloads reais pelo updater existente
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet run --project qa/kitchen/LealInfoPDV.KitchenTests.csproj -c Release -- --live
+          if($LASTEXITCODE -ne 0){throw 'Validacao real pos-publicacao falhou'}
