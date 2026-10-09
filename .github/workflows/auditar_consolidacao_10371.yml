@@ -15,6 +15,7 @@ jobs:
         caso: [pacote, selecao, cep, exclusao, caixa, motoboy, codigos, rede_licenca]
     steps:
       - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
       - name: Confirmar ambiente efemero e fonte
@@ -22,7 +23,8 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           if($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted'){throw 'Somente runner Windows efemero autorizado'}
-          if((git rev-parse HEAD^) -ne '58d736c0e556cf69e38d1a9329d2c23b236aceba'){throw 'Base de auditoria inesperada'}
+          git diff --quiet 58d736c0e556cf69e38d1a9329d2c23b236aceba HEAD -- . ':!.github/workflows/auditar_consolidacao_10371.yml'
+          if($LASTEXITCODE -ne 0){throw 'Codigo operacional difere da base aprovada'}
           [xml]$p=Get-Content LealInfoPDV.csproj -Raw
           if([string]$p.Project.PropertyGroup.Version -ne '10.371.0'){throw 'Versao inesperada'}
           Remove-Item Env:SPEEDFOOD_TEST_TOKEN_FILE -ErrorAction SilentlyContinue
