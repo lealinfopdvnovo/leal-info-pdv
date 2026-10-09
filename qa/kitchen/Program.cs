@@ -24,7 +24,7 @@ static class Program
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken t)
         {
             bool global=request.RequestUri!.AbsolutePath.EndsWith("/main/version.json");
-            var body=global?Manifest("10.374"):client=="002"?Manifest("10.374","002"):null;
+            var body=global?Manifest("10.377"):client is "001" or "002" or "003"?Manifest("10.377",client):null;
             return Task.FromResult(new HttpResponseMessage(body==null?HttpStatusCode.NotFound:HttpStatusCode.OK){Content=new StringContent(body??"not found")});
         }
     }
@@ -34,14 +34,14 @@ static class Program
         var method=updater.GetMethod("LoadManifestAsync",S,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
         foreach(var id in new[]{"001","002","003","004"})
         {
-            using var http=new HttpClient(new Feed(id));var task=(Task)method.Invoke(null,new object[]{http,id,"10.371"})!;task.GetAwaiter().GetResult();
+            using var http=new HttpClient(new Feed(id));var task=(Task)method.Invoke(null,new object[]{http,id,"10.376"})!;task.GetAwaiter().GetResult();
             var m=task.GetType().GetProperty("Result")!.GetValue(task)!;
-            Check((string)m.GetType().GetProperty("Version")!.GetValue(m)! =="10.374","Versão incorreta");
-            Check((string)m.GetType().GetProperty("TargetClientCode")!.GetValue(m)! ==(id=="002"?"002":""),"002 não recebeu pacote próprio");
-            Console.WriteLine($"PASS detecção {id}: 10.371 -> 10.374; alvo correto");
+            Check((string)m.GetType().GetProperty("Version")!.GetValue(m)! =="10.377","Versão incorreta");
+            Check((string)m.GetType().GetProperty("TargetClientCode")!.GetValue(m)! ==(id is "001" or "002" or "003"?id:""),"002 não recebeu pacote próprio");
+            Console.WriteLine($"PASS detecção {id}: 10.376 -> 10.377; alvo correto");
         }
     }
-    static void Modal(MainForm main,Label caption,bool escape,string name)
+    static void Modal(MainForm main,Control caption,bool escape,string name)
     {
         bool seen=false;Exception? failure=null;
         using var timer=new System.Windows.Forms.Timer{Interval=80};
@@ -67,23 +67,23 @@ static class Program
     static void ValidateLive()
     {
         using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(40)};
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("LealInfoPDV-QA-Cozinha/10.374");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LealInfoPDV-QA-Cozinha/10.377");
         var updater=A.GetType("LealInfoPDV.UpdateManager",true)!;
         var load=updater.GetMethod("LoadManifestAsync",S,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
         var downloaded=new HashSet<string>();
-        foreach(var id in new[]{"001","002","003"})
+        foreach(var id in new[]{"001","002","003","004"})
         {
-            var task=(Task)load.Invoke(null,new object[]{http,id,"10.371"})!;task.GetAwaiter().GetResult();
+            var task=(Task)load.Invoke(null,new object[]{http,id,"10.376"})!;task.GetAwaiter().GetResult();
             var m=task.GetType().GetProperty("Result")!.GetValue(task);Check(m!=null,"Feed real sem atualização para "+id);
             string Read(string key)=>(string)m!.GetType().GetProperty(key)!.GetValue(m)!;
-            Check(Read("Version")=="10.374"&&Read("TargetClientCode")==(id=="002"?"002":""),"Seleção real incorreta: "+id);
+            Check(Read("Version")=="10.377"&&Read("TargetClientCode")==(id is "001" or "002" or "003"?id:""),"Seleção real incorreta: "+id);
             var url=Read("PackageUrl");
             if(downloaded.Add(url))
             {
                 var data=http.GetByteArrayAsync(url).GetAwaiter().GetResult();
                 Check(Convert.ToHexString(SHA256.HashData(data)).Equals(Read("Sha256"),StringComparison.OrdinalIgnoreCase),"SHA remoto incorreto");
                 using var bytes=new MemoryStream(data);using var z=new ZipArchive(bytes);
-                Check(z.Entries.Select(x=>x.FullName).Order().SequenceEqual(new[]{"LealInfoPDV.deps.json","LealInfoPDV.dll","LealInfoPDV.exe"}),"Conteúdo remoto inesperado");
+                Check(z.Entries.Select(x=>x.FullName).Order().SequenceEqual(new[]{"Assets/kitchen.png","LealInfoPDV.deps.json","LealInfoPDV.dll","LealInfoPDV.exe"}),"Conteúdo remoto inesperado");
             }
             Console.WriteLine("PASS updater REAL com feed REAL: "+id+" -> "+Read("Version")+" alvo="+Read("TargetClientCode")+"; SHA remoto validado");
         }
@@ -110,6 +110,18 @@ static class Program
             main.Show();Pump(200);typeof(MainForm).GetField("licenseTimer",I)!.GetValue(main)!.GetType().GetMethod("Stop")!.Invoke(typeof(MainForm).GetField("licenseTimer",I)!.GetValue(main),null);
             main.WindowState=FormWindowState.Normal;typeof(MainForm).GetField("automaticBackupCompleted",I)!.SetValue(main,true);
             var kitchen=All(main).OfType<Label>().Single(x=>x.Text=="COZINHA");var bar=(FlowLayoutPanel)kitchen.Parent!.Parent!;
+            var service=All(main).OfType<Label>().Single(x=>x.Text=="SERVIÇOS");
+            var chef=kitchen.Parent!.Controls.OfType<PictureBox>().Single();
+            var gear=service.Parent!.Controls.OfType<PictureBox>().Single();
+            Check(chef.Size==gear.Size&&chef.Location==gear.Location&&chef.SizeMode==gear.SizeMode,"Geometria do icone mudou");
+            Check(chef.Size==new Size(58,58),"Area do icone mudou");
+            var chefFile=Path.Combine(AppContext.BaseDirectory,"Assets","kitchen.png");
+            Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(chefFile))).Equals("bf07fc592ead270d8440b5a75b9b18ee62dbc48e2e0338fd580776be70ea9ad3",StringComparison.OrdinalIgnoreCase),"Icone errado no build");
+            Check(chef.Image!.Width!=gear.Image!.Width||!File.ReadAllBytes(chefFile).SequenceEqual(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,"Assets","services.png"))),"Icones iguais");
+            using(var iconCapture=new Bitmap(bar.Width,bar.Height)){bar.DrawToBitmap(iconCapture,new Rectangle(Point.Empty,iconCapture.Size));iconCapture.Save("kitchen-evidencias/barra-icones.png",ImageFormat.Png);}
+            Modal(main,chef,false,"modal-clique-icone");
+            Check(Snapshot()==baseline,"Clique no icone alterou dados");
+            Console.WriteLine("PASS icone proprio transparente; mesma caixa 58x58, posicao e modo Zoom; clique no icone abre modal; SERVICOS preservado");
             var existing=bar.Controls.Cast<Control>().Where(x=>x!=kitchen.Parent).Select(x=>x.Controls.OfType<Label>().Single().Text).ToArray();
             Check(existing.Contains("PRODUTOS")&&existing.Contains("SAIR"),"Atalhos anteriores ausentes");
             float appliedScale=1f;
