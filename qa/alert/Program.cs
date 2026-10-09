@@ -69,7 +69,7 @@ static class Program
  }
  [STAThread]static void Main()
  {
-  Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true","Somente Windows QA isolado");Application.EnableVisualStyles();Directory.CreateDirectory("alerta-evidencias");
+  Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true","Somente Windows QA isolado");Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);Application.EnableVisualStyles();Directory.CreateDirectory("alerta-evidencias");
   foreach(var id in new[]{"001","002","003"}){
    Test("igual-"+id,id,"10.377",M("10.377"),M("10.377",id),null);
    Test("global-superior-"+id,id,"10.377",M("10.378"),M("10.377",id),"10.378",alert:true);

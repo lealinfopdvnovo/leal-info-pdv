@@ -92,6 +92,7 @@ static class Program
     {
         Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true","Somente ambiente de teste descartável.");
         if(args.Contains("--live")){ValidateLive();return;}
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);Application.EnableVisualStyles();Database.Initialize();
         Exec("INSERT OR REPLACE INTO settings(key,value) VALUES('company_registered','1'),('security_setup_completed','1'),('first_access_tutorial_completed','1'),('company','EMPRESA FICTICIA QA COZINHA')");
         Auth.CreateUser("QA FICTICIO","qa_kitchen","Senha_Ficticia_123","ADMINISTRADOR","qa@example.invalid","");
