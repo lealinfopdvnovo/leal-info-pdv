@@ -1,0 +1,122 @@
+name: Validar alerta e tipografia - quatro bases isoladas
+on:
+  push:
+    branches: ['qa/alerta-tipografia-global']
+permissions: { contents: read }
+jobs:
+  validar:
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [global, '001', '002', '003']
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.flavor == 'global' && github.sha || format('qa/alerta-tipografia-{0}', matrix.flavor) }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Preservar bases homologadas e particularidades
+        shell: python
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          import os,subprocess
+          bases={'global':'5dd0f5f46450839c46338eb4380f96c4756497ee','001':'ecece793e2812e3f2ccfa41e86de84010e318ff9','002':'25479b7e1097af50bf9c5ed091d777d1b1973c1f','003':'af0960bde7e9434f713ef6f086beff94903dc738'}
+          base=bases[os.environ['FLAVOR']]
+          allowed={'MainForm.cs','UpdateManager.cs','LealInfoPDV.csproj','qa/kitchen/Program.cs','qa/alert/Program.cs','qa/alert/LealInfoPDV.AlertTests.csproj','.github/workflows/validar_alerta_tipografia.yml'}
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed<=allowed,changed
+          for n in ['LoginForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs','Assets/services.png','Assets/kitchen.png','Licensing/UpdatePayloadPolicy.cs']:
+              assert subprocess.check_output(['git','show',base+':'+n])==subprocess.check_output(['git','show','HEAD:'+n]),n
+          assert subprocess.check_output(['git','show',base+':LealInfoPDV.csproj'])==subprocess.check_output(['git','show','HEAD:LealInfoPDV.csproj']).replace(b'10.378',b'10.377')
+          old=subprocess.check_output(['git','show',base+':MainForm.cs']).decode()
+          new=subprocess.check_output(['git','show','HEAD:MainForm.cs']).decode()
+          assert old[:old.index('    private void AddTool(')]==new[:new.index('    private void AddTool(')]
+          assert old[old.index('    private void StyleForm('):]==new[new.index('    private void StyleForm('):] if '    private void StyleForm(' in old else True
+          old=subprocess.check_output(['git','show',base+':UpdateManager.cs']).decode();new=subprocess.check_output(['git','show','HEAD:UpdateManager.cs']).decode()
+          assert old[old.index(' private static bool IsSafeClientPackage'):]==new[new.index(' private static bool IsSafeClientPackage'):]
+          print('PASS login, banco, autenticacao, versao oficial, icones, protecao de dados, aplicacao e personalizacoes preservados')
+      - name: Preparar mesmas etapas do build distribuido
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar incremental sobre dependencias reais atuais
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $feeds=@{
+            'global'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.377/LEAL_INFO_PDV_V10_377_UPDATE.zip';sha='6b6dfd35983f96837f73b88200bbcd882c82a4b7f49315e0ff501ab7a6d131d2'}
+            '001'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.377/LEAL_INFO_PDV_001_V10_377_UPDATE.zip';sha='928b23ff5d4441c092b3d0c0d9ab9946abd3b2f978af4989759f2dd10edd83c6'}
+            '002'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.377/LEAL_INFO_PDV_002_V10_377_UPDATE.zip';sha='29fcce66d67c8b9f4d58d11f684ff08b77f096cd0dedb56b7b93d77b6d13479e'}
+            '003'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.377/LEAL_INFO_PDV_003_V10_377_UPDATE.zip';sha='6c54f8e8bfc6cd9b1764e09ac483a8ccb381145f3a28d02ad1f21867e414286e'}
+          }
+          $baseline=$feeds[$env:FLAVOR]
+          Invoke-WebRequest $baseline.url -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne $baseline.sha){throw 'Baseline mudou'}
+          Expand-Archive baseline.zip baseline
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdkKey=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdkKey){throw 'SDK baseline nao identificado'}
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$($sdkKey.Split('/')[1]) -o publish
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          New-Item -ItemType Directory -Force package/Assets,kitchen-evidencias|Out-Null
+          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
+          Remove-Item package/Assets -Force
+          [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path package).Path,[IO.Path]::GetFullPath("update-$env:FLAVOR.zip"))
+          (Get-FileHash "update-$env:FLAVOR.zip").Hash.ToLowerInvariant()|Set-Content "kitchen-evidencias/sha-$env:FLAVOR.txt"
+          git rev-parse HEAD|Set-Content "kitchen-evidencias/source-$env:FLAVOR.txt"
+      - name: Confirmar nenhuma dependencia nova
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          old=json.loads(Path('baseline/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'));new=json.loads(Path('publish/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
+          for d in (old,new):
+              for bag in [d['libraries'],*d['targets'].values()]:
+                  for k in list(bag):
+                      if k.startswith('LealInfoPDV/'):del bag[k]
+          assert old==new,'Dependencias diferentes impedem update pequeno'
+          print('PASS dependencias preservadas; pacote somente EXE DLL deps; icones inalterados')
+      - name: Login real, icones, clique, modal e ESC
+        timeout-minutes: 4
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          $arg=if($env:FLAVOR -eq '002'){'--002'}else{'--global'}
+          dotnet run --project qa/kitchen/LealInfoPDV.KitchenTests.csproj -c Release -- $arg
+          if($LASTEXITCODE -ne 0){throw 'Teste do icone/modal/login falhou'}
+      - name: Updater existente e preservacao de dados ficticios
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package "update-$env:FLAVOR.zip"
+          if($LASTEXITCODE -ne 0){throw 'Pacote rejeitado'}
+          dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- "update-$env:FLAVOR.zip" UpdateManager.cs
+          if($LASTEXITCODE -ne 0){throw 'Selecao/copia/preservacao falhou'}
+      - name: Alerta nativo e fluxo real de selecao global/direcionada
+        timeout-minutes: 4
+        shell: pwsh
+        run: |
+          dotnet run --project qa/alert/LealInfoPDV.AlertTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Alerta real/recuperacao falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: alerta-tipografia-${{ matrix.flavor }}
+          path: |
+            kitchen-evidencias/
+            alerta-evidencias/
+            update-${{ matrix.flavor }}.zip
+          retention-days: 7
