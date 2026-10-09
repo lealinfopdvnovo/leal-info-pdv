@@ -1,0 +1,160 @@
+name: Publicar COZINHA validada - updater existente
+on:
+  push:
+    branches: ['release/cozinha-validada-10374']
+    paths: ['.github/workflows/publicar_cozinha_validada.yml']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publicar-cozinha-10374
+  cancel-in-progress: false
+jobs:
+  publicar:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      UPDATE_REPO: lealinfopdvnovo/leal-info-pdv-updates
+      VERSION: '10.374'
+      QA_RUN: '37973072038'
+      GLOBAL_SOURCE: '230ee1d78d47261fc74597d1f63e7684f7b6e917'
+      CLIENT_SOURCE: '3ee24e4563667e148ab9a4e81523454284ab22f3'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exigir bateria aprovada sem publicar build novo
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $run=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/$env:QA_RUN|ConvertFrom-Json
+          if($run.conclusion -ne 'success' -or $run.head_sha -ne $env:GLOBAL_SOURCE){throw 'QA nao aprovada neste fonte'}
+          $jobs=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/$env:QA_RUN/jobs|ConvertFrom-Json
+          if($jobs.jobs.Count -ne 2 -or ($jobs.jobs|Where-Object conclusion -ne 'success')){throw 'Bateria incompleta'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: cozinha-global
+          run-id: ${{ env.QA_RUN }}
+          github-token: ${{ github.token }}
+          path: payload/global
+      - uses: actions/download-artifact@v4
+        with:
+          name: cozinha-002
+          run-id: ${{ env.QA_RUN }}
+          github-token: ${{ github.token }}
+          path: payload/002
+      - name: Conferir pacotes e feeds antes da publicacao
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: |
+          $ErrorActionPreference='Stop'
+          if([string]::IsNullOrWhiteSpace($env:GH_TOKEN)){throw 'Token de publicacao indisponivel'}
+          foreach($flavor in @('global','002')){
+            $zip="payload/$flavor/update-$flavor.zip"
+            $sha=(Get-FileHash $zip).Hash.ToLowerInvariant()
+            $expected=(Get-Content "payload/$flavor/kitchen-evidencias/sha-$flavor.txt" -Raw).Trim()
+            if($sha -ne $expected){throw 'Artefato divergente da QA'}
+            $source=(Get-Content "payload/$flavor/kitchen-evidencias/source-$flavor.txt" -Raw).Trim()
+            $expectedSource=if($flavor -eq '002'){$env:CLIENT_SOURCE}else{$env:GLOBAL_SOURCE}
+            if($source -ne $expectedSource){throw 'Fonte divergente'}
+            $archive=[IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip))
+            try{
+              $actual=@($archive.Entries.FullName|Sort-Object)
+              $wanted=@('LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe'|Sort-Object)
+              if(Compare-Object $actual $wanted){throw 'Pacote contem arquivos inesperados'}
+            }finally{$archive.Dispose()}
+          }
+          $global=gh api repos/$env:UPDATE_REPO/contents/version.json|ConvertFrom-Json
+          $gm=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($global.content))|ConvertFrom-Json
+          $client=gh api repos/$env:UPDATE_REPO/contents/clients/002/version.json|ConvertFrom-Json
+          $cm=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($client.content))|ConvertFrom-Json
+          if($gm.Version -ne '10.371' -or $gm.SourceCommit -ne '58d736c0e556cf69e38d1a9329d2c23b236aceba'){throw 'Feed global mudou concorrencialmente'}
+          if($cm.Version -ne '10.371' -or $cm.SourceCommit -ne '1ddbb42281b6bdf9197ae7cbaa3606628ae73fe4' -or $cm.TargetClientCode -ne '002'){throw 'Feed 002 mudou'}
+          $dirs=gh api repos/$env:UPDATE_REPO/contents/clients|ConvertFrom-Json
+          if(@($dirs|Where-Object name -ne '002').Count){throw 'Outro canal personalizado apareceu; revisar antes de publicar'}
+          foreach($tag in @('v10.374','client-002-v10.374')){
+            gh release view $tag --repo $env:UPDATE_REPO 2>$null
+            if($LASTEXITCODE -eq 0){throw 'Versao ja existe: nao sobrescrever'}
+          }
+          $global.sha|Set-Content global-feed-sha.txt
+          $client.sha|Set-Content client-feed-sha.txt
+      - name: Publicar primeiro pacote compativel e manifesto do 002
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $package='LEAL_INFO_PDV_002_V10_374_UPDATE.zip'
+          Copy-Item payload/002/update-002.zip $package
+          $notes='V10.374: adiciona COZINHA com modal temporario. Preserva integralmente os modulos e particularidades da base 002 V10.371. Sem dados de cliente no pacote.'
+          $notes|Set-Content release-002.txt
+          gh release create client-002-v10.374 $package --repo $env:UPDATE_REPO --title 'LEAL INFO PDV 002 V10.374 - Cozinha compativel' --notes-file release-002.txt --latest=false
+          if($LASTEXITCODE -ne 0){throw 'Falha ao publicar asset 002'}
+          $m=@{Version='10.374';TargetClientCode='002';PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/client-002-v10.374/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$env:CLIENT_SOURCE;Notes=$notes;Mandatory=$false}
+          $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($m|ConvertTo-Json)))
+          @{message='COZINHA V10.374 compativel 002: preservar particularidades';sha=(Get-Content client-feed-sha.txt -Raw).Trim();content=$content}|ConvertTo-Json -Compress|Set-Content request-002.json
+          gh api --method PUT repos/$env:UPDATE_REPO/contents/clients/002/version.json --input request-002.json
+          if($LASTEXITCODE -ne 0){throw 'Falha ao gravar feed 002; global permanece anterior'}
+      - name: Confirmar propagacao do 002 antes de ofertar global
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $url='https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/clients/002/version.json'
+          for($i=0;$i -lt 24;$i++){
+            $m=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -Headers @{'Cache-Control'='no-cache'}
+            if($m.Version -eq '10.374' -and $m.TargetClientCode -eq '002'){break}
+            Start-Sleep -Seconds 5
+          }
+          if($m.Version -ne '10.374' -or $m.TargetClientCode -ne '002'){throw '002 nao propagou; nao publicar global'}
+          Start-Sleep -Seconds 120
+          $m=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -Headers @{'Cache-Control'='no-cache'}
+          if($m.Version -ne '10.374' -or $m.SourceCommit -ne $env:CLIENT_SOURCE){throw '002 mudou durante espera'}
+          Write-Host 'PASS: 002 disponivel antes da global; consultas anteriores tiveram tempo para encerrar.'
+      - name: Publicar pacote e manifesto GLOBAL
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $package='LEAL_INFO_PDV_V10_374_UPDATE.zip'
+          Copy-Item payload/global/update-global.zip $package
+          $notes='V10.374 GLOBAL: novo botao COZINHA no padrao do PDV. Ao clicar: Em desenvolvimento para proxima atualizacao. Preserva dados, licencas e configuracoes. Cliente 002 recebe pacote compativel proprio na mesma versao.'
+          $notes|Set-Content release-global.txt
+          gh release create v10.374 $package --repo $env:UPDATE_REPO --title 'LEAL INFO PDV V10.374 Global - Cozinha' --notes-file release-global.txt --latest
+          if($LASTEXITCODE -ne 0){throw 'Falha no asset global; nao alterar feed'}
+          $m=@{Version='10.374';PackageUrl="https://github.com/$env:UPDATE_REPO/releases/download/v10.374/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$env:GLOBAL_SOURCE;Notes=$notes;Mandatory=$false;Editions=@('STANDARD','PLUS','PRO')}
+          $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($m|ConvertTo-Json)))
+          @{message='COZINHA V10.374 GLOBAL: programa incremental sem dados';sha=(Get-Content global-feed-sha.txt -Raw).Trim();content=$content}|ConvertTo-Json -Compress|Set-Content request-global.json
+          gh api --method PUT repos/$env:UPDATE_REPO/contents/version.json --input request-global.json
+          if($LASTEXITCODE -ne 0){throw 'Falha no feed global'}
+      - name: Validar feeds e downloads publicados reais
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($flavor in @('global','002')){
+            $path=if($flavor -eq '002'){'clients/002/version.json'}else{'version.json'}
+            $m=Invoke-RestMethod ('https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/'+$path+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -Headers @{'Cache-Control'='no-cache'}
+            if($m.Version -ne '10.374'){throw 'Feed publicado incorreto'}
+            if($flavor -eq '002' -and $m.TargetClientCode -ne '002'){throw 'Alvo incorreto'}
+            if($flavor -eq 'global' -and $m.TargetClientCode){throw 'Global direcionada indevidamente'}
+            Invoke-WebRequest $m.PackageUrl -OutFile "real-$flavor.zip"
+            if((Get-FileHash "real-$flavor.zip").Hash.ToLowerInvariant() -ne $m.Sha256){throw 'Hash publicado incorreto'}
+            Expand-Archive "real-$flavor.zip" "real-$flavor"
+            if((Get-Item "real-$flavor/LealInfoPDV.dll").VersionInfo.FileVersion -ne '10.374.0.0'){throw 'DLL publicada em versao errada'}
+            Write-Host "PASS: feed/URL/hash/DLL real $flavor V10.374"
+          }
+          Write-Host 'PASS: 001 e 003 consultam global; 002 tem pacote proprio empatado com global, conforme updater testado.'
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Conferir selecao real pelo codigo do updater apos publicar
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet run --project qa/kitchen/LealInfoPDV.KitchenTests.csproj -c Release -- --live
+          if($LASTEXITCODE -ne 0){throw 'Validacao real pos-publicacao falhou'}
