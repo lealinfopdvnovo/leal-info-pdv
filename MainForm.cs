@@ -1546,7 +1546,7 @@ public sealed class MainForm : Form
 
         var caption = new Label
         {
-            Text = normalizedText,
+            Text = normalizedText.Replace("\n", " "),
             Dock = DockStyle.Bottom,
             Height = 40,
             TextAlign = ContentAlignment.MiddleCenter,
@@ -1572,7 +1572,7 @@ public sealed class MainForm : Form
                 var key=(float)Math.Round(size,1);
                 if(!captionFonts.TryGetValue(key,out fitted))
                     captionFonts[key]=fitted=new Font("Segoe UI",key,FontStyle.Bold);
-                var measured=TextRenderer.MeasureText(captionGraphics,normalizedText,fitted,room,
+                var measured=TextRenderer.MeasureText(captionGraphics,caption.Text,fitted,room,
                     TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl);
                 if(measured.Width<=room.Width && measured.Height<=room.Height)break;
             }
