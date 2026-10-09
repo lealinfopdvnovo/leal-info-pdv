@@ -87,6 +87,7 @@ jobs:
           assert old==new,'Dependencias diferentes impedem update pequeno'
           print('PASS dependencias preservadas; pacote somente programa e icone kitchen.png')
       - name: Login real, icones, clique, modal e ESC
+        timeout-minutes: 4
         shell: pwsh
         env:
           FLAVOR: ${{ matrix.flavor }}
@@ -104,6 +105,7 @@ jobs:
           dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- "update-$env:FLAVOR.zip" UpdateManager.cs
           if($LASTEXITCODE -ne 0){throw 'Selecao/copia/preservacao falhou'}
       - name: Alerta nativo e fluxo real de selecao global/direcionada
+        timeout-minutes: 4
         shell: pwsh
         run: |
           dotnet run --project qa/alert/LealInfoPDV.AlertTests.csproj -c Release
