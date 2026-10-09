@@ -1746,18 +1746,43 @@ public sealed class MainForm : Form
 
         var caption = new Label
         {
-            Text = normalizedText,
+            Text = normalizedText.Replace("\n", " "),
             Dock = DockStyle.Bottom,
             Height = 40,
             TextAlign = ContentAlignment.MiddleCenter,
             ForeColor = Color.White,
             BackColor = Color.Transparent,
-            Font = new Font("Segoe UI", 9.2f, FontStyle.Bold),
+            Font = new Font("Segoe UI", 8.2f, FontStyle.Bold),
             AutoEllipsis = false,
             Cursor = Cursors.Hand,
             Padding = new Padding(3)
         };
         card.Controls.Add(caption);
+        var captionFonts=new Dictionary<float,Font> { [8.2f]=caption.Font };
+        // Mantem a caixa existente; ajusta somente a tipografia ao espaco real/DPI.
+        void FitCaption()
+        {
+            var room=new Size(Math.Max(1,caption.ClientSize.Width-caption.Padding.Horizontal),
+                              Math.Max(1,caption.ClientSize.Height-caption.Padding.Vertical));
+            float size=8.2f;
+            Font? fitted=null;
+            using var captionGraphics=caption.CreateGraphics();
+            for(;size>=7.0f;size-=0.2f)
+            {
+                var key=(float)Math.Round(size,1);
+                if(!captionFonts.TryGetValue(key,out fitted))
+                    captionFonts[key]=fitted=new Font("Segoe UI",key,FontStyle.Bold);
+                bool singleWord=!caption.Text.Contains(' ');
+                var measured=TextRenderer.MeasureText(captionGraphics,caption.Text,fitted,
+                    singleWord ? new Size(int.MaxValue,room.Height) : room,
+                    (singleWord ? TextFormatFlags.SingleLine : TextFormatFlags.WordBreak)|TextFormatFlags.TextBoxControl);
+                if(measured.Width<=room.Width && measured.Height<=room.Height)break;
+            }
+            caption.Font=fitted!;
+        }
+        caption.SizeChanged+=(_,_)=>FitCaption();
+        caption.DpiChangedAfterParent+=(_,_)=>FitCaption();
+        FitCaption();
 
         if (shouldPulse)
         {
@@ -1774,7 +1799,7 @@ public sealed class MainForm : Form
         void SetHover(bool on)
         {
             hover = on;
-            caption.Font = new Font("Segoe UI", on ? 9.7f : 9.2f, FontStyle.Bold);
+            // Hover preserva a fonte ajustada, evitando novas quebras de linha.
             card.Invalidate();
         }
         void Enter(object? s, EventArgs e) => SetHover(true);
@@ -1799,6 +1824,7 @@ public sealed class MainForm : Form
         card.Disposed += (_, _) =>
         {
             pulseTimer.Dispose();
+            foreach(var font in captionFonts.Values)font.Dispose();
             icon?.Image?.Dispose();
         };
         parent.Controls.Add(card);
