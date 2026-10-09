@@ -801,6 +801,7 @@ public sealed class MainForm : Form
         AddTool(bar, "CLIENTES", "customers.png", () => RunAllowed("customers", OpenCustomers));
         AddTool(bar, "FORNECEDORES", "suppliers.png", () => RunAllowed("suppliers", OpenSuppliers));
         AddTool(bar, "SERVIÇOS", "services.png", () => RunAllowed("services", OpenServices));
+        AddTool(bar, "COZINHA", "services.png", OpenKitchen);
         AddTool(bar, "HISTÓRICO\nVENDAS", "history.png", () => RunAllowed("sales_history", OpenHistory));
         AddTool(bar, "FLUXO DE\nCAIXA", "finance.png", () => RunAllowed("cash", OpenFinance));
         AddTool(bar, "ORDENS /\nOS", "orders.png", () => RunAllowed("orders", OpenOrders));
@@ -929,6 +930,49 @@ public sealed class MainForm : Form
             "Acesso não permitido",
             MessageBoxButtons.OK,
             MessageBoxIcon.Warning);
+    }
+
+    private void OpenKitchen()
+    {
+        using var form = new Form
+        {
+            Text = "COZINHA",
+            StartPosition = FormStartPosition.CenterParent,
+            ClientSize = new Size(460, 240),
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            ShowInTaskbar = false,
+            AutoScaleMode = AutoScaleMode.Dpi,
+            AutoScaleDimensions = new SizeF(96, 96),
+            KeyPreview = true
+        };
+        var layout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
+            Padding = new Padding(24)
+        };
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 32));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 30));
+        layout.Controls.Add(new Label
+        {
+            Text = "COZINHA", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
+            Font = new Font("Segoe UI", 18, FontStyle.Bold)
+        }, 0, 0);
+        layout.Controls.Add(new Label
+        {
+            Text = "Em desenvolvimento para próxima atualização.",
+            Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter
+        }, 0, 1);
+        var close = ActionButton("FECHAR", form.Close);
+        close.Anchor = AnchorStyles.None;
+        close.DialogResult = DialogResult.Cancel;
+        layout.Controls.Add(close, 0, 2);
+        form.Controls.Add(layout);
+        form.CancelButton = close;
+        ApplyFloatingTheme(form);
+        form.ShowDialog(this);
     }
 
     private void OpenDeliveries()
