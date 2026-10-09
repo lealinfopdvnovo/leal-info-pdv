@@ -22,7 +22,7 @@ static class Program
         foreach(var scale in new[]{1f,1.25f,1.5f})
         {
             using var f=new LoginForm();f.Show();Pump(2400);f.WindowState=FormWindowState.Normal;
-            f.ClientSize=size;f.Font=new Font("Segoe UI",10f*scale);
+            f.AutoScaleMode=AutoScaleMode.None;f.ClientSize=size;f.Font=new Font("Segoe UI",10f*scale);
             var labels=All(f).OfType<Label>().ToArray();
             var brand=labels.Single(x=>x.Text=="LEAL INFO");var connected=labels.Single(x=>x.Text=="CONECTADO");
             brand.Font=new Font("Segoe UI",26*scale,FontStyle.Bold);connected.Font=new Font("Segoe UI",26*scale,FontStyle.Bold);
@@ -33,6 +33,7 @@ static class Program
             {
                 var r=Absolute(title);var screen=Absolute(f);
                 Check(Math.Abs((r.Left+r.Width/2)-(screen.Left+f.ClientSize.Width/2))<=1,"Marca descentralizada");
+                Console.WriteLine($"GEOMETRIA {size} fonte={scale} marca={r} formulario={screen} cliente={f.ClientSize} painel={Absolute(card)}");
                 Check(r.Top>=screen.Top&&r.Right<=screen.Right&&r.Left>=screen.Left,"Marca cortada");
                 Check(r.Bottom<Absolute(card).Top,"Marca sobrepoe painel");
                 using var image=new Bitmap(title.Width,title.Height);title.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));
