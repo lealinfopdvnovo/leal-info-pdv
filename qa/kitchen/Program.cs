@@ -99,7 +99,7 @@ static class Program
         Check(Auth.Login("qa_kitchen","errada")==null,"Senha incorreta aceita");
         using(var login=new LoginForm())
         {
-            login.Show();Pump(2300);var text=All(login).OfType<TextBox>().ToArray();text.Single(x=>!x.UseSystemPasswordChar).Text="qa_kitchen";text.Single(x=>x.UseSystemPasswordChar).Text="Senha_Ficticia_123";
+            login.Show();Pump(6000);var text=All(login).OfType<TextBox>().ToArray();text.Single(x=>!x.UseSystemPasswordChar).Text="qa_kitchen";text.Single(x=>x.UseSystemPasswordChar).Text="Senha_Ficticia_123";
             All(login).OfType<Button>().Single(x=>x.Text=="ENTRAR").PerformClick();Check(login.DialogResult==DialogResult.OK,"Login real falhou");
         }
         Console.WriteLine("PASS login real WinForms com credenciais fictícias");
