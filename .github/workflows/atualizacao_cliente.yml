@@ -53,18 +53,18 @@ jobs:
         shell: python
         run: |
           import subprocess
-          visual='2f0473965ce967694a6a6f0c250d35aebf579f42'
+          visual='a502f9999fd146311208bdbd55c1f46120c82c4c'
           subprocess.run(['git','fetch','origin',visual],check=True)
           assert subprocess.check_output(['git','show',visual+':LoginForm.cs'])==subprocess.check_output(['git','show','HEAD:LoginForm.cs'])
           for f in ['MainForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs']:
               assert subprocess.check_output(['git','show',visual+':'+f])==subprocess.check_output(['git','show','HEAD:'+f]),f
           old=subprocess.check_output(['git','show',visual+':UpdateManager.cs']).decode()
           new=subprocess.check_output(['git','show','HEAD:UpdateManager.cs']).decode()
-          assert old==new.replace('10.375','10.374')
+          assert old==new
           oldproject=subprocess.check_output(['git','show',visual+':LealInfoPDV.csproj']).decode()
           newproject=subprocess.check_output(['git','show','HEAD:LealInfoPDV.csproj']).decode()
-          assert oldproject==newproject.replace('10.375','10.374')
-          allowed={'UpdateManager.cs','LealInfoPDV.csproj','CLIENT_UPDATE_NOTES.txt','.github/workflows/atualizacao_cliente.yml','qa/directed/Program.cs','qa/directed/LealInfoPDV.DirectedTests.csproj'}
+          assert oldproject==newproject
+          allowed={'.github/workflows/atualizacao_cliente.yml'}
           assert set(subprocess.check_output(['git','diff','--name-only',visual,'HEAD']).decode().splitlines())<=allowed
           print('PASS LoginForm aprovado exato; funcionalidades e updater preservados')
       - name: Restaurar ajustes aprovados da compilacao
@@ -103,6 +103,16 @@ jobs:
                       if k.startswith('LealInfoPDV/'):del bag[k]
           assert old==new,'Dependencias novas impedem update incremental seguro'
           subprocess.run(['dotnet','run','--project','qa/directed/LealInfoPDV.DirectedTests.csproj','-c','Release'],check=True)
+      - name: Validar novamente login e marca antes de publicar
+        shell: pwsh
+        run: |
+          dotnet run --project qa/crystal/LealInfoPDV.CrystalTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Login/layout falhou: nao publicar'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: correcao-cristal-evidencias
+          path: crystal-evidencias/
       - name: Gerar pacote de atualizacao (sem instalador)
         shell: pwsh
         env:

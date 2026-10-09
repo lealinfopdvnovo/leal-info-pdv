@@ -31,9 +31,9 @@ public sealed class LoginForm : Form
         var accent=new Panel{BackColor=Color.FromArgb(0,163,224),Height=5};
         identity.Controls.Add(accent);
         var brand=new CrystalTitleLabel{Text="LEAL INFO",AutoSize=false,ForeColor=Color.White,BackColor=Color.Transparent,
-            Font=new Font("Segoe UI",26,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
+            Font=new Font("Segoe UI",38,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
         var connected=new CrystalTitleLabel{Text="CONECTADO",AutoSize=false,ForeColor=Color.FromArgb(55,205,255),BackColor=Color.Transparent,
-            Font=new Font("Segoe UI",26,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
+            Font=new Font("Segoe UI",38,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
         var product=new Label{Text="PDV PRO",AutoSize=false,ForeColor=Color.FromArgb(175,194,211),BackColor=Color.Transparent,
             Font=new Font("Segoe UI",16,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
         var tagline=new Label{Text="TECNOLOGIA QUE CONECTA",AutoSize=false,ForeColor=Color.FromArgb(104,151,181),BackColor=Color.Transparent,
@@ -88,17 +88,19 @@ public sealed class LoginForm : Form
             // Mantém o conjunto centralizado e deixa espaço real antes do cartão.
             int brandW=Math.Min(900,Math.Max(1,sw-120));
             int brandX=(sw-brandW)/2;
-            int brandTop=Math.Max(24,targetY-230);
-
-            accent.SetBounds((sw-120)/2,brandTop,120,5);
-            // Coordenadas locais da identidade: a marca permanece centrada no formulario.
+            int brandTop=Math.Max(20,targetY-230);
             int titleX=brandX-identity.Left;
-            int titleTop=brandTop+16-identity.Top;
-            int titleHeight=Math.Min(62,Math.Max(1,(card.Top-identity.Top-12-titleTop)/2));
-            brand.SetBounds(titleX,titleTop,brandW,titleHeight);
-            connected.SetBounds(titleX,titleTop+titleHeight,brandW,titleHeight);
-            product.SetBounds(brandX,brandTop+138,brandW,42);
-            tagline.SetBounds(brandX,brandTop+180,brandW,34);
+            int localTop=brandTop-identity.Top;
+            // Todos os elementos da marca cabem no espaço real acima do cartão.
+            int available=Math.Max(1,card.Top-identity.Top-localTop-14);
+            int titleHeight=Math.Min(64,Math.Max(18,(available-62)/2));
+            int detailHeight=Math.Min(26,Math.Max(12,(available-2*titleHeight-10)/2));
+            accent.SetBounds((sw-120)/2-identity.Left,localTop,120,3);
+            brand.SetBounds(titleX,localTop+8,brandW,titleHeight);
+            connected.SetBounds(titleX,brand.Bottom,brandW,titleHeight);
+            product.SetBounds(titleX,connected.Bottom+2,brandW,detailHeight);
+            tagline.SetBounds(titleX,product.Bottom,brandW,detailHeight);
+            product.Visible=tagline.Visible=available>=90;
 
             brand.TextAlign=ContentAlignment.MiddleCenter;
             connected.TextAlign=ContentAlignment.MiddleCenter;
@@ -590,7 +592,7 @@ public sealed class LoginForm : Form
                 transform.Scale(fit,fit);
                 text.Transform(transform);
                 bounds=text.GetBounds();
-                float depth=Math.Min(3f,margin*.55f);
+                float depth=Math.Min(2.4f,margin*.45f);
                 using var side=new SolidBrush(Color.FromArgb(12,62,136));
                 using var edge=new Pen(Color.FromArgb(115,30,159,232),1.2f);
                 for(int i=3;i>=1;i--)
@@ -600,21 +602,29 @@ public sealed class LoginForm : Form
                     g.FillPath(side,text);g.DrawPath(edge,text);
                     g.Restore(layer);
                 }
-                using var crystal=new LinearGradientBrush(bounds,Color.White,Color.Blue,90f);
+                // Cristal azul: luz diagonal contínua e facetas, sem faixa cromada horizontal.
+                using var crystal=new LinearGradientBrush(bounds,Color.White,Color.Blue,115f);
                 crystal.InterpolationColors=new ColorBlend
                 {
-                    Colors=new[]{Color.FromArgb(235,252,255),Color.FromArgb(97,201,249),
-                        Color.FromArgb(24,103,196),Color.FromArgb(162,235,255),Color.FromArgb(23,106,199)},
-                    Positions=new[]{0f,.32f,.52f,.56f,1f}
+                    Colors=new[]{Color.FromArgb(199,244,255),Color.FromArgb(89,188,240),
+                        Color.FromArgb(38,121,210),Color.FromArgb(18,69,151)},
+                    Positions=new[]{0f,.34f,.72f,1f}
                 };
                 g.FillPath(crystal,text);
-                // Facets/reflections are clipped inside the glyphs, never across the login panel.
                 var clipped=g.Save();g.SetClip(text);
-                using var facet=new SolidBrush(Color.FromArgb(38,221,250,255));
-                float step=Math.Max(22,bounds.Height*.85f);
+                using var lightFacet=new SolidBrush(Color.FromArgb(85,222,250,255));
+                using var darkFacet=new SolidBrush(Color.FromArgb(55,4,38,106));
+                using var reflection=new Pen(Color.FromArgb(100,220,249,255),.8f);
+                float step=Math.Max(18,bounds.Height*.60f);
                 for(float x=bounds.Left-step;x<bounds.Right;x+=step)
-                    g.FillPolygon(facet,new[]{new PointF(x,bounds.Top),new PointF(x+step*.65f,bounds.Top),
-                        new PointF(x+step*.25f,bounds.Bottom)});
+                {
+                    var top=new PointF(x,bounds.Top);
+                    var peak=new PointF(x+step*.62f,bounds.Top+bounds.Height*.45f);
+                    var bottom=new PointF(x+step*.18f,bounds.Bottom);
+                    g.FillPolygon(lightFacet,new[]{top,new PointF(x+step,bounds.Top),peak});
+                    g.FillPolygon(darkFacet,new[]{peak,new PointF(x+step,bounds.Bottom),bottom});
+                    g.DrawLine(reflection,top,peak);g.DrawLine(reflection,peak,bottom);
+                }
                 g.Restore(clipped);
                 using var outline=new Pen(Color.FromArgb(205,131,224,255),.8f);
                 g.DrawPath(outline,text);
