@@ -36,7 +36,7 @@ static class Program
             f.Font=new Font("Segoe UI",10f*scale);
             var labels=All(f).OfType<Label>().ToArray();
             var brand=labels.Single(x=>x.Text=="LEAL INFO");var connected=labels.Single(x=>x.Text=="CONECTADO");
-            brand.Font=new Font("Segoe UI",26*scale,FontStyle.Bold);connected.Font=new Font("Segoe UI",26*scale,FontStyle.Bold);
+            brand.Font=new Font("Segoe UI",38*scale,FontStyle.Bold);connected.Font=new Font("Segoe UI",38*scale,FontStyle.Bold);
             typeof(Control).GetMethod("OnResize",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(f,new object[]{EventArgs.Empty});Pump(100);
             Check(brand.GetType().Name=="CrystalTitleLabel"&&connected.GetType().Name=="CrystalTitleLabel","Marca sem cristal");
             var header=labels.Single(x=>x.Text=="BEM-VINDO DE VOLTA");var card=header.Parent!.Parent!;
@@ -52,6 +52,9 @@ static class Program
                 Check(lit>100,"Cristal nao renderizado");
             }
             Check(Absolute(brand).Bottom<=Absolute(connected).Top,"Linhas sobrepostas");
+            var product=labels.Single(x=>x.Text=="PDV PRO");var tagline=labels.Single(x=>x.Text=="TECNOLOGIA QUE CONECTA");
+            Check(!product.Visible||Absolute(product).Top>=Absolute(connected).Bottom,"Produto sobrepoe marca");
+            Check(!tagline.Visible||Absolute(tagline).Bottom<Absolute(card).Top,"Subtitulo encoberto pelo painel");
             using(var bmp=new Bitmap(f.Width,f.Height)){f.DrawToBitmap(bmp,new Rectangle(Point.Empty,bmp.Size));bmp.Save($"crystal-evidencias/login-{size.Width}x{size.Height}-fonte-{scale*100:0}.png",ImageFormat.Png);}
             var boxes=All(f).OfType<TextBox>().ToArray();boxes.Single(x=>!x.UseSystemPasswordChar).Text="qa_crystal";boxes.Single(x=>x.UseSystemPasswordChar).Text="Senha_Ficticia_123";
             All(f).OfType<Button>().Single(x=>x.Text=="ENTRAR").PerformClick();Check(f.DialogResult==DialogResult.OK,"Login real falhou");
