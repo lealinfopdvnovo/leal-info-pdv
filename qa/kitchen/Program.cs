@@ -131,6 +131,17 @@ static class Program
                 main.Scale(new SizeF(scale/appliedScale,scale/appliedScale));appliedScale=scale;main.ClientSize=new Size((int)(size.Width*scale),(int)(size.Height*scale));main.PerformLayout();Pump(50);
                 Check(kitchen.Parent!.Right<=bar.ClientSize.Width&&kitchen.Visible,"COZINHA cortada/oculta");
                 var sibling=bar.Controls[0];Check(kitchen.Parent.Height==sibling.Height&&kitchen.Parent.Margin==sibling.Margin,"Padrão do card diferente");
+                foreach(var label in bar.Controls.Cast<Control>().SelectMany(x=>x.Controls.OfType<Label>()))
+                {
+                    Check(label.Font.Size<=8.21f,"Fonte grande permaneceu");
+                    var room=new Size(label.ClientSize.Width-label.Padding.Horizontal,label.ClientSize.Height-label.Padding.Vertical);
+                    var measured=TextRenderer.MeasureText(label.Text,label.Font,room,TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl|TextFormatFlags.NoPadding);
+                    Check(measured.Width<=room.Width&&measured.Height<=room.Height,"Texto cortado: "+label.Text+" "+measured+" / "+room);
+                    Check(label.TextAlign==ContentAlignment.MiddleCenter,"Texto nao centralizado");
+                    var font=label.Font.Size;typeof(Control).GetMethod("OnMouseEnter",I)!.Invoke(label,new object[]{EventArgs.Empty});Check(label.Font.Size==font,"Hover aumentou fonte");
+                }
+                using(var capture=new Bitmap(bar.Width,bar.Height)){bar.DrawToBitmap(capture,new Rectangle(Point.Empty,capture.Size));capture.Save($"kitchen-evidencias/textos-{size.Width}-{scale*100:0}.png",ImageFormat.Png);}
+                Console.WriteLine($"PASS tipografia: todos captions centralizados, fonte ajustada, sem cortes, hover estavel; {size.Width}x{size.Height} escala {scale}");
                 var name=$"modal-{size.Width}x{size.Height}-dimensao-{scale*100:0}";
                 Modal(main,kitchen,false,name);Modal(main,kitchen,true,name+"-esc");
                 Check(Snapshot()==baseline,"Modal alterou banco/configuração");

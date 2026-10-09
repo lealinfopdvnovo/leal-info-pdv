@@ -1752,12 +1752,34 @@ public sealed class MainForm : Form
             TextAlign = ContentAlignment.MiddleCenter,
             ForeColor = Color.White,
             BackColor = Color.Transparent,
-            Font = new Font("Segoe UI", 9.2f, FontStyle.Bold),
+            Font = new Font("Segoe UI", 8.2f, FontStyle.Bold),
             AutoEllipsis = false,
             Cursor = Cursors.Hand,
             Padding = new Padding(3)
         };
         card.Controls.Add(caption);
+        // Mantem a caixa existente; ajusta somente a tipografia ao espaco real/DPI.
+        void FitCaption()
+        {
+            var room=new Size(Math.Max(1,caption.ClientSize.Width-caption.Padding.Horizontal),
+                              Math.Max(1,caption.ClientSize.Height-caption.Padding.Vertical));
+            float size=8.2f;
+            Font? fitted=null;
+            for(;size>=7.0f;size-=0.2f)
+            {
+                fitted?.Dispose();
+                fitted=new Font("Segoe UI",size,FontStyle.Bold);
+                var measured=TextRenderer.MeasureText(normalizedText,fitted,room,
+                    TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl|TextFormatFlags.NoPadding);
+                if(measured.Width<=room.Width && measured.Height<=room.Height)break;
+            }
+            var previous=caption.Font;
+            caption.Font=fitted!;
+            previous.Dispose();
+        }
+        caption.SizeChanged+=(_,_)=>FitCaption();
+        caption.DpiChangedAfterParent+=(_,_)=>FitCaption();
+        FitCaption();
 
         if (shouldPulse)
         {
@@ -1774,7 +1796,7 @@ public sealed class MainForm : Form
         void SetHover(bool on)
         {
             hover = on;
-            caption.Font = new Font("Segoe UI", on ? 9.7f : 9.2f, FontStyle.Bold);
+            // Hover preserva a fonte ajustada, evitando novas quebras de linha.
             card.Invalidate();
         }
         void Enter(object? s, EventArgs e) => SetHover(true);
