@@ -93,8 +93,8 @@ public sealed class LoginForm : Form
             int localTop=brandTop-identity.Top;
             // Todos os elementos da marca cabem no espaço real acima do cartão.
             int available=Math.Max(1,card.Top-identity.Top-localTop-14);
-            int titleHeight=Math.Min(64,Math.Max(18,(available-54)/2));
-            int detailHeight=Math.Min(22,Math.Max(12,(available-2*titleHeight-10)/2));
+            int titleHeight=Math.Min(64,Math.Max(18,(available-62)/2));
+            int detailHeight=Math.Min(26,Math.Max(12,(available-2*titleHeight-10)/2));
             accent.SetBounds((sw-120)/2-identity.Left,localTop,120,3);
             brand.SetBounds(titleX,localTop+8,brandW,titleHeight);
             connected.SetBounds(titleX,brand.Bottom,brandW,titleHeight);
