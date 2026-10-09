@@ -1,0 +1,42 @@
+{
+  "global": {
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.377/LEAL_INFO_PDV_V10_377_UPDATE.zip",
+    "Sha256": "6b6dfd35983f96837f73b88200bbcd882c82a4b7f49315e0ff501ab7a6d131d2",
+    "Editions": [
+      "STANDARD",
+      "PLUS",
+      "PRO"
+    ],
+    "SourceCommit": "84d6d1353391953422ed160c4f16d01a881e1c8f",
+    "Mandatory": false,
+    "Notes": "V10.377 GLOBAL: somente icone proprio azul 3D do botao COZINHA. SERVICOS e comportamento do modal inalterados. Pacotes compativeis 001/002/003 preservam suas personalizacoes. Sem dados, licencas ou configuracoes no pacote.",
+    "Version": "10.377"
+  },
+  "001": {
+    "Mandatory": false,
+    "TargetClientCode": "001",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.377/LEAL_INFO_PDV_001_V10_377_UPDATE.zip",
+    "Notes": "V10.377: somente icone proprio azul 3D do botao COZINHA. Preserva SERVICOS, modal, dados, licenca e todas as particularidades deste cliente.",
+    "Sha256": "928b23ff5d4441c092b3d0c0d9ab9946abd3b2f978af4989759f2dd10edd83c6",
+    "SourceCommit": "b6d0a3db8b5adc585e788759b17fbc372c3a12cd",
+    "Version": "10.377"
+  },
+  "002": {
+    "Mandatory": false,
+    "TargetClientCode": "002",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.377/LEAL_INFO_PDV_002_V10_377_UPDATE.zip",
+    "Notes": "V10.377: somente icone proprio azul 3D do botao COZINHA. Preserva SERVICOS, modal, dados, licenca e todas as particularidades deste cliente.",
+    "Sha256": "29fcce66d67c8b9f4d58d11f684ff08b77f096cd0dedb56b7b93d77b6d13479e",
+    "SourceCommit": "41e5072537648a0b878c121668f211e1f78aab68",
+    "Version": "10.377"
+  },
+  "003": {
+    "Mandatory": false,
+    "TargetClientCode": "003",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.377/LEAL_INFO_PDV_003_V10_377_UPDATE.zip",
+    "Notes": "V10.377: somente icone proprio azul 3D do botao COZINHA. Preserva SERVICOS, modal, dados, licenca e todas as particularidades deste cliente.",
+    "Sha256": "6c54f8e8bfc6cd9b1764e09ac483a8ccb381145f3a28d02ad1f21867e414286e",
+    "SourceCommit": "4ac6741da7bfc9e1d20e5ad63790437c30281a4a",
+    "Version": "10.377"
+  }
+}
