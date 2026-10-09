@@ -32,7 +32,7 @@ jobs:
           assert set(changed)<=allowed,changed
           for file in ['MainForm.cs','UpdateManager.cs','LealInfoPDV.csproj']:
               old=subprocess.check_output(['git','show',base+':'+file]).decode()
-              new=Path(file).read_text()
+              new=Path(file).read_text(encoding='utf-8')
               if file=='MainForm.cs':
                   new=new.replace('        AddTool(bar, "COZINHA", "services.png", OpenKitchen);\n','')
                   a=new.index('    private void OpenKitchen()');b=new.index('    private void OpenDeliveries()',a)
