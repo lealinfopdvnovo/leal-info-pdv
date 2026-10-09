@@ -1772,8 +1772,10 @@ public sealed class MainForm : Form
                 var key=(float)Math.Round(size,1);
                 if(!captionFonts.TryGetValue(key,out fitted))
                     captionFonts[key]=fitted=new Font("Segoe UI",key,FontStyle.Bold);
-                var measured=TextRenderer.MeasureText(captionGraphics,caption.Text,fitted,room,
-                    TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl);
+                bool singleWord=!caption.Text.Contains(' ');
+                var measured=TextRenderer.MeasureText(captionGraphics,caption.Text,fitted,
+                    singleWord ? new Size(int.MaxValue,room.Height) : room,
+                    (singleWord ? TextFormatFlags.SingleLine : TextFormatFlags.WordBreak)|TextFormatFlags.TextBoxControl);
                 if(measured.Width<=room.Width && measured.Height<=room.Height)break;
             }
             caption.Font=fitted!;
