@@ -6,6 +6,8 @@ using System.Reflection;
 
 static class Program
 {
+    [System.Runtime.InteropServices.DllImport("user32.dll",SetLastError=true)]
+    static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
     static void Check(bool ok,string why){if(!ok)throw new Exception(why);}
     static IEnumerable<Control> All(Control c)=>c.Controls.Cast<Control>().SelectMany(x=>new[]{x}.Concat(All(x)));
     static void Pump(int ms){var w=Stopwatch.StartNew();while(w.ElapsedMilliseconds<ms){Application.DoEvents();Thread.Sleep(10);}}
@@ -29,7 +31,9 @@ static class Program
         foreach(var scale in new[]{1f,1.25f,1.5f})
         {
             using var host=new Form();using var f=new LoginForm();f.WindowState=FormWindowState.Normal;f.TopLevel=false;host.Controls.Add(f);host.Show();f.Show();Pump(2400);f.WindowState=FormWindowState.Normal;
-            f.AutoScaleMode=AutoScaleMode.None;f.ClientSize=size;f.Font=new Font("Segoe UI",10f*scale);
+            f.AutoScaleMode=AutoScaleMode.None;f.MaximumSize=new Size(4000,3000);f.ClientSize=size;
+            Check(SetWindowPos(f.Handle,IntPtr.Zero,0,0,size.Width,size.Height,0x0006),"Surface native sizing failed");Pump(100);
+            f.Font=new Font("Segoe UI",10f*scale);
             var labels=All(f).OfType<Label>().ToArray();
             var brand=labels.Single(x=>x.Text=="LEAL INFO");var connected=labels.Single(x=>x.Text=="CONECTADO");
             brand.Font=new Font("Segoe UI",26*scale,FontStyle.Bold);connected.Font=new Font("Segoe UI",26*scale,FontStyle.Bold);
