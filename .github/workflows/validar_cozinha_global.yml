@@ -63,6 +63,11 @@ jobs:
           $cfg=Get-Content baseline/LealInfoPDV.runtimeconfig.json -Raw|ConvertFrom-Json
           $runtime=$cfg.runtimeOptions.includedFrameworks|Where-Object name -eq 'Microsoft.NETCore.App'|Select-Object -ExpandProperty version
           if(!$runtime){throw 'Runtime atual nao identificado'}
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdkKey=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdkKey){throw 'Windows SDK baseline nao identificado'}
+          $sdkVersion=$sdkKey.Split('/')[1]
+          "<Project><ItemGroup><FrameworkReference Update=`"Microsoft.Windows.SDK.NET.Ref`" RuntimeFrameworkVersion=`"$sdkVersion`" TargetingPackVersion=`"$sdkVersion`" /></ItemGroup></Project>" | Set-Content Directory.Build.targets -Encoding utf8
           dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:RuntimeFrameworkVersion=$runtime -p:TargetLatestRuntimePatch=false -o publish
           if($LASTEXITCODE -ne 0){throw 'Build falhou'}
           New-Item -ItemType Directory -Force package, kitchen-evidencias|Out-Null
