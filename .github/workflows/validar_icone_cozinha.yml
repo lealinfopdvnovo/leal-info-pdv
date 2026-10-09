@@ -1,0 +1,115 @@
+name: Validar icone COZINHA 10.377 - quatro bases preservadas
+on:
+  push:
+    branches: ['qa/icone-cozinha-global-10377']
+permissions: { contents: read }
+jobs:
+  validar:
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [global, '001', '002', '003']
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.flavor == 'global' && github.sha || format('qa/icone-cozinha-{0}-10377', matrix.flavor) }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Confirmar somente icone e versao e preservar personalizacoes
+        shell: python
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          import os,subprocess,hashlib
+          from pathlib import Path
+          bases={'global':'968d2cbd4d1a50a5e1e6c3cec15cb94e7364e9e2','001':'e64526200612776c771b015c026b687a451d3fb2','002':'1b615ab5f4c1b3c16e88a43a26d9395d0e8a748b','003':'b33c70fdb2e119712ef84defa70305aa7bf56779'}
+          flavor=os.environ['FLAVOR'];base=bases[flavor]
+          allowed={'MainForm.cs','UpdateManager.cs','LealInfoPDV.csproj','Assets/kitchen.png','qa/kitchen/Program.cs','.github/workflows/validar_icone_cozinha.yml'}
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed<=allowed,changed
+          old=subprocess.check_output(['git','show',base+':MainForm.cs'])
+          new=subprocess.check_output(['git','show','HEAD:MainForm.cs']).replace(b'AddTool(bar, "COZINHA", "kitchen.png", OpenKitchen);',b'AddTool(bar, "COZINHA", "services.png", OpenKitchen);')
+          assert old==new,'MainForm tem outra mudanca'
+          version='10.376' if flavor in ('001','003') else '10.374'
+          for n in ['UpdateManager.cs','LealInfoPDV.csproj']:
+              assert subprocess.check_output(['git','show',base+':'+n])==subprocess.check_output(['git','show','HEAD:'+n]).replace(b'10.377',version.encode()),n
+          for n in ['LoginForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs','Assets/services.png','Licensing/UpdatePayloadPolicy.cs']:
+              assert subprocess.check_output(['git','show',base+':'+n])==subprocess.check_output(['git','show','HEAD:'+n]),n
+          assert hashlib.sha256(Path('Assets/kitchen.png').read_bytes()).hexdigest()=='bf07fc592ead270d8440b5a75b9b18ee62dbc48e2e0338fd580776be70ea9ad3'
+          print('PASS somente referencia do icone, novo PNG e versao; login/SERVICOS/particularidades e demais fontes preservados')
+      - name: Preparar mesmas etapas do build distribuido
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar incremental sobre dependencias reais atuais
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $feeds=@{
+            global=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.374/LEAL_INFO_PDV_V10_374_UPDATE.zip';sha='063bd64f1a90c093a72631bcef7e96d6fd4666d3a5098cae7ccd70c05b732d99'}
+            '001'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.376/LEAL_INFO_PDV_001_V10_376_UPDATE.zip';sha='e5d47c3779d0cb08ccb8c42708c2af02e3e43749e379b1ce440201d8893f3270'}
+            '002'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.374/LEAL_INFO_PDV_002_V10_374_UPDATE.zip';sha='61690b84dd69692f17214ac2185fe4ddcc43889914d5e9cf49ef081b7fa62ea6'}
+            '003'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.376/LEAL_INFO_PDV_003_V10_376_UPDATE.zip';sha='3c786fc66cafa5074a6afe82034f9d98d97cfae02da93d0b8092865e2c42f671'}
+          }
+          $baseline=$feeds[$env:FLAVOR]
+          Invoke-WebRequest $baseline.url -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne $baseline.sha){throw 'Baseline mudou'}
+          Expand-Archive baseline.zip baseline
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdkKey=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdkKey){throw 'SDK baseline nao identificado'}
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$($sdkKey.Split('/')[1]) -o publish
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          New-Item -ItemType Directory -Force package/Assets,kitchen-evidencias|Out-Null
+          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
+          Copy-Item publish/Assets/kitchen.png package/Assets/kitchen.png
+          [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path package).Path,[IO.Path]::GetFullPath("update-$env:FLAVOR.zip"))
+          (Get-FileHash "update-$env:FLAVOR.zip").Hash.ToLowerInvariant()|Set-Content "kitchen-evidencias/sha-$env:FLAVOR.txt"
+          git rev-parse HEAD|Set-Content "kitchen-evidencias/source-$env:FLAVOR.txt"
+      - name: Confirmar nenhuma dependencia nova
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          old=json.loads(Path('baseline/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'));new=json.loads(Path('publish/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
+          for d in (old,new):
+              for bag in [d['libraries'],*d['targets'].values()]:
+                  for k in list(bag):
+                      if k.startswith('LealInfoPDV/'):del bag[k]
+          assert old==new,'Dependencias diferentes impedem update pequeno'
+          print('PASS dependencias preservadas; pacote somente programa e icone kitchen.png')
+      - name: Login real, icones, clique, modal e ESC
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          $arg=if($env:FLAVOR -eq '002'){'--002'}else{'--global'}
+          dotnet run --project qa/kitchen/LealInfoPDV.KitchenTests.csproj -c Release -- $arg
+          if($LASTEXITCODE -ne 0){throw 'Teste do icone/modal/login falhou'}
+      - name: Updater existente e preservacao de dados ficticios
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package "update-$env:FLAVOR.zip"
+          if($LASTEXITCODE -ne 0){throw 'Pacote rejeitado'}
+          dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- "update-$env:FLAVOR.zip" UpdateManager.cs
+          if($LASTEXITCODE -ne 0){throw 'Selecao/copia/preservacao falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: icone-cozinha-${{ matrix.flavor }}
+          path: |
+            kitchen-evidencias/
+            update-${{ matrix.flavor }}.zip
+          retention-days: 7
