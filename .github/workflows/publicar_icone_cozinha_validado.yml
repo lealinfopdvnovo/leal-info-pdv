@@ -42,6 +42,8 @@ jobs:
           $expected=Get-Content .github/icone-cozinha-feeds-anteriores.json -Raw|ConvertFrom-Json -AsHashtable
           $dirs=gh api repos/$env:UPDATE_REPO/contents/clients|ConvertFrom-Json
           if($LASTEXITCODE -ne 0 -or @($dirs|Where-Object {$_.name -notin @('001','002','003')}).Count){throw 'Canal nao auditado apareceu; nao publicar global'}
+          $tags=gh api --paginate "repos/$env:UPDATE_REPO/releases?per_page=100" --jq '.[].tag_name'
+          if($LASTEXITCODE -ne 0){throw 'Nao foi possivel auditar releases existentes'}
           foreach($flavor in @('global','001','002','003')){
             $payload="payload/icone-cozinha-$flavor"
             $zip="$payload/update-$flavor.zip"
@@ -63,8 +65,7 @@ jobs:
             if($flavor -ne 'global' -and $old.TargetClientCode -ne $flavor){throw 'ID incorreto'}
             $entry.sha|Set-Content "feed-sha-$flavor.txt"
             $tag=if($flavor -eq 'global'){'v10.377'}else{"client-$flavor-v10.377"}
-            gh release view $tag --repo $env:UPDATE_REPO 2>$null
-            if($LASTEXITCODE -eq 0){throw 'Release existe; nao sobrescrever'}
+            if($tag -in @($tags)){throw 'Release existe; nao sobrescrever'}
           }
           Write-Host 'PASS quatro artefatos aprovados; feeds anteriores e personalizacoes auditados'
       - name: Publicar primeiro pacotes compativeis 001 002 003
