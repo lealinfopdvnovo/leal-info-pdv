@@ -79,6 +79,7 @@ jobs:
           }
           $global.sha|Set-Content global-feed-sha.txt
           $client.sha|Set-Content client-feed-sha.txt
+          $global:LASTEXITCODE=0
       - name: Publicar primeiro pacote compativel e manifesto do 002
         shell: pwsh
         env:
