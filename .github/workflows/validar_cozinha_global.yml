@@ -1,0 +1,123 @@
+name: COZINHA 10.374 - validar global e preservar 002
+on:
+  push:
+    branches: ['qa/cozinha-global-10374']
+permissions:
+  contents: read
+jobs:
+  validar:
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [global, '002']
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.flavor == '002' && 'qa/cozinha-002-10374' || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Verificar preservacao de fontes
+        shell: python
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          from pathlib import Path
+          import os, subprocess
+          base='1ddbb42281b6bdf9197ae7cbaa3606628ae73fe4' if os.environ['FLAVOR']=='002' else '58d736c0e556cf69e38d1a9329d2c23b236aceba'
+          allowed={'MainForm.cs','UpdateManager.cs','LealInfoPDV.csproj','.github/workflows/validar_cozinha_global.yml','qa/kitchen/Program.cs','qa/kitchen/LealInfoPDV.KitchenTests.csproj'}
+          changed=subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines()
+          assert set(changed)<=allowed,changed
+          for file in ['MainForm.cs','UpdateManager.cs','LealInfoPDV.csproj']:
+              old=subprocess.check_output(['git','show',base+':'+file]).decode()
+              new=Path(file).read_text(encoding='utf-8')
+              if file=='MainForm.cs':
+                  new=new.replace('        AddTool(bar, "COZINHA", "services.png", OpenKitchen);\n','')
+                  a=new.index('    private void OpenKitchen()');b=new.index('    private void OpenDeliveries()',a)
+                  new=new[:a]+new[b:]
+              else:new=new.replace('10.374','10.371')
+              assert old==new,file
+          print('PASS: fontes funcionais e particularidades preservadas byte a byte, exceto COZINHA e versao.')
+      - name: Preparar build conforme release atual
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar incremental sem trocar runtime ou dados
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $url=if($env:FLAVOR -eq '002'){'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.371/LEAL_INFO_PDV_002_V10_371_UPDATE.zip'}else{'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.371/LEAL_INFO_PDV_V10_371_UPDATE.zip'}
+          $expected=if($env:FLAVOR -eq '002'){'95b6c6fb5d09539bfb53545de374bdb50699f5c47d1b1bcb5af62c34715ee41f'}else{'7c11d390fa334498c4ead4fadea2395332078e9632257a669a78738f0595a140'}
+          Invoke-WebRequest $url -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne $expected){throw 'Baseline mudou'}
+          Expand-Archive baseline.zip baseline
+          $cfg=Get-Content baseline/LealInfoPDV.runtimeconfig.json -Raw|ConvertFrom-Json
+          $runtime=$cfg.runtimeOptions.includedFrameworks|Where-Object name -eq 'Microsoft.NETCore.App'|Select-Object -ExpandProperty version
+          if(!$runtime){throw 'Runtime atual nao identificado'}
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdkKey=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdkKey){throw 'Windows SDK baseline nao identificado'}
+          $sdkVersion=$sdkKey.Split('/')[1]
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdkVersion -o publish
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          New-Item -ItemType Directory -Force package, kitchen-evidencias|Out-Null
+          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
+          Compress-Archive package/* "update-$env:FLAVOR.zip"
+          (Get-FileHash "update-$env:FLAVOR.zip").Hash.ToLowerInvariant()|Set-Content "kitchen-evidencias/sha-$env:FLAVOR.txt"
+          git rev-parse HEAD | Set-Content "kitchen-evidencias/source-$env:FLAVOR.txt"
+          Get-ChildItem package|ForEach-Object {Get-FileHash $_.FullName}|Format-List|Out-File "kitchen-evidencias/hashes-$env:FLAVOR.txt"
+      - name: Dependencias identicas a base instalada
+        shell: python
+        run: |
+          import json,hashlib
+          from pathlib import Path
+          old=json.loads(Path('baseline/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
+          new=json.loads(Path('publish/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
+          for d in [old,new]:
+              for bag in [d['libraries'],*d['targets'].values()]:
+                  for k in list(bag):
+                      if k.startswith('LealInfoPDV/'):del bag[k]
+          assert old==new,'Dependencias mudaram: pacote incremental insuficiente'
+          assert Path('baseline/LealInfoPDV.runtimeconfig.json').read_bytes()==Path('publish/LealInfoPDV.runtimeconfig.json').read_bytes(),'Runtime config mudou'
+          print('PASS: dependencias/runtime preservados; pacote somente EXE, DLL, deps.json.')
+      - name: Login, tela principal, cozinha, ESC e selecao 001 002 003
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          $arg=if($env:FLAVOR -eq '002'){'--002'}else{'--global'}
+          dotnet run --project qa/kitchen/LealInfoPDV.KitchenTests.csproj -c Release -- $arg
+          if($LASTEXITCODE -ne 0){throw 'UI/Login falhou'}
+      - name: Pacote e preservacao de dados pelo updater real
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package "update-$env:FLAVOR.zip"
+          if($LASTEXITCODE -ne 0){throw 'Policy falhou'}
+          dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- "update-$env:FLAVOR.zip" UpdateManager.cs
+          if($LASTEXITCODE -ne 0){throw 'Updater falhou'}
+      - name: Regressao caixa e motoboy
+        shell: pwsh
+        run: |
+          dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Caixa falhou'}
+          dotnet run --project qa/driver-phone/LealInfoPDV.DriverTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Motoboy falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cozinha-${{ matrix.flavor }}
+          path: |
+            kitchen-evidencias/
+            update-${{ matrix.flavor }}.zip
+          retention-days: 7
