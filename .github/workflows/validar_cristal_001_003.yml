@@ -23,13 +23,13 @@ jobs:
           names=subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines()
           assert set(names)<=allowed,names
           old=subprocess.check_output(['git','show',base+':LoginForm.cs']).decode('utf-8')
-          new=Path('LoginForm.cs').read_text(encoding='utf-8')
+          new=subprocess.check_output(['git','show','HEAD:LoginForm.cs']).decode('utf-8')
           a='    async Task SpeakLoginAssistAsync'; b='    // Static GDI+ lettering'
-          assert old[old.index(a):old.index('    private sealed class ChromeStagePanel')] .rstrip()==new[new.index(a):new.index(b)].rstrip()
+          assert old[old.index(a):old.index(b)] .rstrip()==new[new.index(a):new.index(b)].rstrip()
           for name in ['Auth.cs','Database.cs','MainForm.cs','ClientUpdateIdentity.cs']:
               assert subprocess.check_output(['git','show',base+':'+name])==subprocess.check_output(['git','show','HEAD:'+name]),name
           for name in ['UpdateManager.cs','LealInfoPDV.csproj']:
-              assert subprocess.check_output(['git','show',base+':'+name]).decode()==Path(name).read_text().replace('10.376','10.375')
+              assert subprocess.check_output(['git','show',base+':'+name]).decode()==subprocess.check_output(['git','show','HEAD:'+name]).decode().replace('10.376','10.375')
           print('PASS: visual da marca e versao somente; login, recuperacao, banco e updater preservados')
       - name: Preparar mesmas etapas do build atual
         shell: pwsh
