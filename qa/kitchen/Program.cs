@@ -135,7 +135,7 @@ static class Program
                 {
                     Check(label.Font.Size<=8.21f,"Fonte grande permaneceu");
                     var room=new Size(label.ClientSize.Width-label.Padding.Horizontal,label.ClientSize.Height-label.Padding.Vertical);
-                    var measured=TextRenderer.MeasureText(label.Text,label.Font,room,TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl|TextFormatFlags.NoPadding);
+                    var measured=TextRenderer.MeasureText(label.Text,label.Font,room,TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl);
                     Check(measured.Width<=room.Width&&measured.Height<=room.Height,"Texto cortado: "+label.Text+" "+measured+" / "+room);
                     Check(label.TextAlign==ContentAlignment.MiddleCenter,"Texto nao centralizado");
                     var font=label.Font.Size;typeof(Control).GetMethod("OnMouseEnter",I)!.Invoke(label,new object[]{EventArgs.Empty});Check(label.Font.Size==font,"Hover aumentou fonte");

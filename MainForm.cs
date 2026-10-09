@@ -1565,12 +1565,13 @@ public sealed class MainForm : Form
                               Math.Max(1,caption.ClientSize.Height-caption.Padding.Vertical));
             float size=8.2f;
             Font? fitted=null;
+            using var captionGraphics=caption.CreateGraphics();
             for(;size>=7.0f;size-=0.2f)
             {
                 fitted?.Dispose();
                 fitted=new Font("Segoe UI",size,FontStyle.Bold);
-                var measured=TextRenderer.MeasureText(normalizedText,fitted,room,
-                    TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl|TextFormatFlags.NoPadding);
+                var measured=TextRenderer.MeasureText(captionGraphics,normalizedText,fitted,room,
+                    TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl);
                 if(measured.Width<=room.Width && measured.Height<=room.Height)break;
             }
             var previous=caption.Font;
