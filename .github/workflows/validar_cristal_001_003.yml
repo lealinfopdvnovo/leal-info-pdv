@@ -27,7 +27,7 @@ jobs:
           a='    async Task SpeakLoginAssistAsync'; b='    // Static GDI+ lettering'
           assert old[old.index(a):old.index('    private sealed class ChromeStagePanel')] .rstrip()==new[new.index(a):new.index(b)].rstrip()
           for name in ['UpdateManager.cs','Auth.cs','Database.cs','MainForm.cs','LealInfoPDV.csproj']:
-              assert subprocess.check_output(['git','show',base+':'+name])==Path(name).read_bytes(),name
+              assert subprocess.check_output(['git','show',base+':'+name])==subprocess.check_output(['git','show','HEAD:'+name]),name
           print('PASS: apenas desenho/layout da marca; login, recuperacao, banco, versao e updater byte a byte preservados')
       - name: Preparar mesmas etapas do build atual
         shell: pwsh
