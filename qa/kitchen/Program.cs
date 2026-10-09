@@ -34,8 +34,8 @@ static class Program
         var method=updater.GetMethod("LoadManifestAsync",S,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
         foreach(var id in new[]{"001","002","003","004"})
         {
-            using var http=new HttpClient(new Feed(id));var task=(Task)method.Invoke(null,new object[]{http,id,"10.376"})!;task.GetAwaiter().GetResult();
-            var m=task.GetType().GetProperty("Result")!.GetValue(task)!;
+            using var http=new HttpClient(new Feed(id));
+            var m=Task.Run(async()=>{var task=(Task)method.Invoke(null,new object[]{http,id,"10.376"})!;await task;return task.GetType().GetProperty("Result")!.GetValue(task)!;}).GetAwaiter().GetResult();
             Check((string)m.GetType().GetProperty("Version")!.GetValue(m)! =="10.377","Versão incorreta");
             Check((string)m.GetType().GetProperty("TargetClientCode")!.GetValue(m)! ==(id is "001" or "002" or "003"?id:""),"002 não recebeu pacote próprio");
             Console.WriteLine($"PASS detecção {id}: 10.376 -> 10.377; alvo correto");

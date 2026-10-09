@@ -1758,6 +1758,7 @@ public sealed class MainForm : Form
             Padding = new Padding(3)
         };
         card.Controls.Add(caption);
+        var captionFonts=new Dictionary<float,Font> { [8.2f]=caption.Font };
         // Mantem a caixa existente; ajusta somente a tipografia ao espaco real/DPI.
         void FitCaption()
         {
@@ -1768,15 +1769,14 @@ public sealed class MainForm : Form
             using var captionGraphics=caption.CreateGraphics();
             for(;size>=7.0f;size-=0.2f)
             {
-                fitted?.Dispose();
-                fitted=new Font("Segoe UI",size,FontStyle.Bold);
+                var key=(float)Math.Round(size,1);
+                if(!captionFonts.TryGetValue(key,out fitted))
+                    captionFonts[key]=fitted=new Font("Segoe UI",key,FontStyle.Bold);
                 var measured=TextRenderer.MeasureText(captionGraphics,normalizedText,fitted,room,
                     TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl);
                 if(measured.Width<=room.Width && measured.Height<=room.Height)break;
             }
-            var previous=caption.Font;
             caption.Font=fitted!;
-            previous.Dispose();
         }
         caption.SizeChanged+=(_,_)=>FitCaption();
         caption.DpiChangedAfterParent+=(_,_)=>FitCaption();
@@ -1822,6 +1822,7 @@ public sealed class MainForm : Form
         card.Disposed += (_, _) =>
         {
             pulseTimer.Dispose();
+            foreach(var font in captionFonts.Values)font.Dispose();
             icon?.Image?.Dispose();
         };
         parent.Controls.Add(card);
