@@ -138,6 +138,7 @@ static class Program
                     var room=new Size(label.ClientSize.Width-label.Padding.Horizontal,label.ClientSize.Height-label.Padding.Vertical);
                     var measured=TextRenderer.MeasureText(label.Text,label.Font,room,TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl);
                     Check(measured.Width<=room.Width&&measured.Height<=room.Height,"Texto cortado: "+label.Text+" "+measured+" / "+room);
+                    if(!label.Text.Contains(' ')){var line=TextRenderer.MeasureText(label.Text,label.Font,new Size(int.MaxValue,room.Height),TextFormatFlags.SingleLine|TextFormatFlags.TextBoxControl);Check(line.Width<=room.Width,"Palavra quebrada sem necessidade: "+label.Text);}
                     Check(label.TextAlign==ContentAlignment.MiddleCenter,"Texto nao centralizado");
                     var font=label.Font.Size;typeof(Control).GetMethod("OnMouseEnter",I)!.Invoke(label,new object[]{EventArgs.Empty});Check(label.Font.Size==font,"Hover aumentou fonte");
                 }
