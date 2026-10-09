@@ -24,7 +24,7 @@ static class Program
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken t)
         {
             bool global=request.RequestUri!.AbsolutePath.EndsWith("/main/version.json");
-            var body=global?Manifest("10.377"):client is "001" or "002" or "003"?Manifest("10.377",client):null;
+            var body=global?Manifest("10.378"):client is "001" or "002" or "003"?Manifest("10.378",client):null;
             return Task.FromResult(new HttpResponseMessage(body==null?HttpStatusCode.NotFound:HttpStatusCode.OK){Content=new StringContent(body??"not found")});
         }
     }
@@ -34,11 +34,11 @@ static class Program
         var method=updater.GetMethod("LoadManifestAsync",S,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
         foreach(var id in new[]{"001","002","003","004"})
         {
-            using var http=new HttpClient(new Feed(id));var task=(Task)method.Invoke(null,new object[]{http,id,"10.376"})!;task.GetAwaiter().GetResult();
-            var m=task.GetType().GetProperty("Result")!.GetValue(task)!;
-            Check((string)m.GetType().GetProperty("Version")!.GetValue(m)! =="10.377","Versão incorreta");
+            using var http=new HttpClient(new Feed(id));
+            var m=Task.Run(async()=>{var task=(Task)method.Invoke(null,new object[]{http,id,"10.376"})!;await task;return task.GetType().GetProperty("Result")!.GetValue(task)!;}).GetAwaiter().GetResult();
+            Check((string)m.GetType().GetProperty("Version")!.GetValue(m)! =="10.378","Versão incorreta");
             Check((string)m.GetType().GetProperty("TargetClientCode")!.GetValue(m)! ==(id is "001" or "002" or "003"?id:""),"002 não recebeu pacote próprio");
-            Console.WriteLine($"PASS detecção {id}: 10.376 -> 10.377; alvo correto");
+            Console.WriteLine($"PASS detecção {id}: 10.376 -> 10.378; alvo correto");
         }
     }
     static void Modal(MainForm main,Control caption,bool escape,string name)
@@ -67,7 +67,7 @@ static class Program
     static void ValidateLive()
     {
         using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(40)};
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("LealInfoPDV-QA-Cozinha/10.377");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LealInfoPDV-QA-Cozinha/10.378");
         var updater=A.GetType("LealInfoPDV.UpdateManager",true)!;
         var load=updater.GetMethod("LoadManifestAsync",S,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
         var downloaded=new HashSet<string>();
@@ -76,14 +76,14 @@ static class Program
             var task=(Task)load.Invoke(null,new object[]{http,id,"10.376"})!;task.GetAwaiter().GetResult();
             var m=task.GetType().GetProperty("Result")!.GetValue(task);Check(m!=null,"Feed real sem atualização para "+id);
             string Read(string key)=>(string)m!.GetType().GetProperty(key)!.GetValue(m)!;
-            Check(Read("Version")=="10.377"&&Read("TargetClientCode")==(id is "001" or "002" or "003"?id:""),"Seleção real incorreta: "+id);
+            Check(Read("Version")=="10.378"&&Read("TargetClientCode")==(id is "001" or "002" or "003"?id:""),"Seleção real incorreta: "+id);
             var url=Read("PackageUrl");
             if(downloaded.Add(url))
             {
                 var data=http.GetByteArrayAsync(url).GetAwaiter().GetResult();
                 Check(Convert.ToHexString(SHA256.HashData(data)).Equals(Read("Sha256"),StringComparison.OrdinalIgnoreCase),"SHA remoto incorreto");
                 using var bytes=new MemoryStream(data);using var z=new ZipArchive(bytes);
-                Check(z.Entries.Select(x=>x.FullName).Order().SequenceEqual(new[]{"Assets/kitchen.png","LealInfoPDV.deps.json","LealInfoPDV.dll","LealInfoPDV.exe"}),"Conteúdo remoto inesperado");
+                Check(z.Entries.Select(x=>x.FullName).Order().SequenceEqual(new[]{"LealInfoPDV.deps.json","LealInfoPDV.dll","LealInfoPDV.exe"}),"Conteúdo remoto inesperado");
             }
             Console.WriteLine("PASS updater REAL com feed REAL: "+id+" -> "+Read("Version")+" alvo="+Read("TargetClientCode")+"; SHA remoto validado");
         }
@@ -92,13 +92,14 @@ static class Program
     {
         Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true","Somente ambiente de teste descartável.");
         if(args.Contains("--live")){ValidateLive();return;}
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);Application.EnableVisualStyles();Database.Initialize();
         Exec("INSERT OR REPLACE INTO settings(key,value) VALUES('company_registered','1'),('security_setup_completed','1'),('first_access_tutorial_completed','1'),('company','EMPRESA FICTICIA QA COZINHA')");
         Auth.CreateUser("QA FICTICIO","qa_kitchen","Senha_Ficticia_123","ADMINISTRADOR","qa@example.invalid","");
         Check(Auth.Login("qa_kitchen","errada")==null,"Senha incorreta aceita");
         using(var login=new LoginForm())
         {
-            login.Show();Pump(2300);var text=All(login).OfType<TextBox>().ToArray();text.Single(x=>!x.UseSystemPasswordChar).Text="qa_kitchen";text.Single(x=>x.UseSystemPasswordChar).Text="Senha_Ficticia_123";
+            login.Show();Pump(6000);var text=All(login).OfType<TextBox>().ToArray();text.Single(x=>!x.UseSystemPasswordChar).Text="qa_kitchen";text.Single(x=>x.UseSystemPasswordChar).Text="Senha_Ficticia_123";
             All(login).OfType<Button>().Single(x=>x.Text=="ENTRAR").PerformClick();Check(login.DialogResult==DialogResult.OK,"Login real falhou");
         }
         Console.WriteLine("PASS login real WinForms com credenciais fictícias");
@@ -131,6 +132,18 @@ static class Program
                 main.Scale(new SizeF(scale/appliedScale,scale/appliedScale));appliedScale=scale;main.ClientSize=new Size((int)(size.Width*scale),(int)(size.Height*scale));main.PerformLayout();Pump(50);
                 Check(kitchen.Parent!.Right<=bar.ClientSize.Width&&kitchen.Visible,"COZINHA cortada/oculta");
                 var sibling=bar.Controls[0];Check(kitchen.Parent.Height==sibling.Height&&kitchen.Parent.Margin==sibling.Margin,"Padrão do card diferente");
+                foreach(var label in bar.Controls.Cast<Control>().SelectMany(x=>x.Controls.OfType<Label>()))
+                {
+                    Check(label.Font.Size<=8.21f,"Fonte grande permaneceu");
+                    var room=new Size(label.ClientSize.Width-label.Padding.Horizontal,label.ClientSize.Height-label.Padding.Vertical);
+                    var measured=TextRenderer.MeasureText(label.Text,label.Font,room,TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl);
+                    Check(measured.Width<=room.Width&&measured.Height<=room.Height,"Texto cortado: "+label.Text+" "+measured+" / "+room);
+                    if(!label.Text.Contains(' ')){var line=TextRenderer.MeasureText(label.Text,label.Font,new Size(int.MaxValue,room.Height),TextFormatFlags.SingleLine|TextFormatFlags.TextBoxControl);Check(line.Width<=room.Width||label.Font.Size<=7.01f,"Palavra quebrada sem necessidade: "+label.Text);}
+                    Check(label.TextAlign==ContentAlignment.MiddleCenter,"Texto nao centralizado");
+                    var font=label.Font.Size;typeof(Control).GetMethod("OnMouseEnter",I)!.Invoke(label,new object[]{EventArgs.Empty});Check(label.Font.Size==font,"Hover aumentou fonte");
+                }
+                using(var capture=new Bitmap(bar.Width,bar.Height)){bar.DrawToBitmap(capture,new Rectangle(Point.Empty,capture.Size));capture.Save($"kitchen-evidencias/textos-{size.Width}-{scale*100:0}.png",ImageFormat.Png);}
+                Console.WriteLine($"PASS tipografia: todos captions centralizados, fonte ajustada, sem cortes, hover estavel; {size.Width}x{size.Height} escala {scale}");
                 var name=$"modal-{size.Width}x{size.Height}-dimensao-{scale*100:0}";
                 Modal(main,kitchen,false,name);Modal(main,kitchen,true,name+"-esc");
                 Check(Snapshot()==baseline,"Modal alterou banco/configuração");
