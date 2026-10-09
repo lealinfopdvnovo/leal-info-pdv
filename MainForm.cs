@@ -993,7 +993,7 @@ public sealed class MainForm : Form
         AddTool(bar, "CLIENTES", "customers.png", () => RunAllowed("customers", OpenCustomers));
         AddTool(bar, "FORNECEDORES", "suppliers.png", () => RunAllowed("suppliers", OpenSuppliers));
         AddTool(bar, "SERVIÇOS", "services.png", () => RunAllowed("services", OpenServices));
-        AddTool(bar, "COZINHA", "services.png", OpenKitchen);
+        AddTool(bar, "COZINHA", "kitchen.png", OpenKitchen);
         AddTool(bar, "HISTÓRICO\nVENDAS", "history.png", () => RunAllowed("sales_history", OpenHistory));
         AddTool(bar, "FLUXO DE\nCAIXA", "finance.png", () => RunAllowed("cash", OpenFinance));
         AddTool(bar, "ORDENS /\nOS", "orders.png", () => RunAllowed("orders", OpenOrders));
