@@ -36,8 +36,8 @@ static class Program
         {
             using var http=new HttpClient(new Feed(id));var task=(Task)method.Invoke(null,new object[]{http,id,"10.371"})!;task.GetAwaiter().GetResult();
             var m=task.GetType().GetProperty("Result")!.GetValue(task)!;
-            Check((string)m.GetType().GetProperty("Version")!.GetValue(m)!=="10.374","Versão incorreta");
-            Check((string)m.GetType().GetProperty("TargetClientCode")!.GetValue(m)!==(id=="002"?"002":""),"002 não recebeu pacote próprio");
+            Check((string)m.GetType().GetProperty("Version")!.GetValue(m)! =="10.374","Versão incorreta");
+            Check((string)m.GetType().GetProperty("TargetClientCode")!.GetValue(m)! ==(id=="002"?"002":""),"002 não recebeu pacote próprio");
             Console.WriteLine($"PASS detecção {id}: 10.371 -> 10.374; alvo correto");
         }
     }
@@ -64,9 +64,34 @@ static class Program
         timer.Start();typeof(Control).GetMethod("OnClick",I)!.Invoke(caption,new object[]{EventArgs.Empty});
         Check(seen,"COZINHA não abriu");if(failure!=null)throw failure;Check(!Application.OpenForms.Cast<Form>().Any(x=>x.Text=="COZINHA"),"Modal não fechou");
     }
+    static void ValidateLive()
+    {
+        using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(40)};
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LealInfoPDV-QA-Cozinha/10.374");
+        var updater=A.GetType("LealInfoPDV.UpdateManager",true)!;
+        var load=updater.GetMethod("LoadManifestAsync",S,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
+        var downloaded=new HashSet<string>();
+        foreach(var id in new[]{"001","002","003"})
+        {
+            var task=(Task)load.Invoke(null,new object[]{http,id,"10.371"})!;task.GetAwaiter().GetResult();
+            var m=task.GetType().GetProperty("Result")!.GetValue(task);Check(m!=null,"Feed real sem atualização para "+id);
+            string Read(string key)=>(string)m!.GetType().GetProperty(key)!.GetValue(m)!;
+            Check(Read("Version")=="10.374"&&Read("TargetClientCode")==(id=="002"?"002":""),"Seleção real incorreta: "+id);
+            var url=Read("PackageUrl");
+            if(downloaded.Add(url))
+            {
+                var data=http.GetByteArrayAsync(url).GetAwaiter().GetResult();
+                Check(Convert.ToHexString(SHA256.HashData(data)).Equals(Read("Sha256"),StringComparison.OrdinalIgnoreCase),"SHA remoto incorreto");
+                using var bytes=new MemoryStream(data);using var z=new ZipArchive(bytes);
+                Check(z.Entries.Select(x=>x.FullName).Order().SequenceEqual(new[]{"LealInfoPDV.deps.json","LealInfoPDV.dll","LealInfoPDV.exe"}),"Conteúdo remoto inesperado");
+            }
+            Console.WriteLine("PASS updater REAL com feed REAL: "+id+" -> "+Read("Version")+" alvo="+Read("TargetClientCode")+"; SHA remoto validado");
+        }
+    }
     [STAThread] static void Main(string[] args)
     {
         Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true","Somente ambiente de teste descartável.");
+        if(args.Contains("--live")){ValidateLive();return;}
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);Application.EnableVisualStyles();Database.Initialize();
         Exec("INSERT OR REPLACE INTO settings(key,value) VALUES('company_registered','1'),('security_setup_completed','1'),('first_access_tutorial_completed','1'),('company','EMPRESA FICTICIA QA COZINHA')");
         Auth.CreateUser("QA FICTICIO","qa_kitchen","Senha_Ficticia_123","ADMINISTRADOR","qa@example.invalid","");
