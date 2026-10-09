@@ -19,21 +19,26 @@ internal static class UpdateManager
  private sealed class UpdateManifest{public string Version{get;set;}="";public string PackageUrl{get;set;}="";public string Notes{get;set;}="";public string Sha256{get;set;}="";public string SourceCommit{get;set;}="";public string TargetClientCode{get;set;}="";}
  private sealed class GitHubRelease{public string tag_name{get;set;}="";public string body{get;set;}="";public GitHubAsset[] assets{get;set;}=Array.Empty<GitHubAsset>();}
  private sealed class GitHubAsset{public string name{get;set;}="";public string browser_download_url{get;set;}="";}
- public static async Task CheckForUpdatesAsync(IWin32Window? owner,bool silent){try{Directory.CreateDirectory(UpdatesFolder);var manifest=await LoadManifestAsync();if(manifest==null){if(!silent)MessageBox.Show(owner,"Nenhuma versão publicada foi encontrada agora.","Atualizações do LEAL INFO PDV");return;}if(!IsNewer(manifest.Version,CurrentVersion)){if(!silent)MessageBox.Show(owner,$"Seu LEAL INFO PDV já está atualizado.\n\nVersão instalada: V{CurrentVersion} • {Licensing.InstallationLicense.Edition}","Atualizações do LEAL INFO PDV");return;}var result=MessageBox.Show(owner,$"NOVA ATUALIZAÇÃO DISPONÍVEL\n\nVersão instalada: V{CurrentVersion} • {Licensing.InstallationLicense.Edition}\nNova versão: V{manifest.Version}\n\n{manifest.Notes}\n\nDeseja atualizar agora?","Atualização disponível",MessageBoxButtons.YesNo,MessageBoxIcon.Information);if(result==DialogResult.Yes)await DownloadAndApplyAsync(manifest);}catch(Exception ex){if(!silent)MessageBox.Show(owner,"Não foi possível atualizar agora.\n\n"+ex.Message,"Atualizações do LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Warning);}}
+ public static async Task CheckForUpdatesAsync(IWin32Window? owner,bool silent){try{Directory.CreateDirectory(UpdatesFolder);var manifest=await LoadManifestAsync();if(manifest==null){if(!silent)MessageBox.Show(owner,"Nenhuma versão publicada foi encontrada agora.","Atualizações do LEAL INFO PDV");return;}if(!IsNewer(manifest.Version,CurrentVersion)){if(!silent)MessageBox.Show(owner,$"Seu LEAL INFO PDV já está atualizado.\n\nVersão instalada: V{CurrentVersion} • {Licensing.InstallationLicense.Edition}","Atualizações do LEAL INFO PDV");return;}var result=ConfirmUpdate(owner,manifest);if(result==DialogResult.Yes)await DownloadAndApplyAsync(manifest);}catch(Exception ex){LogCheck("https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json", "Falha na verificacao: "+ex.GetType().Name);if(!silent)MessageBox.Show(owner,"Não foi possível atualizar agora.\n\n"+ex.Message,"Atualizações do LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Warning);}}
+ private static DialogResult ConfirmUpdate(IWin32Window? owner,UpdateManifest manifest)=>MessageBox.Show(owner,$"NOVA ATUALIZAÇÃO DISPONÍVEL\n\nVersão instalada: V{CurrentVersion} • {Licensing.InstallationLicense.Edition}\nNova versão: V{manifest.Version}\n\n{manifest.Notes}\n\nDeseja atualizar agora?","Atualização disponível",MessageBoxButtons.YesNo,MessageBoxIcon.Information);
  public static async Task ShowUpdateCenterAsync(IWin32Window owner){await CheckForUpdatesAsync(owner,false);}
  public static void ShowUpdateCenter(IWin32Window owner){_ = ShowUpdateCenterAsync(owner);}
  private static async Task<UpdateManifest?> LoadManifestAsync()
  {
-  using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(20)};
+  using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(8)};
   http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/"+CurrentVersion);
   return await LoadManifestAsync(http,GetClientCode(),CurrentVersion);
  }
  private static async Task<UpdateManifest?> LoadManifestAsync(HttpClient http,string clientCode,string currentVersion)
  {
-  UpdateManifest? targeted=null;
-  if(ClientUpdateIdentity.GetManifestPath(clientCode) is string path)
-   targeted=await TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/"+path);
-  var global=await TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json");
+  // Consultas independentes: falha do canal direcionado nao impede consultar o global.
+  var globalTask=TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json");
+  var targetedTask=ClientUpdateIdentity.GetManifestPath(clientCode) is string path
+   ? TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/"+path)
+   : Task.FromResult<UpdateManifest?>(null);
+  await Task.WhenAll(globalTask,targetedTask);
+  var global=await globalTask;
+  var targeted=await targetedTask;
   return SelectManifest(clientCode,currentVersion,global,targeted);
  }
  private static UpdateManifest? SelectManifest(string clientCode,string currentVersion,UpdateManifest? global,UpdateManifest? targeted)
@@ -50,16 +55,39 @@ internal static class UpdateManager
  }
  private static async Task<UpdateManifest?> TryLoadManifestAsync(HttpClient http,string url)
  {
+  for(int attempt=0;attempt<3;attempt++)
+  {
+   try
+   {
+    using var request=new HttpRequestMessage(HttpMethod.Get,url+"?t="+DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    request.Headers.CacheControl=new CacheControlHeaderValue{NoCache=true,NoStore=true};
+    using var response=await http.SendAsync(request);
+    if(response.IsSuccessStatusCode)
+    {
+     var json=await response.Content.ReadAsStringAsync();
+     return JsonSerializer.Deserialize<UpdateManifest>(json,new JsonSerializerOptions{PropertyNameCaseInsensitive=true});
+    }
+    LogCheck(url,$"HTTP {(int)response.StatusCode}; tentativa {attempt+1}");
+    // 404 significa canal ausente. Erros permanentes nao merecem novas consultas.
+    if(response.StatusCode!=HttpStatusCode.RequestTimeout && (int)response.StatusCode!=429 && (int)response.StatusCode<500)return null;
+   }
+   catch(JsonException){LogCheck(url,"Manifesto invalido; consulta recusada");return null;}
+   catch(HttpRequestException){LogCheck(url,$"Falha de rede; tentativa {attempt+1}");}
+   catch(TaskCanceledException){LogCheck(url,$"Timeout; tentativa {attempt+1}");}
+   if(attempt<2)await Task.Delay(attempt==0?2000:5000);
+  }
+  return null;
+ }
+ private static void LogCheck(string url,string message)
+ {
   try
   {
-   using var request=new HttpRequestMessage(HttpMethod.Get,url+"?t="+DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-   request.Headers.CacheControl=new CacheControlHeaderValue{NoCache=true,NoStore=true};
-   using var response=await http.SendAsync(request);
-   if(!response.IsSuccessStatusCode)return null;
-   var json=await response.Content.ReadAsStringAsync();
-   return JsonSerializer.Deserialize<UpdateManifest>(json,new JsonSerializerOptions{PropertyNameCaseInsensitive=true});
+   Directory.CreateDirectory(UpdatesFolder);
+   var file=Path.Combine(UpdatesFolder,"update-check.log");
+   if(File.Exists(file)&&new FileInfo(file).Length>262144)File.WriteAllText(file,"");
+   File.AppendAllText(file,$"{DateTimeOffset.UtcNow:O} {new Uri(url).AbsolutePath}: {message}{Environment.NewLine}");
   }
-  catch{return null;}
+  catch { /* Diagnostico nunca deve impedir abertura ou atualizacao. */ }
  }
  private static string GetClientCode()
  {
