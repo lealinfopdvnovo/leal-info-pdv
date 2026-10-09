@@ -45,7 +45,7 @@ jobs:
           $ErrorActionPreference='Stop'
           if($env:GITHUB_REF_NAME -notin @('client/001','client/003')){throw 'Esta publicacao de cristal autoriza somente 001/003'}
           foreach($path in @('version.json','clients/002/version.json')){
-            $before=gh api "repos/$env:UPDATE_REPO/contents/$path?ref=main" | ConvertFrom-Json
+            $before=gh api "repos/$env:UPDATE_REPO/contents/${path}?ref=main" | ConvertFrom-Json
             if($LASTEXITCODE -ne 0){throw 'Nao foi possivel auditar feed protegido'}
             $before.content | Set-Content (Join-Path $env:RUNNER_TEMP ($path.Replace('/','_')+'.before'))
           }
@@ -135,7 +135,7 @@ jobs:
           $contentBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
           $path = "clients/$env:CLIENT_CODE/version.json"
           $existingSha = ''
-          $existingManifestJson = gh api "repos/$env:UPDATE_REPO/contents/$path?ref=main" 2>$null
+          $existingManifestJson = gh api "repos/$env:UPDATE_REPO/contents/${path}?ref=main" 2>$null
           $manifestReadExitCode = $LASTEXITCODE
           if ($manifestReadExitCode -eq 0) {
             $existingManifest = $existingManifestJson | ConvertFrom-Json -ErrorAction Stop
@@ -159,7 +159,7 @@ jobs:
           dotnet run --project qa/directed/LealInfoPDV.DirectedTests.csproj -c Release -- --live $env:CLIENT_CODE
           if($LASTEXITCODE -ne 0){throw 'Validacao real do feed falhou'}
           foreach($path in @('version.json','clients/002/version.json')){
-            $after=gh api "repos/$env:UPDATE_REPO/contents/$path?ref=main"|ConvertFrom-Json
+            $after=gh api "repos/$env:UPDATE_REPO/contents/${path}?ref=main"|ConvertFrom-Json
             if($LASTEXITCODE -ne 0){throw 'Nao foi possivel conferir feed protegido'}
             $before=Get-Content (Join-Path $env:RUNNER_TEMP ($path.Replace('/','_')+'.before')) -Raw
             if($before.Trim() -ne $after.content.Trim()){throw 'Feed protegido mudou durante publicacao'}
