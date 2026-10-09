@@ -1,0 +1,52 @@
+name: Cristal login exclusivo 001 e 003 - sem publicacao
+on:
+  push:
+    branches: ['qa/cristal-login-001-003']
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Guardar isolamento e funcoes do login
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          base='968d2cbd4d1a50a5e1e6c3cec15cb94e7364e9e2'
+          allowed={'LoginForm.cs','qa/crystal/Program.cs','qa/crystal/LealInfoPDV.CrystalTests.csproj','.github/workflows/validar_cristal_001_003.yml'}
+          names=subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines()
+          assert set(names)<=allowed,names
+          old=subprocess.check_output(['git','show',base+':LoginForm.cs']).decode('utf-8')
+          new=Path('LoginForm.cs').read_text(encoding='utf-8')
+          a='    async Task SpeakLoginAssistAsync'; b='    // Static GDI+ lettering'
+          assert old[old.index(a):old.index('    private sealed class ChromeStagePanel')] .rstrip()==new[new.index(a):new.index(b)].rstrip()
+          for name in ['UpdateManager.cs','Auth.cs','Database.cs','MainForm.cs','LealInfoPDV.csproj']:
+              assert subprocess.check_output(['git','show',base+':'+name])==Path(name).read_bytes(),name
+          print('PASS: apenas desenho/layout da marca; login, recuperacao, banco, versao e updater byte a byte preservados')
+      - name: Preparar mesmas etapas do build atual
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Build Windows e teste real do formulario
+        shell: pwsh
+        run: |
+          dotnet build LealInfoPDV.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          dotnet run --project qa/crystal/LealInfoPDV.CrystalTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Teste falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: login-cristal-001-003-evidencias
+          path: crystal-evidencias/

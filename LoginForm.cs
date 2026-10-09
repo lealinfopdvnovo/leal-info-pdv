@@ -30,9 +30,9 @@ public sealed class LoginForm : Form
 
         var accent=new Panel{BackColor=Color.FromArgb(0,163,224),Height=5};
         identity.Controls.Add(accent);
-        var brand=new Label{Text="LEAL INFO",AutoSize=false,ForeColor=Color.White,BackColor=Color.Transparent,
+        var brand=new CrystalTitleLabel{Text="LEAL INFO",AutoSize=false,ForeColor=Color.White,BackColor=Color.Transparent,
             Font=new Font("Segoe UI",26,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
-        var connected=new Label{Text="CONECTADO",AutoSize=false,ForeColor=Color.FromArgb(55,205,255),BackColor=Color.Transparent,
+        var connected=new CrystalTitleLabel{Text="CONECTADO",AutoSize=false,ForeColor=Color.FromArgb(55,205,255),BackColor=Color.Transparent,
             Font=new Font("Segoe UI",26,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
         var product=new Label{Text="PDV PRO",AutoSize=false,ForeColor=Color.FromArgb(175,194,211),BackColor=Color.Transparent,
             Font=new Font("Segoe UI",16,FontStyle.Bold),TextAlign=ContentAlignment.MiddleLeft};
@@ -86,13 +86,17 @@ public sealed class LoginForm : Form
             // Marca central, acima do login.
             // V10.130: identidade com caixas altas o bastante para não cortar fonte.
             // Mantém o conjunto centralizado e deixa espaço real antes do cartão.
-            int brandW=Math.Min(900,Math.Max(520,sw-120));
+            int brandW=Math.Min(900,Math.Max(1,sw-120));
             int brandX=(sw-brandW)/2;
             int brandTop=Math.Max(24,targetY-230);
 
             accent.SetBounds((sw-120)/2,brandTop,120,5);
-            brand.SetBounds(brandX,brandTop+16,brandW,62);
-            connected.SetBounds(brandX,brandTop+76,brandW,62);
+            // Coordenadas locais da identidade: a marca permanece centrada no formulario.
+            int titleX=brandX-identity.Left;
+            int titleTop=brandTop+16-identity.Top;
+            int titleHeight=Math.Min(62,Math.Max(1,(card.Top-identity.Top-12-titleTop)/2));
+            brand.SetBounds(titleX,titleTop,brandW,titleHeight);
+            connected.SetBounds(titleX,titleTop+titleHeight,brandW,titleHeight);
             product.SetBounds(brandX,brandTop+138,brandW,42);
             tagline.SetBounds(brandX,brandTop+180,brandW,34);
 
@@ -551,6 +555,72 @@ public sealed class LoginForm : Form
         path.AddArc(bounds.Left,bounds.Bottom-d,d,d,90,90);
         path.CloseFigure();
         return path;
+    }
+
+    // Static GDI+ lettering only: no timer, external asset or authentication dependency.
+    private sealed class CrystalTitleLabel : Label
+    {
+        public CrystalTitleLabel()
+        {
+            AutoSize=false;
+            SetStyle(ControlStyles.UserPaint|ControlStyles.OptimizedDoubleBuffer|
+                ControlStyles.AllPaintingInWmPaint|ControlStyles.ResizeRedraw, true);
+            AccessibleRole=AccessibleRole.StaticText;
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            if(Width<12||Height<12||string.IsNullOrEmpty(Text))return;
+            var g=e.Graphics;
+            var saved=g.Save();
+            try
+            {
+                g.SmoothingMode=SmoothingMode.AntiAlias;
+                using var text=new GraphicsPath();
+                using var format=new StringFormat(StringFormat.GenericTypographic);
+                text.AddString(Text,Font.FontFamily,(int)Font.Style,Font.SizeInPoints*g.DpiY/72f,
+                    PointF.Empty,format);
+                var bounds=text.GetBounds();
+                if(bounds.Width<=0||bounds.Height<=0)return;
+                float margin=Math.Max(3,Math.Min(6,Height*.10f));
+                float fit=Math.Min(1f,Math.Min((Width-margin*2)/bounds.Width,
+                    (Height-margin*2)/bounds.Height));
+                using var transform=new Matrix();
+                transform.Translate((Width-bounds.Width*fit)/2-bounds.Left*fit,
+                    (Height-bounds.Height*fit)/2-bounds.Top*fit);
+                transform.Scale(fit,fit);
+                text.Transform(transform);
+                bounds=text.GetBounds();
+                float depth=Math.Min(3f,margin*.55f);
+                using var side=new SolidBrush(Color.FromArgb(12,62,136));
+                using var edge=new Pen(Color.FromArgb(115,30,159,232),1.2f);
+                for(int i=3;i>=1;i--)
+                {
+                    var layer=g.Save();
+                    g.TranslateTransform(depth*i/3,depth*i/3);
+                    g.FillPath(side,text);g.DrawPath(edge,text);
+                    g.Restore(layer);
+                }
+                using var crystal=new LinearGradientBrush(bounds,Color.White,Color.Blue,90f);
+                crystal.InterpolationColors=new ColorBlend
+                {
+                    Colors=new[]{Color.FromArgb(235,252,255),Color.FromArgb(97,201,249),
+                        Color.FromArgb(24,103,196),Color.FromArgb(162,235,255),Color.FromArgb(23,106,199)},
+                    Positions=new[]{0f,.32f,.52f,.56f,1f}
+                };
+                g.FillPath(crystal,text);
+                // Facets/reflections are clipped inside the glyphs, never across the login panel.
+                var clipped=g.Save();g.SetClip(text);
+                using var facet=new SolidBrush(Color.FromArgb(38,221,250,255));
+                float step=Math.Max(22,bounds.Height*.85f);
+                for(float x=bounds.Left-step;x<bounds.Right;x+=step)
+                    g.FillPolygon(facet,new[]{new PointF(x,bounds.Top),new PointF(x+step*.65f,bounds.Top),
+                        new PointF(x+step*.25f,bounds.Bottom)});
+                g.Restore(clipped);
+                using var outline=new Pen(Color.FromArgb(205,131,224,255),.8f);
+                g.DrawPath(outline,text);
+            }
+            finally{g.Restore(saved);}
+        }
     }
 
     private sealed class ChromeStagePanel : Panel
