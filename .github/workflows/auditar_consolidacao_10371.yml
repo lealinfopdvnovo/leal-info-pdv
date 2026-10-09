@@ -1,0 +1,71 @@
+name: Auditar base universal 10.371 sem publicacao
+on:
+  push:
+    branches: ['qa/consolidacao-universal-10371-20261009']
+    paths: ['.github/workflows/auditar_consolidacao_10371.yml']
+permissions:
+  contents: read
+jobs:
+  regressao:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        caso: [pacote, selecao, cep, exclusao, caixa, motoboy, codigos, rede_licenca]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Confirmar ambiente efemero e fonte
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hosted'){throw 'Somente runner Windows efemero autorizado'}
+          if((git rev-parse HEAD^) -ne '58d736c0e556cf69e38d1a9329d2c23b236aceba'){throw 'Base de auditoria inesperada'}
+          [xml]$p=Get-Content LealInfoPDV.csproj -Raw
+          if([string]$p.Project.PropertyGroup.Version -ne '10.371.0'){throw 'Versao inesperada'}
+          Remove-Item Env:SPEEDFOOD_TEST_TOKEN_FILE -ErrorAction SilentlyContinue
+      - name: Preparar exatamente os ajustes da release global existente
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Executar caso isolado existente
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $case='${{ matrix.caso }}'
+          if($case -eq 'pacote'){
+            dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish_qa 2>&1 | Tee-Object build-qa.log
+            if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+            Compress-Archive -Path 'publish_qa/*' -DestinationPath pacote-qa.zip
+            dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package pacote-qa.zip 2>&1 | Tee-Object teste-qa.log
+          }else{
+            $projects=@{
+              selecao='qa/update-selection/LealInfoPDV.UpdateTests.csproj'
+              cep='qa/delivery-address/LealInfoPDV.AddressTests.csproj'
+              exclusao='qa/delivery-delete/LealInfoPDV.DeleteTests.csproj'
+              caixa='qa/cash-flow/LealInfoPDV.CashTests.csproj'
+              motoboy='qa/driver-phone/LealInfoPDV.DriverTests.csproj'
+              codigos='qa/speedfood/LealInfoPDV.SpeedFoodTests.csproj'
+              rede_licenca='qa/network/LealInfoPDV.NetworkTests.csproj'
+            }
+            dotnet run --project $projects[$case] -c Release 2>&1 | Tee-Object teste-qa.log
+          }
+          if($LASTEXITCODE -ne 0){throw 'Teste falhou'}
+      - name: Preservar somente evidencias de teste
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: auditoria-10371-${{ matrix.caso }}
+          retention-days: 7
+          path: |
+            build-qa.log
+            teste-qa.log
+            nova-entrega-cep.png
+            cash-test-results.txt
