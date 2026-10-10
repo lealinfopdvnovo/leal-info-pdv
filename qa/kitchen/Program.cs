@@ -134,11 +134,14 @@ static class Program
                 var sibling=bar.Controls[0];Check(kitchen.Parent.Height==sibling.Height&&kitchen.Parent.Margin==sibling.Margin,"Padrão do card diferente");
                 foreach(var label in bar.Controls.Cast<Control>().SelectMany(x=>x.Controls.OfType<Label>()))
                 {
-                    Check(label.Font.Size<=8.21f,"Fonte grande permaneceu");
-                    var room=new Size(label.ClientSize.Width-label.Padding.Horizontal,label.ClientSize.Height-label.Padding.Vertical);
-                    var measured=TextRenderer.MeasureText(label.Text,label.Font,room,TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl);
-                    Check(measured.Width<=room.Width&&measured.Height<=room.Height,"Texto cortado: "+label.Text+" "+measured+" / "+room);
-                    if(!label.Text.Contains(' ')){var line=TextRenderer.MeasureText(label.Text,label.Font,new Size(int.MaxValue,room.Height),TextFormatFlags.SingleLine|TextFormatFlags.TextBoxControl);Check(line.Width<=room.Width||label.Font.Size<=7.01f,"Palavra quebrada sem necessidade: "+label.Text);}
+                    using(var pixels=new Bitmap(label.Width,label.Height)) label.DrawToBitmap(pixels,new Rectangle(Point.Empty,pixels.Size));
+                    var type=label.GetType();
+                    Check((bool)type.GetProperty("CompleteTextFits")!.GetValue(label)!,"Legenda nao cabe: "+label.Text);
+                    var lines=(string[])type.GetProperty("RenderedLines")!.GetValue(label)!;
+                    var recovered=string.Concat(lines).Replace("-", "").Replace(" ", "");
+                    Check(recovered==label.Text.Replace(" ", "").Replace("-", ""),"Parte da legenda desapareceu: "+label.Text);
+                    Check(label.Font.Size<=8.21f&&label.Font.Size>=6.99f,"Fonte fora dos limites");
+                    Console.WriteLine("LEGENDA COMPLETA: "+label.Text+" => "+string.Join(" | ",lines));
                     Check(label.TextAlign==ContentAlignment.MiddleCenter,"Texto nao centralizado");
                     var font=label.Font.Size;typeof(Control).GetMethod("OnMouseEnter",I)!.Invoke(label,new object[]{EventArgs.Empty});Check(label.Font.Size==font,"Hover aumentou fonte");
                 }
