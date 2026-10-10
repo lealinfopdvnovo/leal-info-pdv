@@ -19,7 +19,7 @@ static class Program
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
         {
             bool global = r.RequestUri!.AbsolutePath.EndsWith("/main/version.json");
-            string version = !global && id == "003" ? "10.381" : "10.379";
+            string version = !global && id == "003" ? "10.382" : "10.379";
             string target = global ? "" : id;
             if (!global && id == "004") return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound));
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new
@@ -33,11 +33,11 @@ static class Program
         foreach (string id in new[] { "001", "002", "003", "004" })
         {
             using var http = live ? new HttpClient() : new HttpClient(new Feed(id));
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-QA-Vidracaria/10.381");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-QA-Vidracaria/10.382");
             var task = (Task)load.Invoke(null, new object[] { http, id, "10.378" })!; await task;
             var m = task.GetType().GetProperty("Result")!.GetValue(task)!;
             string Get(string key) => (string)m.GetType().GetProperty(key)!.GetValue(m)!;
-            Check(Get("Version") == (id == "003" ? "10.381" : "10.379"), (live ? "REAL " : "MOCK ") + "versao/canal " + id);
+            Check(Get("Version") == (id == "003" ? "10.382" : "10.379"), (live ? "REAL " : "MOCK ") + "versao/canal " + id);
             Check(Get("TargetClientCode") == (id == "004" ? "" : id), "Alvo exclusivo " + id);
             if (live && id == "003")
             {

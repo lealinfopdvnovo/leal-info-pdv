@@ -1,7 +1,7 @@
-name: Vidracaria 003 - validar e publicar direcionado
+name: Vidracaria 3D 003 - QA sem publicacao
 on:
   push:
-    branches: ['release/vidracaria-003-10382']
+    branches: ['qa/vidracaria-3d-003']
 permissions: {contents: read}
 jobs:
   publicar:
@@ -58,57 +58,10 @@ jobs:
           $new=@($after.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
           if(Compare-Object $old $new){throw 'Dependencias mudaram'}
           Compress-Archive package/* LEAL_INFO_PDV_003_V10_382_UPDATE.zip
-      - name: Publicar somente canal 003 com guarda concorrencial
-        shell: pwsh
-        env: {GH_TOKEN: '${{ secrets.UPDATE_REPO_TOKEN }}'}
-        run: |
-          $ErrorActionPreference='Stop'
-          $repo='lealinfopdvnovo/leal-info-pdv-updates'
-          $protected=@{}
-          foreach($p in @('version.json','clients/001/version.json','clients/002/version.json')){
-            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
-            if($LASTEXITCODE -ne 0){throw 'Feed protegido nao pode ser lido'}
-            $protected[$p]=$v.sha
-          }
-          $entry=gh api "repos/$repo/contents/clients/003/version.json"|ConvertFrom-Json
-          if($LASTEXITCODE -ne 0){throw '003 nao pode ser lido'}
-          $old=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.content))|ConvertFrom-Json
-          if($old.Version -ne '10.381' -or $old.TargetClientCode -ne '003' -or $old.Sha256 -ne 'ba502e971763dd5ffa51628fd647c523ef599357434f369c7d4372f712715710'){throw 'Canal 003 mudou; abortar'}
-          $tags=gh api --paginate "repos/$repo/releases?per_page=100" --jq '.[].tag_name'
-          if($LASTEXITCODE -ne 0 -or 'client-003-v10.382' -in @($tags)){throw 'Release existente ou auditoria falhou'}
-          $package='LEAL_INFO_PDV_003_V10_382_UPDATE.zip'
-          $notes='V10.382 exclusiva 003: visualizacao 3D tecnica complementar e ultraleve, arrastar para girar, zoom e reset. 2D original e A4 preservados, fallback seguro, sem dependencias ou alteracao de banco.'
-          $notes|Set-Content notes.txt
-          gh release create client-003-v10.382 $package --repo $repo --title 'LEAL INFO PDV 003 V10.382 - 3D tecnico ultraleve' --notes-file notes.txt --latest=false
-          if($LASTEXITCODE -ne 0){throw 'Pacote nao publicado; nao mudar feed'}
-          $m=@{Version='10.382';TargetClientCode='003';PackageUrl="https://github.com/$repo/releases/download/client-003-v10.382/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$env:GITHUB_SHA;Notes=$notes;Mandatory=$false}
-          $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($m|ConvertTo-Json)))
-          @{message='Vidracaria 3D tecnica 10.382 somente 003';sha=$entry.sha;content=$content}|ConvertTo-Json -Compress|Set-Content request.json
-          gh api --method PUT "repos/$repo/contents/clients/003/version.json" --input request.json
-          if($LASTEXITCODE -ne 0){throw 'Manifest nao publicado'}
-          foreach($p in $protected.Keys){
-            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
-            if($LASTEXITCODE -ne 0 -or $v.sha -ne $protected[$p]){throw 'Feed protegido mudou'}
-          }
-          $url="https://raw.githubusercontent.com/$repo/main/clients/003/version.json"
-          for($i=0;$i -lt 24;$i++){
-            $live=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
-            if($live.Version -eq '10.382' -and $live.TargetClientCode -eq '003'){break}
-            Start-Sleep -Seconds 5
-          }
-          if($live.Version -ne '10.382' -or $live.Sha256 -ne $m.Sha256){throw 'Manifest nao propagou'}
-          Invoke-WebRequest $live.PackageUrl -OutFile verificado.zip
-          if((Get-FileHash verificado.zip).Hash.ToLowerInvariant() -ne $live.Sha256){throw 'Hash publicado incorreto'}
-          Write-Host 'PASS PUBLICADO 003 10.382; hash remoto confirmado; global 001 002 intactos'
-      - name: Conferir deteccao REAL pelo updater
-        shell: pwsh
-        run: |
-          dotnet run --project qa/glass/LealInfoPDV.GlassTests.csproj -c Release -- --live
-          if($LASTEXITCODE -ne 0){throw 'Deteccao real falhou'}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: vidracaria-003-10382
+          name: vidracaria-3d-003-QA
           path: |
             kitchen-evidencias/
             glass-evidencias/
