@@ -802,6 +802,7 @@ public sealed class MainForm : Form
         AddTool(bar, "FORNECEDORES", "suppliers.png", () => RunAllowed("suppliers", OpenSuppliers));
         AddTool(bar, "SERVIÇOS", "services.png", () => RunAllowed("services", OpenServices));
         AddTool(bar, "COZINHA", "kitchen.png", OpenKitchen);
+        AddTool(bar, "VIDRAÇARIA", "vidracaria-local", OpenGlassWorkshop);
         AddTool(bar, "HISTÓRICO\nVENDAS", "history.png", () => RunAllowed("sales_history", OpenHistory));
         AddTool(bar, "FLUXO DE\nCAIXA", "finance.png", () => RunAllowed("cash", OpenFinance));
         AddTool(bar, "ORDENS /\nOS", "orders.png", () => RunAllowed("orders", OpenOrders));
@@ -930,6 +931,12 @@ public sealed class MainForm : Form
             "Acesso não permitido",
             MessageBoxButtons.OK,
             MessageBoxIcon.Warning);
+    }
+
+    private void OpenGlassWorkshop()
+    {
+        using var form = new GlassWorkshopForm();
+        form.ShowDialog(this);
     }
 
     private void OpenKitchen()
@@ -1551,6 +1558,7 @@ public sealed class MainForm : Form
         int pulse = 0;
         bool pulseUp = true;
         string normalizedText = text.Trim();
+        bool isGlass = normalizedText == "VIDRAÇARIA";
         bool isProducts = normalizedText == "PRODUTOS";
         bool isSales = normalizedText.Replace("\n", " ") == "TELA DE VENDAS";
         // Todos os atalhos ficam estaveis e usam apenas o destaque suave ao passar o mouse.
@@ -1572,14 +1580,16 @@ public sealed class MainForm : Form
             gp.CloseFigure();
 
             int lift = visualPulse * 5;
-            Color topColor = isProducts
+            Color topColor = isGlass
+                ? (hover ? Color.FromArgb(72, 217, 245) : Color.FromArgb(27, 174, 217))
+                : isProducts
                 ? (hover ? Color.FromArgb(255, 165, 35) : Color.FromArgb(235, 105, 10))
                 : isSales
                     ? (hover ? Color.FromArgb(240, 55, 65) : Color.FromArgb(185, 22, 38))
                     : (hover ? Color.FromArgb(22, 170, 235) : Color.FromArgb(8, 115 + lift, 180 + lift));
             Color bottomColor = isProducts
                 ? Color.FromArgb(125, 45, 0)
-                : isSales ? Color.FromArgb(85, 5, 18) : Color.FromArgb(2, 28, 66);
+                : isSales ? Color.FromArgb(85, 5, 18) : isGlass ? Color.FromArgb(7, 49, 92) : Color.FromArgb(2, 28, 66);
             using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect, topColor, bottomColor, 90f);
             e.Graphics.FillPath(bg, gp);
 
@@ -1603,9 +1613,9 @@ public sealed class MainForm : Form
 
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", iconFile);
         PictureBox? icon = null;
-        if (File.Exists(iconPath))
+        if (File.Exists(iconPath) || isGlass)
         {
-            using var source = Image.FromFile(iconPath);
+            using var source = isGlass ? GlassWorkshopIcon.Create() : Image.FromFile(iconPath);
             icon = new PictureBox
             {
                 Width = 58,

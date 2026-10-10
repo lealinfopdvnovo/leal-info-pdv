@@ -1,0 +1,48 @@
+name: Vidracaria 003 - desenvolvimento isolado sem publicacao
+on:
+  push:
+    branches: ['qa/vidracaria-003-inicial']
+permissions: { contents: read }
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Exigir isolamento da base 003
+        shell: python
+        run: |
+          import subprocess
+          base='d534dafcde1a36d4faac57111600c65f3d746795'
+          allowed={'MainForm.cs','GlassWorkshopForm.cs','GlassWorkshopIcon.cs','qa/kitchen/Program.cs','.github/workflows/validar_vidracaria_003.yml'}
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed==allowed,changed
+          for n in ['UpdateManager.cs','ClientUpdateIdentity.cs','LealInfoPDV.csproj','LoginForm.cs','Auth.cs','Database.cs','Assets/kitchen.png','Assets/services.png']:
+              assert subprocess.check_output(['git','show',base+':'+n])==subprocess.check_output(['git','show','HEAD:'+n]),n
+          print('PASS base 003, versao oficial, updater, login, banco e icones existentes preservados')
+      - name: Aplicar etapas existentes do build
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Build Windows e testes WinForms com dados ficticios
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          dotnet build LealInfoPDV.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          dotnet run --project qa/kitchen/LealInfoPDV.KitchenTests.csproj -c Release -- --global
+          if($LASTEXITCODE -ne 0){throw 'Vidracaria/layout/login/regressao falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vidracaria-003-evidencias
+          path: kitchen-evidencias/
+          retention-days: 14
