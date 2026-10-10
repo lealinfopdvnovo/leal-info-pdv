@@ -36,6 +36,10 @@ static class Program
                 float X(object v) => (float)v.GetType().GetProperty("X")!.GetValue(v)!;
                 float Y(object v) => (float)v.GetType().GetProperty("Y")!.GetValue(v)!;
                 Check(Math.Abs((X(b) - X(a)) / (Y(b) - Y(a)) - (float)(pair.Item1 / pair.Item2)) < .0001, "Proporcao geometrica 3D " + pair);
+                string expectedDimensions = $"DIMENSÕES DO PROJETO\nLargura: {pair.Item1:0.##} mm\nAltura: {pair.Item2:0.##} mm";
+                string Dimensions() => (string)typeof(GlassBox3DView).GetField("dimensionsText", I)!.GetValue(three)!;
+                Check(Dimensions() == expectedDimensions, "Medidas fixas da mesma fonte do 2D " + pair);
+                Capture(f, $"Inicial-{size.Width}-{scale:0.00}-{pair.Item1}-{pair.Item2}");
                 float yaw = three.YawDegrees, pitch = three.PitchDegrees;
                 Mouse(three, "OnMouseMove", MouseButtons.None, 10, 10); Check(three.YawDegrees == yaw, "Mouse sem arrastar nao gira");
                 Mouse(three, "OnMouseDown", MouseButtons.Left, 10, 10); Mouse(three, "OnMouseMove", MouseButtons.Left, 150, 70); Mouse(three, "OnMouseUp", MouseButtons.Left, 150, 70);
@@ -44,11 +48,18 @@ static class Program
                 Capture(f, $"3D-{size.Width}-{scale:0.00}-{pair.Item1}-{pair.Item2}");
                 for (int i = 0; i < 50; i++) Mouse(three, "OnMouseWheel", MouseButtons.None, 0, 0, 120);
                 Check(three.ZoomFactor == 2.5f, "Limite zoom superior");
+                Check(Dimensions() == expectedDimensions, "Medidas independentes de rotacao e zoom");
+                Capture(f, $"Zoom-{size.Width}-{scale:0.00}-{pair.Item1}-{pair.Item2}");
                 for (int i = 0; i < 100; i++) Mouse(three, "OnMouseWheel", MouseButtons.None, 0, 0, -120);
                 Check(three.ZoomFactor == .55f, "Limite zoom inferior");
                 Mouse(three, "OnMouseDown", MouseButtons.Left, 0, 0); Mouse(three, "OnMouseMove", MouseButtons.Left, 0, 10000); Mouse(three, "OnMouseUp", MouseButtons.Left, 0, 10000);
                 Check(three.PitchDegrees == -75, "Limite inclinacao vertical");
                 Find<Button>(f, "Reset3D").PerformClick(); Check(three.YawDegrees == -25 && three.PitchDegrees == 18 && three.ZoomFactor == 1, "Resetar visao");
+                Mouse(three, "OnMouseDown", MouseButtons.Left, 0, 0); Mouse(three, "OnMouseMove", MouseButtons.Left, 360, 0); Mouse(three, "OnMouseUp", MouseButtons.Left, 360, 0);
+                Capture(f, $"Traseira-{size.Width}-{scale:0.00}-{pair.Item1}-{pair.Item2}");
+                Find<Button>(f, "Reset3D").PerformClick();
+                for (int n = 0; n < 4; n++) { Find<Button>(f, "Mode2D").PerformClick(); mode3D.PerformClick(); }
+                Check(three.Project == two.Project && Dimensions() == expectedDimensions, "Alternancia repetida preserva medidas");
                 int paints = 0; PaintEventHandler count = (_, _) => paints++; three.Paint += count;
                 Pump(100); paints = 0; yaw = three.YawDegrees; pitch = three.PitchDegrees; Pump(350);
                 Check(three.YawDegrees == yaw && three.PitchDegrees == pitch && paints <= 2, "Repouso sem animacao / sem loop de renderizacao");

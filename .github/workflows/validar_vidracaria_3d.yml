@@ -1,7 +1,7 @@
 name: Vidracaria 3D 003 - QA sem publicacao
 on:
   push:
-    branches: ['qa/vidracaria-3d-003']
+    branches: ['qa/vidracaria-3d-folhas-003']
 permissions: {contents: read}
 jobs:
   publicar:
@@ -16,14 +16,14 @@ jobs:
         shell: python
         run: |
           import subprocess
-          base='07df289af918d88cb2010d376afda2d6be3f8284'
-          allowed={'.github/workflows/validar_vidracaria_3d.yml', 'qa/glass3d/Program.cs', 'LealInfoPDV.csproj', '.github/workflows/publicar_vidracaria_003.yml', 'qa/glass/Program.cs', 'GlassBox3DView.cs', 'GlassProjectForm.cs', 'qa/glass3d/LealInfoPDV.Glass3DTests.csproj', 'UpdateManager.cs'}
+          base='e3963e833e216bd0ed86fce33fdfc01796661fd7'
+          allowed={'.github/workflows/validar_vidracaria_3d.yml', '.github/workflows/publicar_vidracaria_003.yml', 'qa/glass3d/Program.cs', 'qa/glass/Program.cs', 'LealInfoPDV.csproj', 'UpdateManager.cs', 'GlassBox3DView.cs'}
           changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
           assert changed==allowed,changed
-          for n in ['GlassProject.cs','GlassProjectPrint.cs','GlassWindowRenderer.cs','GlassWorkshopForm.cs','MainForm.cs','GlassWorkshopIcon.cs','LoginForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs','Assets/kitchen.png','Assets/services.png']:
+          for n in ['GlassProjectForm.cs','GlassProject.cs','GlassProjectPrint.cs','GlassWindowRenderer.cs','GlassWorkshopForm.cs','MainForm.cs','GlassWorkshopIcon.cs','LoginForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs','Assets/kitchen.png','Assets/services.png']:
               assert subprocess.check_output(['git','show',base+':'+n])==subprocess.check_output(['git','show','HEAD:'+n]),n
           for n in ['UpdateManager.cs','LealInfoPDV.csproj']:
-              assert subprocess.check_output(['git','show',base+':'+n]).replace(b'10.381',b'10.382')==subprocess.check_output(['git','show','HEAD:'+n]),n
+              assert subprocess.check_output(['git','show',base+':'+n]).replace(b'10.382',b'10.383')==subprocess.check_output(['git','show','HEAD:'+n]),n
       - name: Build e testes Windows antes de publicar
         shell: pwsh
         run: |
@@ -42,8 +42,8 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Testes parametricos falharam'}
           dotnet run --project qa/glass3d/LealInfoPDV.Glass3DTests.csproj -c Release
           if($LASTEXITCODE -ne 0){throw 'Testes 3D falharam'}
-          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.381/LEAL_INFO_PDV_003_V10_381_UPDATE.zip' -OutFile baseline.zip
-          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne 'ba502e971763dd5ffa51628fd647c523ef599357434f369c7d4372f712715710'){throw 'Baseline mudou'}
+          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.382/LEAL_INFO_PDV_003_V10_382_UPDATE.zip' -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne '1bfabbe44920854c2255dc993e778af06049bda49637c02ec526c36a5b5d86e7'){throw 'Baseline mudou'}
           Expand-Archive baseline.zip baseline
           $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
           $sdk=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
@@ -57,7 +57,7 @@ jobs:
           $old=@($before.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
           $new=@($after.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
           if(Compare-Object $old $new){throw 'Dependencias mudaram'}
-          Compress-Archive package/* LEAL_INFO_PDV_003_V10_382_UPDATE.zip
+          Compress-Archive package/* LEAL_INFO_PDV_003_V10_383_UPDATE.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,5 +66,5 @@ jobs:
             kitchen-evidencias/
             glass-evidencias/
             glass3d-evidencias/
-            LEAL_INFO_PDV_003_V10_382_UPDATE.zip
+            LEAL_INFO_PDV_003_V10_383_UPDATE.zip
           retention-days: 14
