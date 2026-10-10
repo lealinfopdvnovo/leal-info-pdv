@@ -78,7 +78,7 @@ public sealed class GlassProjectForm : Form
         message.Text = "Desenho atualizado. SALVAR pendente da definição da persistência de projetos.";
     }
     private static NumericUpDown Number(string name, decimal value, decimal min, decimal max, int decimals) => new()
-    { Name = name, Value = value, Minimum = min, Maximum = max, DecimalPlaces = decimals, Dock = DockStyle.Fill, ThousandsSeparator = false };
+    { Name = name, Minimum = min, Maximum = max, DecimalPlaces = decimals, Value = value, Dock = DockStyle.Fill, ThousandsSeparator = false };
     private static Button Button(string name, string text) => new() { Name = name, Text = text, Dock = DockStyle.Top,
         Height = 42, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(11, 113, 161), ForeColor = Color.White };
     protected override void Dispose(bool disposing) { base.Dispose(disposing); if (disposing) { heading.Dispose(); body.Dispose(); } }
