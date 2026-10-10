@@ -58,7 +58,7 @@ public sealed class GlassProjectForm : Form
             TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(174, 201, 220) }, 0, 2);
         layout.Controls.Add(scroll, 0, 0); layout.Controls.Add(graph, 1, 0);
         var footer = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
-        var close = Button("CloseProject", "FECHAR"); close.Width = 130; close.Dock = DockStyle.None;
+        var close = Button("CloseProject", "FECHAR"); close.Width = 130; close.Height = 34; close.Dock = DockStyle.None;
         close.DialogResult = DialogResult.Cancel; close.Click += (_, _) => Close();
         footer.Controls.Add(close); layout.Controls.Add(footer, 0, 1); layout.SetColumnSpan(footer, 2);
         Controls.Add(layout); CancelButton = close;
