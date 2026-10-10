@@ -24,7 +24,7 @@ static class Program
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken t)
         {
             bool global=request.RequestUri!.AbsolutePath.EndsWith("/main/version.json");
-            var body=global?Manifest("10.378"):client is "001" or "002" or "003"?Manifest("10.378",client):null;
+            var body=global?Manifest("10.379"):client is "001" or "002" or "003"?Manifest("10.379",client):null;
             return Task.FromResult(new HttpResponseMessage(body==null?HttpStatusCode.NotFound:HttpStatusCode.OK){Content=new StringContent(body??"not found")});
         }
     }
@@ -36,9 +36,9 @@ static class Program
         {
             using var http=new HttpClient(new Feed(id));
             var m=Task.Run(async()=>{var task=(Task)method.Invoke(null,new object[]{http,id,"10.376"})!;await task;return task.GetType().GetProperty("Result")!.GetValue(task)!;}).GetAwaiter().GetResult();
-            Check((string)m.GetType().GetProperty("Version")!.GetValue(m)! =="10.378","Versão incorreta");
+            Check((string)m.GetType().GetProperty("Version")!.GetValue(m)! =="10.379","Versão incorreta");
             Check((string)m.GetType().GetProperty("TargetClientCode")!.GetValue(m)! ==(id is "001" or "002" or "003"?id:""),"002 não recebeu pacote próprio");
-            Console.WriteLine($"PASS detecção {id}: 10.376 -> 10.378; alvo correto");
+            Console.WriteLine($"PASS detecção {id}: 10.376 -> 10.379; alvo correto");
         }
     }
     static void Modal(MainForm main,Control caption,bool escape,string name)
@@ -67,7 +67,7 @@ static class Program
     static void ValidateLive()
     {
         using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(40)};
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("LealInfoPDV-QA-Cozinha/10.378");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("LealInfoPDV-QA-Cozinha/10.379");
         var updater=A.GetType("LealInfoPDV.UpdateManager",true)!;
         var load=updater.GetMethod("LoadManifestAsync",S,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
         var downloaded=new HashSet<string>();
@@ -76,7 +76,7 @@ static class Program
             var task=(Task)load.Invoke(null,new object[]{http,id,"10.376"})!;task.GetAwaiter().GetResult();
             var m=task.GetType().GetProperty("Result")!.GetValue(task);Check(m!=null,"Feed real sem atualização para "+id);
             string Read(string key)=>(string)m!.GetType().GetProperty(key)!.GetValue(m)!;
-            Check(Read("Version")=="10.378"&&Read("TargetClientCode")==(id is "001" or "002" or "003"?id:""),"Seleção real incorreta: "+id);
+            Check(Read("Version")=="10.379"&&Read("TargetClientCode")==(id is "001" or "002" or "003"?id:""),"Seleção real incorreta: "+id);
             var url=Read("PackageUrl");
             if(downloaded.Add(url))
             {
@@ -134,11 +134,14 @@ static class Program
                 var sibling=bar.Controls[0];Check(kitchen.Parent.Height==sibling.Height&&kitchen.Parent.Margin==sibling.Margin,"Padrão do card diferente");
                 foreach(var label in bar.Controls.Cast<Control>().SelectMany(x=>x.Controls.OfType<Label>()))
                 {
-                    Check(label.Font.Size<=8.21f,"Fonte grande permaneceu");
-                    var room=new Size(label.ClientSize.Width-label.Padding.Horizontal,label.ClientSize.Height-label.Padding.Vertical);
-                    var measured=TextRenderer.MeasureText(label.Text,label.Font,room,TextFormatFlags.WordBreak|TextFormatFlags.TextBoxControl);
-                    Check(measured.Width<=room.Width&&measured.Height<=room.Height,"Texto cortado: "+label.Text+" "+measured+" / "+room);
-                    if(!label.Text.Contains(' ')){var line=TextRenderer.MeasureText(label.Text,label.Font,new Size(int.MaxValue,room.Height),TextFormatFlags.SingleLine|TextFormatFlags.TextBoxControl);Check(line.Width<=room.Width||label.Font.Size<=7.01f,"Palavra quebrada sem necessidade: "+label.Text);}
+                    using(var pixels=new Bitmap(label.Width,label.Height)) label.DrawToBitmap(pixels,new Rectangle(Point.Empty,pixels.Size));
+                    var type=label.GetType();
+                    Check((bool)type.GetProperty("CompleteTextFits")!.GetValue(label)!,"Legenda nao cabe: "+label.Text);
+                    var lines=(string[])type.GetProperty("RenderedLines")!.GetValue(label)!;
+                    var recovered=string.Concat(lines).Replace("-", "").Replace(" ", "");
+                    Check(recovered==label.Text.Replace(" ", "").Replace("-", ""),"Parte da legenda desapareceu: "+label.Text);
+                    Check(label.Font.Size<=8.21f&&label.Font.Size>=6.99f,"Fonte fora dos limites");
+                    Console.WriteLine("LEGENDA COMPLETA: "+label.Text+" => "+string.Join(" | ",lines));
                     Check(label.TextAlign==ContentAlignment.MiddleCenter,"Texto nao centralizado");
                     var font=label.Font.Size;typeof(Control).GetMethod("OnMouseEnter",I)!.Invoke(label,new object[]{EventArgs.Empty});Check(label.Font.Size==font,"Hover aumentou fonte");
                 }

@@ -1,7 +1,7 @@
 name: Validar alerta e tipografia - quatro bases isoladas
 on:
   push:
-    branches: ['qa/alerta-tipografia-global']
+    branches: ['qa/legendas-release-10379-global']
 permissions: { contents: read }
 jobs:
   validar:
@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ matrix.flavor == 'global' && github.sha || format('qa/alerta-tipografia-{0}', matrix.flavor) }}
+          ref: ${{ matrix.flavor == 'global' && github.sha || format('qa/legendas-release-10379-{0}', matrix.flavor) }}
           fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
@@ -24,17 +24,17 @@ jobs:
           FLAVOR: ${{ matrix.flavor }}
         run: |
           import os,subprocess
-          bases={'global':'5dd0f5f46450839c46338eb4380f96c4756497ee','001':'ecece793e2812e3f2ccfa41e86de84010e318ff9','002':'25479b7e1097af50bf9c5ed091d777d1b1973c1f','003':'af0960bde7e9434f713ef6f086beff94903dc738'}
+          bases={'global':'f6193bd78bc2f3c0a8fb5b4c5509a61435359f59','001':'3a9a4805b7564af8df035c60e50ed74f3875fa42','002':'cfca9632d56c47c5345ab602aa1406fef52f5b32','003':'8233655117f3b33caa364ff49b07e22044d2d8ae'}
           base=bases[os.environ['FLAVOR']]
           allowed={'MainForm.cs','UpdateManager.cs','LealInfoPDV.csproj','qa/kitchen/Program.cs','qa/alert/Program.cs','qa/alert/LealInfoPDV.AlertTests.csproj','.github/workflows/validar_alerta_tipografia.yml'}
           changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
           assert changed<=allowed,changed
           for n in ['LoginForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs','Assets/services.png','Assets/kitchen.png','Licensing/UpdatePayloadPolicy.cs']:
               assert subprocess.check_output(['git','show',base+':'+n])==subprocess.check_output(['git','show','HEAD:'+n]),n
-          assert subprocess.check_output(['git','show',base+':LealInfoPDV.csproj'])==subprocess.check_output(['git','show','HEAD:LealInfoPDV.csproj']).replace(b'10.378',b'10.377')
+          assert subprocess.check_output(['git','show',base+':LealInfoPDV.csproj'])==subprocess.check_output(['git','show','HEAD:LealInfoPDV.csproj']).replace(b'10.379',b'10.378')
           old=subprocess.check_output(['git','show',base+':MainForm.cs']).decode()
           new=subprocess.check_output(['git','show','HEAD:MainForm.cs']).decode()
-          assert old[:old.index('    private void AddTool(')]==new[:new.index('    private void AddTool(')]
+          assert old[:old.index('    private void AddTool(')]==new[:new.index('    // Mede e desenha cada linha')]
           assert old[old.index('    private void StyleForm('):]==new[new.index('    private void StyleForm('):] if '    private void StyleForm(' in old else True
           old=subprocess.check_output(['git','show',base+':UpdateManager.cs']).decode();new=subprocess.check_output(['git','show','HEAD:UpdateManager.cs']).decode()
           assert old[old.index(' private static bool IsSafeClientPackage'):]==new[new.index(' private static bool IsSafeClientPackage'):]
