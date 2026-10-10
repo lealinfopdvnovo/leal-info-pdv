@@ -1657,6 +1657,83 @@ public sealed class MainForm : Form
         Close();
     }
 
+    // Mede e desenha cada linha com o MESMO renderer, fonte, DPI e flags.
+    // Não delega o wrapping ao Label, nem limita a medição à altura proposta.
+    private sealed class ShortcutCaption : Label
+    {
+        private readonly Dictionary<float, Font> fonts = new();
+        public string[] RenderedLines { get; private set; } = Array.Empty<string>();
+        public bool CompleteTextFits { get; private set; }
+        private const TextFormatFlags Flags = TextFormatFlags.SingleLine |
+            TextFormatFlags.NoPadding | TextFormatFlags.NoPrefix;
+
+        public ShortcutCaption()
+        {
+            SetStyle(ControlStyles.UserPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var room = new Rectangle(Padding.Left, Padding.Top,
+                Math.Max(1, ClientSize.Width - Padding.Horizontal),
+                Math.Max(1, ClientSize.Height - Padding.Vertical));
+            var source = Text.Replace("\n", " ").Trim();
+            Font selected = Font;
+            var lines = new List<string>();
+            int lineHeight = 0;
+            CompleteTextFits = false;
+            for (int step = 0; step <= 6; step++)
+            {
+                float points = 8.2f - step * .2f;
+                if (!fonts.TryGetValue(points, out selected!))
+                    fonts[points] = selected = new Font("Segoe UI", points, FontStyle.Bold);
+                int Width(string value) => TextRenderer.MeasureText(e.Graphics, value,
+                    selected, new Size(int.MaxValue, int.MaxValue), Flags).Width;
+                lines.Clear();
+                string current = "";
+                foreach (var word in source.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string joined = current.Length == 0 ? word : current + " " + word;
+                    if (Width(joined) <= room.Width) { current = joined; continue; }
+                    if (current.Length > 0) { lines.Add(current); current = ""; }
+                    string rest = word;
+                    while (Width(rest) > room.Width && rest.Length > 1)
+                    {
+                        int count = rest.Length - 1;
+                        while (count > 1 && Width(rest[..count] + "-") > room.Width) count--;
+                        lines.Add(rest[..count] + "-");
+                        rest = rest[count..];
+                    }
+                    current = rest;
+                }
+                if (current.Length > 0) lines.Add(current);
+                lineHeight = TextRenderer.MeasureText(e.Graphics, "Ágj", selected,
+                    new Size(int.MaxValue, int.MaxValue), Flags).Height;
+                CompleteTextFits = lines.All(x => Width(x) <= room.Width) &&
+                    lines.Count * lineHeight <= room.Height;
+                if (CompleteTextFits) break;
+            }
+            RenderedLines = lines.ToArray();
+            if (!ReferenceEquals(Font, selected)) Font = selected;
+            int y = room.Top + (room.Height - lines.Count * lineHeight) / 2;
+            foreach (var line in lines)
+            {
+                var size = TextRenderer.MeasureText(e.Graphics, line, selected,
+                    new Size(int.MaxValue, int.MaxValue), Flags);
+                TextRenderer.DrawText(e.Graphics, line, selected,
+                    new Point(room.Left + (room.Width - size.Width) / 2, y), ForeColor, Flags);
+                y += lineHeight;
+            }
+        }
+        protected override void OnSizeChanged(EventArgs e) { base.OnSizeChanged(e); Invalidate(); }
+        protected override void OnDpiChangedAfterParent(EventArgs e) { base.OnDpiChangedAfterParent(e); Invalidate(); }
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            if (disposing) foreach (var font in fonts.Values) font.Dispose();
+        }
+    }
+
     private void AddTool(Control parent, string text, string iconFile, Action action)
     {
         const int cardW = 92;
@@ -1744,7 +1821,7 @@ public sealed class MainForm : Form
             card.Controls.Add(icon);
         }
 
-        var caption = new Label
+        var caption = new ShortcutCaption
         {
             Text = normalizedText.Replace("\n", " "),
             Dock = DockStyle.Bottom,
@@ -1752,37 +1829,12 @@ public sealed class MainForm : Form
             TextAlign = ContentAlignment.MiddleCenter,
             ForeColor = Color.White,
             BackColor = Color.Transparent,
-            Font = new Font("Segoe UI", 8.2f, FontStyle.Bold),
+            AutoSize = false,
             AutoEllipsis = false,
             Cursor = Cursors.Hand,
             Padding = new Padding(3)
         };
         card.Controls.Add(caption);
-        var captionFonts=new Dictionary<float,Font> { [8.2f]=caption.Font };
-        // Mantem a caixa existente; ajusta somente a tipografia ao espaco real/DPI.
-        void FitCaption()
-        {
-            var room=new Size(Math.Max(1,caption.ClientSize.Width-caption.Padding.Horizontal),
-                              Math.Max(1,caption.ClientSize.Height-caption.Padding.Vertical));
-            float size=8.2f;
-            Font? fitted=null;
-            using var captionGraphics=caption.CreateGraphics();
-            for(;size>=7.0f;size-=0.2f)
-            {
-                var key=(float)Math.Round(size,1);
-                if(!captionFonts.TryGetValue(key,out fitted))
-                    captionFonts[key]=fitted=new Font("Segoe UI",key,FontStyle.Bold);
-                bool singleWord=!caption.Text.Contains(' ');
-                var measured=TextRenderer.MeasureText(captionGraphics,caption.Text,fitted,
-                    singleWord ? new Size(int.MaxValue,room.Height) : room,
-                    (singleWord ? TextFormatFlags.SingleLine : TextFormatFlags.WordBreak)|TextFormatFlags.TextBoxControl);
-                if(measured.Width<=room.Width && measured.Height<=room.Height)break;
-            }
-            caption.Font=fitted!;
-        }
-        caption.SizeChanged+=(_,_)=>FitCaption();
-        caption.DpiChangedAfterParent+=(_,_)=>FitCaption();
-        FitCaption();
 
         if (shouldPulse)
         {
@@ -1824,7 +1876,7 @@ public sealed class MainForm : Form
         card.Disposed += (_, _) =>
         {
             pulseTimer.Dispose();
-            foreach(var font in captionFonts.Values)font.Dispose();
+
             icon?.Image?.Dispose();
         };
         parent.Controls.Add(card);
