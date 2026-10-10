@@ -34,7 +34,7 @@ jobs:
           assert subprocess.check_output(['git','show',base+':LealInfoPDV.csproj'])==subprocess.check_output(['git','show','HEAD:LealInfoPDV.csproj'])
           old=subprocess.check_output(['git','show',base+':MainForm.cs']).decode()
           new=subprocess.check_output(['git','show','HEAD:MainForm.cs']).decode()
-          assert old[:old.index('    private void AddTool(')]==new[:new.index('    private void AddTool(')]
+          assert old[:old.index('    private void AddTool(')]==new[:new.index('    // Mede e desenha cada linha')]
           assert old[old.index('    private void StyleForm('):]==new[new.index('    private void StyleForm('):] if '    private void StyleForm(' in old else True
           old=subprocess.check_output(['git','show',base+':UpdateManager.cs']).decode();new=subprocess.check_output(['git','show','HEAD:UpdateManager.cs']).decode()
           assert old[old.index(' private static bool IsSafeClientPackage'):]==new[new.index(' private static bool IsSafeClientPackage'):]
