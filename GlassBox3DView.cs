@@ -17,6 +17,9 @@ public sealed class GlassBox3DView : Control
     private readonly SolidBrush[] fills = { new(Color.FromArgb(19, 65, 88)), new(Color.FromArgb(29, 93, 122)),
         new(Color.FromArgb(18, 49, 70)), new(Color.FromArgb(47, 112, 139)), new(Color.FromArgb(16, 56, 82)), new(Color.FromArgb(31, 83, 113)) };
     private readonly Pen edge = new(Color.FromArgb(115, 224, 251), 1.5f);
+    private readonly PointF[] leafOutline = new PointF[4];
+    private readonly SolidBrush dimensionsBackground = new(Color.FromArgb(9, 22, 39));
+    private string dimensionsText = string.Empty;
     private GlassProject? project;
     private bool dragging;
     private Point previous;
@@ -32,6 +35,7 @@ public sealed class GlassBox3DView : Control
         set
         {
             project = value;
+            dimensionsText = value == null ? string.Empty : $"DIMENSÕES DO PROJETO\nLargura: {value.WidthMm:0.##} mm\nAltura: {value.HeightMm:0.##} mm";
             if (value != null && value.ValidationError == null)
             {
                 decimal maximum = Math.Max(value.WidthMm, value.HeightMm);
@@ -103,7 +107,32 @@ public sealed class GlassBox3DView : Control
             while (j >= 0 && depths[order[j]] > depths[face]) { order[j + 1] = order[j]; j--; }
             order[j + 1] = face;
         }
-        foreach (int face in order) { g.FillPolygon(fills[face], facePoints[face]); g.DrawPolygon(edge, facePoints[face]); }
+        foreach (int face in order)
+        {
+            g.FillPolygon(fills[face], facePoints[face]); g.DrawPolygon(edge, facePoints[face]);
+            // Detalhes coplanares em ambas as faces largas: a ordenação existente mantém a oclusão.
+            if (face == 0 || face == 1)
+            {
+                DrawLeaf(g, facePoints[face], .045f, .49f);
+                DrawLeaf(g, facePoints[face], .51f, .955f);
+            }
+        }
+        // Informação fixa em pixels lógicos; não gira nem sofre zoom com a geometria.
+        int margin = Math.Max(8, (int)(10 * DeviceDpi / 96f));
+        var flags = TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.NoPadding;
+        Size textSize = TextRenderer.MeasureText(dimensionsText, Font, new Size(Math.Max(1, Width - margin * 4), int.MaxValue), flags);
+        var info = new Rectangle(margin, margin, Math.Min(Width - margin * 2, textSize.Width + margin * 2), textSize.Height + margin * 2);
+        g.FillRectangle(dimensionsBackground, info);
+        TextRenderer.DrawText(g, dimensionsText, Font, new Rectangle(info.X + margin, info.Y + margin, info.Width - margin * 2, textSize.Height), Color.FromArgb(175, 231, 247), flags);
+    }
+    private void DrawLeaf(Graphics g, PointF[] face, float left, float right)
+    {
+        // Interpolação afim na face já projetada: moldura externa + dois contornos de folhas.
+        PointF At(float x, float y) => new(face[0].X + (face[1].X - face[0].X) * x + (face[3].X - face[0].X) * y,
+            face[0].Y + (face[1].Y - face[0].Y) * x + (face[3].Y - face[0].Y) * y);
+        leafOutline[0] = At(left, .06f); leafOutline[1] = At(right, .06f);
+        leafOutline[2] = At(right, .94f); leafOutline[3] = At(left, .94f);
+        g.DrawPolygon(edge, leafOutline);
     }
     protected override void OnMouseDown(MouseEventArgs e)
     {
@@ -138,7 +167,7 @@ public sealed class GlassBox3DView : Control
     }
     protected override void Dispose(bool disposing)
     {
-        if (disposing) { edge.Dispose(); foreach (var fill in fills) fill.Dispose(); }
+        if (disposing) { edge.Dispose(); dimensionsBackground.Dispose(); foreach (var fill in fills) fill.Dispose(); }
         base.Dispose(disposing);
     }
 }
