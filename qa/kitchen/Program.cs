@@ -80,7 +80,8 @@ static class Program
                 foreach(TabPage page in tabs.TabPages)
                 {
                     tabs.SelectedTab=page;f.PerformLayout();Pump(20);
-                    Check(All(page).OfType<Label>().Any(x=>x.Visible&&x.Text.Contains("etapa futura")),"Estado da etapa futura ausente");
+                    if(page.Text=="Projetos") Check(All(page).OfType<Button>().Any(x=>x.Visible&&x.Name=="NewGlassProject"),"Novo Projeto ausente");
+                    else Check(All(page).OfType<Label>().Any(x=>x.Visible&&x.Text.Contains("etapa futura")),"Estado da etapa futura ausente");
                 }
                 tabs.SelectedIndex=0;
                 var close=All(f).OfType<Button>().Single(x=>x.Text=="FECHAR");

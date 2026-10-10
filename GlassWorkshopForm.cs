@@ -50,6 +50,15 @@ public sealed class GlassWorkshopForm : Form
             content.Controls.Add(new Label { Text = section.Title.ToUpperInvariant(), Font = sectionFont, ForeColor = Color.FromArgb(104, 222, 255), Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0, 12, 0, 22) }, 0, 0);
             content.Controls.Add(new Label { Text = section.Description, Dock = DockStyle.Fill, AutoSize = true, Margin = new Padding(0, 0, 0, 22) }, 0, 1);
             content.Controls.Add(new Label { Text = "Disponível em etapa futura, após definição e validação dos requisitos.", Dock = DockStyle.Fill, AutoSize = true, ForeColor = Color.FromArgb(170, 192, 212), Margin = new Padding(0, 0, 0, 12) }, 0, 2);
+            if (section.Title == "Projetos")
+            {
+                content.Controls.Clear();
+                content.Controls.Add(new Label { Text = "PROJETOS DE VIDRAÇARIA", Font = sectionFont, AutoSize = true, ForeColor = Color.FromArgb(104, 222, 255) });
+                content.Controls.Add(new Label { Text = "Modelo paramétrico inicial: janela de correr de duas folhas. Informe medidas, visualize e imprima.", AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 16, 0, 20) });
+                var create = new Button { Name = "NewGlassProject", Text = "NOVO PROJETO", Width = 220, Height = 44, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(11, 113, 161), ForeColor = Color.White };
+                create.Click += (_, _) => { using var project = new GlassProjectForm(); project.ShowDialog(this); };
+                content.Controls.Add(create);
+            }
             page.Controls.Add(content);
             tabs.TabPages.Add(page);
         }
