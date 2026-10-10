@@ -11,8 +11,9 @@ public static class GlassProjectPrint
         var state = g.Save();
         try
         {
-            g.TranslateTransform(page.Left, page.Top);
-            g.ScaleTransform(page.Width / PageWidth, page.Height / PageHeight);
+            float scale = Math.Min(page.Width / PageWidth, page.Height / PageHeight);
+            g.TranslateTransform(page.Left + (page.Width - PageWidth * scale) / 2, page.Top + (page.Height - PageHeight * scale) / 2);
+            g.ScaleTransform(scale, scale);
             g.FillRectangle(Brushes.White, 0, 0, PageWidth, PageHeight);
             using var title = new Font("Segoe UI", 22, FontStyle.Bold, GraphicsUnit.Pixel);
             using var body = new Font("Segoe UI", 15, FontStyle.Regular, GraphicsUnit.Pixel);
