@@ -1,0 +1,106 @@
+name: Vidracaria 003 - validar e publicar direcionado
+on:
+  push:
+    branches: ['release/vidracaria-003-10380']
+permissions: {contents: read}
+jobs:
+  publicar:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Validar isolamento e metadados
+        shell: python
+        run: |
+          import subprocess
+          base='d534dafcde1a36d4faac57111600c65f3d746795'
+          allowed={'MainForm.cs','GlassWorkshopForm.cs','GlassWorkshopIcon.cs','qa/kitchen/Program.cs','.github/workflows/validar_vidracaria_003.yml','.github/workflows/publicar_vidracaria_003.yml','UpdateManager.cs','LealInfoPDV.csproj'}
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed==allowed,changed
+          for n in ['LoginForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs','Assets/kitchen.png','Assets/services.png']:
+              assert subprocess.check_output(['git','show',base+':'+n])==subprocess.check_output(['git','show','HEAD:'+n]),n
+          for n in ['UpdateManager.cs','LealInfoPDV.csproj']:
+              assert subprocess.check_output(['git','show',base+':'+n]).replace(b'10.379',b'10.380')==subprocess.check_output(['git','show','HEAD:'+n]),n
+      - name: Build e testes Windows antes de publicar
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet build LealInfoPDV.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          dotnet run --project qa/kitchen/LealInfoPDV.KitchenTests.csproj -c Release -- --global
+          if($LASTEXITCODE -ne 0){throw 'Testes falharam'}
+          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.379/LEAL_INFO_PDV_003_V10_379_UPDATE.zip' -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne 'e3d56debeefa19401d0a5de536f0a8e37e1604dfec9e5cdd4c5e3f57f82ca8e0'){throw 'Baseline mudou'}
+          Expand-Archive baseline.zip baseline
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdk=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdk){throw 'SDK nao encontrado'}
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$($sdk.Split('/')[1]) -o publish
+          if($LASTEXITCODE -ne 0){throw 'Publish build falhou'}
+          New-Item -ItemType Directory package|Out-Null
+          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
+          $before=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          $after=Get-Content package/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          $old=@($before.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
+          $new=@($after.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
+          if(Compare-Object $old $new){throw 'Dependencias mudaram'}
+          Compress-Archive package/* LEAL_INFO_PDV_003_V10_380_UPDATE.zip
+      - name: Publicar somente canal 003 com guarda concorrencial
+        shell: pwsh
+        env: {GH_TOKEN: '${{ secrets.UPDATE_REPO_TOKEN }}'}
+        run: |
+          $ErrorActionPreference='Stop'
+          $repo='lealinfopdvnovo/leal-info-pdv-updates'
+          $protected=@{}
+          foreach($p in @('version.json','clients/001/version.json','clients/002/version.json')){
+            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0){throw 'Feed protegido nao pode ser lido'}
+            $protected[$p]=$v.sha
+          }
+          $entry=gh api "repos/$repo/contents/clients/003/version.json"|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw '003 nao pode ser lido'}
+          $old=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.content))|ConvertFrom-Json
+          if($old.Version -ne '10.379' -or $old.TargetClientCode -ne '003' -or $old.Sha256 -ne 'e3d56debeefa19401d0a5de536f0a8e37e1604dfec9e5cdd4c5e3f57f82ca8e0'){throw 'Canal 003 mudou; abortar'}
+          $tags=gh api --paginate "repos/$repo/releases?per_page=100" --jq '.[].tag_name'
+          if($LASTEXITCODE -ne 0 -or 'client-003-v10.380' -in @($tags)){throw 'Release existente ou auditoria falhou'}
+          $package='LEAL_INFO_PDV_003_V10_380_UPDATE.zip'
+          $notes='V10.380 exclusiva 003: botao VIDRACARIA e Central inicial com sete areas preparadas. Sem calculos/regras tecnicas. Preserva personalizacoes, dados e licenca.'
+          $notes|Set-Content notes.txt
+          gh release create client-003-v10.380 $package --repo $repo --title 'LEAL INFO PDV 003 V10.380 - Vidracaria inicial' --notes-file notes.txt --latest=false
+          if($LASTEXITCODE -ne 0){throw 'Pacote nao publicado; nao mudar feed'}
+          $m=@{Version='10.380';TargetClientCode='003';PackageUrl="https://github.com/$repo/releases/download/client-003-v10.380/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$env:GITHUB_SHA;Notes=$notes;Mandatory=$false}
+          $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($m|ConvertTo-Json)))
+          @{message='Vidracaria inicial 10.380 somente 003';sha=$entry.sha;content=$content}|ConvertTo-Json -Compress|Set-Content request.json
+          gh api --method PUT "repos/$repo/contents/clients/003/version.json" --input request.json
+          if($LASTEXITCODE -ne 0){throw 'Manifest nao publicado'}
+          foreach($p in $protected.Keys){
+            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0 -or $v.sha -ne $protected[$p]){throw 'Feed protegido mudou'}
+          }
+          $url="https://raw.githubusercontent.com/$repo/main/clients/003/version.json"
+          for($i=0;$i -lt 24;$i++){
+            $live=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+            if($live.Version -eq '10.380' -and $live.TargetClientCode -eq '003'){break}
+            Start-Sleep -Seconds 5
+          }
+          if($live.Version -ne '10.380' -or $live.Sha256 -ne $m.Sha256){throw 'Manifest nao propagou'}
+          Invoke-WebRequest $live.PackageUrl -OutFile verificado.zip
+          if((Get-FileHash verificado.zip).Hash.ToLowerInvariant() -ne $live.Sha256){throw 'Hash publicado incorreto'}
+          Write-Host 'PASS PUBLICADO 003 10.380; hash remoto confirmado; global 001 002 intactos'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vidracaria-003-10380
+          path: |
+            kitchen-evidencias/
+            LEAL_INFO_PDV_003_V10_380_UPDATE.zip
+          retention-days: 14
