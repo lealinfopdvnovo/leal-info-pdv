@@ -1,0 +1,42 @@
+{
+  "global": {
+    "Mandatory": false,
+    "Version": "10.378",
+    "Sha256": "6cf5941fce32747843bc52271f749a74868096c3557c2d9f61793d23494f3ef5",
+    "SourceCommit": "b8f7c52f2ecadea9eb829398f9fc53be3bd12cc5",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.378/LEAL_INFO_PDV_V10_378_UPDATE.zip",
+    "Editions": [
+      "STANDARD",
+      "PLUS",
+      "PRO"
+    ],
+    "Notes": "V10.378 GLOBAL: verificacao apos login com consultas independentes e recuperacao de falhas transitorias; textos dos atalhos menores e centralizados. Pacotes compativeis 001/002/003 preservam particularidades. Sem dados, licencas, configuracoes ou icones no pacote."
+  },
+  "001": {
+    "Version": "10.378",
+    "Sha256": "93c83c8124712fc5b1305355bbde88c82d89335b5256c13e929056ae783697d8",
+    "SourceCommit": "8d79658b71046d2bdbff38574bef1a4677958c38",
+    "Notes": "V10.378: verificacao GLOBAL apos login com recuperacao de falhas transitorias; fonte dos atalhos menor e centralizada. Preserva todas as particularidades deste cliente, icones, dados e licenca.",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.378/LEAL_INFO_PDV_001_V10_378_UPDATE.zip",
+    "TargetClientCode": "001",
+    "Mandatory": false
+  },
+  "002": {
+    "Version": "10.378",
+    "Sha256": "a911abd78c8309236cde06d70e58edf43ca2ad2c9e3f6b11e4f30a684a215e37",
+    "SourceCommit": "0c095570035147cc300292be81eea93d7cd10ced",
+    "Notes": "V10.378: verificacao GLOBAL apos login com recuperacao de falhas transitorias; fonte dos atalhos menor e centralizada. Preserva todas as particularidades deste cliente, icones, dados e licenca.",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.378/LEAL_INFO_PDV_002_V10_378_UPDATE.zip",
+    "TargetClientCode": "002",
+    "Mandatory": false
+  },
+  "003": {
+    "Version": "10.378",
+    "Sha256": "11070969dd20709124df846989d389c98470373f7ea5c19ce055c5c55fe6d02c",
+    "SourceCommit": "e19a0d8737fdfa3d9258675c8fd368534f287b2c",
+    "Notes": "V10.378: verificacao GLOBAL apos login com recuperacao de falhas transitorias; fonte dos atalhos menor e centralizada. Preserva todas as particularidades deste cliente, icones, dados e licenca.",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.378/LEAL_INFO_PDV_003_V10_378_UPDATE.zip",
+    "TargetClientCode": "003",
+    "Mandatory": false
+  }
+}
