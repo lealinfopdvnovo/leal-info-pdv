@@ -88,6 +88,7 @@ public static class GlassWindowRenderer
 public sealed class GlassDrawingView : Control
 {
     public GlassProject? Project { get; set; }
+    public bool ShowDimensions { get; set; } = true;
     public GlassDrawingView()
     {
         DoubleBuffered = true;
@@ -99,7 +100,7 @@ public sealed class GlassDrawingView : Control
     {
         base.OnPaint(e);
         if (Project != null && Width > 20 && Height > 20)
-            GlassWindowRenderer.Draw(e.Graphics, ClientRectangle, Project);
+            GlassWindowRenderer.Draw(e.Graphics, ClientRectangle, Project, dimensions: ShowDimensions);
         else TextRenderer.DrawText(e.Graphics, "Informe as medidas e clique em VISUALIZAR.", Font,
             ClientRectangle, Color.FromArgb(174, 201, 220), TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
     }

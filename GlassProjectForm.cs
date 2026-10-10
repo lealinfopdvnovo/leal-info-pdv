@@ -36,7 +36,7 @@ public sealed class GlassProjectForm : Form
         void Add(Control c) { c.Margin = new Padding(0, 4, 0, 8); fields.Controls.Add(c); }
         Add(new Label { Text = "NOVO PROJETO", Font = heading, AutoSize = true, ForeColor = Color.FromArgb(115, 233, 255) });
         Add(new Label { Text = "MODELO DISPONÍVEL", AutoSize = true });
-        var thumbnail = new GlassDrawingView { Height = 78, Dock = DockStyle.Top, Project = new GlassProject("", 1200, 1000, 1) };
+        var thumbnail = new GlassDrawingView { ShowDimensions = false, Height = 78, Dock = DockStyle.Top, Project = new GlassProject("", 1200, 1000, 1) };
         Add(thumbnail);
         Add(new Label { Text = GlassProject.ModelName, AutoSize = true, MaximumSize = new Size(255, 0) });
         Add(new Label { Text = "DESCRIÇÃO DO PROJETO", AutoSize = true }); Add(description);
