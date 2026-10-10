@@ -48,6 +48,7 @@ public sealed class GlassProjectForm : Form
         Add(message);
         scroll.Controls.Add(fields);
         var graph = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
+        graph.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         graph.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
         graph.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         graph.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));

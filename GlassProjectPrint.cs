@@ -53,6 +53,7 @@ public static class GlassProjectPrint
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 8, 0, 0) };
         var close = new Button { Text = "FECHAR", Width = 120, Height = 34, DialogResult = DialogResult.Cancel };
         var print = new Button { Text = "IMPRIMIR", Width = 120, Height = 34 };
+        foreach (var button in new[] { close, print }) { button.ForeColor = Color.White; button.BackColor = Color.FromArgb(11, 113, 161); button.FlatStyle = FlatStyle.Flat; }
         close.Click += (_, _) => preview.Close();
         print.Click += (_, _) => Print(preview, project);
         buttons.Controls.AddRange(new Control[] { close, print });

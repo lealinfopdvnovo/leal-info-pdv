@@ -70,6 +70,7 @@ static class Program
             {
                 w.Value = measures.Item1; h.Value = measures.Item2; q.Value = 3; view.PerformClick(); Pump();
                 Check(draw.Project == new GlassProject("Projeto de teste", measures.Item1, measures.Item2, 3), "Parametros vinculados/quantidade");
+                Check(f.RectangleToScreen(f.ClientRectangle).Contains(draw.RectangleToScreen(draw.ClientRectangle)), "Area grafica visivel dentro da janela (DPI)");
                 var area = (RectangleF)draw.ClientRectangle; var bounds = GlassWindowRenderer.WindowBounds(area, draw.Project!);
                 Check(Math.Abs(bounds.Width / bounds.Height - (float)(measures.Item1 / measures.Item2)) < .001, $"Proporcao {measures} {size} {factor}");
                 Check(area.Contains(bounds) && bounds.Width > 0 && bounds.Height > 0, "Desenho dentro da area");
