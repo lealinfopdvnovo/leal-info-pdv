@@ -1,5 +1,9 @@
 import os,json,urllib.request,urllib.parse,gzip,hashlib,pathlib,time
-SITE='novo-91da7436';BASE='https://firebasehosting.googleapis.com/v1beta1/';token=os.environ['ACCESS_TOKEN'];report={}
+import google.auth
+from google.auth.transport.requests import Request
+credentials,_=google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-platform'])
+credentials.refresh(Request())
+SITE='novo-91da7436';BASE='https://firebasehosting.googleapis.com/v1beta1/';token=credentials.token;report={}
 def api(path,method='GET',body=None):
  data=None if body is None else json.dumps(body).encode()
  req=urllib.request.Request(BASE+path,data=data,method=method,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})

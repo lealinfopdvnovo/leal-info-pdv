@@ -13,11 +13,10 @@ jobs:
         id: auth
         with:
           credentials_json: '${{ secrets.LEAL_FIREBASE_SERVICE_ACCOUNT }}'
-          token_format: access_token
       - name: Recuperar portal preservando versao real do Hosting
-        env:
-          ACCESS_TOKEN: '${{ steps.auth.outputs.access_token }}'
-        run: python3 tools/licensing-cloud/restore_hosting.py
+        run: |
+          python3 -m pip install google-auth requests --quiet
+          python3 tools/licensing-cloud/restore_hosting.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
