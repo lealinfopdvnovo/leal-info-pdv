@@ -19,6 +19,7 @@ function Hash-Bytes([byte[]]$bytes) {
 }
 $lines = New-Object 'System.Collections.Generic.List[string]'
 $lines.Add('DIAGNOSTICO SOMENTE LEITURA - LICENCA LEAL INFO PDV')
+$lines.Add('Versao do diagnostico: 2')
 $lines.Add('Data UTC: ' + [DateTime]::UtcNow.ToString('o'))
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $lines.Add('Identificador anonimizado do usuario Windows: ' + (Hash-Bytes ([Text.Encoding]::UTF8.GetBytes($identity.User.Value))).Substring(0,16))
@@ -34,6 +35,25 @@ try {
 } catch { }
 $hash = Hash-Bytes ([Text.Encoding]::UTF8.GetBytes('LEALINFO|' + $machineSource))
 $serial = 'LI-' + $hash.Substring(0,4) + '-' + $hash.Substring(4,4) + '-' + $hash.Substring(8,4) + '-' + $hash.Substring(12,4)
+# Teste inteiramente em memoria: nao cria nem substitui arquivo de licenca.
+$probe = [Text.Encoding]::UTF8.GetBytes('LEAL-DPAPI-DIAGNOSTICO')
+$protectedProbe = $null; $unprotectedProbe = $null
+try {
+    $protectedProbe = [Security.Cryptography.ProtectedData]::Protect($probe, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)
+    $unprotectedProbe = [Security.Cryptography.ProtectedData]::Unprotect($protectedProbe, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)
+    $lines.Add('Protecao Windows em memoria: ' + ((Hash-Bytes $probe) -ceq (Hash-Bytes $unprotectedProbe)))
+} catch {
+    $lines.Add('Protecao Windows em memoria: FALHOU')
+    $cause = $_.Exception
+    for ($depth=0; $null -ne $cause -and $depth -lt 6; $depth++) {
+        $lines.Add('Teste Windows causa ' + $depth + ': ' + $cause.GetType().FullName + '; HRESULT=' + $cause.HResult)
+        $cause = $cause.InnerException
+    }
+} finally {
+    foreach ($buffer in @($probe, $protectedProbe, $unprotectedProbe)) {
+        if ($null -ne $buffer) { [Array]::Clear($buffer,0,$buffer.Length) }
+    }
+}
 foreach ($name in @('network.license', 'network.license.previous')) {
     $lines.Add(''); $lines.Add('Arquivo: ' + $name)
     $path = Join-Path $LicenseFolder $name
@@ -60,6 +80,11 @@ foreach ($name in @('network.license', 'network.license.previous')) {
         $lines.Add('Estado: FALHA DE LEITURA')
         $lines.Add('Tipo tecnico: ' + $errorType)
         $lines.Add('HRESULT: ' + $_.Exception.HResult)
+        $cause = $_.Exception.InnerException
+        for ($depth=1; $null -ne $cause -and $depth -lt 6; $depth++) {
+            $lines.Add('Causa interna ' + $depth + ': ' + $cause.GetType().FullName + '; HRESULT=' + $cause.HResult)
+            $cause = $cause.InnerException
+        }
         # Não registrar mensagem, JSON, payload, assinatura ou dados pessoais.
     } finally {
         if ($null -ne $plain) { [Array]::Clear($plain, 0, $plain.Length) }

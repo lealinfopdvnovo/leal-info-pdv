@@ -16,7 +16,7 @@ try {
     [IO.File]::WriteAllBytes($path,[byte[]](1,2,3,4))
     $hash=(Get-FileHash $path).Hash
     $r=Run-Diagnostic
-    if($r -notmatch 'FALHA DE LEITURA' -or (Get-FileHash $path).Hash -ne $hash){throw 'Corrompido nao preservado'}
+    if($r -notmatch 'Protecao Windows em memoria: True' -or $r -notmatch 'Causa interna 1: System.Security.Cryptography.CryptographicException' -or $r -notmatch 'FALHA DE LEITURA' -or (Get-FileHash $path).Hash -ne $hash){throw 'Corrompido nao preservado'}
     $payload=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes('{"ServerSerial":"FICTICIO","Revision":42}'))
     $envelope=@{Payload=$payload;Signature='SEGREDO-NAO-EXIBIR'} | ConvertTo-Json -Compress
     $state=@{SignedLicense=$envelope;Devices=@(@{Name='PESSOA-NAO-EXIBIR';PublicKey='CHAVE-NAO-EXIBIR'})} | ConvertTo-Json -Compress -Depth 8
