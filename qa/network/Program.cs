@@ -46,7 +46,7 @@ try
     licence.Import(Signed(seller, new("SERVIDOR", 3, "mensal", DateTimeOffset.UtcNow.AddDays(30), "VENDEDOR", 2, "m")));
     licence.CheckAccess(); Assert(licence.Terms.BillingMode == "mensal", "Mensalidade não foi aplicada.");
     // O relógio persistido impede reativar licença mensal voltando o relógio.
-    var state = ProtectedFile.Read<LicenseState>(path); state.LastSeenUtc = DateTimeOffset.UtcNow.AddDays(31); ProtectedFile.Write(path, state);
+    var state = LicenseProtectedFile.Read(path); state.LastSeenUtc = DateTimeOffset.UtcNow.AddDays(31); LicenseProtectedFile.Write(path, state);
     var expired = new NetworkLicense(path, "SERVIDOR", publicKey); Reject(expired.CheckAccess, "mensal está vencida");
     expired.Import(Signed(seller, new("SERVIDOR", 3, "mensal", DateTimeOffset.UtcNow.AddDays(60), "VENDEDOR", 3, "renovada"))); expired.CheckAccess();
     // Testar o emissor PowerShell entregue ao vendedor, sem a chave real.
