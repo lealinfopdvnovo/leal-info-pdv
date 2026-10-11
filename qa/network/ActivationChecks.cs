@@ -48,6 +48,7 @@ internal static class ActivationChecks
             recovery.Activate(Sign(recoveryTerms));recovery.Register("SECOND","KEY-2","Caixa");
             var blob=File.ReadAllBytes(recoveryPath);
             var envelope=JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(blob.AsSpan(9))!;
+            Assert(envelope["Version"].GetInt32()==3 && envelope["User"].GetString()=="","Nova licença depende do usuário");
             var damaged=new {Version=2,User="invalid",Machine=envelope["Machine"].GetString()};
             File.WriteAllBytes(recoveryPath,System.Text.Encoding.UTF8.GetBytes("LEALLIC2\n"+JsonSerializer.Serialize(damaged)));
             recovery=new NetworkLicense(recoveryPath,serial,pub);
