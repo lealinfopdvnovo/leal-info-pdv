@@ -1,0 +1,42 @@
+{
+  "global": {
+    "Mandatory": false,
+    "SourceCommit": "9a3c5eccc283363433fdf9e9e5493925b1ff81f9",
+    "Notes": "V10.379 GLOBAL: legendas completas com quebra controlada e centralizacao, sem cortes de segunda linha. Pacotes compativeis 001/002/003 preservam particularidades. Sem dados, licencas, configuracoes ou icones no pacote.",
+    "Editions": [
+      "STANDARD",
+      "PLUS",
+      "PRO"
+    ],
+    "Sha256": "ee100d44ac906d18e1d39be07da96107efd050f8a4d471cf97f0be1268a0bb3b",
+    "Version": "10.379",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.379/LEAL_INFO_PDV_V10_379_UPDATE.zip"
+  },
+  "001": {
+    "Sha256": "a0812b2b4e31f5868fa4a43bba5327ffe72fec48bbe946ecb71a25eeb63458f3",
+    "TargetClientCode": "001",
+    "SourceCommit": "447f223c1266888d2377fb8ab393c72f42501c18",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.379/LEAL_INFO_PDV_001_V10_379_UPDATE.zip",
+    "Notes": "V10.379: legendas completas com quebra controlada e centralizacao, sem cortes de segunda linha. Preserva todas as particularidades deste cliente, icones, dados e licenca.",
+    "Mandatory": false,
+    "Version": "10.379"
+  },
+  "002": {
+    "Sha256": "1e437774e9e4b7b3b0f0d3054f86a78d0d3caf5011946c2d14575c7a95252877",
+    "TargetClientCode": "002",
+    "SourceCommit": "01abfb4ea64e5958b2a12ec33d3a6b5b06c34378",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.379/LEAL_INFO_PDV_002_V10_379_UPDATE.zip",
+    "Notes": "V10.379: legendas completas com quebra controlada e centralizacao, sem cortes de segunda linha. Preserva todas as particularidades deste cliente, icones, dados e licenca.",
+    "Mandatory": false,
+    "Version": "10.379"
+  },
+  "003": {
+    "Mandatory": false,
+    "Notes": "V10.383 exclusiva 003: 3D com moldura e duas folhas, encontro central e dimensoes fixas do projeto. Rotacao, zoom e reset preservados. 2D original e A4 preservados, fallback seguro, sem dependencias ou alteracao de banco.",
+    "Version": "10.383",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.383/LEAL_INFO_PDV_003_V10_383_UPDATE.zip",
+    "TargetClientCode": "003",
+    "SourceCommit": "39ad935d693ebafa710f04c822c12bcaef16cea1",
+    "Sha256": "f59cc79e930612125b026ae1cad1ac40387d797466cdf8e4069ffa215e2f4e9a"
+  }
+}
