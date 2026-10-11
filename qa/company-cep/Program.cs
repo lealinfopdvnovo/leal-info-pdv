@@ -1,4 +1,5 @@
 using LealInfoPDV;
+using LealInfoPDV.Network;
 using System.Reflection;
 using System.Diagnostics;
 using System.Drawing.Imaging;
