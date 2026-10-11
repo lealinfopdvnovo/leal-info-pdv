@@ -20,9 +20,9 @@ public sealed class NetworkSettingsForm : Form
         var current = NetworkConfiguration.Current;
         panel.Controls.Add(Label("Standard / Plus / Pro: 2 computadores incluídos + pontos adicionais.\nO servidor também conta como um computador.", 60));
         panel.Controls.Add(Label("Modalidades disponíveis: pagamento único ou mensalidade. A modalidade e os pontos são liberados pelo vendedor através da licença.", 54));
-        panel.Controls.Add(Label("Serial deste computador: " + Database.DeviceSerial(), 30));
+        panel.Controls.Add(Label("Serial deste computador: " + Licensing.MachineLicenseIdentity.Current.Serial, 30));
         var status = Label("", 74); panel.Controls.Add(status);
-        var licence = NetworkDatabaseServer.Current?.License ?? Licensing.InstallationLicense.Store ?? (current.Mode != "terminal" ? new NetworkLicense(Path.Combine(Database.AppFolder, "network.license"), Database.DeviceSerial()) : null);
+        var licence = NetworkDatabaseServer.Current?.License ?? Licensing.InstallationLicense.Store ?? (current.Mode != "terminal" ? new NetworkLicense(Path.Combine(Database.AppFolder, "network.license"), Licensing.MachineLicenseIdentity.Current.Serial, legacySerial: Licensing.MachineLicenseIdentity.Current.LegacySerial) : null);
         void RefreshStatus()
         {
             if (licence == null) status.Text = current.Mode == "terminal" ? "TERMINAL • Servidor: " + current.Host + "\nA licença é validada no servidor a cada conexão." : "MODO LOCAL • Rede ainda não configurada.";
