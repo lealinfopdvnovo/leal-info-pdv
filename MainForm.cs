@@ -5126,7 +5126,7 @@ private void ApplyFloatingTheme(Form f)
 
     private void OpenSales()
     {
-        var f = new Form
+        using var f = new Form
         {
             Text = "LEAL INFO CONECTADO - TELA DE VENDAS • V10.130",
             WindowState = FormWindowState.Maximized,
@@ -5292,6 +5292,7 @@ private void ApplyFloatingTheme(Form f)
         var productPicture = new PictureBox
         {
             Dock = DockStyle.Fill,
+            Name = "sales_product_picture",
             SizeMode = PictureBoxSizeMode.Zoom,
             BackColor = Color.FromArgb(248, 250, 252)
         };
@@ -5313,8 +5314,11 @@ private void ApplyFloatingTheme(Form f)
         photoLayout.Controls.Add(photoProductName, 0, 2);
         Round(photoProductName, 16);
 
+        long? displayedProductId = null;
+        PictureBox? salesHeaderLogo = null;
         void ShowProductPhoto(long? productId)
         {
+            displayedProductId = productId;
             productPicture.Image?.Dispose();
             productPicture.Image = null;
             photoProductName.Text = "Selecione um produto";
@@ -5366,16 +5370,7 @@ private void ApplyFloatingTheme(Form f)
             // A marca padrão do PDV é usada somente quando não há logotipo cadastrado.
             if (!productId.HasValue)
             {
-                productPicture.Image = Licensing.CompanyBranding.LoadLogo(false);
-                if (productPicture.Image == null)
-                {
-                    var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_brand_product.png");
-                    if (File.Exists(logoPath))
-                    {
-                        using var img = Image.FromFile(logoPath);
-                        productPicture.Image = new Bitmap(img);
-                    }
-                }
+                productPicture.Image = Licensing.CompanyBranding.LoadSalesLogo("sales_brand_product.png");
                 photoProductName.Text = "Selecione um produto";
             }
             else
@@ -6874,19 +6869,9 @@ private void ApplyFloatingTheme(Form f)
             headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24));
             headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 52));
             headerGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24));
-            var logo = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
-            // Usa o logotipo da empresa cadastrada; preserva a marca padrão como reserva.
-            logo.Image = Licensing.CompanyBranding.LoadLogo(false);
-            if (logo.Image == null)
-            {
-                var logoPath = Path.Combine(AppContext.BaseDirectory, "Assets", "sales_brand_header.png");
-                if (File.Exists(logoPath))
-                {
-                    using var source = Image.FromFile(logoPath);
-                    logo.Image = new Bitmap(source);
-                }
-            }
-            f.FormClosed += (_, _) => logo.Image?.Dispose();
+            var logo = new PictureBox { Name = "sales_company_logo", Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
+            salesHeaderLogo = logo;
+            logo.Image = Licensing.CompanyBranding.LoadSalesLogo("sales_brand_header.png");
             var headerCenter = Rows(-100, 27);
             statusFrame.Margin = new Padding(6, 0, 6, 0);
             statusBox.Font = new Font("Segoe UI", 28, FontStyle.Bold);
@@ -7173,6 +7158,33 @@ private void ApplyFloatingTheme(Form f)
             _ = new SalesResponsiveLayout(f, header, footer, headerActions);
         }
         ApplyReferenceSalesLayout();
+
+        void RefreshSalesLogo()
+        {
+            if (f.IsDisposed || f.Disposing) return;
+            if (f.InvokeRequired) { f.BeginInvoke((Action)RefreshSalesLogo); return; }
+            if (salesHeaderLogo != null)
+            {
+                var previous = salesHeaderLogo.Image;
+                salesHeaderLogo.Image = Licensing.CompanyBranding.LoadSalesLogo("sales_brand_header.png");
+                previous?.Dispose();
+            }
+            // Alterar a marca nunca substitui a foto ou o aviso de produto sem foto.
+            if (!displayedProductId.HasValue)
+            {
+                var previous = productPicture.Image;
+                productPicture.Image = Licensing.CompanyBranding.LoadSalesLogo("sales_brand_product.png");
+                previous?.Dispose();
+            }
+        }
+        Licensing.CompanyBranding.Changed += RefreshSalesLogo;
+        f.Activated += (_, _) => RefreshSalesLogo();
+        f.Disposed += (_, _) =>
+        {
+            Licensing.CompanyBranding.Changed -= RefreshSalesLogo;
+            salesHeaderLogo?.Image?.Dispose();
+            productPicture.Image?.Dispose();
+        };
 
         f.Shown += (_, _) => search.Focus();
         f.ShowDialog(this);
