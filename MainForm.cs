@@ -539,7 +539,8 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 14,
+            RowCount = 16,
+            AutoScroll = true,
             Padding = new Padding(34, 18, 34, 12),
             Margin = new Padding(0),
             BackColor = Color.FromArgb(224, 239, 248)
@@ -570,16 +571,20 @@ public sealed class MainForm : Form
         var tradeName = T(GetSetting("company_trade_name"));
         var document = T(GetSetting("company_document"));
         var phone = T(GetSetting("company_phone"));
+        var cep = T(GetSetting("company_cep"));
         var address = T(GetSetting("company_address"));
         var cityState = T(GetSetting("company_city_state"));
         var footer = T(GetSetting("company_footer", "Obrigado pela preferência!"));
 
-        var fields = new (string, TextBox)[]
+        var cepLookup = CompanyCepLookup.Create(f, cep, address, cityState);
+        var cepPanel = cepLookup.Panel;
+        var fields = new (string, Control)[]
         {
             ("Razão Social / Nome da Empresa", companyName),
             ("Nome Fantasia", tradeName),
             ("CNPJ / CPF", document),
             ("Telefone / WhatsApp", phone),
+            ("CEP", cepPanel),
             ("Endereço", address),
             ("Cidade / UF", cityState),
             ("Mensagem no rodapé do cupom", footer)
@@ -588,9 +593,9 @@ public sealed class MainForm : Form
         int row = 0;
         foreach (var item in fields)
         {
-            body.RowStyles.Add(new RowStyle(SizeType.Percent, 7.142857f));
+            body.RowStyles.Add(new RowStyle(SizeType.Absolute, 24));
             body.Controls.Add(L(item.Item1), 0, row++);
-            body.RowStyles.Add(new RowStyle(SizeType.Percent, 7.142857f));
+            body.RowStyles.Add(new RowStyle(SizeType.Absolute, item.Item1 == "CEP" ? 60 : 40));
             body.Controls.Add(item.Item2, 0, row++);
         }
         page.Controls.Add(body, 0, 1);
@@ -633,7 +638,7 @@ public sealed class MainForm : Form
         var logoButton=new Button {Text="LOGOTIPO",Width=140,Height=44};logoButton.Click+=(_,_)=>Licensing.CompanyBranding.ChooseLogo(f);actions.Controls.Add(logoButton);
         page.Controls.Add(actions, 0, 2);
 
-        save.Click += (_, _) =>
+        save.Click += async (_, _) =>
         {
             if (string.IsNullOrWhiteSpace(companyName.Text))
             {
@@ -646,10 +651,16 @@ public sealed class MainForm : Form
                 return;
             }
 
+            save.Enabled = false;
+            try { await cepLookup.CompleteAsync(); }
+            finally { if (!f.IsDisposed) save.Enabled = true; }
+            if (f.IsDisposed || f.Disposing) return;
+
             SetSetting("company_name", companyName.Text.Trim());
             SetSetting("company_trade_name", tradeName.Text.Trim());
             SetSetting("company_document", document.Text.Trim());
             SetSetting("company_phone", phone.Text.Trim());
+            SetSetting("company_cep", DeliveryAddress.NormalizeCep(cep.Text));
             SetSetting("company_address", address.Text.Trim());
             SetSetting("company_city_state", cityState.Text.Trim());
             SetSetting("company_footer", footer.Text.Trim());
@@ -3455,11 +3466,10 @@ private void ApplyFloatingTheme(Form f)
         equipmentTab.Controls.Add(embeddedEquipment);
         embeddedEquipment.Show();
 
-        var company = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 8, Padding = new Padding(12) };
+        var company = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 9, Padding = new Padding(12), AutoScroll = true };
         company.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,230));
         company.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        for (int i=0;i<7;i++) company.RowStyles.Add(new RowStyle(SizeType.Percent,12.5f));
-        company.RowStyles.Add(new RowStyle(SizeType.Percent,12.5f));
+        for (int i=0;i<9;i++) company.RowStyles.Add(new RowStyle(SizeType.Absolute, i == 4 ? 64 : i == 8 ? 70 : 52));
         companyTab.Controls.Add(company);
 
         TextBox SettingBox(string value) => new() { Text=value, Dock=DockStyle.Fill, Font=new Font("Segoe UI",11,FontStyle.Bold), Margin=new Padding(4,8,4,8) };
@@ -3469,13 +3479,16 @@ private void ApplyFloatingTheme(Form f)
         var tradeName = SettingBox(GetSetting("company_trade_name"));
         var document = SettingBox(GetSetting("company_document"));
         var phone = SettingBox(GetSetting("company_phone"));
+        var cep = SettingBox(GetSetting("company_cep"));
         var address = SettingBox(GetSetting("company_address"));
         var cityState = SettingBox(GetSetting("company_city_state"));
         var receiptFooter = SettingBox(GetSetting("company_footer","Obrigado pela preferência!"));
-        var fields = new (string label, TextBox box)[]
+        var cepLookup = CompanyCepLookup.Create(f, cep, address, cityState);
+        var cepPanel = cepLookup.Panel;
+        var fields = new (string label, Control box)[]
         {
             ("Razão Social / Nome da Empresa",companyName), ("Nome Fantasia",tradeName),
-            ("CNPJ / CPF",document), ("Telefone / WhatsApp",phone), ("Endereço",address),
+            ("CNPJ / CPF",document), ("Telefone / WhatsApp",phone), ("CEP",cepPanel), ("Endereço",address),
             ("Cidade / UF",cityState), ("Mensagem no rodapé do cupom",receiptFooter)
         };
         for(int i=0;i<fields.Length;i++) { company.Controls.Add(SettingLabel(fields[i].label),0,i); company.Controls.Add(fields[i].box,1,i); }
@@ -3484,12 +3497,17 @@ private void ApplyFloatingTheme(Form f)
         saveCompany.FlatAppearance.BorderSize=0;
         var companyActions=new FlowLayoutPanel {Dock=DockStyle.Fill};
         var changeLogo=new Button {Text="LOGOTIPO DA EMPRESA",Width=240,Height=44};changeLogo.Click+=(_,_)=>{if(Auth.IsAdmin)Licensing.CompanyBranding.ChooseLogo(f);};
-        companyActions.Controls.Add(changeLogo);saveCompany.Dock=DockStyle.None;companyActions.Controls.Add(saveCompany);company.SetColumnSpan(companyActions,2);company.Controls.Add(companyActions,0,7);
-        saveCompany.Click += (_,_) =>
+        companyActions.Controls.Add(changeLogo);saveCompany.Dock=DockStyle.None;companyActions.Controls.Add(saveCompany);company.SetColumnSpan(companyActions,2);company.Controls.Add(companyActions,0,8);
+        saveCompany.Click += async (_,_) =>
         {
             if(string.IsNullOrWhiteSpace(companyName.Text)) { Info("Informe o nome da empresa."); companyName.Focus(); return; }
+            saveCompany.Enabled = false;
+            try { await cepLookup.CompleteAsync(); }
+            finally { if (!f.IsDisposed) saveCompany.Enabled = true; }
+            if (f.IsDisposed || f.Disposing) return;
             SetSetting("company_name",companyName.Text.Trim()); SetSetting("company_trade_name",tradeName.Text.Trim());
             SetSetting("company_document",document.Text.Trim()); SetSetting("company_phone",phone.Text.Trim());
+            SetSetting("company_cep",DeliveryAddress.NormalizeCep(cep.Text));
             SetSetting("company_address",address.Text.Trim()); SetSetting("company_city_state",cityState.Text.Trim());
             SetSetting("company_footer",receiptFooter.Text.Trim()); SetSetting("company_registered","1");
             Info("Dados da empresa salvos com sucesso.");
