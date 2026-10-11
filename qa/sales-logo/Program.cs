@@ -42,6 +42,7 @@ static class Program
     }
     static void Sources(string logo)
     {
+        Directory.CreateDirectory(Path.GetDirectoryName(Custom)!);
         Exec("DELETE FROM settings WHERE key='company_logo_base64'"); File.Delete(Custom);
         foreach (var name in new[] { "sales_brand_header.png", "sales_brand_product.png" })
         {
