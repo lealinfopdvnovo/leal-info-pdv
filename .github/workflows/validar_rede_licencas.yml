@@ -30,6 +30,14 @@ jobs:
         run: dotnet build LealInfoPDV.csproj -c Release
       - name: Validar licencas e rede TLS com banco central
         run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release
+      - name: Identidade real em dois processos Windows
+        shell: pwsh
+        run: |
+          $a=& ./qa/network/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.NetworkTests.exe --license-identity
+          if($LASTEXITCODE -ne 0){throw 'Falha identidade processo A'}
+          $b=& ./qa/network/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.NetworkTests.exe --license-identity
+          if($LASTEXITCODE -ne 0 -or $a -ne $b){throw 'Identidade mudou entre processos'}
+          Write-Host "PASS: identidade igual em dois processos. $a. NAO equivale a reboot ou formatacao real."
       - name: Capturar ativacao e login reais
         shell: pwsh
         run: |

@@ -18,6 +18,10 @@ static string Signed(RSA seller, LicenseTerms terms)
     var payload = JsonSerializer.SerializeToUtf8Bytes(terms);
     return JsonSerializer.Serialize(new SignedLicense(Convert.ToBase64String(payload), Convert.ToBase64String(seller.SignData(payload, HashAlgorithmName.SHA256, RSASignaturePadding.Pss))));
 }
+if(args.Length==1 && args[0]=="--license-identity") {
+    var identity=LealInfoPDV.Licensing.MachineLicenseIdentity.Current;
+    Console.WriteLine(identity.Serial+"|hardware="+identity.HardwareBacked);return;
+}
 if(args.Length==2 && args[0]=="--validate-package") {LealInfoPDV.Licensing.UpdatePayloadPolicy.Validate(args[1]);Console.WriteLine("PASS: pacote neutro aceito pelo atualizador real");return;}
 var folder = Path.Combine(Path.GetTempPath(), "leal-network-qa-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(folder);
 try
