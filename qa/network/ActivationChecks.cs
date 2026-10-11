@@ -42,6 +42,26 @@ internal static class ActivationChecks
                 Assert(seats.RegisteredCount==4,"Atualização perdeu computadores "+plan);
                 Console.WriteLine("PASS: "+plan+" base=2, terceiro bloqueado, adicional1=3, adicional2=4, reconexão e anti-clone.");
             }
+            var durablePath=Path.Combine(folder,"durable");
+            var durable=new NetworkLicense(durablePath,serial,pub);
+            var durableTerms=new LicenseTerms(serial,2,"unico",null,"QA",1,"durable","pro","001",true,0);
+            durable.Activate(Sign(durableTerms));
+            durable.Register("SECOND","KEY-DURABLE","Terminal");
+            durable.CheckAccess();
+            Assert(File.Exists(durablePath+".previous"),"Cópia protegida anterior ausente");
+            var restarted=new NetworkLicense(durablePath,serial,pub);
+            Assert(restarted.Terms==durableTerms && restarted.RegisteredCount==2,"Persistência perdeu licença/terminais");
+            Reject(()=>restarted.Register("THIRD","KEY-THIRD","Terceiro"));
+            var previous=ProtectedFile.Read<LicenseState>(durablePath+".previous");
+            Assert(previous.Devices.Count==1,"Backup perdeu cadastro de terminais");
+            var corrupted=Path.Combine(folder,"corrupted");File.WriteAllBytes(corrupted,new byte[]{1,2,3,4});
+            var original=File.ReadAllBytes(corrupted);
+            bool blocked=false;
+            try { _=new NetworkLicense(corrupted,serial,pub); }
+            catch(CryptographicException) { blocked=true; }
+            Assert(blocked && File.ReadAllBytes(corrupted).SequenceEqual(original),"Estado ilegível foi zerado ou aceito");
+            Assert(!Directory.EnumerateFiles(folder,"*.tmp").Any(),"Arquivos temporários acumulados");
+            Console.WriteLine("PASS: gravação durável, reinício simulado, backup protegido, limite preservado e arquivo corrompido preservado/fail-closed.");
             var terms=new LicenseTerms(serial,1,"unico",null,"QA",1,"qa","standard","001",true);
             store.Import(Sign(terms));store.CheckAccess();store.Activate(Sign(terms));
             Assert(InstallationLicense.IsActivated(store.Terms),"Ativação Standard antiga falhou");

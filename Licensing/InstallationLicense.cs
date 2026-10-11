@@ -10,7 +10,18 @@ internal static class InstallationLicense
     internal static bool IsActivated(LicenseTerms terms) => terms.Active && terms.ClientCode.Length > 0 && terms.Revision > 0;
     internal static void LoadLocal()
     {
-        Store = new NetworkLicense(Path.Combine(Database.AppFolder, "network.license"), Database.DeviceSerial());
+        Store = null;
+        Current = null;
+        try
+        {
+            Store = new NetworkLicense(Path.Combine(Database.AppFolder, "network.license"), Database.DeviceSerial());
+        }
+        catch (System.Security.Cryptography.CryptographicException ex)
+        {
+            throw new InvalidDataException("Não foi possível abrir a licença protegida deste usuário do Windows. " +
+                "O arquivo foi preservado. Reaplicar a chave não recupera o cadastro protegido. " +
+                "Abra com o mesmo usuário da ativação ou solicite diagnóstico ao suporte.", ex);
+        }
         Current = Store.Terms;
     }
     internal static void RefreshLocal() { Store?.Reload(); Current = Store?.Terms; Store?.CheckAccess(); if(Current==null || !IsActivated(Current))throw new InvalidOperationException("Ative a licença do cliente antes de abrir o PDV."); }

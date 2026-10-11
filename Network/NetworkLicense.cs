@@ -141,11 +141,27 @@ internal static class ProtectedFile
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        // Proteção continua vinculada ao usuário do Windows; nenhum estado é reinicializado.
+        var encrypted = ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(value), null, DataProtectionScope.CurrentUser);
         try
         {
-            File.WriteAllBytes(temp, ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(value), null, DataProtectionScope.CurrentUser));
-            File.Move(temp, path, true);
+            using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                4096, FileOptions.WriteThrough))
+            {
+                stream.Write(encrypted);
+                stream.Flush(flushToDisk: true);
+            }
+            // Verifica a cópia antes de substituir o estado funcional.
+            _ = Read<T>(temp);
+            if (File.Exists(path))
+                File.Replace(temp, path, path + ".previous", ignoreMetadataErrors: false);
+            else
+                File.Move(temp, path);
         }
-        finally { if (File.Exists(temp)) File.Delete(temp); }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(encrypted);
+            if (File.Exists(temp)) File.Delete(temp);
+        }
     }
 }
