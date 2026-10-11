@@ -54,7 +54,12 @@ static class Program
     }
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string? cls, string caption);
     [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
-    static void DismissMessage() { var h = FindWindow(null, "LEAL INFO PDV"); if (h != IntPtr.Zero) SendMessage(h, 0x111, (IntPtr)1, IntPtr.Zero); }
+    [DllImport("user32.dll")] static extern IntPtr GetDlgItem(IntPtr h, int id);
+    static void DismissMessage()
+    {
+        var h = FindWindow("#32770", "LEAL INFO PDV");
+        if (h != IntPtr.Zero) { var button = GetDlgItem(h, 1); if (button != IntPtr.Zero) SendMessage(button, 0xF5, IntPtr.Zero, IntPtr.Zero); }
+    }
     static void CheckOrder(Form f)
     {
         var cep = All(f).OfType<TextBox>().Single(x => x.Name == "company_cep");
@@ -97,9 +102,9 @@ static class Program
         }
         cep.Text = "23934-005"; boxes.Single(x => x.Text == "Endereco salvo, 42").Text = "Rua QA, 99, Bairro QA";
         boxes.Single(x => x.Text == "Cidade salva / RJ").Text = "São Paulo / SP";
-        using var dismiss = new System.Windows.Forms.Timer { Interval = 80 }; dismiss.Tick += (_, _) => DismissMessage(); dismiss.Start();
+        using var dismiss = new System.Threading.Timer(_ => DismissMessage(), null, 100, 100);
         Console.WriteLine("SAVE central configurações"); All(config).OfType<Button>().Single(x => x.Text == "SALVAR DADOS DA EMPRESA").PerformClick(); Console.WriteLine("SAVED central configurações");
-        config.Close(); config.Dispose(); dismiss.Stop();
+        config.Close(); config.Dispose(); dismiss.Change(Timeout.Infinite, Timeout.Infinite);
         Check(Setting("company_cep") == "23934005" && Setting("company_address") == "Rua QA, 99, Bairro QA" && Setting("company_city_state") == "São Paulo / SP", "Persistência central falhou");
         open.Invoke(main, null); Pump(100); config = Application.OpenForms.Cast<Form>().Single(x => x.Text == "Configurações do Sistema");
         Check(All(config).OfType<TextBox>().Single(x => x.Name == "company_cep").Text == "23934005", "CEP não recarregou"); config.Close(); config.Dispose();
