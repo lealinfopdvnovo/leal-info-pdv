@@ -24,10 +24,29 @@ internal static class CompanyBranding
         if(!fallback)return null;
         try {var path=Path.Combine(AppContext.BaseDirectory,"Assets","logo.png");using var image=Image.FromFile(path);return new Bitmap(image);}catch{return null;}
     }
+    // O logotipo cadastrado tem prioridade. Instalações já personalizadas pela
+    // tela principal também usam essa imagem no PDV, sem exigir outro cadastro.
+    internal static Image? LoadSalesLogo(string fallbackFile)
+    {
+        var logo = LoadLogo(false);
+        if (logo != null) return logo;
+        var custom = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "LEAL INFO CONECTADO", "PDV", "tela_principal.png");
+        foreach (var path in new[] { custom, Path.Combine(AppContext.BaseDirectory, "Assets", fallbackFile) })
+        {
+            try
+            {
+                using var image = Image.FromFile(path);
+                return new Bitmap(image);
+            }
+            catch { }
+        }
+        return null;
+    }
     internal static void ChooseLogo(IWin32Window owner)
     {
         using var dialog=new OpenFileDialog {Title="Logotipo da empresa",Filter="Imagens|*.png;*.jpg;*.jpeg;*.bmp"};
         if(dialog.ShowDialog(owner)!=DialogResult.OK)return;
-        try {SetLogo(dialog.FileName);MessageBox.Show(owner,"Logotipo salvo. A abertura e a tela principal usarão esta imagem.");}catch(Exception ex){MessageBox.Show(owner,ex.Message,"Logotipo",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
+        try {SetLogo(dialog.FileName);MessageBox.Show(owner,"Logotipo salvo. A abertura, a tela principal e o PDV usarão esta imagem.");}catch(Exception ex){MessageBox.Show(owner,ex.Message,"Logotipo",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
     }
 }
