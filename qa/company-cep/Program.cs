@@ -86,7 +86,7 @@ static class Program
         typeof(MainForm).GetField("automaticBackupCompleted", I)!.SetValue(main, true);
         Directory.CreateDirectory("cep-evidencias");
         var open = typeof(MainForm).GetMethod("OpenSettings", I)!;
-        open.Invoke(main, null); Pump(150);
+        Console.WriteLine("OPEN central configurações"); open.Invoke(main, null); Pump(150);
         var config = Application.OpenForms.Cast<Form>().Single(x => x.Text == "Configurações do Sistema"); CheckOrder(config);
         var boxes = All(config).OfType<TextBox>().ToArray(); var cep = boxes.Single(x => x.Name == "company_cep");
         Check(cep.Text == "23934005" && boxes.Any(x => x.Text == "Endereco salvo, 42"), "Reabrir apagou valores anteriores");
@@ -98,7 +98,7 @@ static class Program
         cep.Text = "23934-005"; boxes.Single(x => x.Text == "Endereco salvo, 42").Text = "Rua QA, 99, Bairro QA";
         boxes.Single(x => x.Text == "Cidade salva / RJ").Text = "São Paulo / SP";
         using var dismiss = new System.Windows.Forms.Timer { Interval = 80 }; dismiss.Tick += (_, _) => DismissMessage(); dismiss.Start();
-        All(config).OfType<Button>().Single(x => x.Text == "SALVAR DADOS DA EMPRESA").PerformClick();
+        Console.WriteLine("SAVE central configurações"); All(config).OfType<Button>().Single(x => x.Text == "SALVAR DADOS DA EMPRESA").PerformClick(); Console.WriteLine("SAVED central configurações");
         config.Close(); config.Dispose(); dismiss.Stop();
         Check(Setting("company_cep") == "23934005" && Setting("company_address") == "Rua QA, 99, Bairro QA" && Setting("company_city_state") == "São Paulo / SP", "Persistência central falhou");
         open.Invoke(main, null); Pump(100); config = Application.OpenForms.Cast<Form>().Single(x => x.Text == "Configurações do Sistema");
@@ -113,7 +113,7 @@ static class Program
                 All(f).OfType<Button>().Single(x => x.Text == "SALVAR").PerformClick(); }
             catch (Exception e) { fail = e; f.Close(); }
         };
-        inspect.Start(); typeof(MainForm).GetMethod("ShowCompanyRegistration", I)!.Invoke(main, new object[] { false });
+        Console.WriteLine("OPEN cadastro inicial"); inspect.Start(); typeof(MainForm).GetMethod("ShowCompanyRegistration", I)!.Invoke(main, new object[] { false });
         Check(seen && fail == null, "Cadastro inicial falhou: " + fail); Check(Setting("company_cep") == "23934005", "CEP inicial não persistiu");
         Check((A.GetType("LealInfoPDV.PartsWithdrawal") != null) == (flavor == "002"), "Módulos 002 alterados");
         Check((A.GetType("LealInfoPDV.GlassProjectForm") != null) == (flavor == "003"), "Módulo vidraçaria 003 alterado");
@@ -140,9 +140,10 @@ static class Program
     {
         Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true", "Somente runner descartável");
         if (args.Contains("--live")) { Live(); return; }
+        _ = Task.Run(async () => { await Task.Delay(90000); Console.Error.WriteLine("QA TIMEOUT: teste excedeu 90 segundos"); Environment.Exit(1); });
         Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException); Application.EnableVisualStyles();
-        Components(); Forms(args.FirstOrDefault() ?? "global");
-        var result = DeliveryAddress.LookupAsync("01001000", CancellationToken.None).GetAwaiter().GetResult();
+        Console.WriteLine("START componentes CEP"); Components(); Console.WriteLine("START formulários reais"); Forms(args.FirstOrDefault() ?? "global"); Console.WriteLine("START consulta ViaCEP real fora da thread UI");
+        var result = Task.Run(() => DeliveryAddress.LookupAsync("01001000", CancellationToken.None)).GetAwaiter().GetResult();
         Check(result.City.Length > 0 && result.Uf.Length == 2, "ViaCEP real inválido");
         Console.WriteLine("PASS ViaCEP real: " + result.City + " / " + result.Uf);
     }

@@ -2,7 +2,7 @@ name: Validar CEP Empresa 10.384 - quatro bases preservadas
 on:
   push:
     branches: ['qa/cep-empresa-global-10384']
-permissions: { contents: read }
+permissions: { contents: read, actions: write }
 jobs:
   validar:
     strategy:
@@ -12,6 +12,13 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
+      - name: Encerrar somente tentativa anterior de QA CEP travada
+        if: matrix.flavor == 'global'
+        shell: pwsh
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          $old=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/38171275887|ConvertFrom-Json
+          if($old.status -eq 'in_progress'){gh api --method POST repos/$env:GITHUB_REPOSITORY/actions/runs/38171275887/cancel}
       - uses: actions/checkout@v4
         with:
           ref: ${{ matrix.flavor == 'global' && github.sha || format('qa/cep-empresa-{0}-10384', matrix.flavor) }}
