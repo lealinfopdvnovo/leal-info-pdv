@@ -11,15 +11,14 @@ internal sealed class ActivationForm : Form
         foreach(var h in new[]{60,75,50,100,65,45,70})layout.RowStyles.Add(new RowStyle(SizeType.Absolute,h));Controls.Add(layout);
         layout.Controls.Add(new Label {Text="ATIVAÇÃO DA LICENÇA",Dock=DockStyle.Fill,ForeColor=Color.Gold,Font=new Font("Segoe UI",20,FontStyle.Bold)},0,0);
         layout.Controls.Add(new Label {Text="Envie o serial deste computador ao vendedor.\nCole a chave recebida ou importe o arquivo de licença.",Dock=DockStyle.Fill},0,1);
-        var serial=new TextBox {Text=Database.DeviceSerial(),ReadOnly=true,Dock=DockStyle.Fill};layout.Controls.Add(serial,0,2);
+        var serial=new TextBox {Text=MachineLicenseIdentity.Current.Serial,ReadOnly=true,Dock=DockStyle.Fill};layout.Controls.Add(serial,0,2);
         var key=new TextBox {Multiline=true,Dock=DockStyle.Fill,PlaceholderText="Cole a chave de ativação recebida"};layout.Controls.Add(key,0,3);
         var buttons=new FlowLayoutPanel {Dock=DockStyle.Fill};layout.Controls.Add(buttons,0,4);
         var status=new Label {Text="Os dados existentes da empresa serão preservados.",Dock=DockStyle.Fill,ForeColor=Color.Gold};layout.Controls.Add(status,0,6);
         void Activate(string text)
         {
             try {
-                var json=text.Trim();
-                if(json.StartsWith("LEAL1-"))json=System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(json[6..]));
+                var json=LicenseInput.Normalize(text);
                 if(InstallationLicense.Store==null)InstallationLicense.LoadLocal();
                 InstallationLicense.Store!.Activate(json);InstallationLicense.RefreshLocal();
                 if(!InstallationLicense.IsActivated(InstallationLicense.Current!))throw new InvalidDataException("Solicite ao vendedor uma licença com o código do cliente e o plano contratado.");

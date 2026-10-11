@@ -40,7 +40,7 @@ try
     Reject(() => licence.Import(JsonSerializer.Serialize(bad with { Payload = Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(new LicenseTerms("SERVIDOR", 99, "unico", null, "", 1, "x"))) })), "assinatura");
     licence.Import(unsigned); licence.Register("B", "KEY-B", "Terminal B");
     Assert(licence.Terms.BillingMode == "unico" && licence.RegisteredCount == 3, "Pagamento único deve liberar terceiro ponto.");
-    Reject(() => licence.Import(unsigned), "mais recente");
+    licence.Import(unsigned); Assert(licence.RegisteredCount == 3, "Reimportação da mesma licença alterou pontos.");
     Reject(() => licence.Import(Signed(seller, new("SERVIDOR", 3, "mensal", null, "", 2, "m"))), "não é válida");
     Reject(() => licence.Import(Signed(seller, new("SERVIDOR", 3, "mensal", DateTimeOffset.UtcNow.AddDays(-1), "", 2, "m"))), "vencida");
     licence.Import(Signed(seller, new("SERVIDOR", 3, "mensal", DateTimeOffset.UtcNow.AddDays(30), "VENDEDOR", 2, "m")));

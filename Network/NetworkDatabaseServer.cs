@@ -28,7 +28,7 @@ public sealed class NetworkDatabaseServer : IDisposable
         var licencePath = Path.Combine(Database.AppFolder, "network.license");
         if (File.Exists(Path.Combine(Database.AppFolder, "network.certificate")) && !File.Exists(licencePath))
             throw new InvalidOperationException("O cadastro protegido de licença está ausente. Entre em contato com o vendedor para recuperar o servidor.");
-        License = Licensing.InstallationLicense.Store ?? new NetworkLicense(licencePath, Database.DeviceSerial());
+        License = Licensing.InstallationLicense.Store ?? new NetworkLicense(licencePath, Licensing.MachineLicenseIdentity.Current.Serial, legacySerial: Licensing.MachineLicenseIdentity.Current.LegacySerial);
         certificate = LoadCertificate();
         listener = new TcpListener(IPAddress.Any, configuration.Port);
     }
@@ -47,6 +47,7 @@ public sealed class NetworkDatabaseServer : IDisposable
     }
     public void Start()
     {
+        License.CheckNetworkState();
         License.CheckAccess();
         listener.Start(32); Current = this;
         _ = Task.Run(AcceptLoop);
@@ -87,7 +88,7 @@ public sealed class NetworkDatabaseServer : IDisposable
                 if (rsa.KeySize < 2048 || !rsa.VerifyData(Convert.FromBase64String(challenge), Convert.FromBase64String(auth.Signature), HashAlgorithmName.SHA256, RSASignaturePadding.Pss))
                     throw new InvalidOperationException("Não foi possível validar a identidade deste computador.");
                 License.Register(auth.Serial, auth.PublicKey, auth.Name);
-                NetworkProtocol.Write(tls, new NetworkResponse { SignedLicense=License.SignedText, ServerSerial=Database.DeviceSerial() });
+                NetworkProtocol.Write(tls, new NetworkResponse { SignedLicense=License.SignedText, ServerSerial=License.Terms.ServerSerial });
             }
             catch (Exception ex) { NetworkProtocol.Write(tls, new NetworkResponse { Error = ex.Message }); return; }
             using var connection = new SqliteConnection(Database.ConnectionString);

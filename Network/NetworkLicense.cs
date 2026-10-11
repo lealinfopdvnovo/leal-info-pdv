@@ -26,11 +26,17 @@ public sealed class NetworkLicense
     private readonly string serial;
     private readonly string publicKey;
     private LicenseState state;
-    public NetworkLicense(string path, string serial, string? verificationKey = null)
+    private readonly string? legacySerial;
+    private Exception? stateFailure;
+    private string independentSigned = "";
+    internal bool NeedsStateRecovery => stateFailure != null;
+    private string SignedPath => path + ".signed";
+    public NetworkLicense(string path, string serial, string? verificationKey = null, string? legacySerial = null)
     {
-        this.path = path; this.serial = serial; publicKey = verificationKey ?? SellerPublicKey.Pem;
-        state = File.Exists(path) ? ProtectedFile.Read<LicenseState>(path) : new();
-        if (!File.Exists(path)) Save();
+        this.path = path; this.serial = serial; this.legacySerial = legacySerial; publicKey = verificationKey ?? SellerPublicKey.Pem;
+        state = new();
+        LoadState();
+        if (!File.Exists(path) && stateFailure == null) Save();
     }
     public static string LimitNotice(int limit, string contact = "") =>
         "LIMITE DE COMPUTADORES ATINGIDO\n\nSua licença já está utilizando todos os computadores disponíveis.\n\n" +
@@ -40,10 +46,59 @@ public sealed class NetworkLicense
     {
         get { lock (gate) return TermsUnsafe(); }
     }
-    public int RegisteredCount { get { lock (gate) return 1 + state.Devices.Count; } }
-    private LicenseTerms TermsUnsafe() => string.IsNullOrEmpty(state.SignedLicense)
-        ? new(serial, 2, "a_definir", null, "", 0, "BASE") : Verify(state.SignedLicense);
-    private LicenseTerms Verify(string text) => Decode(text, serial, publicKey);
+    public int RegisteredCount { get { lock (gate) { CheckNetworkState(); return 1 + state.Devices.Count; } } }
+    internal void CheckNetworkState()
+    {
+        if (NeedsStateRecovery) throw new InvalidDataException("O cadastro protegido de terminais precisa de recuperação. Nenhum terminal foi apagado ou liberado novamente.", stateFailure);
+    }
+    private void LoadState()
+    {
+        independentSigned = File.Exists(SignedPath) ? File.ReadAllText(SignedPath) : "";
+        if (independentSigned.Length > 0) _ = Verify(independentSigned);
+        try
+        {
+            state = File.Exists(path) ? ProtectedFile.Read<LicenseState>(path) : new();
+            stateFailure = null;
+            if (state.SignedLicense.Length > 0)
+            {
+                _ = Verify(state.SignedLicense);
+                if (independentSigned.Length > 0 && Verify(independentSigned) != Verify(state.SignedLicense))
+                {
+                    var committed = Verify(state.SignedLicense);
+                    var previous = Verify(independentSigned);
+                    if (committed.ClientCode == previous.ClientCode && committed.Revision > previous.Revision)
+                        SaveIndependent(state.SignedLicense); // gravação protegida concluída antes de interrupção
+                    else
+                        throw new InvalidDataException("Licença independente e cadastro protegido divergentes. Recuperação necessária; nenhum estado foi substituído.");
+                }
+                if (independentSigned.Length == 0) SaveIndependent(state.SignedLicense);
+            }
+            else if (independentSigned.Length > 0)
+                throw new InvalidDataException("Cadastro protegido não corresponde à licença independente.");
+        }
+        catch (CryptographicException ex)
+        {
+            stateFailure = ex;
+            // Não substituir nem zerar o arquivo original.
+            state = new();
+        }
+    }
+    private LicenseTerms TermsUnsafe()
+    {
+        if (NeedsStateRecovery)
+        {
+            if (independentSigned.Length > 0) return Verify(independentSigned);
+            throw new InvalidDataException("O arquivo de licença antigo está ilegível e não possui cópia assinada independente. Preserve o original para recuperação assistida.", stateFailure);
+        }
+        return string.IsNullOrEmpty(state.SignedLicense) ? new(serial, 2, "a_definir", null, "", 0, "BASE") : Verify(state.SignedLicense);
+    }
+    private LicenseTerms Verify(string text)
+    {
+        // Só aceita o serial legado deste computador, nunca um serial fornecido pelo usuário.
+        try { return Decode(text, serial, publicKey); }
+        catch (InvalidDataException) when (legacySerial != null && legacySerial != serial)
+        { return Decode(text, legacySerial, publicKey); }
+    }
     internal static LicenseTerms Decode(string text, string serial, string publicKey)
     {
         var envelope = JsonSerializer.Deserialize<SignedLicense>(text) ?? throw new InvalidDataException("Licença inválida.");
@@ -64,7 +119,10 @@ public sealed class NetworkLicense
     {
         lock (gate)
         {
+            text = Licensing.LicenseInput.Normalize(text);
             var terms = Verify(text);
+            CheckNetworkState();
+            if (terms == TermsUnsafe()) { CheckAccess(); return; }
             if (TermsUnsafe().ClientCode.Length>0 && terms.ClientCode!=TermsUnsafe().ClientCode)throw new InvalidDataException("A licença pertence a outro código de cliente.");
             if (terms.Revision <= TermsUnsafe().Revision) throw new InvalidDataException("Esta licença já foi aplicada ou foi substituída por uma mais recente.");
             if (terms.TotalComputers < RegisteredCount) throw new InvalidDataException("A licença possui menos pontos que os computadores já cadastrados.");
@@ -77,6 +135,7 @@ public sealed class NetworkLicense
     {
         lock (gate)
         {
+            text = Licensing.LicenseInput.Normalize(text);
             var terms = Verify(text);
             if (terms.ClientCode.Length == 0) throw new InvalidDataException("Esta licença antiga não contém o código do cliente. Solicite ao vendedor uma nova chave de ativação para este serial.");
             var current = TermsUnsafe();
@@ -103,17 +162,25 @@ public sealed class NetworkLicense
         {
             var terms = TermsUnsafe();
             if (!terms.Active) throw new InvalidOperationException("A licença está inativa. Entre em contato com o vendedor.");
+            if (NeedsStateRecovery)
+            {
+                // Pagamento único pode ser validado pela assinatura sem depender do DPAPI.
+                // Mensalidade e cadastro de terminais precisam do relógio/estado protegido.
+                if (terms.BillingMode != "unico") CheckNetworkState();
+                return;
+            }
             var now = EffectiveNow(); if(persist)Save();
             if (terms.ExpiresUtc <= now) throw new InvalidOperationException("A licença mensal está vencida. Entre em contato com o vendedor para renovar." +
                 (string.IsNullOrWhiteSpace(terms.SellerContact) ? "" : "\nContato: " + terms.SellerContact));
         }
     }
-    internal void Reload() { lock(gate) state=ProtectedFile.Read<LicenseState>(path); }
-    internal string SignedText { get { lock(gate) return state.SignedLicense; } }
+    internal void Reload() { lock(gate) LoadState(); }
+    internal string SignedText { get { lock(gate) return NeedsStateRecovery ? independentSigned : state.SignedLicense; } }
     internal void Register(string deviceSerial, string key, string name)
     {
         lock (gate)
         {
+            CheckNetworkState();
             CheckAccess();
             if (string.IsNullOrWhiteSpace(deviceSerial) || string.IsNullOrWhiteSpace(key) || deviceSerial == serial)
                 throw new InvalidOperationException("Identificação de computador inválida.");
@@ -129,7 +196,29 @@ public sealed class NetworkLicense
             state.Devices.Add(new(deviceSerial, key, name)); Save();
         }
     }
-    private void Save() => ProtectedFile.Write(path, state);
+    private void Save()
+    {
+        CheckNetworkState();
+        // A cópia independente só é criada com conteúdo RSA já validado.
+        // Se houver falha entre as gravações, a divergência bloqueia, nunca escolhe a revisão antiga.
+        ProtectedFile.Write(path, state);
+        if (state.SignedLicense.Length > 0) SaveIndependent(state.SignedLicense);
+    }
+    private void SaveIndependent(string signed)
+    {
+        _ = Verify(signed);
+        var temp = SignedPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes(signed);
+            using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+            { stream.Write(bytes); stream.Flush(true); }
+            if (File.Exists(SignedPath)) File.Replace(temp, SignedPath, SignedPath + ".previous");
+            else File.Move(temp, SignedPath);
+            independentSigned = signed;
+        }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
+    }
 }
 
 internal static class ProtectedFile

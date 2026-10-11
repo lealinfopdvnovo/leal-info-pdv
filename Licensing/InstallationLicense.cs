@@ -14,7 +14,7 @@ internal static class InstallationLicense
         Current = null;
         try
         {
-            Store = new NetworkLicense(Path.Combine(Database.AppFolder, "network.license"), Database.DeviceSerial());
+            Store = new NetworkLicense(Path.Combine(Database.AppFolder, "network.license"), MachineLicenseIdentity.Current.Serial, legacySerial: MachineLicenseIdentity.Current.LegacySerial);
         }
         catch (System.Security.Cryptography.CryptographicException ex)
         {
