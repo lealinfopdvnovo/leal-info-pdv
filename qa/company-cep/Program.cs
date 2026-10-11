@@ -55,10 +55,30 @@ static class Program
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr FindWindow(string? cls, string caption);
     [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
     [DllImport("user32.dll")] static extern IntPtr GetDlgItem(IntPtr h, int id);
+    delegate bool WindowCallback(IntPtr h, IntPtr l);
+    [DllImport("user32.dll")] static extern bool EnumWindows(WindowCallback callback, IntPtr l);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetWindowText(IntPtr h, System.Text.StringBuilder text, int max);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, System.Text.StringBuilder text, int max);
+    [DllImport("user32.dll")] static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l);
+    static readonly HashSet<string> SeenWindows = new();
     static void DismissMessage()
     {
-        var h = FindWindow("#32770", "LEAL INFO PDV");
-        if (h != IntPtr.Zero) { var button = GetDlgItem(h, 1); if (button != IntPtr.Zero) SendMessage(button, 0xF5, IntPtr.Zero, IntPtr.Zero); }
+        EnumWindows((h, _) =>
+        {
+            GetWindowThreadProcessId(h, out var pid); if (pid != Environment.ProcessId) return true;
+            var title = new System.Text.StringBuilder(256); var cls = new System.Text.StringBuilder(256);
+            GetWindowText(h, title, 256); GetClassName(h, cls, 256);
+            var name = title.ToString(); var type = cls.ToString();
+            lock (SeenWindows) { if (SeenWindows.Add(name + type)) Console.WriteLine("QA WINDOW " + name + " [" + type + "]"); }
+            if (type == "#32770" && name == "LEAL INFO PDV")
+            {
+                Console.WriteLine("QA confirmar mensagem nativa");
+                PostMessage(h, 0x111, (IntPtr)1, GetDlgItem(h, 1));
+                PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero);
+            }
+            return true;
+        }, IntPtr.Zero);
     }
     static void CheckOrder(Form f)
     {
