@@ -31,7 +31,7 @@ jobs:
           changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
           assert changed<=allowed,changed
           old=subprocess.check_output(['git','show',base+':MainForm.cs']).decode()
-          new=Path('MainForm.cs').read_text()
+          new=Path('MainForm.cs').read_text(encoding='utf-8')
           def without_forms(s):
               a=s.index('    private bool ShowCompanyRegistration(');b=s.index('    private ',a+10)
               s=s[:a]+s[b:]
@@ -40,7 +40,7 @@ jobs:
           assert without_forms(old)==without_forms(new),'Mudança fora dos dois cadastros'
           version='10.383' if os.environ['FLAVOR']=='003' else '10.379'
           for n in ['UpdateManager.cs','LealInfoPDV.csproj']:
-              assert subprocess.check_output(['git','show',base+':'+n]).decode()==Path(n).read_text().replace('10.384',version),n
+              assert subprocess.check_output(['git','show',base+':'+n]).decode()==Path(n).read_text(encoding='utf-8').replace('10.384',version),n
           print('PASS demais fontes intactas, login/ícones/licenças/updater e módulos próprios preservados')
       - name: Preparar mesmas etapas do build distribuido
         shell: pwsh
