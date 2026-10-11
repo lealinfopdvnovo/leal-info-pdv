@@ -1,0 +1,116 @@
+name: Validar logo PDV 10.385 - quatro bases preservadas
+on:
+  push:
+    branches: ['qa/logo-pdv-global-10385']
+permissions: { contents: read }
+jobs:
+  validar:
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [global, '001', '002', '003']
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.flavor == 'global' && github.sha || format('qa/logo-pdv-{0}-10385', matrix.flavor) }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Preservar fontes fora da marca do PDV
+        shell: python
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          import os,subprocess
+          from pathlib import Path
+          bases={'global': 'd0af768fe193288c49918636dc49625fcf56ac6a', '001': 'ba9f6b46398185bb1bf31eb1f0e28d1fb2847577', '002': 'd808a2079dc5306f09f5434d7872451654d574d8', '003': 'f374685607c3a00026ae6c02334e78673e46af2b'}
+          base=bases[os.environ['FLAVOR']]
+          allowed={'MainForm.cs','Licensing/CompanyBranding.cs','UpdateManager.cs','LealInfoPDV.csproj','qa/sales-logo/Program.cs','qa/sales-logo/LealInfoPDV.SalesLogoTests.csproj','.github/workflows/validar_logo_pdv.yml'}
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed<=allowed,changed
+          old=subprocess.check_output(['git','show',base+':MainForm.cs']).decode();new=Path('MainForm.cs').read_text(encoding='utf-8')
+          def without_sales(s):
+              a=s.index('    private void OpenSales()');b=s.index('    private void AddSaleLabel',a)
+              return s[:a]+s[b:]
+          assert without_sales(old)==without_sales(new),'Mudança fora da tela de venda'
+          old=subprocess.check_output(['git','show',base+':Licensing/CompanyBranding.cs']).decode();new=Path('Licensing/CompanyBranding.cs').read_text(encoding='utf-8')
+          a=new.index('    // O logotipo cadastrado tem prioridade.');b=new.index('    internal static void ChooseLogo(',a)
+          assert old==(new[:a]+new[b:]).replace('A abertura, a tela principal e o PDV usarão esta imagem.','A abertura e a tela principal usarão esta imagem.'),'Marca fora do carregamento de logo'
+          for n in ['UpdateManager.cs','LealInfoPDV.csproj']:
+              assert subprocess.check_output(['git','show',base+':'+n]).decode()==Path(n).read_text(encoding='utf-8').replace('10.385','10.384'),n
+          print('PASS CEP, vendas/pagamentos, login/licenças/updater, ícones e módulos próprios preservados')
+      - name: Preparar mesmas etapas do build distribuido
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar incremental sobre dependencias reais atuais
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $feeds=@{
+            'global'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.384/LEAL_INFO_PDV_V10_384_UPDATE.zip';sha='780110c0966836362a10eceb9abe571ce35b317be82ae4dca19a074ecc994c4c'}
+            '001'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.384/LEAL_INFO_PDV_001_V10_384_UPDATE.zip';sha='a52181f9f86362a5f07a7f5dcfea2cdb386b99d4f07b081fb58f18dba2ab637e'}
+            '002'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.384/LEAL_INFO_PDV_002_V10_384_UPDATE.zip';sha='b09bdf5e739eead304210aad5260c5f5ebafc1d3eff5d91f0aa92754215e80ca'}
+            '003'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.384/LEAL_INFO_PDV_003_V10_384_UPDATE.zip';sha='9556d7ee92887607d0770f80089211c51a0c45a5b50375f5a7e4785a6cbc39b1'}
+          }
+          $baseline=$feeds[$env:FLAVOR]
+          Invoke-WebRequest $baseline.url -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne $baseline.sha){throw 'Baseline mudou'}
+          Expand-Archive baseline.zip baseline
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdkKey=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdkKey){throw 'SDK baseline nao identificado'}
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$($sdkKey.Split('/')[1]) -o publish
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          New-Item -ItemType Directory -Force package,logo-evidencias|Out-Null
+          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
+          [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path package).Path,[IO.Path]::GetFullPath("update-$env:FLAVOR.zip"))
+          (Get-FileHash "update-$env:FLAVOR.zip").Hash.ToLowerInvariant()|Set-Content "logo-evidencias/sha-$env:FLAVOR.txt"
+          git rev-parse HEAD|Set-Content "logo-evidencias/source-$env:FLAVOR.txt"
+      - name: Confirmar nenhuma dependencia nova
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          old=json.loads(Path('baseline/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'));new=json.loads(Path('publish/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
+          for d in (old,new):
+              for bag in [d['libraries'],*d['targets'].values()]:
+                  for k in list(bag):
+                      if k.startswith('LealInfoPDV/'):del bag[k]
+          assert old==new,'Dependencias diferentes impedem update pequeno'
+          print('PASS dependencias preservadas; pacote somente programa, sem dados ou recursos de cliente')
+      - name: Regressao CEP e marca nas telas reais do PDV com dados ficticios
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          dotnet run --project qa/company-cep/LealInfoPDV.CompanyCepTests.csproj -c Release -- $env:FLAVOR
+          if($LASTEXITCODE -ne 0){throw 'Teste CEP falhou'}
+          dotnet run --project qa/sales-logo/LealInfoPDV.SalesLogoTests.csproj -c Release -- $env:FLAVOR
+          if($LASTEXITCODE -ne 0){throw 'Teste logo PDV falhou'}
+      - name: Updater existente e preservacao de dados ficticios
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package "update-$env:FLAVOR.zip"
+          if($LASTEXITCODE -ne 0){throw 'Pacote rejeitado'}
+          dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- "update-$env:FLAVOR.zip" UpdateManager.cs
+          if($LASTEXITCODE -ne 0){throw 'Selecao/copia/preservacao falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logo-pdv-${{ matrix.flavor }}
+          path: |
+            logo-evidencias/
+            update-${{ matrix.flavor }}.zip
+          retention-days: 7
