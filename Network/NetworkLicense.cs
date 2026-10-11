@@ -150,8 +150,8 @@ internal static class ProtectedFile
     }
 }
 
-// Both encrypted copies contain the complete state from the same write. Never
-// recover from an older backup: that could restore an obsolete revision or seats.
+// New licenses use machine protection; readable user-bound legacy states migrate
+// on save. Never restore older revisions or silently reset unreadable state.
 internal static class LicenseProtectedFile
 {
     private static readonly byte[] Magic = Encoding.ASCII.GetBytes("LEALLIC2\n");
@@ -164,9 +164,11 @@ internal static class LicenseProtectedFile
             if (!bytes.AsSpan().StartsWith(Magic)) return ProtectedFile.Read<LicenseState>(path);
             var envelope = JsonSerializer.Deserialize<Envelope>(bytes.AsSpan(Magic.Length))
                 ?? throw new InvalidDataException("Envelope de licença ausente.");
-            if (envelope.Version != 2) throw new InvalidDataException("Versão de licença desconhecida.");
+            if (envelope.Version is not (2 or 3)) throw new InvalidDataException("Versão de licença desconhecida.");
             byte[] plain;
-            try { plain = ProtectedData.Unprotect(Convert.FromBase64String(envelope.User), null, DataProtectionScope.CurrentUser); }
+            try { plain = envelope.Version == 3
+                ? ProtectedData.Unprotect(Convert.FromBase64String(envelope.Machine), null, DataProtectionScope.LocalMachine)
+                : ProtectedData.Unprotect(Convert.FromBase64String(envelope.User), null, DataProtectionScope.CurrentUser); }
             catch (Exception ex) when (ex is CryptographicException or FormatException)
             { plain = ProtectedData.Unprotect(Convert.FromBase64String(envelope.Machine), null, DataProtectionScope.LocalMachine); }
             return JsonSerializer.Deserialize<LicenseState>(plain) ?? throw new InvalidDataException("Estado da licença ausente.");
@@ -179,8 +181,7 @@ internal static class LicenseProtectedFile
     internal static void Write(string path, LicenseState state)
     {
         var plain = JsonSerializer.SerializeToUtf8Bytes(state);
-        var envelope = new Envelope(2,
-            Convert.ToBase64String(ProtectedData.Protect(plain, null, DataProtectionScope.CurrentUser)),
+        var envelope = new Envelope(3, "",
             Convert.ToBase64String(ProtectedData.Protect(plain, null, DataProtectionScope.LocalMachine)));
         var encoded = JsonSerializer.SerializeToUtf8Bytes(envelope);
         var bytes = new byte[Magic.Length + encoded.Length];
