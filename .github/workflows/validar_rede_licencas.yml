@@ -23,6 +23,9 @@ jobs:
           ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Testar diagnostico somente leitura no Windows PowerShell
+        shell: powershell
+        run: ./tools/license-diagnostic/Testar_Diagnostico.ps1
       - name: Compilar PDV com rede
         run: dotnet build LealInfoPDV.csproj -c Release
       - name: Validar licencas e rede TLS com banco central

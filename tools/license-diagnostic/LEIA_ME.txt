@@ -1,0 +1,8 @@
+1. Extraia o ZIP numa pasta da Area de Trabalho.
+2. Na mesma conta do Windows usada para abrir o PDV, abra INICIAR_DIAGNOSTICO.bat normalmente (sem Executar como administrador).
+3. Envie o arquivo DIAGNOSTICO_LICENCA.txt criado ao lado do BAT.
+
+Nao instala nada, nao acessa internet e nao altera o PDV.
+Nao mostra chave, assinatura, senha, serial completo, e-mail ou nome do usuario.
+Somente le os arquivos protegidos e cria um relatorio nesta pasta.
+Nao recupera nem ativa a licenca. O diagnostico serve para decidir uma recuperacao segura.
