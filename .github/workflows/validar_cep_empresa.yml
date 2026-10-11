@@ -1,0 +1,115 @@
+name: Validar CEP Empresa 10.384 - quatro bases preservadas
+on:
+  push:
+    branches: ['qa/cep-empresa-global-10384']
+permissions: { contents: read }
+jobs:
+  validar:
+    strategy:
+      fail-fast: false
+      matrix:
+        flavor: [global, '001', '002', '003']
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.flavor == 'global' && github.sha || format('qa/cep-empresa-{0}-10384', matrix.flavor) }}
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - name: Preservar todas as fontes fora do cadastro e versões
+        shell: python
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          import os,subprocess
+          from pathlib import Path
+          bases={'global': '0e7edd958aa786f74375cc48259aae0616bf1943', '001': 'd9ba96913b9b6cbd97a296f757001814f493c2f6', '002': '3e6866301981055ca8c07bb0475f8ec8faba10d1', '003': 'ce8f73808e1a79d2c5f73c48c852aafb0b30d795'}
+          base=bases[os.environ['FLAVOR']]
+          allowed={'MainForm.cs','CompanyCepLookup.cs','UpdateManager.cs','LealInfoPDV.csproj','qa/company-cep/Program.cs','qa/company-cep/LealInfoPDV.CompanyCepTests.csproj','.github/workflows/validar_cep_empresa.yml'}
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed<=allowed,changed
+          old=subprocess.check_output(['git','show',base+':MainForm.cs']).decode()
+          new=Path('MainForm.cs').read_text()
+          def without_forms(s):
+              a=s.index('    private bool ShowCompanyRegistration(');b=s.index('    private ',a+10)
+              s=s[:a]+s[b:]
+              a=s.index('    private void OpenSettings(');b=s.index('    private ',a+10)
+              return s[:a]+s[b:]
+          assert without_forms(old)==without_forms(new),'Mudança fora dos dois cadastros'
+          version='10.383' if os.environ['FLAVOR']=='003' else '10.379'
+          for n in ['UpdateManager.cs','LealInfoPDV.csproj']:
+              assert subprocess.check_output(['git','show',base+':'+n]).decode()==Path(n).read_text().replace('10.384',version),n
+          print('PASS demais fontes intactas, login/ícones/licenças/updater e módulos próprios preservados')
+      - name: Preparar mesmas etapas do build distribuido
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar incremental sobre dependencias reais atuais
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $feeds=@{
+            'global'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.379/LEAL_INFO_PDV_V10_379_UPDATE.zip';sha='ee100d44ac906d18e1d39be07da96107efd050f8a4d471cf97f0be1268a0bb3b'}
+            '001'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.379/LEAL_INFO_PDV_001_V10_379_UPDATE.zip';sha='a0812b2b4e31f5868fa4a43bba5327ffe72fec48bbe946ecb71a25eeb63458f3'}
+            '002'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.379/LEAL_INFO_PDV_002_V10_379_UPDATE.zip';sha='1e437774e9e4b7b3b0f0d3054f86a78d0d3caf5011946c2d14575c7a95252877'}
+            '003'=@{url='https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.383/LEAL_INFO_PDV_003_V10_383_UPDATE.zip';sha='f59cc79e930612125b026ae1cad1ac40387d797466cdf8e4069ffa215e2f4e9a'}
+          }
+          $baseline=$feeds[$env:FLAVOR]
+          Invoke-WebRequest $baseline.url -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne $baseline.sha){throw 'Baseline mudou'}
+          Expand-Archive baseline.zip baseline
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdkKey=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdkKey){throw 'SDK baseline nao identificado'}
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$($sdkKey.Split('/')[1]) -o publish
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          New-Item -ItemType Directory -Force package,cep-evidencias|Out-Null
+          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
+          [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path package).Path,[IO.Path]::GetFullPath("update-$env:FLAVOR.zip"))
+          (Get-FileHash "update-$env:FLAVOR.zip").Hash.ToLowerInvariant()|Set-Content "cep-evidencias/sha-$env:FLAVOR.txt"
+          git rev-parse HEAD|Set-Content "cep-evidencias/source-$env:FLAVOR.txt"
+      - name: Confirmar nenhuma dependencia nova
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          old=json.loads(Path('baseline/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'));new=json.loads(Path('publish/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
+          for d in (old,new):
+              for bag in [d['libraries'],*d['targets'].values()]:
+                  for k in list(bag):
+                      if k.startswith('LealInfoPDV/'):del bag[k]
+          assert old==new,'Dependencias diferentes impedem update pequeno'
+          print('PASS dependencias preservadas; pacote somente programa, sem dados ou recursos de cliente')
+      - name: CEP e formulários reais com dados fictícios
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          dotnet run --project qa/company-cep/LealInfoPDV.CompanyCepTests.csproj -c Release -- $env:FLAVOR
+          if($LASTEXITCODE -ne 0){throw 'Teste CEP falhou'}
+      - name: Updater existente e preservacao de dados ficticios
+        shell: pwsh
+        env:
+          FLAVOR: ${{ matrix.flavor }}
+        run: |
+          dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package "update-$env:FLAVOR.zip"
+          if($LASTEXITCODE -ne 0){throw 'Pacote rejeitado'}
+          dotnet run --project qa/update-selection/LealInfoPDV.UpdateTests.csproj -c Release -- "update-$env:FLAVOR.zip" UpdateManager.cs
+          if($LASTEXITCODE -ne 0){throw 'Selecao/copia/preservacao falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cep-empresa-${{ matrix.flavor }}
+          path: |
+            cep-evidencias/
+            update-${{ matrix.flavor }}.zip
+          retention-days: 7
