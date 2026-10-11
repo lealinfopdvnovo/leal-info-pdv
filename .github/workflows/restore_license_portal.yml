@@ -1,0 +1,26 @@
+name: Restaurar portal licencas sem alterar SpeedFood
+on:
+  push:
+    branches: ['repair/portal-licencas-404']
+permissions: {contents: read}
+jobs:
+  restaurar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        id: auth
+        with:
+          credentials_json: '${{ secrets.LEAL_FIREBASE_SERVICE_ACCOUNT }}'
+          token_format: access_token
+      - name: Recuperar portal preservando versao real do Hosting
+        env:
+          ACCESS_TOKEN: '${{ steps.auth.outputs.access_token }}'
+        run: python3 tools/licensing-cloud/restore_hosting.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portal-restauracao-auditoria
+          path: restoration-report.json
+          retention-days: 14
