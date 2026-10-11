@@ -1,0 +1,42 @@
+{
+  "global": {
+    "Editions": [
+      "STANDARD",
+      "PLUS",
+      "PRO"
+    ],
+    "Mandatory": false,
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.384/LEAL_INFO_PDV_V10_384_UPDATE.zip",
+    "SourceCommit": "8b22228a880ef03f518b751a9c744ade83aca17e",
+    "Version": "10.384",
+    "Notes": "V10.384 GLOBAL: CEP no Cadastro da Empresa e Central de Configuracoes, abaixo de telefone/WhatsApp e acima do endereco. Busca automatica de rua/bairro e Cidade/UF, campos editaveis e salvamento aguardando consulta. Pacotes 001/002/003 preservam personalizacoes. Sem dados, licencas ou configuracoes no pacote.",
+    "Sha256": "780110c0966836362a10eceb9abe571ce35b317be82ae4dca19a074ecc994c4c"
+  },
+  "001": {
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.384/LEAL_INFO_PDV_001_V10_384_UPDATE.zip",
+    "Mandatory": false,
+    "SourceCommit": "4aec5a1912baab95208ad132ea87abf1a51d5f50",
+    "Sha256": "a52181f9f86362a5f07a7f5dcfea2cdb386b99d4f07b081fb58f18dba2ab637e",
+    "TargetClientCode": "001",
+    "Notes": "V10.384: CEP no Cadastro da Empresa, abaixo do telefone/WhatsApp e acima do endereco. Busca automatica de rua/bairro e Cidade/UF, campos editaveis e salvamento aguardando consulta. Preserva dados, licenca e particularidades deste cliente.",
+    "Version": "10.384"
+  },
+  "002": {
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.384/LEAL_INFO_PDV_002_V10_384_UPDATE.zip",
+    "Mandatory": false,
+    "SourceCommit": "ca191182e741f375df13120cddc0cff09a87b187",
+    "Sha256": "b09bdf5e739eead304210aad5260c5f5ebafc1d3eff5d91f0aa92754215e80ca",
+    "TargetClientCode": "002",
+    "Notes": "V10.384: CEP no Cadastro da Empresa, abaixo do telefone/WhatsApp e acima do endereco. Busca automatica de rua/bairro e Cidade/UF, campos editaveis e salvamento aguardando consulta. Preserva dados, licenca e particularidades deste cliente.",
+    "Version": "10.384"
+  },
+  "003": {
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.384/LEAL_INFO_PDV_003_V10_384_UPDATE.zip",
+    "Mandatory": false,
+    "SourceCommit": "10a568de3c3aa396254c150d120422550c273829",
+    "Sha256": "9556d7ee92887607d0770f80089211c51a0c45a5b50375f5a7e4785a6cbc39b1",
+    "TargetClientCode": "003",
+    "Notes": "V10.384: CEP no Cadastro da Empresa, abaixo do telefone/WhatsApp e acima do endereco. Busca automatica de rua/bairro e Cidade/UF, campos editaveis e salvamento aguardando consulta. Preserva dados, licenca e particularidades deste cliente.",
+    "Version": "10.384"
+  }
+}
