@@ -12,4 +12,4 @@ jobs:
       - name: Cancelar somente a execucao visual superada
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api --method POST repos/lealinfopdvnovo/leal-info-pdv/actions/runs/38319714425/cancel
+        run: gh api --method POST repos/lealinfopdvnovo/leal-info-pdv/actions/runs/38320057749/cancel
