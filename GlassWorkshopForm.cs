@@ -28,7 +28,8 @@ public sealed class GlassWorkshopForm : Form
             tabs.TabPages.Add(page); pages.Add(name, page);
         }
         layout.Controls.Add(tabs, 0, 1);
-        var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2 };
+        var footer = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
         var status = new Panel { Name = "GlassStatus", Dock = DockStyle.Fill };
         var close = new Button { Name = "CloseGlassWorkshop", Text = "FECHAR", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel };
