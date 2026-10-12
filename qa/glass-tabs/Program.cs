@@ -29,6 +29,8 @@ static class Program
         {
             using var f=new GlassWorkshopForm(Style);f.Show();f.Scale(new SizeF(factor,factor));
             f.Size=new Size(Math.Min(f.Width,size.Width),Math.Min(f.Height,size.Height-60));Pump();
+            var close=Find<Button>(f,"CloseGlassWorkshop");
+            Check(close.Visible && close.Height>=30 && close.Width>=90,"FECHAR visível e sem colapso");
             var tabs=Find<TabControl>(f,"GlassSections");
             Check(tabs.TabPages.Cast<TabPage>().Select(p=>p.Text).SequenceEqual(new[]{"Projetos","Materiais","Medidas","Cálculos","Desenho","Visualização","Impressão"}),"Abas mantidas");
             Check(!All(f).OfType<Button>().Any(b=>b.Name=="NewGlassProject"||b.Name=="GlassQuote"),"Sem outro Novo Projeto ou janela de orçamento");
