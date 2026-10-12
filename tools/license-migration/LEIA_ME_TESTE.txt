@@ -5,7 +5,7 @@ TESTE WINDOWS REAL — SOMENTE LICENCIAMENTO, SEM PUBLICACAO
 3. Dados sao isolados em %LOCALAPPDATA%\LealInfoPDV_LICENCIAMENTO_TESTE. A pasta de producao LealInfoPDV e somente lida na copia inicial.
 4. Importe a licenca original ou cole a mesma chave. Confira ATIVADA e a quantidade de computadores. Sem estado recuperavel, o bloqueio de terminais e explicito.
 5. Se a licenca antiga estiver ilegivel: clique SOLICITAR MIGRACAO e escolha a licenca original recebida do vendedor. Nao apague nada.
-6. No computador do vendedor, com PowerShell 7 e a chave privada original mantida FORA do cliente, autorize SOMENTE depois de conferir computador, revisao e checkpoint:
+6. No computador do vendedor, com PowerShell 7 e a chave privada original mantida FORA do cliente, execute ASSINAR_MIGRACAO_VENDEDOR.bat e selecione a solicitacao e o PEM ORIGINAL. Autorize SOMENTE depois de conferir computador, revisao e checkpoint. Alternativa por comando:
    pwsh -NoProfile -File Autorizar_Migracao.ps1 -Solicitacao SOLICITACAO_MIGRACAO.json -ChavePrivada SUA_CHAVE.pem -Saida Autorizacao.lealmigracao -ConfirmoMesmoComputador -ConfirmoRevisaoAtual
    O arquivo PEM nao deve ser enviado ao cliente, ao suporte ou anexado a relatorios.
 7. Importe Autorizacao.lealmigracao no teste. Reimporte a MESMA licenca original por arquivo e por texto. Sem checkpoint, somente pagamento unico local e recuperado; rede permanece bloqueada.

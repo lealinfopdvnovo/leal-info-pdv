@@ -73,6 +73,7 @@ jobs:
           }
           Set-Content license-field-build/INICIAR_TESTE.bat @("@echo off", 'cd /d "%~dp0"', '"%~dp0LealInfoPDV.NetworkTests.exe" --field-license') -Encoding ascii
           Copy-Item tools/license-migration/Autorizar_Migracao.ps1 license-field-build/
+          Copy-Item tools/license-migration/ASSINAR_MIGRACAO_VENDEDOR.* license-field-build/
           Copy-Item tools/license-migration/LEIA_ME_TESTE.txt license-field-build/
           $p=Start-Process ./license-field-build/LealInfoPDV.NetworkTests.exe -ArgumentList '--field-license-smoke' -PassThru
           if(-not $p.WaitForExit(60000)){$p.Kill();throw 'Teste visual isolado nao encerrou'}
