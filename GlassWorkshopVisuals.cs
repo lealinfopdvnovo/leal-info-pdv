@@ -29,9 +29,9 @@ internal static class GlassWorkshopVisuals
         {
             var state = e.Graphics.Save(); e.Graphics.TranslateTransform(e.Bounds.Left, e.Bounds.Top);
             SalesVisuals.Frame(e.Graphics, new Rectangle(Point.Empty, e.Bounds.Size), e.Index == tabs.SelectedIndex, palette);
-            TextRenderer.DrawText(e.Graphics, tabs.TabPages[e.Index].Text, tabs.Font, new Rectangle(Point.Empty, e.Bounds.Size), palette.Foreground,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
             e.Graphics.Restore(state);
+            TextRenderer.DrawText(e.Graphics, tabs.TabPages[e.Index].Text, tabs.Font, e.Bounds, palette.Foreground,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
         };
     }
     private static IEnumerable<Control> All(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(All(x)));
