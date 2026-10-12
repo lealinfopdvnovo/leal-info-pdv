@@ -18,6 +18,10 @@ static string Signed(RSA seller, LicenseTerms terms)
     var payload = JsonSerializer.SerializeToUtf8Bytes(terms);
     return JsonSerializer.Serialize(new SignedLicense(Convert.ToBase64String(payload), Convert.ToBase64String(seller.SignData(payload, HashAlgorithmName.SHA256, RSASignaturePadding.Pss))));
 }
+#if LICENSE_FIELD_ONLY
+// O EXE entregue ao usuário nunca executa a bateria de desenvolvimento nem acessa o banco de produção.
+{ var fieldThread=new Thread(()=>LicenseFieldTest.Run(args.Contains("--field-license-smoke")));fieldThread.SetApartmentState(ApartmentState.STA);fieldThread.Start();fieldThread.Join();return; }
+#endif
 if(args.Length==1 && args[0] is "--field-license" or "--field-license-smoke") { var thread=new Thread(()=>LicenseFieldTest.Run(args[0]=="--field-license-smoke"));thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();return; }
 if(args.Length==1 && args[0]=="--license-identity") {
     var identity=LealInfoPDV.Licensing.MachineLicenseIdentity.Current;

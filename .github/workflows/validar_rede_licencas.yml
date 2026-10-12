@@ -64,7 +64,7 @@ jobs:
       - name: Preparar teste de licenciamento Windows isolado
         shell: pwsh
         run: |
-          dotnet publish qa/network/LealInfoPDV.NetworkTests.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o license-field-build
+          dotnet publish qa/network/LealInfoPDV.NetworkTests.csproj -c Release -r win-x64 --self-contained true -p:DefineConstants=LICENSE_FIELD_ONLY -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o license-field-build
           if($LASTEXITCODE -ne 0){throw 'Falha ao compilar teste isolado'}
           Get-ChildItem license-field-build -Filter *.pdb | Remove-Item
           foreach($name in @('Assets','LIC-AI')){
