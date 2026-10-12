@@ -70,7 +70,7 @@ public sealed class GlassQuoteForm : Form
         GlassWorkshopForm.AddField(calculations, "ACRÉSCIMO — VALOR TOTAL (R$)", addition);
         summary.Dock = DockStyle.Top; summary.Height = 290;
         GlassWorkshopForm.AddField(calculations, "ÁREA / QUANTIDADE / VALORES / TOTAL", summary);
-        GlassWorkshopForm.AddField(calculations, "", new Label { AutoSize = true, Text = "Prévia em memória • PDF comercial, WhatsApp e recibo não disponíveis nesta etapa." });
+        GlassWorkshopForm.AddField(calculations, "", new Label { AutoSize = true, Text = "Prévia em memória • orçamento comercial/PDF na aba Impressão • recibo pendente de vínculo com pagamento." });
     }
     public void UpdateProject(GlassProject source)
     {
