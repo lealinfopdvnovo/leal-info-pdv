@@ -58,7 +58,23 @@ static class Program
             timer.Tick+=(_,_)=>{var modal=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Text=="ORÇAMENTO COMERCIAL — VIDRAÇARIA");if(modal==null)return;timer.Stop();preview=true;Check(modal.Owner==f&&modal.Modal,"Prévia comercial modal real");Check(All(modal).OfType<PictureBox>().Any(p=>p.Name=="CommercialPage"&&p.Image!=null),"Página comercial renderizada na prévia");modal.Close();};
             timer.Start();Find<Button>(f,"CommercialPreview").PerformClick();Check(preview,"Botão comercial abre documento");
         }
-        foreach(TabPage page in tabs.TabPages){tabs.SelectedTab=page;Pump();using var image=new Bitmap(f.Width,f.Height);f.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save("glass-commercial-evidencias/aba-"+page.Text+".png",ImageFormat.Png);}
+        foreach(TabPage page in tabs.TabPages)
+        {
+            tabs.SelectedTab=page;Pump();
+            using(var strip=new Bitmap(tabs.Width,tabs.Height))
+            {
+                tabs.DrawToBitmap(strip,new Rectangle(Point.Empty,strip.Size));
+                for(int i=0;i<tabs.TabPages.Count;i++)
+                {
+                    var r=tabs.GetTabRect(i);int pixels=0;
+                    Check(TextRenderer.MeasureText(tabs.TabPages[i].Text,tabs.Font).Width<=r.Width-4,"Título da aba cabe: "+tabs.TabPages[i].Text);
+                    for(int x=r.Left+5;x<r.Right-5;x++)for(int y=r.Top+r.Height/2-4;y<r.Top+r.Height/2+5;y++)
+                    {var c=strip.GetPixel(x,y);if(c.R>190&&c.G>190&&c.B>190)pixels++;}
+                    Check(pixels>5,"Título desenhado na própria aba: "+tabs.TabPages[i].Text);
+                }
+            }
+            using var image=new Bitmap(f.Width,f.Height);f.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save("glass-commercial-evidencias/aba-"+page.Text+".png",ImageFormat.Png);
+        }
         tabs.SelectedIndex=1;Find<Button>(f,"RemoveMaterialLink").PerformClick();Check(linked.Rows.Count==0,"Remover somente vínculo em memória");
         Check(Equals(Scalar("SELECT SUM(stock) FROM products"),stock)&&Equals(Scalar("SELECT COUNT(*) FROM sales"),count)&&Equals(Scalar("SELECT COUNT(*) FROM customers"),customerCount),"Estoque, vendas e clientes preservados");
         Check(!All(f).OfType<Button>().Any(b=>b.Text.Contains("WHATS",StringComparison.OrdinalIgnoreCase)),"Sem WhatsApp ou compartilhamento");
