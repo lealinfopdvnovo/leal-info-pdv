@@ -63,6 +63,7 @@ internal static class ActivationChecks
             Assert(!Directory.EnumerateFiles(folder,"*.tmp").Any(),"Arquivos temporários acumulados");
             Console.WriteLine("PASS: gravação durável, reinício simulado, backup protegido, limite preservado e arquivo corrompido preservado/fail-closed.");
             LicensePersistenceChecks.Run(folder, pub, Sign);
+            MigrationChecks.Run(folder);
             var terms=new LicenseTerms(serial,1,"unico",null,"QA",1,"qa","standard","001",true);
             store.Import(Sign(terms));store.CheckAccess();store.Activate(Sign(terms));
             Assert(InstallationLicense.IsActivated(store.Terms),"Ativação Standard antiga falhou");

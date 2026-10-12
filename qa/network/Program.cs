@@ -18,6 +18,7 @@ static string Signed(RSA seller, LicenseTerms terms)
     var payload = JsonSerializer.SerializeToUtf8Bytes(terms);
     return JsonSerializer.Serialize(new SignedLicense(Convert.ToBase64String(payload), Convert.ToBase64String(seller.SignData(payload, HashAlgorithmName.SHA256, RSASignaturePadding.Pss))));
 }
+if(args.Length==1 && args[0]=="--field-license") { var thread=new Thread(LicenseFieldTest.Run);thread.SetApartmentState(ApartmentState.STA);thread.Start();thread.Join();return; }
 if(args.Length==1 && args[0]=="--license-identity") {
     var identity=LealInfoPDV.Licensing.MachineLicenseIdentity.Current;
     Console.WriteLine(identity.Serial+"|hardware="+identity.HardwareBacked);return;

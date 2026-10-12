@@ -19,13 +19,17 @@ internal sealed class ActivationForm : Form
         {
             try {
                 var json=LicenseInput.Normalize(text);
-                if(InstallationLicense.Store==null)InstallationLicense.LoadLocal();
-                InstallationLicense.Store!.Activate(json);InstallationLicense.RefreshLocal();
+                if(InstallationLicense.Store==null) {
+                    InstallationLicense.StoreForActivation();
+                }
+                if(LicenseMigration.IsAuthorization(json)) InstallationLicense.Store!.ApplyMigration(json);
+                else InstallationLicense.Store!.Activate(json);
+                InstallationLicense.RefreshLocal();
                 if(!InstallationLicense.IsActivated(InstallationLicense.Current!))throw new InvalidDataException("Solicite ao vendedor uma licença com o código do cliente e o plano contratado.");
                 DialogResult=DialogResult.OK;Close();
             } catch(Exception ex){status.Text=ex.Message;}
         }
-        var import=new Button {Text="IMPORTAR LICENÇA",Width=235,Height=44};import.Click+=(_,_)=>{using var f=new OpenFileDialog {Filter="Licença LEAL INFO|*.leallicenca"};if(f.ShowDialog(this)==DialogResult.OK)Activate(File.ReadAllText(f.FileName));};buttons.Controls.Add(import);
+        var import=new Button {Text="IMPORTAR LICENÇA",Width=235,Height=44};import.Click+=(_,_)=>{using var f=new OpenFileDialog {Filter="Licença / autorização LEAL INFO|*.leallicenca;*.lealmigracao"};if(f.ShowDialog(this)==DialogResult.OK)Activate(File.ReadAllText(f.FileName));};buttons.Controls.Add(import);
         var activate=new Button {Text="ATIVAR CHAVE",Width=225,Height=44,BackColor=Color.Gold};activate.Click+=(_,_)=>Activate(key.Text);buttons.Controls.Add(activate);AcceptButton=activate;
         var terminal=new Button {Text="CONFIGURAR COMO TERMINAL",Dock=DockStyle.Fill};layout.Controls.Add(terminal,0,5);
         terminal.Click+=(_,_)=>{

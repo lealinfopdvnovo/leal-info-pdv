@@ -8,6 +8,10 @@ internal static class InstallationLicense
     internal static bool HasLia => Current is { Active: true, Plan: "plus" or "pro" };
     internal static bool HasNetwork => Current is { Active: true, Plan: "standard" or "plus" or "pro" };
     internal static bool IsActivated(LicenseTerms terms) => terms.Active && terms.ClientCode.Length > 0 && terms.Revision > 0;
+    internal static void StoreForActivation()
+    {
+        Store = new NetworkLicense(Path.Combine(Database.AppFolder,"network.license"),MachineLicenseIdentity.Current.Serial,legacySerial:MachineLicenseIdentity.Current.LegacySerial);
+    }
     internal static void LoadLocal()
     {
         Store = null;

@@ -1,0 +1,20 @@
+TESTE WINDOWS REAL — SOMENTE LICENCIAMENTO, SEM PUBLICACAO
+
+1. Extraia numa pasta nova. Execute INICIAR_TESTE.bat normalmente, na mesma conta Windows do PDV.
+2. Este programa reutiliza as classes reais de licenciamento. Ele NAO abre o caixa e NAO testa os demais modulos do PDV.
+3. Dados sao isolados em %LOCALAPPDATA%\LealInfoPDV_LICENCIAMENTO_TESTE. A pasta de producao LealInfoPDV e somente lida na copia inicial.
+4. Importe a licenca original ou cole a mesma chave. Confira ATIVADA e a quantidade de computadores. Sem estado recuperavel, o bloqueio de terminais e explicito.
+5. Se a licenca antiga estiver ilegivel: clique SOLICITAR MIGRACAO e escolha a licenca original recebida do vendedor. Nao apague nada.
+6. No computador do vendedor, com PowerShell 7 e a chave privada original mantida FORA do cliente, autorize SOMENTE depois de conferir computador, revisao e checkpoint:
+   pwsh -NoProfile -File Autorizar_Migracao.ps1 -Solicitacao SOLICITACAO_MIGRACAO.json -ChavePrivada SUA_CHAVE.pem -Saida Autorizacao.lealmigracao -ConfirmoMesmoComputador -ConfirmoRevisaoAtual
+   O arquivo PEM nao deve ser enviado ao cliente, ao suporte ou anexado a relatorios.
+7. Importe Autorizacao.lealmigracao no teste. Reimporte a MESMA licenca original por arquivo e por texto. Sem checkpoint, somente pagamento unico local e recuperado; rede permanece bloqueada.
+8. Feche a janela e execute novamente. Deve permanecer ATIVADA e manter os pontos conhecidos.
+9. Reinicie o Windows pelo menu. Execute novamente. Confira ATIVADA e mesmos pontos.
+10. Desligue completamente (SHIFT ao selecionar Desligar), ligue novamente e execute. Confira ATIVADA e mesmos pontos.
+11. Use ABRIR RELATORIO e envie TESTE_WINDOWS.txt. A identidade e o horario estimado de boot ajudam a comparar os passos, mas nao comprovam formatação.
+12. Formatação REAL somente depois de preservar a licenca original e a autorizacao de hardware com checkpoint valido. Na instalacao limpa, importar primeiro a autorizacao e depois a MESMA licenca. Sem checkpoint, NAO considerar persistencia de terminais homologada.
+
+IMPORTANTE: nao copiar os arquivos deste teste sobre a instalacao do PDV. Nao instalar/atualizar cliente real com este kit. Abertura do PDV completo depois de reboot ainda precisa de homologacao propria.
+MIGRACAO: nao altera chave original, LicenseId, revisao, plano, validade ou limite. A autorizacao complementar so vale para o hardware firmado pelo vendedor.
+SEM CHECKPOINT: terminais registrados e LastSeenUtc do arquivo antigo nao sao recuperados/inventados. Para rede, precisa de checkpoint confiavel autorizado pelo emissor.

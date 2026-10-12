@@ -31,6 +31,9 @@ public sealed class NetworkLicense
     private string independentSigned = "";
     internal bool NeedsStateRecovery => stateFailure != null;
     private string SignedPath => path + ".signed";
+    private string MigrationPath => path + ".migration";
+    private Licensing.LicenseMigrationRequest? ReadMigration() => File.Exists(MigrationPath)
+        ? Licensing.LicenseMigration.ValidateAuthorization(File.ReadAllText(MigrationPath),serial,publicKey) : null;
     public NetworkLicense(string path, string serial, string? verificationKey = null, string? legacySerial = null)
     {
         this.path = path; this.serial = serial; this.legacySerial = legacySerial; publicKey = verificationKey ?? SellerPublicKey.Pem;
@@ -57,8 +60,11 @@ public sealed class NetworkLicense
         if (independentSigned.Length > 0) _ = Verify(independentSigned);
         try
         {
-            state = File.Exists(path) ? ProtectedFile.Read<LicenseState>(path) : new();
+            var migrationForCleanInstall = !File.Exists(path) ? ReadMigration() : null;
+            state = File.Exists(path) ? ProtectedFile.Read<LicenseState>(path) : migrationForCleanInstall?.Snapshot ?? new();
             stateFailure = null;
+            if (!File.Exists(path) && migrationForCleanInstall is { Snapshot: null })
+                throw new InvalidDataException("Autorização sem checkpoint não permite recriar o cadastro de terminais em instalação limpa.");
             if (state.SignedLicense.Length > 0)
             {
                 _ = Verify(state.SignedLicense);
@@ -79,8 +85,20 @@ public sealed class NetworkLicense
         catch (CryptographicException ex)
         {
             stateFailure = ex;
-            // Não substituir nem zerar o arquivo original.
+            // O original ilegível permanece intacto. Um checkpoint só é aceito com assinatura do emissor.
             state = new();
+            var migration = ReadMigration();
+            if (migration?.Snapshot is { } checkpoint && migration.SourceProtectedSha256 == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))))
+            {
+                var preserved = path + ".preserved." + migration.SourceProtectedSha256;
+                if (!File.Exists(preserved)) File.Copy(path,preserved,false);
+                if (!File.ReadAllBytes(preserved).SequenceEqual(File.ReadAllBytes(path))) throw new IOException("Original preservado divergente.");
+                state = checkpoint;
+                stateFailure = null;
+                independentSigned = migration.SignedLicense;
+            }
+            else if (migration != null && migration.Snapshot == null && migration.SourceProtectedSha256 == Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))))
+                independentSigned = migration.SignedLicense;
         }
     }
     private LicenseTerms TermsUnsafe()
@@ -96,8 +114,16 @@ public sealed class NetworkLicense
     {
         // Só aceita o serial legado deste computador, nunca um serial fornecido pelo usuário.
         try { return Decode(text, serial, publicKey); }
-        catch (InvalidDataException) when (legacySerial != null && legacySerial != serial)
-        { return Decode(text, legacySerial, publicKey); }
+        catch (InvalidDataException)
+        {
+            if (legacySerial != null && legacySerial != serial)
+            {
+                try { return Decode(text, legacySerial, publicKey); } catch(InvalidDataException) { }
+            }
+            var migration = ReadMigration();
+            if (migration == null || migration.LicenseDigest != Licensing.LicenseMigration.Digest(text)) throw;
+            return Decode(text,migration.FromSerial,publicKey);
+        }
     }
     internal static LicenseTerms Decode(string text, string serial, string publicKey)
     {
@@ -114,6 +140,45 @@ public sealed class NetworkLicense
             (terms.BillingMode == "unico" && terms.ExpiresUtc != null) || string.IsNullOrWhiteSpace(terms.LicenseId))
             throw new InvalidDataException("Esta licença não é válida para este servidor ou modalidade.");
         return terms;
+    }
+    internal void ApplyMigration(string authorization)
+    {
+        lock(gate)
+        {
+            authorization = Licensing.LicenseInput.Normalize(authorization);
+            var approved = Licensing.LicenseMigration.ValidateAuthorization(authorization,serial,publicKey);
+            if (File.Exists(path))
+            {
+                var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+                var cleanUnactivated = !NeedsStateRecovery && state.SignedLicense.Length == 0 && state.Devices.Count == 0;
+                if (hash != approved.SourceProtectedSha256 && !cleanUnactivated)
+                    throw new InvalidDataException("O arquivo mudou desde a solicitação. Autorização não será aplicada.");
+                var preserved = path + ".preserved." + hash;
+                if (!File.Exists(preserved)) File.Copy(path,preserved,false);
+                if (!File.ReadAllBytes(preserved).SequenceEqual(File.ReadAllBytes(path))) throw new IOException("Cópia preservada não corresponde ao original.");
+            }
+            if (!NeedsStateRecovery && state.SignedLicense.Length > 0 && Verify(state.SignedLicense) != Decode(approved.SignedLicense,approved.FromSerial,publicKey))
+                throw new InvalidDataException("A autorização não corresponde à licença atual. Revisão antiga recusada.");
+            // Cadastro legível sempre prevalece sobre checkpoint. Nenhum terminal é apagado.
+            if (!NeedsStateRecovery && state.SignedLicense.Length > 0 && approved.Snapshot != null &&
+                (!state.Devices.SequenceEqual(approved.Snapshot.Devices) || state.LastSeenUtc > approved.Snapshot.LastSeenUtc))
+                throw new InvalidDataException("Checkpoint ficou desatualizado. Gere nova solicitação com o PDV fechado.");
+            Licensing.LicenseMigration.WriteDurable(MigrationPath,authorization);
+            if (NeedsStateRecovery && approved.Snapshot == null)
+            {
+                independentSigned = approved.SignedLicense;
+                SaveIndependent(independentSigned);
+                // Apenas licença permanente local; rede e mensalidade continuam bloqueadas.
+                CheckAccess(); return;
+            }
+            if (NeedsStateRecovery || state.SignedLicense.Length == 0)
+            {
+                if (approved.Snapshot == null) throw new InvalidDataException("Checkpoint autorizado necessário para recuperar o cadastro.");
+                state = approved.Snapshot; stateFailure = null;
+            }
+            Save();
+            CheckAccess();
+        }
     }
     public void Import(string text)
     {
