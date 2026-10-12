@@ -1,0 +1,52 @@
+name: Verificar publicacao Orcamento 003 10.386
+on:
+  push:
+    branches: ['qa/verificar-orcamento-publicado-003-10386']
+permissions: {contents: read}
+jobs:
+  verificar:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Verificar feed real pelo codigo existente e hash do pacote
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          using LealInfoPDV;
+          using System.Reflection;
+          using System.Security.Cryptography;
+          using System.IO.Compression;
+          static class Program
+          {
+              static void Check(bool ok,string name){if(!ok)throw new Exception("FAIL "+name);Console.WriteLine("PASS "+name);}
+              static async Task Main()
+              {
+                  var method=typeof(MainForm).Assembly.GetType("LealInfoPDV.UpdateManager")!.GetMethod("LoadManifestAsync",BindingFlags.NonPublic|BindingFlags.Static,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
+                  using var http=new HttpClient();
+                  http.DefaultRequestHeaders.UserAgent.ParseAdd("LealInfoPDV-QA-Publicacao/10.386");
+                  foreach(var id in new[]{"001","002","003","004"})
+                  {
+                      var task=(Task)method.Invoke(null,new object[]{http,id,"10.385"})!;await task;
+                      var m=task.GetType().GetProperty("Result")!.GetValue(task);
+                      if(id!="003"){Check(m==null,"10.386 nao oferecida para "+id);continue;}
+                      Check(m!=null,"003 instalado10.385 detecta update real");
+                      string Get(string key)=>(string)m!.GetType().GetProperty(key)!.GetValue(m)!;
+                      Check(Get("Version")=="10.386" && Get("TargetClientCode")=="003","Versao e destino exclusivo003");
+                      Check(Get("Sha256")=="b1354654ff5c6508a488df04087fecb76cfe0e6c0031a160f72f1de94b96a87c","Mesmo pacote previamente publicado");
+                      var bytes=await http.GetByteArrayAsync(Get("PackageUrl"));
+                      Check(Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()==Get("Sha256"),"SHA256 dos bytes remotos");
+                      using var zip=new ZipArchive(new MemoryStream(bytes));
+                      Check(zip.Entries.Select(x=>x.FullName).OrderBy(x=>x).SequenceEqual(new[]{"LealInfoPDV.deps.json","LealInfoPDV.dll","LealInfoPDV.exe"}.OrderBy(x=>x)),"ZIP somente EXE DLL deps sem dados licenca banco");
+                  }
+                  var repeated=(Task)method.Invoke(null,new object[]{http,"003","10.386"})!;await repeated;
+                  Check(repeated.GetType().GetProperty("Result")!.GetValue(repeated)==null,"Versao instalada igual nao oferece falsa atualizacao");
+              }
+          }
+          '@ | Set-Content qa/glass/Program.cs
+          dotnet run --project qa/glass/LealInfoPDV.GlassTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Verificacao da publicacao falhou'}
+          exit 0
