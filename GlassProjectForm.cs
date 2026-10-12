@@ -17,6 +17,7 @@ public sealed class GlassProjectForm : Form
     private readonly Label viewHint = new() { Name = "ViewHint", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(174, 201, 220) };
     private GlassBox3DView? drawing3D;
     private bool unavailable3D;
+    private GlassQuoteForm? quote;
     private readonly Font heading = new("Segoe UI", 13, FontStyle.Bold);
     private readonly Font body = new("Segoe UI", 10);
 
@@ -51,6 +52,17 @@ public sealed class GlassProjectForm : Form
         Add(new Label { Text = "ALTURA DO VÃO (mm)", AutoSize = true }); Add(heightMm);
         Add(new Label { Text = "QUANTIDADE", AutoSize = true }); Add(quantity);
         Add(visualize); Add(print);
+        var commercial = Button("GlassQuote", "ORÇAMENTO DA VIDRAÇARIA");
+        Add(commercial);
+        commercial.Click += (_, _) =>
+        {
+            if (quote == null || quote.IsDisposed)
+            {
+                quote = new GlassQuoteForm(CurrentProject());
+                quote.Show(this);
+            }
+            else { quote.UpdateProject(CurrentProject()); quote.Activate(); }
+        };
         Add(new Button { Name = "SaveProject", Text = "SALVAR — PRÓXIMA ETAPA", Enabled = false, Dock = DockStyle.Top, Height = 36 });
         Add(message);
         scroll.Controls.Add(fields);
@@ -81,10 +93,11 @@ public sealed class GlassProjectForm : Form
         print.Enabled = false;
         visualize.Click += (_, _) => UpdateDrawing();
         print.Click += (_, _) => { if (print.Enabled && drawing.Project != null) GlassProjectPrint.Preview(this, drawing.Project); };
-        void Changed(object? sender, EventArgs e) { print.Enabled = false; if (drawing.Project != null) message.Text = "Medidas/dados alterados. Clique em ATUALIZAR DESENHO."; }
+        void Changed(object? sender, EventArgs e) { quote?.UpdateProject(CurrentProject()); print.Enabled = false; if (drawing.Project != null) message.Text = "Medidas/dados alterados. Clique em ATUALIZAR DESENHO."; }
         widthMm.ValueChanged += Changed; heightMm.ValueChanged += Changed; quantity.ValueChanged += Changed; description.TextChanged += Changed;
         Shown += (_, _) => { var area = Screen.FromControl(Owner ?? this).WorkingArea; Size = new Size(Math.Min(Width, area.Width), Math.Min(Height, area.Height)); };
     }
+    private GlassProject CurrentProject() => new(description.Text.Trim(), widthMm.Value, heightMm.Value, (int)quantity.Value);
     public void UpdateDrawing()
     {
         // ValidateEditText é executado pelo NumericUpDown quando perde foco antes do clique.
