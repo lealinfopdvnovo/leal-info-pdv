@@ -14,7 +14,7 @@ public sealed class GlassQuoteForm : Form
     private readonly NumericUpDown discount = Money("QuoteDiscount");
     private readonly NumericUpDown addition = Money("QuoteAddition");
     private readonly TextBox summary = new() { Name = "QuoteSummary", ReadOnly = true, Multiline = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical, MinimumSize = new Size(100, 270) };
-    private readonly Button load = new() { Name = "LoadQuoteCustomers", Text = "CARREGAR CLIENTES", AutoSize = true };
+    private readonly Button load = new SalesVisualButton() { Name = "LoadQuoteCustomers", Text = "CARREGAR CLIENTES", AutoSize = true };
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
     private sealed record Customer(long Id, string Name) { public override string ToString() => Name; }
 
@@ -49,7 +49,7 @@ public sealed class GlassQuoteForm : Form
         fields.Controls.Add(new Label { AutoSize = true, Dock = DockStyle.Fill,
             Text = "Prévia em memória. Salvar, PDF, impressão comercial, WhatsApp e recibo serão conectados em etapa posterior." });
         scroll.Controls.Add(fields);
-        var close = new Button { Text = "FECHAR", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.Cancel };
+        var close = new SalesVisualButton { Text = "FECHAR", Dock = DockStyle.Bottom, Height = 40, DialogResult = DialogResult.Cancel };
         close.Click += (_, _) => Close(); CancelButton = close;
         Controls.Add(scroll); Controls.Add(close);
         foreach (var value in new[] { price, serviceValue, discount, addition }) value.ValueChanged += (_, _) => RefreshQuote();
@@ -76,6 +76,21 @@ public sealed class GlassQuoteForm : Form
     {
         if (IsDisposed) return;
         project = source; RefreshQuote();
+    }
+    internal GlassCommercialSnapshot CommercialSnapshot(IReadOnlyList<GlassMaterialLink> materials)
+    {
+        var value = new GlassQuote(project, price.Value, serviceValue.Value, discount.Value, addition.Value);
+        if (value.ValidationError != null) throw new InvalidOperationException(value.ValidationError);
+        if (customer.SelectedItem is not Customer selected || selected.Id == 0)
+            throw new InvalidOperationException("Selecione um cliente cadastrado na aba Projetos.");
+        string company = "";
+        using (var connection = Database.Open())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "SELECT value FROM settings WHERE key='company_name'";
+            company = Convert.ToString(command.ExecuteScalar()) ?? "";
+        }
+        return new(value, selected.Id, selected.Name, service.Text.Trim(), company, DateTime.Now, materials.ToArray());
     }
     private void LoadCustomers()
     {
