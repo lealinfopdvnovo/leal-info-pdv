@@ -132,13 +132,16 @@ public sealed class NetworkLicense
         try { return Decode(text, serial, publicKey); }
         catch (InvalidDataException)
         {
-            if (legacySerial != null && legacySerial != serial)
+            // Uma licença já migrada exige o vínculo assinado ao hardware, mesmo se o MachineGuid for clonado.
+            if (File.Exists(MigrationPath))
             {
-                try { return Decode(text, legacySerial, publicKey); } catch(InvalidDataException) { }
+                var migration = ReadMigration();
+                if (migration == null || migration.LicenseDigest != Licensing.LicenseMigration.Digest(text))
+                    throw new InvalidDataException("A licença não corresponde à autorização de hardware atual.");
+                return Decode(text,migration.FromSerial,publicKey);
             }
-            var migration = ReadMigration();
-            if (migration == null || migration.LicenseDigest != Licensing.LicenseMigration.Digest(text)) throw;
-            return Decode(text,migration.FromSerial,publicKey);
+            if (legacySerial != null && legacySerial != serial) return Decode(text,legacySerial,publicKey);
+            throw;
         }
     }
     internal static LicenseTerms Decode(string text, string serial, string publicKey)

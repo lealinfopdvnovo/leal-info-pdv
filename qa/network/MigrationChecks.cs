@@ -23,6 +23,7 @@ internal static class MigrationChecks
         var reformatted=new NetworkLicense(path,hw,pub,"LI-NEW-WINDOWS");reformatted.Activate(signed);reformatted.CheckAccess();
         Assert(reformatted.RegisteredCount==2,"MachineGuid alterado perdeu pontos");
         Reject(()=>new NetworkLicense(path,other,pub,"LI-NEW-WINDOWS").CheckAccess(),"autorizacao copiada para hardware B recusada");
+        Reject(()=>new NetworkLicense(path,other,pub,legacy).CheckAccess(),"MachineGuid clonado nao contorna vinculo hardware da licenca migrada");
         var cleanPath=Path.Combine(folder,"migration-clean");
         var clean=new NetworkLicense(cleanPath,hw,pub,"LI-NEW-WINDOWS");clean.ApplyMigration(approved);clean.Activate(signed);
         Assert(clean.Terms==terms && clean.RegisteredCount==2,"Reinstalacao com checkpoint alterou pontos");
