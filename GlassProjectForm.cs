@@ -18,6 +18,7 @@ public sealed class GlassProjectForm : Form
     private GlassBox3DView? drawing3D;
     private bool unavailable3D;
     private GlassQuoteForm? quote;
+    private IWin32Window? printOwner;
     private readonly Font heading = new("Segoe UI", 13, FontStyle.Bold);
     private readonly Font body = new("Segoe UI", 10);
 
@@ -92,10 +93,51 @@ public sealed class GlassProjectForm : Form
         Controls.Add(layout); CancelButton = close;
         print.Enabled = false;
         visualize.Click += (_, _) => UpdateDrawing();
-        print.Click += (_, _) => { if (print.Enabled && drawing.Project != null) GlassProjectPrint.Preview(this, drawing.Project); };
+        print.Click += (_, _) => { if (print.Enabled && drawing.Project != null) GlassProjectPrint.Preview(printOwner ?? this, drawing.Project); };
         void Changed(object? sender, EventArgs e) { quote?.UpdateProject(CurrentProject()); print.Enabled = false; if (drawing.Project != null) message.Text = "Medidas/dados alterados. Clique em ATUALIZAR DESENHO."; }
         widthMm.ValueChanged += Changed; heightMm.ValueChanged += Changed; quantity.ValueChanged += Changed; description.TextChanged += Changed;
         Shown += (_, _) => { var area = Screen.FromControl(Owner ?? this).WorkingArea; Size = new Size(Math.Min(Width, area.Width), Math.Min(Height, area.Height)); };
+    }
+    // A Central hospeda os controles já existentes; esta instância não abre janela.
+    internal void Mount(TabControl tabs, TableLayoutPanel projects, TableLayoutPanel measures,
+        TableLayoutPanel calculations, TabPage design, TabPage visualization, TableLayoutPanel printing,
+        Form owner, Control status)
+    {
+        GlassWorkshopForm.AddField(projects, "MODELO", new Label { Text = GlassProject.ModelName, AutoSize = true });
+        GlassWorkshopForm.AddField(projects, "DESCRIÇÃO DO PROJETO", description);
+        GlassWorkshopForm.AddField(projects, "QUANTIDADE", quantity);
+        quote = new GlassQuoteForm(CurrentProject());
+        quote.Mount(projects, calculations);
+        GlassWorkshopForm.AddField(measures, "LARGURA DO VÃO (mm)", widthMm);
+        GlassWorkshopForm.AddField(measures, "ALTURA DO VÃO (mm)", heightMm);
+        GlassWorkshopForm.AddField(measures, "", visualize);
+        GlassWorkshopForm.AddField(measures, "", message);
+        GlassWorkshopForm.AddField(printing, "IMPRESSÃO TÉCNICA A4", print);
+        printOwner = owner;
+        status.Controls.Add(viewHint); viewHint.Dock = DockStyle.Fill;
+        void MoveSurface(bool three)
+        {
+            if (three) visualization.Controls.Add(surface); else design.Controls.Add(surface);
+            surface.Dock = DockStyle.Fill; surface.BringToFront();
+            if (three) Show3D(); else Show2D();
+        }
+        var viewFooter = new Panel { Dock = DockStyle.Bottom, Height = 44 };
+        visualization.Controls.Add(viewFooter);
+        reset3D.Dock = DockStyle.Left; viewFooter.Controls.Add(reset3D);
+        tabs.SelectedIndexChanged += (_, _) =>
+        {
+            if (tabs.SelectedTab == visualization) MoveSurface(true);
+            else { Show2D(); if (tabs.SelectedTab == design) MoveSurface(false); }
+        };
+        MoveSurface(false);
+        void DataChanged(object? sender, EventArgs args)
+        {
+            UpdateDrawing();
+            if (tabs.SelectedTab == visualization) Show3D();
+        }
+        widthMm.ValueChanged += DataChanged; heightMm.ValueChanged += DataChanged;
+        quantity.ValueChanged += DataChanged; description.TextChanged += DataChanged;
+        UpdateDrawing();
     }
     private GlassProject CurrentProject() => new(description.Text.Trim(), widthMm.Value, heightMm.Value, (int)quantity.Value);
     public void UpdateDrawing()
@@ -141,5 +183,5 @@ public sealed class GlassProjectForm : Form
     { Name = name, Minimum = min, Maximum = max, DecimalPlaces = decimals, Value = value, Dock = DockStyle.Fill, ThousandsSeparator = false };
     private static Button Button(string name, string text) => new() { Name = name, Text = text, Dock = DockStyle.Top,
         Height = 42, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(11, 113, 161), ForeColor = Color.White };
-    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (disposing) { heading.Dispose(); body.Dispose(); } }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (disposing) { quote?.Dispose(); heading.Dispose(); body.Dispose(); } }
 }
