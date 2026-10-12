@@ -42,6 +42,9 @@ internal static class MigrationChecks
         Assert(local.Terms==terms && File.ReadAllBytes(unknown).SequenceEqual(unknownOriginal),"Uso local sobrescreveu original");
         Reject(()=>local.Register("NEW","NEW","novo"),"recuperacao sem checkpoint nao zera/libera terminais");
         var reopenedLocal=new NetworkLicense(unknown,hw,pub,"LI-NEW-WINDOWS");reopenedLocal.CheckAccess();
+        File.WriteAllBytes(unknown,new byte[]{7,8,10});
+        Reject(()=>new NetworkLicense(unknown,hw,pub,"LI-NEW-WINDOWS").CheckAccess(),"autorizacao nao libera arquivo alterado apos assinatura");
+        File.WriteAllBytes(unknown,unknownOriginal);
         Reject(()=>LicenseMigration.CreateRequest(signed,unknown,hw,"LI-OTHER-WINDOWS",pub),"solicitacao nao autoriza legado de outro Windows sem prova anterior");
         var wrong=Sign(request with{Kind=LicenseMigration.AuthorizationKind,ToHardwareSerial=other});
         Reject(()=>LicenseMigration.ValidateAuthorization(wrong,hw,pub),"destino de migracao diferente recusado");

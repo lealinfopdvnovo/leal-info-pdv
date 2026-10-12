@@ -39,11 +39,12 @@ internal static class LicensePersistenceChecks
         var protectedBytes=File.ReadAllBytes(path);
         File.WriteAllBytes(path,new byte[]{1,2,3});
         var brokenBytes=File.ReadAllBytes(path);
-        var recovered=new NetworkLicense(path,serialA,publicKey);recovered.CheckAccess();recovered.Activate(text);
+        var recovered=new NetworkLicense(path,serialA,publicKey);
+        Reject(recovered.CheckAccess,"copia assinada sozinha nao libera estado ilegivel sem autorizacao");
         Assert(recovered.Terms==terms && recovered.NeedsStateRecovery,"Licença independente não recuperou validação permanente");
         Reject(()=>recovered.Register("NEW","NEW","novo"),"estado ilegível não libera novo terminal");
         Assert(File.ReadAllBytes(path).SequenceEqual(brokenBytes),"Estado ilegível foi substituído");
-        Console.WriteLine("PASS: falha DPAPI não invalida licença permanente independente; cadastro original preservado e rede bloqueada.");
+        Console.WriteLine("PASS: assinatura independente permanece verificavel, mas falha DPAPI exige autorizacao vinculada ao original; cadastro preservado.");
         File.WriteAllBytes(path,protectedBytes);
         var healthy=new NetworkLicense(path,serialA,publicKey);Assert(healthy.RegisteredCount==2,"Restauração perdeu cadastro");
         healthy.Import(sign(terms with {Active=false,Revision=11}));

@@ -232,6 +232,10 @@ public sealed class NetworkLicense
                 // Pagamento único pode ser validado pela assinatura sem depender do DPAPI.
                 // Mensalidade e cadastro de terminais precisam do relógio/estado protegido.
                 if (terms.BillingMode != "unico") CheckNetworkState();
+                var approved = ReadMigration();
+                var currentHash = File.Exists(path) ? Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))) : null;
+                if (approved == null || approved.SourceProtectedSha256 != currentHash || approved.LicenseDigest != Licensing.LicenseMigration.Digest(independentSigned))
+                    CheckNetworkState();
                 return;
             }
             var now = EffectiveNow(); if(persist)Save();
