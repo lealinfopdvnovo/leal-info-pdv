@@ -1,0 +1,15 @@
+name: Pausar candidato visual antigo 003
+on:
+  push:
+    branches: ['qa/pausar-candidato-vidracaria-003']
+permissions:
+  actions: write
+  contents: read
+jobs:
+  cancelar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancelar somente a execucao visual superada
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api --method POST repos/lealinfopdvnovo/leal-info-pdv/actions/runs/38319714425/cancel
