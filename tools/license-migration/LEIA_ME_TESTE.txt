@@ -13,7 +13,8 @@ TESTE WINDOWS REAL — SOMENTE LICENCIAMENTO, SEM PUBLICACAO
 9. Reinicie o Windows pelo menu. Execute novamente. Confira ATIVADA e mesmos pontos.
 10. Desligue completamente (SHIFT ao selecionar Desligar), ligue novamente e execute. Confira ATIVADA e mesmos pontos.
 11. Use ABRIR RELATORIO e envie TESTE_WINDOWS.txt. A identidade e o horario estimado de boot ajudam a comparar os passos, mas nao comprovam formatação.
-12. Formatação REAL somente depois de preservar a licenca original e a autorizacao de hardware com checkpoint valido. Na instalacao limpa, importar primeiro a autorizacao e depois a MESMA licenca. Sem checkpoint, NAO considerar persistencia de terminais homologada.
+12. Se possuir autorizacao anterior assinada com checkpoint, o assinador permite reutiliza-la SOMENTE apos o vendedor conferir que o cadastro ainda esta atual. Sem checkpoint, o programa marca o cadastro como indisponivel, nao como vazio.
+13. Formatação REAL somente depois de preservar a licenca original e a autorizacao de hardware com checkpoint valido. Na instalacao limpa, importar primeiro a autorizacao e depois a MESMA licenca. Sem checkpoint, NAO considerar persistencia de terminais homologada.
 
 IMPORTANTE: nao copiar os arquivos deste teste sobre a instalacao do PDV. Nao instalar/atualizar cliente real com este kit. Abertura do PDV completo depois de reboot ainda precisa de homologacao propria.
 MIGRACAO: nao altera chave original, LicenseId, revisao, plano, validade ou limite. A autorizacao complementar so vale para o hardware firmado pelo vendedor.

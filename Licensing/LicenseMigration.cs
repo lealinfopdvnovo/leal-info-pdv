@@ -22,7 +22,18 @@ internal static class LicenseMigration
             throw new InvalidDataException("UUID de hardware adequado indisponível. Migração automática não autorizada.");
         LicenseTerms terms;
         try { terms = NetworkLicense.Decode(signed, hardwareSerial, publicKey); }
-        catch(InvalidDataException) { terms = NetworkLicense.Decode(signed, legacySerial, publicKey); }
+        catch(InvalidDataException)
+        {
+            try { terms = NetworkLicense.Decode(signed,legacySerial,publicKey); }
+            catch(InvalidDataException)
+            {
+                var proofPath=path+".migration";
+                if(!File.Exists(proofPath))throw;
+                var prior=ValidateAuthorization(File.ReadAllText(proofPath),hardwareSerial,publicKey);
+                if(prior.LicenseDigest!=Digest(signed))throw new InvalidDataException("Prova anterior não corresponde à licença.");
+                terms=NetworkLicense.Decode(signed,prior.FromSerial,publicKey);
+            }
+        }
         LicenseState? snapshot = null; string? sourceHash = null;
         var availability = "AUSENTE";
         if (File.Exists(path))
@@ -36,7 +47,7 @@ internal static class LicenseMigration
                 if (storedTerms != terms) throw new InvalidDataException("A chave não corresponde ao estado atual; não assine uma migração de revisão antiga.");
                 availability = "RECUPERADO";
             }
-            catch(Exception ex) when(ex is CryptographicException or JsonException) { snapshot = null; availability = "ILEGIVEL_SEM_CHECKPOINT"; }
+            catch(Exception ex) when(ex is CryptographicException or JsonException) { snapshot = null; availability = Encoding.UTF8.GetString(original).StartsWith("LEAL-LICENSE-STATE-UNAVAILABLE-V1:",StringComparison.Ordinal) ? "INDISPONIVEL_APOS_INSTALACAO_LIMPA" : "ILEGIVEL_SEM_CHECKPOINT"; }
             if (!original.SequenceEqual(File.ReadAllBytes(path))) throw new IOException("Arquivo mudou durante a leitura. Repita com o PDV fechado.");
         }
         return new(1,RequestKind,signed,Digest(signed),terms.ServerSerial,hardwareSerial,terms.ClientCode,terms.LicenseId,terms.Revision,sourceHash,snapshot,availability);

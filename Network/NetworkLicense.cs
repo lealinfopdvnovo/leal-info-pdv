@@ -29,6 +29,8 @@ public sealed class NetworkLicense
     private readonly string? legacySerial;
     private Exception? stateFailure;
     private string independentSigned = "";
+    private bool signedUnavailableState;
+    private const string UnavailableMagic = "LEAL-LICENSE-STATE-UNAVAILABLE-V1:";
     internal bool NeedsStateRecovery => stateFailure != null;
     private string SignedPath => path + ".signed";
     private string MigrationPath => path + ".migration";
@@ -56,8 +58,22 @@ public sealed class NetworkLicense
     }
     private void LoadState()
     {
+        signedUnavailableState = false;
         independentSigned = File.Exists(SignedPath) ? File.ReadAllText(SignedPath) : "";
         if (independentSigned.Length > 0) _ = Verify(independentSigned);
+        if (File.Exists(path) && File.ReadAllText(path).StartsWith(UnavailableMagic,StringComparison.Ordinal))
+        {
+            var approved = ReadMigration() ?? throw new InvalidDataException("Marcador de estado indisponível sem autorização.");
+            var marker = UnavailableMagic + Licensing.LicenseMigration.Digest(File.ReadAllText(MigrationPath));
+            if (approved.Snapshot != null || File.ReadAllText(path) != marker ||
+                (independentSigned.Length > 0 && Licensing.LicenseMigration.Digest(independentSigned) != approved.LicenseDigest))
+                throw new InvalidDataException("Marcador de recuperação incompatível com autorização/licença.");
+            independentSigned = approved.SignedLicense;
+            state = new();
+            stateFailure = new InvalidDataException("Estado anterior indisponível. Não foi criado cadastro vazio de terminais.");
+            signedUnavailableState = true;
+            return;
+        }
         try
         {
             var migrationForCleanInstall = !File.Exists(path) ? ReadMigration() : null;
@@ -164,8 +180,15 @@ public sealed class NetworkLicense
                 (!state.Devices.SequenceEqual(approved.Snapshot.Devices) || state.LastSeenUtc > approved.Snapshot.LastSeenUtc))
                 throw new InvalidDataException("Checkpoint ficou desatualizado. Gere nova solicitação com o PDV fechado.");
             Licensing.LicenseMigration.WriteDurable(MigrationPath,authorization);
-            if (NeedsStateRecovery && approved.Snapshot == null)
+            if (approved.Snapshot == null && (NeedsStateRecovery || state.SignedLicense.Length == 0))
             {
+                if (!NeedsStateRecovery)
+                {
+                    // Instalação limpa: registra AUSÊNCIA conhecida, não uma lista vazia inventada.
+                    Licensing.LicenseMigration.WriteDurable(path,UnavailableMagic+Licensing.LicenseMigration.Digest(authorization));
+                    stateFailure = new InvalidDataException("Cadastro anterior indisponível após instalação limpa.");
+                    signedUnavailableState = true;
+                }
                 independentSigned = approved.SignedLicense;
                 SaveIndependent(independentSigned);
                 // Apenas licença permanente local; rede e mensalidade continuam bloqueadas.
@@ -234,7 +257,7 @@ public sealed class NetworkLicense
                 if (terms.BillingMode != "unico") CheckNetworkState();
                 var approved = ReadMigration();
                 var currentHash = File.Exists(path) ? Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))) : null;
-                if (approved == null || approved.SourceProtectedSha256 != currentHash || approved.LicenseDigest != Licensing.LicenseMigration.Digest(independentSigned))
+                if (approved == null || (!signedUnavailableState && approved.SourceProtectedSha256 != currentHash) || approved.LicenseDigest != Licensing.LicenseMigration.Digest(independentSigned))
                     CheckNetworkState();
                 return;
             }

@@ -14,6 +14,13 @@ try {
     if(-not $key){exit}
     $output=[Windows.Forms.SaveFileDialog]::new();$output.Filter='Autorizacao|*.lealmigracao';$output.FileName='Autorizacao.lealmigracao'
     try{if($output.ShowDialog() -ne [Windows.Forms.DialogResult]::OK){exit};$dest=$output.FileName}finally{$output.Dispose()}
-    & "$PSScriptRoot/Autorizar_Migracao.ps1" -Solicitacao $request -ChavePrivada $key -Saida $dest -ConfirmoMesmoComputador -ConfirmoRevisaoAtual
+    $checkpoint=$null
+    if(-not $r.Snapshot -and [Windows.Forms.MessageBox]::Show('Possui autorizacao anterior assinada com checkpoint que comprovadamente corresponde ao cadastro atual?','Checkpoint existente','YesNo','Question') -eq 'Yes'){
+        $checkpoint=Select-File 'Checkpoint ANTERIOR assinado e conferido pelo vendedor' 'Autorizacao|*.lealmigracao'
+        if(-not $checkpoint){exit}
+    }
+    $arguments=@{Solicitacao=$request;ChavePrivada=$key;Saida=$dest;ConfirmoMesmoComputador=$true;ConfirmoRevisaoAtual=$true}
+    if($checkpoint){$arguments.CheckpointAutorizado=$checkpoint;$arguments.ConfirmoCheckpointAtual=$true}
+    & "$PSScriptRoot/Autorizar_Migracao.ps1" @arguments
     [void][Windows.Forms.MessageBox]::Show('Autorizacao criada. Envie somente .lealmigracao, nunca o PEM.','Concluido')
 } catch { [void][Windows.Forms.MessageBox]::Show('Nao autorizado. Verifique a solicitacao e a chave original. Nenhuma chave privada sera exibida.','Falha');exit 1 }

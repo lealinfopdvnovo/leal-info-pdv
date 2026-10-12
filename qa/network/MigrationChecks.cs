@@ -45,7 +45,14 @@ internal static class MigrationChecks
         File.WriteAllBytes(unknown,new byte[]{7,8,10});
         Reject(()=>new NetworkLicense(unknown,hw,pub,"LI-NEW-WINDOWS").CheckAccess(),"autorizacao nao libera arquivo alterado apos assinatura");
         File.WriteAllBytes(unknown,unknownOriginal);
-        Reject(()=>LicenseMigration.CreateRequest(signed,unknown,hw,"LI-OTHER-WINDOWS",pub),"solicitacao nao autoriza legado de outro Windows sem prova anterior");
+        Reject(()=>LicenseMigration.CreateRequest(signed,unknown,other,"LI-OTHER-WINDOWS",pub),"solicitacao de outro hardware com prova copiada recusada");
+        var cleanUnknownPath=Path.Combine(folder,"migration-clean-unknown");
+        var cleanUnknown=new NetworkLicense(cleanUnknownPath,hw,pub,"LI-NEW-WINDOWS");cleanUnknown.ApplyMigration(authorizedLocal);cleanUnknown.CheckAccess();cleanUnknown.Activate(signed);
+        Assert(cleanUnknown.NeedsStateRecovery,"Instalacao limpa inventou cadastro vazio");
+        var cleanUnknownRestart=new NetworkLicense(cleanUnknownPath,hw,pub,"LI-NEW-WINDOWS");cleanUnknownRestart.CheckAccess();
+        Reject(()=>cleanUnknownRestart.Register("NEW","NEW","novo"),"reinstalacao local sem checkpoint nao libera pontos");
+        Assert(LicenseMigration.CreateRequest(signed,cleanUnknownPath,hw,"LI-NEW-WINDOWS",pub).Snapshot==null,"Marcador inventou checkpoint");
+        Console.WriteLine("PASS: mesma licenca antiga e autorizacao hardware permitem uso local permanente apos instalacao limpa simulada, mantendo terminais indisponiveis e bloqueados.");
         var wrong=Sign(request with{Kind=LicenseMigration.AuthorizationKind,ToHardwareSerial=other});
         Reject(()=>LicenseMigration.ValidateAuthorization(wrong,hw,pub),"destino de migracao diferente recusado");
         var tampered=JsonSerializer.Deserialize<SignedLicense>(approved)!;

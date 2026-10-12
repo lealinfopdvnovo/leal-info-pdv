@@ -3,7 +3,9 @@ param(
     [Parameter(Mandatory=$true)][string]$ChavePrivada,
     [Parameter(Mandatory=$true)][string]$Saida,
     [Parameter(Mandatory=$true)][switch]$ConfirmoMesmoComputador,
-    [switch]$ConfirmoRevisaoAtual
+    [switch]$ConfirmoRevisaoAtual,
+    [string]$CheckpointAutorizado,
+    [switch]$ConfirmoCheckpointAtual
 )
 # Executar SOMENTE no computador do vendedor, PowerShell 7. Sem internet.
 $ErrorActionPreference='Stop'
@@ -28,6 +30,16 @@ try {
     $digest=[Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($envelope.Payload+'.'+$envelope.Signature)))
     if($digest -cne $r.LicenseDigest -or $terms.ServerSerial -cne $r.FromSerial -or $terms.ClientCode -cne $r.ClientCode -or $terms.LicenseId -cne $r.LicenseId -or $terms.Revision -ne $r.Revision -or -not $terms.Active){throw 'Licenca/revisao divergente ou inativa.'}
     if($terms.ExpiresUtc -and [DateTimeOffset]::Parse($terms.ExpiresUtc) -le [DateTimeOffset]::UtcNow){throw 'Licenca vencida.'}
+    if($CheckpointAutorizado){
+        if(-not $ConfirmoCheckpointAtual){throw 'Checkpoint externo exige confirmacao do cadastro atual pelo vendedor.'}
+        $backup=Get-Content -Raw -LiteralPath $CheckpointAutorizado | ConvertFrom-Json
+        $backupBytes=[Convert]::FromBase64String($backup.Payload)
+        if(-not $rsa.VerifyData($backupBytes,[Convert]::FromBase64String($backup.Signature),[Security.Cryptography.HashAlgorithmName]::SHA256,[Security.Cryptography.RSASignaturePadding]::Pss)){throw 'Checkpoint externo nao foi assinado pelo emissor.'}
+        $approvedBackup=[Text.Encoding]::UTF8.GetString($backupBytes) | ConvertFrom-Json
+        if($approvedBackup.Kind -ne 'LEAL-LICENSE-MIGRATION-AUTHORIZATION' -or $approvedBackup.LicenseDigest -cne $r.LicenseDigest -or $approvedBackup.ToHardwareSerial -cne $r.ToHardwareSerial -or -not $approvedBackup.Snapshot){throw 'Checkpoint externo nao pertence a esta licenca/hardware.'}
+        $r.Snapshot=$approvedBackup.Snapshot
+        $r.StateAvailability='CHECKPOINT_ASSINADO_CONFIRMADO_PELO_VENDEDOR'
+    }
     $total=if($null -ne $terms.AdditionalTerminals){2+[int]$terms.AdditionalTerminals}else{[Math]::Max(2,[int]$terms.ComputerLimit)}
     if($r.Snapshot){
         $checkpoint=$r.Snapshot.SignedLicense | ConvertFrom-Json
