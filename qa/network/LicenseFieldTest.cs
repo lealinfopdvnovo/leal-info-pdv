@@ -41,7 +41,7 @@ internal static class LicenseFieldTest
         };buttons.Controls.Add(export);
         var open=new Button{Text="ABRIR RELATÓRIO",Width=215,Height=40};open.Click+=(_,_)=>System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe",root){UseShellExecute=true});buttons.Controls.Add(open);
         form.Shown+=(_,_)=>Action(Reload);
-        Log("ABERTURA TESTE hardware="+identity.Serial+" hardwareBacked="+identity.HardwareBacked+" bootUtc="+DateTimeOffset.UtcNow.AddMilliseconds(-Environment.TickCount64).ToString("o"));
+        Log("ABERTURA TESTE hardware="+identity.Serial+" hardwareBacked="+identity.HardwareBacked+" uptimeMs="+Environment.TickCount64+" bootUtc="+DateTimeOffset.UtcNow.AddMilliseconds(-Environment.TickCount64).ToString("o"));
         using var smokeTimer=new System.Windows.Forms.Timer{Interval=600};
         if(smoke){smokeTimer.Tick+=(_,_)=>{smokeTimer.Stop();form.Close();};form.Shown+=(_,_)=>smokeTimer.Start();}
         Application.Run(form);

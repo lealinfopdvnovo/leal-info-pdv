@@ -5,5 +5,5 @@ if errorlevel 1 (
  pause
  exit /b 1
 )
-pwsh.exe -NoProfile -STA -File "%~dp0ASSINAR_MIGRACAO_VENDEDOR.ps1"
+pwsh.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0ASSINAR_MIGRACAO_VENDEDOR.ps1"
 if errorlevel 1 pause
