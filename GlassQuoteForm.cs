@@ -6,6 +6,7 @@ namespace LealInfoPDV;
 public sealed class GlassQuoteForm : Form
 {
     private GlassProject project;
+    private bool embedded;
     private readonly ComboBox customer = new() { Name = "QuoteCustomer", Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox service = new() { Name = "QuoteService", Dock = DockStyle.Fill, MaxLength = 240 };
     private readonly NumericUpDown price = Money("QuotePrice");
@@ -13,6 +14,7 @@ public sealed class GlassQuoteForm : Form
     private readonly NumericUpDown discount = Money("QuoteDiscount");
     private readonly NumericUpDown addition = Money("QuoteAddition");
     private readonly TextBox summary = new() { Name = "QuoteSummary", ReadOnly = true, Multiline = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical, MinimumSize = new Size(100, 270) };
+    private readonly Button load = new() { Name = "LoadQuoteCustomers", Text = "CARREGAR CLIENTES", AutoSize = true };
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
     private sealed record Customer(long Id, string Name) { public override string ToString() => Name; }
 
@@ -37,7 +39,6 @@ public sealed class GlassQuoteForm : Form
         }
         customer.Items.Add(new Customer(0, "Selecionar cliente cadastrado")); customer.SelectedIndex = 0;
         Add("CLIENTE (cadastro existente)", customer);
-        var load = new Button { Text = "CARREGAR CLIENTES", AutoSize = true };
         load.Click += (_, _) => LoadCustomers(); fields.Controls.Add(load);
         Add("DESCRIÇÃO DO SERVIÇO (opcional)", service);
         Add("VALOR POR m² (R$)", price);
@@ -55,6 +56,21 @@ public sealed class GlassQuoteForm : Form
         customer.SelectedIndexChanged += (_, _) => RefreshQuote(); service.TextChanged += (_, _) => RefreshQuote();
         Shown += (_, _) => { var area = Screen.FromControl(this).WorkingArea; Size = new Size(Math.Min(Width, area.Width), Math.Min(Height, area.Height)); };
         RefreshQuote();
+    }
+    // Move os mesmos controles: não cria outra fonte de dados ou outro orçamento.
+    internal void Mount(TableLayoutPanel projects, TableLayoutPanel calculations)
+    {
+        embedded = true;
+        GlassWorkshopForm.AddField(projects, "CLIENTE (cadastro existente)", customer);
+        GlassWorkshopForm.AddField(projects, "", load);
+        GlassWorkshopForm.AddField(projects, "DESCRIÇÃO DO SERVIÇO (opcional)", service);
+        GlassWorkshopForm.AddField(calculations, "VALOR POR m² (R$)", price);
+        GlassWorkshopForm.AddField(calculations, "SERVIÇO ADICIONAL — VALOR TOTAL (R$)", serviceValue);
+        GlassWorkshopForm.AddField(calculations, "DESCONTO — VALOR TOTAL (R$)", discount);
+        GlassWorkshopForm.AddField(calculations, "ACRÉSCIMO — VALOR TOTAL (R$)", addition);
+        summary.Dock = DockStyle.Top; summary.Height = 290;
+        GlassWorkshopForm.AddField(calculations, "ÁREA / QUANTIDADE / VALORES / TOTAL", summary);
+        GlassWorkshopForm.AddField(calculations, "", new Label { AutoSize = true, Text = "Prévia em memória • PDF comercial, WhatsApp e recibo não disponíveis nesta etapa." });
     }
     public void UpdateProject(GlassProject source)
     {
@@ -83,6 +99,7 @@ public sealed class GlassQuoteForm : Form
         if (quote.ValidationError != null) { summary.Text = quote.ValidationError + "\r\nTotal indisponível até corrigir os dados."; return; }
         string MoneyText(decimal value) => value.ToString("C2", Pt);
         summary.Text = $"CLIENTE: {customer.SelectedItem}\r\nPROJETO: {project.Description}\r\nMODELO: {GlassProject.ModelName}\r\nSERVIÇO: {service.Text}\r\nMEDIDAS: {project.WidthMm.ToString("0.##", Pt)} × {project.HeightMm.ToString("0.##", Pt)} mm\r\nQUANTIDADE: {project.Quantity}\r\nÁREA POR UNIDADE: {quote.Area.ToString("0.######", Pt)} m²\r\nÁREA TOTAL: {quote.TotalArea.ToString("0.######", Pt)} m²\r\nVALOR POR m²: {MoneyText(price.Value)}\r\nVALOR BASE POR ÁREA: {MoneyText(quote.MaterialValue)}\r\nSERVIÇO ADICIONAL (total): {MoneyText(serviceValue.Value)}\r\nDESCONTO: {MoneyText(discount.Value)}\r\nACRÉSCIMO: {MoneyText(addition.Value)}\r\nTOTAL: {MoneyText(quote.Total)}";
+        if (embedded) summary.Text = summary.Text[summary.Text.IndexOf("QUANTIDADE:", StringComparison.Ordinal)..];
     }
     private static NumericUpDown Money(string name) => new() { Name = name, Dock = DockStyle.Fill,
         DecimalPlaces = 2, Maximum = 1000000000m, ThousandsSeparator = true };
