@@ -946,7 +946,12 @@ public sealed class MainForm : Form
 
     private void OpenGlassWorkshop()
     {
-        using var form = new GlassWorkshopForm();
+        using var form = new GlassWorkshopForm(dialog =>
+        {
+            ApplyFloatingTheme(dialog);
+            if (!Application.OpenForms.Cast<Form>().Any(x => x.Name == "SalesForm"))
+                SalesDialogTheme.Apply(dialog, GetSetting("sales_theme", "Futurista Azul"), null);
+        });
         form.ShowDialog(this);
     }
 
