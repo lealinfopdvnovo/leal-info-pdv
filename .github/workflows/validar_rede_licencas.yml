@@ -75,10 +75,17 @@ jobs:
           Copy-Item tools/license-migration/Autorizar_Migracao.ps1 license-field-build/
           Copy-Item tools/license-migration/ASSINAR_MIGRACAO_VENDEDOR.* license-field-build/
           Copy-Item tools/license-migration/LEIA_ME_TESTE.txt license-field-build/
+          $production=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LealInfoPDV'
+          $before=@{}
+          if(Test-Path $production){Get-ChildItem $production -File -Recurse | ForEach-Object {$before[$_.FullName]=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}}
           $p=Start-Process ./license-field-build/LealInfoPDV.NetworkTests.exe -ArgumentList '--field-license-smoke' -PassThru
           if(-not $p.WaitForExit(60000)){$p.Kill();throw 'Teste visual isolado nao encerrou'}
           if($p.ExitCode -ne 0){throw 'Falha ao abrir executavel portatil do teste'}
-          Write-Host 'PASS: EXE portatil abriu formulario real de licenciamento isolado e encerrou.'
+          $after=@{}
+          if(Test-Path $production){Get-ChildItem $production -File -Recurse | ForEach-Object {$after[$_.FullName]=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}}
+          if($before.Count -ne $after.Count){throw 'Kit alterou arquivos da instalacao de referencia'}
+          foreach($path in $before.Keys){if($after[$path] -ne $before[$path]){throw 'Kit alterou dados da instalacao de referencia'}}
+          Write-Host 'PASS: EXE portatil abriu formulario real isolado e todos os hashes dos dados de referencia permaneceram iguais.'
       - uses: actions/upload-artifact@v4
         with:
           name: LICENCIAMENTO_TESTE_WINDOWS_ISOLADO
