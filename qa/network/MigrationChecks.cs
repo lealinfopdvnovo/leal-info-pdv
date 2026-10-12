@@ -66,6 +66,14 @@ internal static class MigrationChecks
         foreach(var arg in new[]{"-NoProfile","-File",Path.GetFullPath("tools/license-migration/Autorizar_Migracao.ps1"),"-Solicitacao",requestFile,"-ChavePrivada",privateFile,"-Saida",authFile,"-ConfirmoMesmoComputador","-ConfirmoRevisaoAtual"})psi.ArgumentList.Add(arg);
         using(var process=System.Diagnostics.Process.Start(psi)!){var stdout=process.StandardOutput.ReadToEnd();var stderr=process.StandardError.ReadToEnd();process.WaitForExit();Assert(process.ExitCode==0,"Emissor migracao falhou: "+stderr);}
         Assert(LicenseMigration.ValidateAuthorization(File.ReadAllText(authFile),hw,pub).LicenseDigest==request.LicenseDigest,"Emissor e cliente divergem");
+        var unknownRequestFile=Path.Combine(folder,"unknown-request.json");File.WriteAllText(unknownRequestFile,JsonSerializer.Serialize(unknownRequest));
+        var externalAuthFile=Path.Combine(folder,"external-checkpoint.lealmigracao");
+        var restorePsi=new System.Diagnostics.ProcessStartInfo("pwsh"){UseShellExecute=false,RedirectStandardOutput=true,RedirectStandardError=true};
+        foreach(var arg in new[]{"-NoProfile","-File",Path.GetFullPath("tools/license-migration/Autorizar_Migracao.ps1"),"-Solicitacao",unknownRequestFile,"-ChavePrivada",privateFile,"-Saida",externalAuthFile,"-ConfirmoMesmoComputador","-ConfirmoRevisaoAtual","-CheckpointAutorizado",authFile,"-ConfirmoCheckpointAtual"})restorePsi.ArgumentList.Add(arg);
+        using(var process=System.Diagnostics.Process.Start(restorePsi)!){var stdout=process.StandardOutput.ReadToEnd();var stderr=process.StandardError.ReadToEnd();process.WaitForExit();Assert(process.ExitCode==0,"Checkpoint externo falhou: "+stderr);}
+        var restoredUnknown=new NetworkLicense(unknown,hw,pub,"LI-NEW-WINDOWS");restoredUnknown.ApplyMigration(File.ReadAllText(externalAuthFile));
+        Assert(restoredUnknown.RegisteredCount==2 && restoredUnknown.Terms==terms,"Checkpoint externo alterou plano/pontos");
+        Console.WriteLine("PASS: checkpoint externo assinado e confirmado recuperou mesmos terminais, sem alterar pontos.");
         Console.WriteLine("PASS: migracao assinada preserva chave original/id/revisao/plano/pontos, checkpoint, original ilegivel, MachineGuid novo simulado, retorno offline e assinatura do emissor PowerShell.");
     }
 }
