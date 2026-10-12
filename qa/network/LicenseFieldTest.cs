@@ -7,7 +7,7 @@ using LealInfoPDV.Licensing;
 using LealInfoPDV.Network;
 internal static class LicenseFieldTest
 {
-    [STAThread] internal static void Run()
+    [STAThread] internal static void Run(bool smoke = false)
     {
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
         var identity=MachineLicenseIdentity.Current;
@@ -28,7 +28,7 @@ internal static class LicenseFieldTest
         var status=new Label{Width=680,Height=90};panel.Controls.Add(status);
         var input=new TextBox{Multiline=true,Width=680,Height=100,ScrollBars=ScrollBars.Vertical};panel.Controls.Add(input);
         NetworkLicense? store=null;
-        void Reload(){store=new NetworkLicense(path,identity.Serial,legacySerial:identity.LegacySerial);store.CheckAccess();var t=store.Terms;status.Text="ATIVADA — Cliente "+t.ClientCode+" — "+t.Plan.ToUpperInvariant()+"\n"+(store.NeedsStateRecovery?"TERMINAIS: BLOQUEADOS — checkpoint indisponível.":"Computadores cadastrados: "+store.RegisteredCount)+"\nIdentidade: "+identity.Serial;Log("ATIVADA hardware="+identity.Serial+" revisao="+t.Revision+" recuperacaoPendente="+store.NeedsStateRecovery);}
+        void Reload(){store=new NetworkLicense(path,identity.Serial,legacySerial:identity.LegacySerial);store.CheckAccess();var t=store.Terms;if(!InstallationLicense.IsActivated(t))throw new InvalidOperationException("NÃO ATIVADA — importe a licença ou autorização válida.");status.Text="ATIVADA — Cliente "+t.ClientCode+" — "+t.Plan.ToUpperInvariant()+"\n"+(store.NeedsStateRecovery?"TERMINAIS: BLOQUEADOS — checkpoint indisponível.":"Computadores cadastrados: "+store.RegisteredCount)+"\nIdentidade: "+identity.Serial;Log("ATIVADA hardware="+identity.Serial+" revisao="+t.Revision+" recuperacaoPendente="+store.NeedsStateRecovery);}
         void Action(Action action){try{action();}catch(Exception e){status.Text=e.Message;Log("BLOQUEADO tipo="+e.GetType().Name);}}
         void Apply(string text){store??=new NetworkLicense(path,identity.Serial,legacySerial:identity.LegacySerial);if(LicenseMigration.IsAuthorization(text))store.ApplyMigration(text);else store.Activate(text);Reload();}
         var buttons=new FlowLayoutPanel{Width=680,Height=105,AutoSize=false};panel.Controls.Add(buttons);
@@ -42,6 +42,8 @@ internal static class LicenseFieldTest
         var open=new Button{Text="ABRIR RELATÓRIO",Width=215,Height=40};open.Click+=(_,_)=>System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe",root){UseShellExecute=true});buttons.Controls.Add(open);
         form.Shown+=(_,_)=>Action(Reload);
         Log("ABERTURA TESTE hardware="+identity.Serial+" hardwareBacked="+identity.HardwareBacked+" bootUtc="+DateTimeOffset.UtcNow.AddMilliseconds(-Environment.TickCount64).ToString("o"));
+        using var smokeTimer=new System.Windows.Forms.Timer{Interval=600};
+        if(smoke){smokeTimer.Tick+=(_,_)=>{smokeTimer.Stop();form.Close();};form.Shown+=(_,_)=>smokeTimer.Start();}
         Application.Run(form);
     }
 }

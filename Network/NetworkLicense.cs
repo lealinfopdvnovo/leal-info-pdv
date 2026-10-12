@@ -82,7 +82,7 @@ public sealed class NetworkLicense
             else if (independentSigned.Length > 0)
                 throw new InvalidDataException("Cadastro protegido não corresponde à licença independente.");
         }
-        catch (CryptographicException ex)
+        catch (Exception ex) when (ex is CryptographicException or JsonException)
         {
             stateFailure = ex;
             // O original ilegível permanece intacto. Um checkpoint só é aceito com assinatura do emissor.
@@ -247,7 +247,7 @@ public sealed class NetworkLicense
         {
             CheckNetworkState();
             CheckAccess();
-            if (string.IsNullOrWhiteSpace(deviceSerial) || string.IsNullOrWhiteSpace(key) || deviceSerial == serial)
+            if (string.IsNullOrWhiteSpace(deviceSerial) || string.IsNullOrWhiteSpace(key) || (deviceSerial == serial || deviceSerial == legacySerial || deviceSerial == TermsUnsafe().ServerSerial))
                 throw new InvalidOperationException("Identificação de computador inválida.");
             var existing = state.Devices.FirstOrDefault(d => d.Serial == deviceSerial);
             if (existing != null)

@@ -36,7 +36,7 @@ internal static class LicenseMigration
                 if (storedTerms != terms) throw new InvalidDataException("A chave não corresponde ao estado atual; não assine uma migração de revisão antiga.");
                 availability = "RECUPERADO";
             }
-            catch(CryptographicException) { availability = "ILEGIVEL_SEM_CHECKPOINT"; }
+            catch(Exception ex) when(ex is CryptographicException or JsonException) { snapshot = null; availability = "ILEGIVEL_SEM_CHECKPOINT"; }
             if (!original.SequenceEqual(File.ReadAllBytes(path))) throw new IOException("Arquivo mudou durante a leitura. Repita com o PDV fechado.");
         }
         return new(1,RequestKind,signed,Digest(signed),terms.ServerSerial,hardwareSerial,terms.ClientCode,terms.LicenseId,terms.Revision,sourceHash,snapshot,availability);
@@ -55,11 +55,12 @@ internal static class LicenseMigration
         if (request.LicenseDigest != Digest(request.SignedLicense) || terms.ClientCode != request.ClientCode || terms.LicenseId != request.LicenseId || terms.Revision != request.Revision)
             throw new InvalidDataException("Autorização não corresponde à licença original.");
         if (!terms.Active || terms.ExpiresUtc <= DateTimeOffset.UtcNow) throw new InvalidDataException("Licença inativa ou vencida não pode ser migrada.");
+        if (request.Snapshot == null && terms.BillingMode != "unico") throw new InvalidDataException("Mensalidade exige checkpoint autorizado do relógio.");
         if (request.Snapshot is { } state)
         {
             if (Digest(state.SignedLicense) != request.LicenseDigest || state.Devices == null || state.Devices.Count + 1 > terms.TotalComputers || state.LastSeenUtc > DateTimeOffset.UtcNow.AddMinutes(5))
                 throw new InvalidDataException("Checkpoint incompatível com licença/pontos/relógio.");
-            if (state.Devices.Any(d=>string.IsNullOrWhiteSpace(d.Serial) || string.IsNullOrWhiteSpace(d.PublicKey) || d.Serial==terms.ServerSerial) ||
+            if (state.Devices.Any(d=>string.IsNullOrWhiteSpace(d.Serial) || string.IsNullOrWhiteSpace(d.PublicKey) || (d.Serial==terms.ServerSerial || d.Serial==request.ToHardwareSerial)) ||
                 state.Devices.Select(d=>d.Serial).Distinct().Count()!=state.Devices.Count || state.Devices.Select(d=>d.PublicKey).Distinct().Count()!=state.Devices.Count)
                 throw new InvalidDataException("Checkpoint de terminais inválido.");
             if (terms.ExpiresUtc <= state.LastSeenUtc) throw new InvalidDataException("Checkpoint indica mensalidade vencida.");

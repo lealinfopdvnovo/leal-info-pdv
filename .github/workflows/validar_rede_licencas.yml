@@ -64,7 +64,7 @@ jobs:
       - name: Preparar teste de licenciamento Windows isolado
         shell: pwsh
         run: |
-          dotnet publish qa/network/LealInfoPDV.NetworkTests.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o license-field-build
+          dotnet publish qa/network/LealInfoPDV.NetworkTests.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o license-field-build
           if($LASTEXITCODE -ne 0){throw 'Falha ao compilar teste isolado'}
           Get-ChildItem license-field-build -Filter *.pdb | Remove-Item
           foreach($name in @('Assets','LIC-AI')){
@@ -74,6 +74,10 @@ jobs:
           Set-Content license-field-build/INICIAR_TESTE.bat @("@echo off", 'cd /d "%~dp0"', '"%~dp0LealInfoPDV.NetworkTests.exe" --field-license') -Encoding ascii
           Copy-Item tools/license-migration/Autorizar_Migracao.ps1 license-field-build/
           Copy-Item tools/license-migration/LEIA_ME_TESTE.txt license-field-build/
+          $p=Start-Process ./license-field-build/LealInfoPDV.NetworkTests.exe -ArgumentList '--field-license-smoke' -PassThru
+          if(-not $p.WaitForExit(60000)){$p.Kill();throw 'Teste visual isolado nao encerrou'}
+          if($p.ExitCode -ne 0){throw 'Falha ao abrir executavel portatil do teste'}
+          Write-Host 'PASS: EXE portatil abriu formulario real de licenciamento isolado e encerrou.'
       - uses: actions/upload-artifact@v4
         with:
           name: LICENCIAMENTO_TESTE_WINDOWS_ISOLADO
