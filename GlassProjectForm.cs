@@ -11,9 +11,9 @@ public sealed class GlassProjectForm : Form
     private readonly Button visualize = Button("Visualize", "VISUALIZAR");
     private readonly Button print = Button("Preview", "PRÉVIA / IMPRIMIR A4");
     private readonly Panel surface = new() { Name = "DrawingSurface", Dock = DockStyle.Fill };
-    private readonly Button mode2D = new() { Name = "Mode2D", Text = "2D", Width = 54, Height = 30 };
-    private readonly Button mode3D = new() { Name = "Mode3D", Text = "3D", Width = 54, Height = 30, Enabled = false };
-    private readonly Button reset3D = new() { Name = "Reset3D", Text = "RESETAR VISÃO", Width = 160, Height = 30, Visible = false };
+    private readonly Button mode2D = new SalesVisualButton() { Name = "Mode2D", Text = "2D", Width = 54, Height = 30 };
+    private readonly Button mode3D = new SalesVisualButton() { Name = "Mode3D", Text = "3D", Width = 54, Height = 30, Enabled = false };
+    private readonly Button reset3D = new SalesVisualButton() { Name = "Reset3D", Text = "RESETAR VISÃO", Width = 160, Height = 30, Visible = false };
     private readonly Label viewHint = new() { Name = "ViewHint", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(174, 201, 220) };
     private GlassBox3DView? drawing3D;
     private bool unavailable3D;
@@ -139,6 +139,8 @@ public sealed class GlassProjectForm : Form
         quantity.ValueChanged += DataChanged; description.TextChanged += DataChanged;
         UpdateDrawing();
     }
+    internal GlassCommercialSnapshot CommercialSnapshot(IReadOnlyList<GlassMaterialLink> materials)
+        => (quote ?? throw new InvalidOperationException("Projeto não disponível.")).CommercialSnapshot(materials);
     private GlassProject CurrentProject() => new(description.Text.Trim(), widthMm.Value, heightMm.Value, (int)quantity.Value);
     public void UpdateDrawing()
     {
@@ -181,7 +183,7 @@ public sealed class GlassProjectForm : Form
     }
     private static NumericUpDown Number(string name, decimal value, decimal min, decimal max, int decimals) => new()
     { Name = name, Minimum = min, Maximum = max, DecimalPlaces = decimals, Value = value, Dock = DockStyle.Fill, ThousandsSeparator = false };
-    private static Button Button(string name, string text) => new() { Name = name, Text = text, Dock = DockStyle.Top,
+    private static Button Button(string name, string text) => new SalesVisualButton() { Name = name, Text = text, Dock = DockStyle.Top,
         Height = 42, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(11, 113, 161), ForeColor = Color.White };
     protected override void Dispose(bool disposing) { base.Dispose(disposing); if (disposing) { quote?.Dispose(); heading.Dispose(); body.Dispose(); } }
 }
