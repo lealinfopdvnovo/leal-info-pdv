@@ -49,6 +49,7 @@ jobs:
             Write-Host ('TEST SUITE '+$test.FullName)
             $argsExtra=@()
             if($test.FullName -match '[\\/]kitchen[\\/]'){$argsExtra=@('--','--global')}
+            if($test.FullName -match '[\\/](company-cep|sales-logo)[\\/]'){$argsExtra=@('--','003')}
             dotnet run --project $test.FullName -c Release @argsExtra
             if($LASTEXITCODE -ne 0){throw ('Suite falhou: '+$test.FullName)}
           }
