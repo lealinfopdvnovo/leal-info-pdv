@@ -4,6 +4,7 @@ namespace LealInfoPDV;
 public sealed class GlassWorkshopForm : Form
 {
     private readonly GlassProjectForm project = new();
+    private readonly GlassMaterialSelection materials = new();
     private readonly Font titleFont = new("Segoe UI", 20, FontStyle.Bold);
     private readonly Font bodyFont = new("Segoe UI", 10);
     public GlassWorkshopForm(Action<Form>? applyTheme = null)
@@ -19,7 +20,7 @@ public sealed class GlassWorkshopForm : Form
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
         layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
-        layout.Controls.Add(new Label { Text = Text, Font = titleFont, AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft }, 0, 0);
+        layout.Controls.Add(new SalesGlowLabel { Text = Text, Font = titleFont, AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter }, 0, 0);
         var tabs = new TabControl { Name = "GlassSections", Dock = DockStyle.Fill, Multiline = true, Padding = new Point(14, 10) };
         var pages = new Dictionary<string, TabPage>();
         foreach (var name in new[] { "Projetos", "Materiais", "Medidas", "Cálculos", "Desenho", "Visualização", "Impressão" })
@@ -32,7 +33,7 @@ public sealed class GlassWorkshopForm : Form
         footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); footer.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
         var status = new Panel { Name = "GlassStatus", Dock = DockStyle.Fill };
-        var close = new Button { Name = "CloseGlassWorkshop", Text = "FECHAR", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel };
+        var close = new SalesVisualButton { Name = "CloseGlassWorkshop", Text = "FECHAR", Dock = DockStyle.Fill, DialogResult = DialogResult.Cancel };
         close.Click += (_, _) => Close(); CancelButton = close;
         footer.Controls.Add(status, 0, 0); footer.Controls.Add(close, 1, 0); layout.Controls.Add(footer, 0, 2);
         Controls.Add(layout);
@@ -40,15 +41,23 @@ public sealed class GlassWorkshopForm : Form
         var measures = Fields(pages["Medidas"]);
         var calculations = Fields(pages["Cálculos"]);
         var printing = Fields(pages["Impressão"]);
-        AddField(Fields(pages["Materiais"]), "MATERIAIS", new Label { AutoSize = true,
-            Text = "Área reservada para a próxima etapa. O cadastro de produtos/materiais existente será utilizado." });
+        materials.Mount(Fields(pages["Materiais"]));
         project.Mount(tabs, general, measures, calculations, pages["Desenho"], pages["Visualização"], printing, this, status);
         AddField(printing, "", new Label { AutoSize = true, Text = "Impressão técnica existente • A4 • sem orçamento financeiro no documento." });
+        var commercial = new SalesVisualButton { Name = "CommercialPreview", Text = "ORÇAMENTO COMERCIAL / PDF" };
+        commercial.Click += (_, _) =>
+        {
+            try { GlassCommercialDocument.Preview(this, project.CommercialSnapshot(materials.Materials)); }
+            catch (Exception error) { MessageBox.Show(this, error.Message, "Orçamento comercial", MessageBoxButtons.OK, MessageBoxIcon.Information); }
+        };
+        AddField(printing, "DOCUMENTO COMERCIAL", commercial);
+        AddField(printing, "RECIBO", new SalesVisualButton { Name = "GlassReceiptPending", Text = "PENDENTE: VÍNCULO COM VENDA/PAGAMENTO", Enabled = false });
         // Reutiliza a rotina do PDV, sem estilizá-los por aproximação.
         var drawing = Descendants(this).OfType<GlassDrawingView>().Single();
         var drawingBackground = drawing.BackColor; var drawingForeground = drawing.ForeColor;
         applyTheme?.Invoke(this);
         drawing.BackColor = drawingBackground; drawing.ForeColor = drawingForeground;
+        GlassWorkshopVisuals.Apply(this);
         Shown += (_, _) => { var area = Screen.FromControl(Owner ?? this).WorkingArea; Size = new Size(Math.Min(Width, area.Width), Math.Min(Height, area.Height)); };
     }
     private static IEnumerable<Control> Descendants(Control parent) => parent.Controls.Cast<Control>().SelectMany(c => new[] { c }.Concat(Descendants(c)));
@@ -63,11 +72,11 @@ public sealed class GlassWorkshopForm : Form
         if (!string.IsNullOrWhiteSpace(caption)) fields.Controls.Add(new Label { Text = caption, AutoSize = true, Dock = DockStyle.Fill, Margin = new Padding(0, 10, 0, 6) });
         control.Dock = DockStyle.Top; control.Margin = new Padding(0, 0, 0, 12);
         if (control is Button) control.Height = 42;
-        fields.Controls.Add(control);
+        fields.Controls.Add(control is TextBox or ComboBox or NumericUpDown ? GlassWorkshopVisuals.Field(control) : control);
     }
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing) { project.Dispose(); titleFont.Dispose(); bodyFont.Dispose(); }
+        if (disposing) { materials.Dispose(); project.Dispose(); titleFont.Dispose(); bodyFont.Dispose(); }
     }
 }
