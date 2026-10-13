@@ -1,0 +1,52 @@
+name: Diagnostico isolado Cadastro Produtos 002 - sem publicacao
+on:
+  push:
+    branches: ['qa/diagnostico-produtos-002-10385']
+permissions: {contents: read}
+concurrency:
+  group: diagnostico-produtos-002
+  cancel-in-progress: true
+jobs:
+  diagnosticar:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Exigir fonte de produção preservada
+        shell: python
+        run: |
+          import subprocess
+          changed=set(subprocess.check_output(['git','diff','--name-only','d4c0d47b2d63545988204ec93ae2b1a263ae9dd0','HEAD']).decode().splitlines())
+          assert changed=={'qa/products-002-diagnostic/Program.cs','qa/products-002-diagnostic/LealInfoPDV.ProductsDiagnosticTests.csproj','.github/workflows/diagnostico_produtos_002.yml'},changed
+          print('PASS nenhum arquivo de produção alterado')
+      - name: Diagnosticar DLL realmente distribuído ao 002
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:GITHUB_ACTIONS -ne 'true'){throw 'Exige runner descartavel'}
+          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.385/LEAL_INFO_PDV_002_V10_385_UPDATE.zip' -OutFile baseline002.zip
+          if((Get-FileHash baseline002.zip).Hash.ToLowerInvariant() -ne 'ee7b1a0ed0d7dd8dc90832eb5e63c2d624cd12973031d92cc9fa358439dc7063'){throw 'Baseline mudou'}
+          Expand-Archive baseline002.zip baseline002
+          $deps=Get-Content baseline002/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdk=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdk){throw 'SDK ausente'}
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet build qa/products-002-diagnostic/LealInfoPDV.ProductsDiagnosticTests.csproj -c Release -p:WindowsSdkPackageVersion=$($sdk.Split('/')[1])
+          if($LASTEXITCODE -ne 0){throw 'Build do diagnóstico falhou'}
+          Copy-Item baseline002/LealInfoPDV.dll qa/products-002-diagnostic/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.dll -Force
+          dotnet qa/products-002-diagnostic/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.ProductsDiagnosticTests.dll
+          if($LASTEXITCODE -ne 0){throw 'Diagnóstico falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostico-produtos-002-10385
+          path: produtos-002-evidencias/
+          retention-days: 14
