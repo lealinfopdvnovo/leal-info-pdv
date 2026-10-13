@@ -5,6 +5,7 @@ public sealed class GlassWorkshopForm : Form
 {
     private readonly GlassProjectForm project = new();
     private readonly GlassMaterialSelection materials = new();
+    private GlassCutPlanForm? cutPlan;
     private readonly Font titleFont = new("Segoe UI", 20, FontStyle.Bold);
     private readonly Font bodyFont = new("Segoe UI", 10);
     public GlassWorkshopForm(Action<Form>? applyTheme = null)
@@ -41,7 +42,19 @@ public sealed class GlassWorkshopForm : Form
         var measures = Fields(pages["Medidas"]);
         var calculations = Fields(pages["Cálculos"]);
         var printing = Fields(pages["Impressão"]);
-        materials.Mount(Fields(pages["Materiais"]));
+        var materialFields = Fields(pages["Materiais"]);
+        materials.Mount(materialFields);
+        var openCut = new SalesVisualButton { Name = "OpenCutPlan", Text = "PLANO DE CORTE / APROVEITAMENTO" };
+        openCut.Click += (_, _) =>
+        {
+            cutPlan ??= new GlassCutPlanForm(() =>
+            {
+                var client = Descendants(this).OfType<ComboBox>().Single(c => c.Name == "QuoteCustomer");
+                return new GlassCutContext(project.CutReferenceProject, client.SelectedIndex > 0 ? client.Text : "Cliente não selecionado", materials.Materials);
+            }, applyTheme);
+            cutPlan.ShowDialog(this);
+        };
+        AddField(materialFields, "SIMULAÇÃO GEOMÉTRICA EDITÁVEL", openCut);
         project.Mount(tabs, general, measures, calculations, pages["Desenho"], pages["Visualização"], printing, this, status);
         AddField(printing, "", new Label { AutoSize = true, Text = "Impressão técnica existente • A4 • sem orçamento financeiro no documento." });
         var commercial = new SalesVisualButton { Name = "CommercialPreview", Text = "ORÇAMENTO COMERCIAL / PDF" };
@@ -77,6 +90,6 @@ public sealed class GlassWorkshopForm : Form
     protected override void Dispose(bool disposing)
     {
         base.Dispose(disposing);
-        if (disposing) { materials.Dispose(); project.Dispose(); titleFont.Dispose(); bodyFont.Dispose(); }
+        if (disposing) { cutPlan?.Dispose(); materials.Dispose(); project.Dispose(); titleFont.Dispose(); bodyFont.Dispose(); }
     }
 }
