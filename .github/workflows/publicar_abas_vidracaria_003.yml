@@ -70,7 +70,7 @@ jobs:
           $old=@($before.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
           $new=@($after.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
           if(Compare-Object $old $new){throw 'Dependencias mudaram'}
-          Compress-Archive package/* LEAL_INFO_PDV_003_V10_389_UPDATE.zip
+          Compress-Archive package/* LEAL_INFO_PDV_003_V10_390_UPDATE.zip
       - name: Validar PDF real e multipagina
         shell: pwsh
         run: |
@@ -101,5 +101,5 @@ jobs:
             glass-commercial-evidencias/
             glass-cotas-evidencias/
             glass-units-evidencias/
-            LEAL_INFO_PDV_003_V10_389_UPDATE.zip
+            LEAL_INFO_PDV_003_V10_390_UPDATE.zip
           retention-days: 14
