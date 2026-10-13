@@ -88,7 +88,7 @@ public sealed class GlassCutPlanForm : Form
         AddButton(left, "RemoveCutPiece", "REMOVER PEÇA SELECIONADA", () => { if (grid.CurrentRow?.DataBoundItem is PieceRow row) rows.Remove(row); });
         AddButton(left, "RecalculateCut", "RECALCULAR PLANO", () => Recalculate());
         GlassWorkshopForm.AddField(left, "", status);
-        GlassWorkshopForm.AddField(left, "", new Label { Text = "Edição independente: não altera medidas do projeto, orçamento ou estoque. Dados do plano ficam em memória nesta sessão da Central.", AutoSize = true });
+        GlassWorkshopForm.AddField(left, "", new Label { Text = "Edição independente: não altera medidas do projeto, orçamento ou estoque. O plano é incluído ao SALVAR PROJETO na Central.", AutoSize = true });
         GlassWorkshopForm.AddField(right, "CHAPA / MATERIAL", sheet);
         sheet.SelectedIndexChanged += (_, _) => { view.SheetIndex = Math.Max(0, sheet.SelectedIndex); view.Invalidate(); };
         GlassWorkshopForm.AddField(right, "DISTRIBUIÇÃO 2D PROPORCIONAL", view);
@@ -109,6 +109,39 @@ public sealed class GlassCutPlanForm : Form
             Size = new(Math.Min(Width, area.Width), Math.Min(Height, area.Height));
             Location = new Point(Math.Clamp(Left, area.Left, Math.Max(area.Left, area.Right - Width)), Math.Clamp(Top, area.Top, Math.Max(area.Top, area.Bottom - Height)));
         };
+    }
+    internal GlassSavedCut CaptureSaved()
+    {
+        if(!grid.EndEdit()) throw new InvalidOperationException("Conclua a edição da peça antes de salvar.");
+        var pieces=new List<GlassSavedPiece>();
+        foreach(var r in rows)
+        {
+            if(!decimal.TryParse(r.Width,NumberStyles.Number,CultureInfo.CurrentCulture,out var w) ||
+                !decimal.TryParse(r.Height,NumberStyles.Number,CultureInfo.CurrentCulture,out var h) ||
+                !int.TryParse(r.Quantity,out var q)) throw new InvalidDataException("Confira os valores da peça " + r.Id + " antes de salvar.");
+            pieces.Add(new(r.Id,r.Description,GlassDimensionUnits.ToMillimetres(w,r.WidthUnit),
+                GlassDimensionUnits.ToMillimetres(h,r.HeightUnit),r.WidthUnit,r.HeightUnit,q,r.Material,r.Rotation));
+        }
+        return new(width.Value,height.Value,GlassSavedControls.Unit(width),GlassSavedControls.Unit(height),
+            allowRotation,material.Text,sequence,pieces.ToArray(),Result != null);
+    }
+    internal void RestoreSaved(GlassSavedCut saved)
+    {
+        rows.Clear(); sequence=saved.Sequence;
+        GlassSavedControls.Set(width,saved.WidthMm,saved.WidthUnit);
+        GlassSavedControls.Set(height,saved.HeightMm,saved.HeightUnit);
+        allowRotation=saved.AllowRotation;
+        rotation.Text="PERMITIR ROTAÇÃO 90°: " + (allowRotation ? "SIM" : "NÃO");
+        RefreshMaterials();
+        if(!material.Items.Contains(saved.MaterialSuggestion)) material.Items.Add(saved.MaterialSuggestion);
+        material.SelectedItem=saved.MaterialSuggestion;
+        foreach(var p in saved.Pieces)
+            rows.Add(new PieceRow { Id=p.Id,Description=p.Description,WidthUnit=p.WidthUnit,HeightUnit=p.HeightUnit,
+                Width=GlassDimensionUnits.Convert(p.WidthMm,"mm",p.WidthUnit).ToString("G29",CultureInfo.CurrentCulture),
+                Height=GlassDimensionUnits.Convert(p.HeightMm,"mm",p.HeightUnit).ToString("G29",CultureInfo.CurrentCulture),
+                Quantity=p.Quantity.ToString(CultureInfo.InvariantCulture),Material=p.Material,Rotation=p.Rotation });
+        Dirty();
+        if(saved.WasCalculated && !Recalculate()) throw new InvalidDataException("Não foi possível reconstruir o plano salvo.");
     }
     private static TableLayoutPanel Fields(out Panel scroll)
     {

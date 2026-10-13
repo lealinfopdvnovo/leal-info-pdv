@@ -6,10 +6,14 @@ public sealed class GlassWorkshopForm : Form
     private readonly GlassProjectForm project = new();
     private readonly GlassMaterialSelection materials = new();
     private GlassCutPlanForm? cutPlan;
+    private GlassStoredProject? stored;
+    private readonly Label saveStatus = new() { Name="ProjectSaveStatus", AutoSize=true };
+    private readonly Action<Form>? projectTheme;
     private readonly Font titleFont = new("Segoe UI", 20, FontStyle.Bold);
     private readonly Font bodyFont = new("Segoe UI", 10);
     public GlassWorkshopForm(Action<Form>? applyTheme = null)
     {
+        projectTheme = applyTheme;
         Text = "CENTRAL DE VIDRAÇARIA";
         StartPosition = FormStartPosition.CenterParent;
         ClientSize = new Size(1000, 700); MinimumSize = new Size(560, 420);
@@ -47,15 +51,28 @@ public sealed class GlassWorkshopForm : Form
         var openCut = new SalesVisualButton { Name = "OpenCutPlan", Text = "PLANO DE CORTE / APROVEITAMENTO" };
         openCut.Click += (_, _) =>
         {
-            cutPlan ??= new GlassCutPlanForm(() =>
-            {
-                var client = Descendants(this).OfType<ComboBox>().Single(c => c.Name == "QuoteCustomer");
-                return new GlassCutContext(project.CutReferenceProject, client.SelectedIndex > 0 ? client.Text : "Cliente não selecionado", materials.Materials);
-            }, applyTheme);
-            cutPlan.ShowDialog(this);
+            EnsureCutPlan();
+            cutPlan!.ShowDialog(this);
         };
         AddField(materialFields, "SIMULAÇÃO GEOMÉTRICA EDITÁVEL", openCut);
         project.Mount(tabs, general, measures, calculations, pages["Desenho"], pages["Visualização"], printing, this, status);
+        var save = new SalesVisualButton { Name="SaveGlassProject", Text="SALVAR PROJETO" };
+        save.Click += (_,_) => RunProjectAction(() => { SaveCurrentProject(); saveStatus.Text="Projeto salvo. " + DateTime.Now.ToString("g"); });
+        var open = new SalesVisualButton { Name="OpenGlassProject", Text="ABRIR PROJETO" };
+        open.Click += (_,_) => RunProjectAction(() =>
+        {
+            using var chooser=new GlassSavedProjectBrowser(projectTheme);
+            if(chooser.ShowDialog(this)!=DialogResult.OK || chooser.SelectedProjectId==null) return;
+            if(HasUnsavedChanges() && MessageBox.Show(this,"Abrir outro projeto descarta alterações não salvas. Continuar?","Abrir projeto",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes) return;
+            LoadSavedProject(chooser.SelectedProjectId);
+        });
+        var fresh = new SalesVisualButton { Name="NewSavedGlassProject", Text="LIMPAR / NOVO PROJETO" };
+        fresh.Click += (_,_) => RunProjectAction(() =>
+        {
+            if(MessageBox.Show(this,"Iniciar outro projeto descarta alterações não salvas. Continuar?","Novo projeto",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes) return;
+            ResetSavedProject();
+        });
+        AddField(general,"PROJETOS SALVOS",save); AddField(general,"",open); AddField(general,"",fresh); AddField(general,"",saveStatus);
         AddField(printing, "", new Label { AutoSize = true, Text = "Impressão técnica existente • A4 • sem orçamento financeiro no documento." });
         var commercial = new SalesVisualButton { Name = "CommercialPreview", Text = "ORÇAMENTO COMERCIAL / PDF" };
         commercial.Click += (_, _) =>
@@ -72,6 +89,50 @@ public sealed class GlassWorkshopForm : Form
         drawing.BackColor = drawingBackground; drawing.ForeColor = drawingForeground;
         GlassWorkshopVisuals.Apply(this);
         Shown += (_, _) => { var area = Screen.FromControl(Owner ?? this).WorkingArea; Size = new Size(Math.Min(Width, area.Width), Math.Min(Height, area.Height)); };
+    }
+    private void EnsureCutPlan()
+    {
+        if(cutPlan!=null && !cutPlan.IsDisposed) return;
+        cutPlan=new GlassCutPlanForm(() =>
+        {
+            var client=Descendants(this).OfType<ComboBox>().Single(c=>c.Name=="QuoteCustomer");
+            return new GlassCutContext(project.CutReferenceProject,client.SelectedIndex>0?client.Text:"Cliente não selecionado",materials.Materials);
+        },projectTheme);
+    }
+    internal GlassSavedProject CaptureSavedProject()=>project.CaptureSaved(materials.Materials.ToArray(),cutPlan?.CaptureSaved());
+    internal GlassStoredProject SaveCurrentProject()
+    {
+        ValidateChildren();
+        var snapshot=CaptureSavedProject();
+        stored=GlassProjectStore.Save(snapshot,stored);
+        return stored;
+    }
+    internal void LoadSavedProject(string id)
+    {
+        var loaded=GlassProjectStore.Load(id);
+        // Valida antes de alterar os controles. O registro não é modificado ao abrir.
+        var prior=CaptureSavedProject();
+        try { ApplySavedProject(loaded.Data); stored=loaded; saveStatus.Text="Aberto: " + loaded.Data.Description; }
+        catch { ApplySavedProject(prior); throw; }
+    }
+    private void ApplySavedProject(GlassSavedProject saved)
+    {
+        project.RestoreSaved(saved); materials.RestoreSaved(saved.Materials);
+        cutPlan?.Dispose(); cutPlan=null;
+        if(saved.Cut!=null) { EnsureCutPlan(); cutPlan!.RestoreSaved(saved.Cut); }
+    }
+    internal void ResetSavedProject()
+    {
+        ApplySavedProject(new(1,GlassProject.ModelName,"Projeto de teste",1200,1000,"mm","mm",1,
+            new(0,"","",0,0,0,0),Array.Empty<GlassMaterialLink>(),null,false));
+        stored=null;saveStatus.Text="Novo projeto — ainda não salvo.";
+    }
+    private bool HasUnsavedChanges()=>stored==null || System.Text.Json.JsonSerializer.Serialize(CaptureSavedProject())!=System.Text.Json.JsonSerializer.Serialize(stored.Data);
+    private void RunProjectAction(Action action)
+    {
+        try { action(); }
+        catch(Exception error) when(error is not OutOfMemoryException)
+        { MessageBox.Show(this,"Não foi possível concluir. Os projetos já salvos foram preservados.\r\n"+error.Message,"Projetos da Vidraçaria",MessageBoxButtons.OK,MessageBoxIcon.Warning); }
     }
     private static IEnumerable<Control> Descendants(Control parent) => parent.Controls.Cast<Control>().SelectMany(c => new[] { c }.Concat(Descendants(c)));
     private static TableLayoutPanel Fields(TabPage page)

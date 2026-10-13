@@ -92,6 +92,21 @@ public sealed class GlassQuoteForm : Form
         }
         return new(value, selected.Id, selected.Name, service.Text.Trim(), company, DateTime.Now, materials.ToArray());
     }
+    internal GlassSavedQuote CaptureSaved()
+    {
+        var c = customer.SelectedItem as Customer;
+        return new(c?.Id ?? 0, c?.Id > 0 ? c.Name : "", service.Text, price.Value, serviceValue.Value, discount.Value, addition.Value);
+    }
+    internal void RestoreSaved(GlassSavedQuote saved)
+    {
+        LoadCustomers();
+        int index = customer.Items.Cast<Customer>().ToList().FindIndex(c => c.Id == saved.CustomerId);
+        if(index < 0 && saved.CustomerId > 0)
+        { customer.Items.Add(new Customer(saved.CustomerId, saved.CustomerName)); index = customer.Items.Count - 1; }
+        customer.SelectedIndex = Math.Max(0,index);
+        service.Text=saved.Service; price.Value=saved.Price; serviceValue.Value=saved.ServiceValue;
+        discount.Value=saved.Discount; addition.Value=saved.Addition; RefreshQuote();
+    }
     private void LoadCustomers()
     {
         try

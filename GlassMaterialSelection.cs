@@ -26,7 +26,7 @@ internal sealed class GlassMaterialSelection : IDisposable
         var remove = new SalesVisualButton { Name = "RemoveMaterialLink", Text = "REMOVER VÍNCULO DO PROJETO" };
         remove.Click += (_, _) => { if (selected.CurrentRow?.DataBoundItem is GlassMaterialLink item) links.Remove(item); };
         GlassWorkshopForm.AddField(fields, "", remove);
-        GlassWorkshopForm.AddField(fields, "", new Label { AutoSize = true, Text = "Vínculo informativo em memória. Não altera preço do orçamento, estoque ou cadastro. Plano geométrico disponível abaixo. Fabricação e estoque de sobras continuam para próxima etapa, com regras profissionais validadas." });
+        GlassWorkshopForm.AddField(fields, "", new Label { AutoSize = true, Text = "Vínculo informativo incluído ao SALVAR PROJETO. Não altera preço do orçamento, estoque ou cadastro. Plano geométrico disponível abaixo. Fabricação e estoque de sobras continuam para próxima etapa, com regras profissionais validadas." });
     }
     private void Search()
     {
@@ -49,5 +49,7 @@ internal sealed class GlassMaterialSelection : IDisposable
             grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = column.Item1, Name = column.Item1, HeaderText = column.Item2 });
         return grid;
     }
+    internal void RestoreSaved(IReadOnlyList<GlassMaterialLink> saved)
+    { links.Clear(); foreach(var item in saved) links.Add(item); }
     public void Dispose() { links.Clear(); }
 }

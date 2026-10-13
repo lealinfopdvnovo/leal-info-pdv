@@ -18,6 +18,7 @@ public sealed class GlassProjectForm : Form
     private readonly Label viewHint = new() { Name = "ViewHint", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(174, 201, 220) };
     private GlassBox3DView? drawing3D;
     private bool unavailable3D;
+    private bool restored3DMeasurements;
     private GlassQuoteForm? quote;
     private IWin32Window? printOwner;
     private readonly Font heading = new("Segoe UI", 13, FontStyle.Bold);
@@ -149,6 +150,23 @@ public sealed class GlassProjectForm : Form
     }
     internal GlassCommercialSnapshot CommercialSnapshot(IReadOnlyList<GlassMaterialLink> materials)
         => (quote ?? throw new InvalidOperationException("Projeto não disponível.")).CommercialSnapshot(materials);
+    internal GlassSavedProject CaptureSaved(GlassMaterialLink[] materials, GlassSavedCut? cut)
+        => new(1, GlassProject.ModelName, description.Text, widthMm.Value, heightMm.Value,
+            GlassSavedControls.Unit(widthMm), GlassSavedControls.Unit(heightMm), (int)quantity.Value,
+            (quote ?? throw new InvalidOperationException("Orçamento indisponível.")).CaptureSaved(),
+            materials, cut, drawing3D?.ShowTechnicalDimensions ?? restored3DMeasurements);
+    internal void RestoreSaved(GlassSavedProject saved)
+    {
+        description.Text=saved.Description;
+        GlassSavedControls.Set(widthMm,saved.WidthMm,saved.WidthUnit);
+        GlassSavedControls.Set(heightMm,saved.HeightMm,saved.HeightUnit);
+        quantity.Value=saved.Quantity;
+        quote!.RestoreSaved(saved.Quote);
+        restored3DMeasurements=saved.Show3DMeasurements;
+        if(drawing3D != null) drawing3D.ShowTechnicalDimensions=saved.Show3DMeasurements;
+        measurements3D.Text=saved.Show3DMeasurements ? "OCULTAR MEDIDAS" : "MOSTRAR MEDIDAS";
+        UpdateDrawing();
+    }
     internal GlassProject CutReferenceProject => CurrentProject();
     private GlassProject CurrentProject() => new(description.Text.Trim(), widthMm.Value, heightMm.Value, (int)quantity.Value);
     public void UpdateDrawing()
@@ -157,7 +175,7 @@ public sealed class GlassProjectForm : Form
         var project = new GlassProject(description.Text.Trim(), widthMm.Value, heightMm.Value, (int)quantity.Value);
         if (project.ValidationError != null) { message.Text = project.ValidationError; print.Enabled = false; drawing.Project = null; drawing.Invalidate(); if (drawing3D != null) drawing3D.Project = null; mode3D.Enabled = false; Show2D(); return; }
         drawing.Project = project; drawing.Invalidate(); if (drawing3D != null) drawing3D.Project = project; mode3D.Enabled = !unavailable3D; print.Enabled = true; visualize.Text = "ATUALIZAR DESENHO";
-        message.Text = "Desenho atualizado. SALVAR pendente da definição da persistência de projetos.";
+        message.Text = "Desenho atualizado. Use SALVAR PROJETO na aba Projetos.";
     }
     private void Show2D()
     {
@@ -176,6 +194,7 @@ public sealed class GlassProjectForm : Form
             if (drawing3D == null)
             {
                 drawing3D = new GlassBox3DView();
+                drawing3D.ShowTechnicalDimensions = restored3DMeasurements;
                 drawing3D.RenderingUnavailable += (_, _) => Disable3D();
                 drawing3D.SizeChanged += (_, _) => UpdateMeasurementAccess();
                 drawing3D.FontChanged += (_, _) => UpdateMeasurementAccess();
