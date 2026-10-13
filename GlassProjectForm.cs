@@ -83,7 +83,7 @@ public sealed class GlassProjectForm : Form
         reset3D.Click += (_, _) => drawing3D?.ResetView();
         measurements3D.Click += (_, _) =>
         {
-            if (drawing3D == null || drawing3D.IsUnavailable) return;
+            if (drawing3D == null || drawing3D.IsUnavailable || !drawing3D.CanShowTechnicalDimensions) return;
             drawing3D.ShowTechnicalDimensions = !drawing3D.ShowTechnicalDimensions;
             measurements3D.Text = drawing3D.ShowTechnicalDimensions ? "OCULTAR MEDIDAS" : "MOSTRAR MEDIDAS";
         };
@@ -177,6 +177,8 @@ public sealed class GlassProjectForm : Form
             {
                 drawing3D = new GlassBox3DView();
                 drawing3D.RenderingUnavailable += (_, _) => Disable3D();
+                drawing3D.SizeChanged += (_, _) => UpdateMeasurementAccess();
+                drawing3D.FontChanged += (_, _) => UpdateMeasurementAccess();
                 surface.Controls.Add(drawing3D);
             }
             drawing3D.Project = drawing.Project;
@@ -185,12 +187,21 @@ public sealed class GlassProjectForm : Form
             measurements3D.Visible = true;
             mode3D.BackColor = Color.FromArgb(20, 149, 194); mode2D.BackColor = Color.FromArgb(11, 113, 161);
             viewHint.Text = "3D técnico • arraste para girar • rodinha: zoom • profundidade apenas ilustrativa";
+            UpdateMeasurementAccess();
         }
         catch (Exception) { Disable3D(); }
     }
     private void Disable3D()
     {
         unavailable3D = true; mode3D.Enabled = false; Show2D();
+    }
+    private void UpdateMeasurementAccess()
+    {
+        if (drawing3D == null || !drawing3D.Visible || !measurements3D.Visible) return;
+        measurements3D.Enabled = drawing3D.CanShowTechnicalDimensions && !drawing3D.IsUnavailable;
+        viewHint.Text = drawing3D.CanShowTechnicalDimensions
+            ? "3D técnico • arraste para girar • rodinha: zoom • profundidade apenas ilustrativa"
+            : "Amplie o visor para cotas. As dimensões fixas continuam disponíveis.";
     }
     private static NumericUpDown Number(string name, decimal value, decimal min, decimal max, int decimals) => new()
     { Name = name, Minimum = min, Maximum = max, DecimalPlaces = decimals, Value = value, Dock = DockStyle.Fill, ThousandsSeparator = false };
