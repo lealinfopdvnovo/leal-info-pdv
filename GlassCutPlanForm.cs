@@ -11,6 +11,17 @@ public sealed class GlassCutPlanForm : Form
     {
         private string id = "", description = "", width = "0", height = "0", quantity = "1", material = "";
         private bool rotation = true;
+        private string widthUnit = "mm", heightUnit = "mm";
+        public string WidthUnit { get => widthUnit; set => ChangeUnit(ref widthUnit, value, true); }
+        public string HeightUnit { get => heightUnit; set => ChangeUnit(ref heightUnit, value, false); }
+        private void ChangeUnit(ref string field, string value, bool horizontal)
+        {
+            if (field == value) return;
+            string converted = GlassDimensionUnits.ConvertText(horizontal ? Width : Height, field, value);
+            field = value;
+            if (horizontal) Width = converted; else Height = converted;
+            PropertyChanged?.Invoke(this, new(horizontal ? nameof(WidthUnit) : nameof(HeightUnit)));
+        }
         public string Id { get => id; set => Set(ref id, value, nameof(Id)); }
         public string Description { get => description; set => Set(ref description, value, nameof(Description)); }
         public string Width { get => width; set => Set(ref width, value, nameof(Width)); }
@@ -22,6 +33,7 @@ public sealed class GlassCutPlanForm : Form
         private void Set(ref string field, string value, string name) { if (field != value) { field = value ?? ""; PropertyChanged?.Invoke(this, new(name)); } }
     }
     private readonly Func<GlassCutContext> context;
+    private readonly Action<Form>? theme;
     private readonly BindingList<PieceRow> rows = new();
     private readonly NumericUpDown width = new() { Name = "SheetWidth", Minimum = 0, Maximum = GlassCutPacking.MaximumDimension, DecimalPlaces = 2 };
     private readonly NumericUpDown height = new() { Name = "SheetHeight", Minimum = 0, Maximum = GlassCutPacking.MaximumDimension, DecimalPlaces = 2 };
@@ -40,7 +52,7 @@ public sealed class GlassCutPlanForm : Form
     public GlassCutResult? Result { get; private set; }
     public GlassCutPlanForm(Func<GlassCutContext> source, Action<Form>? applyTheme = null)
     {
-        context = source; Text = "PLANO DE CORTE — SIMULAÇÃO GEOMÉTRICA"; Name = "GlassCutPlan";
+        context = source; theme = applyTheme; Text = "PLANO DE CORTE — SIMULAÇÃO GEOMÉTRICA"; Name = "GlassCutPlan";
         AutoScaleMode = AutoScaleMode.Dpi; AutoScaleDimensions = new SizeF(96, 96); Font = bodyFont;
         ClientSize = new Size(1100, 740); MinimumSize = new Size(640, 440); StartPosition = FormStartPosition.CenterParent; ShowInTaskbar = false;
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 4 };
@@ -54,16 +66,22 @@ public sealed class GlassCutPlanForm : Form
         columns.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         var left = Fields(out var leftScroll); var right = Fields(out var rightScroll);
         columns.Controls.Add(leftScroll, 0, 0); columns.Controls.Add(rightScroll, 1, 0); layout.Controls.Add(columns, 0, 2);
-        GlassWorkshopForm.AddField(left, "LARGURA REAL DA CHAPA (mm)", width);
-        GlassWorkshopForm.AddField(left, "ALTURA REAL DA CHAPA (mm)", height);
+        GlassWorkshopForm.AddField(left, "LARGURA REAL DA CHAPA", new GlassDimensionField(width));
+        GlassWorkshopForm.AddField(left, "ALTURA REAL DA CHAPA", new GlassDimensionField(height));
         GlassWorkshopForm.AddField(left, "MATERIAL SUGERIDO — CADASTRO JÁ VINCULADO", material);
         rotation.Click += (_, _) => { allowRotation = !allowRotation; rotation.Text = "PERMITIR ROTAÇÃO 90°: " + (allowRotation ? "SIM" : "NÃO"); Dirty(); };
         GlassWorkshopForm.AddField(left, "Só gira se esta opção E a coluna 90° da peça permitirem.", rotation);
-        foreach (var (property, title, size) in new[] { ("Id", "Peça / ID", 90), ("Description", "Descrição", 160), ("Width", "Largura mm", 100), ("Height", "Altura mm", 100), ("Quantity", "Qtd.", 55), ("Material", "Material", 170) })
+        foreach (var (property, title, size) in new[] { ("Id", "Peça / ID", 90), ("Description", "Descrição", 160), ("Width", "Largura", 100), ("Height", "Altura", 100), ("Quantity", "Qtd.", 55), ("Material", "Material", 170) })
             grid.Columns.Add(new DataGridViewTextBoxColumn { Name = property, DataPropertyName = property, HeaderText = title, Width = size, ValueType = typeof(string), MaxInputLength = property is "Description" or "Material" ? 200 : 80 });
+        foreach (var axis in new[] { "Width", "Height" })
+        {
+            var column = new DataGridViewComboBoxColumn { Name = axis + "Unit", DataPropertyName = axis + "Unit", HeaderText = "Unidade", Width = 72, ValueType = typeof(string) };
+            column.Items.AddRange(GlassDimensionUnits.Symbols); grid.Columns.Insert(grid.Columns[axis].Index + 1, column);
+        }
         grid.Columns.Add(new DataGridViewCheckBoxColumn { Name = "Rotation", DataPropertyName = "Rotation", HeaderText = "90° peça", Width = 75, ValueType = typeof(bool) });
         grid.DataSource = rows; grid.SelectionChanged += (_, _) => { view.SelectedPieceId = (grid.CurrentRow?.DataBoundItem as PieceRow)?.Id ?? ""; view.Invalidate(); };
-        grid.CurrentCellDirtyStateChanged += (_, _) => { if (grid.IsCurrentCellDirty && grid.CurrentCell is DataGridViewCheckBoxCell) grid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
+        grid.CurrentCellDirtyStateChanged += (_, _) => { if (grid.IsCurrentCellDirty && grid.CurrentCell is DataGridViewCheckBoxCell or DataGridViewComboBoxCell) grid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
+        AddButton(left, "EditCutPiece", "EDITAR PEÇA", EditSelected);
         GlassWorkshopForm.AddField(left, "PEÇAS EDITÁVEIS • use a rolagem horizontal para as demais colunas", grid);
         AddButton(left, "AddCutPiece", "ADICIONAR PEÇA", () => rows.Add(NewRow()));
         AddButton(left, "AddCutReference", "COPIAR MEDIDAS DO PROJETO", AddReference);
@@ -100,6 +118,20 @@ public sealed class GlassCutPlanForm : Form
     }
     private static void AddButton(TableLayoutPanel parent, string name, string title, Action action)
     { var button = new SalesVisualButton { Name = name, Text = title }; button.Click += (_, _) => action(); GlassWorkshopForm.AddField(parent, "", button); }
+    private void EditSelected()
+    {
+        grid.EndEdit();
+        if (grid.CurrentRow?.DataBoundItem is not PieceRow selected) { status.Text = "Selecione uma peça para editar."; return; }
+        using var editor = new GlassCutPieceEditor(selected, rows.Where(r => r != selected).Select(r => r.Id), BackColor, ForeColor, Result != null, theme);
+        if (editor.ShowDialog(this) == DialogResult.OK && editor.Edited != null)
+        {
+            var replacement = editor.Edited;
+            int index = rows.IndexOf(selected);
+            rows[index] = replacement;
+            grid.CurrentCell = grid.Rows[index].Cells["Id"];
+            if (editor.HadPlan) Recalculate();
+        }
+    }
     private PieceRow NewRow()
     {
         string id; do { id = $"PEÇA {++sequence:00}"; } while (rows.Any(r => string.Equals(r.Id, id, StringComparison.OrdinalIgnoreCase)));
@@ -131,7 +163,7 @@ public sealed class GlassCutPlanForm : Form
             {
                 if (!decimal.TryParse(row.Width, NumberStyles.Number, CultureInfo.CurrentCulture, out var w) || !decimal.TryParse(row.Height, NumberStyles.Number, CultureInfo.CurrentCulture, out var h) || !int.TryParse(row.Quantity, out int q))
                     throw new ArgumentException("Confira os valores numéricos de " + row.Id);
-                pieces.Add(new(row.Id.Trim(), row.Description, w, h, q, row.Material, row.Rotation));
+                pieces.Add(new(row.Id.Trim(), row.Description, GlassDimensionUnits.ToMillimetres(w, row.WidthUnit), GlassDimensionUnits.ToMillimetres(h, row.HeightUnit), q, row.Material, row.Rotation));
             }
             Result = GlassCutPacking.Calculate(width.Value, height.Value, pieces, allowRotation);
             view.Result = Result;
@@ -141,8 +173,9 @@ public sealed class GlassCutPlanForm : Form
             foreach (var p in Result.Rejected) summary.AppendText($"\r\n{p.Piece.Id} ({p.Piece.Quantity} un.): {p.Reason}");
             status.Text = "Simulação recalculada. Materiais diferentes usam chapas separadas. Heurística sem garantia de ótimo global."; preview.Enabled = true; view.Invalidate(); return true;
         }
-        catch (ArgumentException e) { status.Text = e.Message; summary.Text = "Plano inválido. Nenhuma medida do projeto foi alterada."; return false; }
+        catch (Exception e) when (e is ArgumentException or OverflowException) { status.Text = e.Message; summary.Text = "Plano inválido. Nenhuma medida do projeto foi alterada."; return false; }
     }
     protected override void Dispose(bool disposing)
     { base.Dispose(disposing); if (disposing) { bodyFont.Dispose(); titleFont.Dispose(); } }
 }
+
