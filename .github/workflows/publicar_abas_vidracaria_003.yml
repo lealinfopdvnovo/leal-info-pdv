@@ -42,7 +42,7 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Build falhou'}
           if($env:GITHUB_ACTIONS -ne 'true'){throw 'Exige runner descartavel'}
           $tests=Get-ChildItem qa -Recurse -Filter '*.csproj' | Where-Object {$_.FullName -notmatch '[\\/]speedfood[\\/]'}
-          $tests=$tests | Sort-Object @{Expression={if($_.FullName -match '[\\/]glass-cotas[\\/]'){0}else{1}}},FullName
+          $tests=$tests | Sort-Object @{Expression={if($_.FullName -match '[\\/](glass-cotas|glass-units)[\\/]'){0}else{1}}},FullName
           foreach($test in $tests){
             $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
             if([IO.Path]::GetFileName($sandbox) -ne 'LealInfoPDV'){throw 'Pasta inesperada'}
