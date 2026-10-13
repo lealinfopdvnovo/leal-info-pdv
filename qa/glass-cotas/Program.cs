@@ -16,6 +16,12 @@ static class Program
     static void Mouse(Control c, string method, int x, int y, int delta = 0) => c.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(c, new object[] { new MouseEventArgs(MouseButtons.Left, 1, x, y, delta) });
     static byte[] Pixels(Control c) { using var b = new Bitmap(c.Width, c.Height); c.DrawToBitmap(b, new Rectangle(Point.Empty, b.Size)); using var s = new MemoryStream(); b.Save(s, ImageFormat.Png); return SHA256.HashData(s.ToArray()); }
     static void Save(Control c, string name) { using var b = new Bitmap(c.Width, c.Height); c.DrawToBitmap(b, new Rectangle(Point.Empty, b.Size)); b.Save("glass-cotas-evidencias/" + name + ".png", ImageFormat.Png); }
+    static void Desktop(Form form, string name)
+    {
+        form.Activate(); form.BringToFront(); Pump();
+        try { using var b = new Bitmap(form.ClientSize.Width, form.ClientSize.Height); using var g = Graphics.FromImage(b); g.CopyFromScreen(form.PointToScreen(Point.Empty), Point.Empty, b.Size); b.Save("glass-cotas-evidencias/" + name + "-desktop.png", ImageFormat.Png); }
+        catch (System.ComponentModel.Win32Exception) { Console.WriteLine("CAPTURA DESKTOP indisponível; renderização nativa preservada."); }
+    }
     static void Style(Form f)
     {
         typeof(MainForm).GetMethod("ApplyFloatingTheme", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(RuntimeHelpers.GetUninitializedObject(typeof(MainForm)), new object[] { f });
@@ -67,6 +73,7 @@ static class Program
             Check(current.ClientRectangle.Contains(layout.Width.Label) && current.ClientRectangle.Contains(layout.Height.Label) && current.ClientRectangle.Contains(layout.OrientationBounds), "Legendas dentro do visor");
             Check(!layout.Width.Label.IntersectsWith(layout.Height.Label) && !layout.Width.Label.IntersectsWith(layout.OrientationBounds) && !layout.Height.Label.IntersectsWith(layout.OrientationBounds), "Cotas sem sobreposição entre textos");
             Check(layout.Width.Text.Contains(dimensions.Item1.ToString("0.##")) && layout.Height.Text.Contains(dimensions.Item2.ToString("0.##")), "Medidas reais, sem cotas internas inventadas");
+            if (delta == (0, 0) && dimensions == (1200m, 1000m)) Check(layout.Width.DrawLine && layout.Height.DrawLine, "Duas linhas de cota na perspectiva inicial");
             Check(layout.Orientation.Contains("interno/externo não definidos"), "Orientação ilustrativa explicitada");
             if (delta.Item1 == 360) Check(layout.Orientation.Contains("FACE B"), "Face posterior identificada");
             Save(current, $"3d-{dimensions.Item1}-{dimensions.Item2}-{delta.Item1}");
@@ -100,6 +107,8 @@ static class Program
                 Check(rows[2].Width == "450" && rows[0].Width == first && rows[1].Width == second, "Editar somente PEÇA 03 na grade real");
                 Check(cut.Result == null && !Find<Button>(cut, "CutPreview").Enabled, "Edição invalida resultado anterior");
                 rows[2].Quantity = "2"; Check(cut.Recalculate() && cut.Result!.Sheets.Sum(s => s.Pieces.Count) == 4, "Recalcular quantidade");
+                Save(cut, "plano-multiplas-pecas"); Desktop(cut, "plano-multiplas-pecas");
+                using (var a4 = GlassCutPlanPrint.RenderPage(new(new("REFERÊNCIA 1200 × 1000", 1200, 1000, 1), "CLIENTE FICTICIO CORTE", Array.Empty<GlassMaterialLink>()), cut.Result!)) a4.Save("glass-cotas-evidencias/plano-varias-pecas-a4.png", ImageFormat.Png);
                 Check(Find<NumericUpDown>(central, "WidthMm").Value == 1200 && Find<NumericUpDown>(central, "HeightMm").Value == 1000 && Find<NumericUpDown>(central, "Quantity").Value == 1, "Plano não altera o projeto");
                 Find<NumericUpDown>(central, "WidthMm").Value = 1800; Check(rows[0].Width == "1200", "Alterar projeto não apaga edição operacional do plano");
                 Find<Button>(cut, "AddCutReference").PerformClick(); Check(rows.Last().Width == "1800", "Importação explícita usa fonte atual");
@@ -120,7 +129,7 @@ static class Program
                 bool preview = false; using var nested = new System.Windows.Forms.Timer { Interval = 50 };
                 nested.Tick += (_, _) => { var print = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f.Text == "PRÉVIA A4 — PLANO DE CORTE"); if (print == null) return; nested.Stop(); preview = true; Check(print.Modal && print.Owner == cut && Find<PictureBox>(print, "CutPrintPage").Image != null, "Prévia A4 real"); print.Close(); };
                 nested.Start(); Find<Button>(cut, "CutPreview").PerformClick(); Check(preview, "Botão prévia funcional");
-                Save(cut, "plano-modal");
+                Save(cut, "plano-modal"); Desktop(cut, "plano-modal");
             }
             catch (Exception ex) { error = ex; }
             finally { cut.Close(); }
@@ -145,7 +154,9 @@ static class Program
                 if (parent is Panel scroll) { scroll.ScrollControlIntoView(c); Pump(); Check(scroll.RectangleToScreen(scroll.ClientRectangle).IntersectsWith(c.RectangleToScreen(c.ClientRectangle)), "Rolagem alcança " + c.Name); }
                 if (c is Button b) Check(TextRenderer.MeasureText(b.Text, b.Font).Width <= b.Width - 4, "Texto do botão completo " + c.Name);
             }
-            Save(cut, $"plano-{size.Width}-{factor:0.00}"); cut.Close();
+            Save(cut, $"plano-{size.Width}-{factor:0.00}");
+            if (size.Width == 640 && factor == 1) Desktop(cut, "plano-pequeno");
+            cut.Close();
         }
     }
 }
