@@ -47,6 +47,10 @@ jobs:
           Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.385/LEAL_INFO_PDV_001_V10_385_UPDATE.zip' -OutFile baseline001.zip
           if((Get-FileHash baseline001.zip).Hash.ToLowerInvariant() -ne '5866bb086adf2cd0f61b523f2da6f27313470f2b06620d631aea9e88dae23308'){throw 'Baseline 001 mudou'}
           Expand-Archive baseline001.zip baseline001
+          $baselineDeps=Get-Content baseline001/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdk=$baselineDeps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdk){throw 'SDK baseline ausente'}
+          $sdkVersion=$sdk.Split('/')[1]
           git worktree add --detach before-src 121021377266444344f3545cdfc253a0604b0163
           if($LASTEXITCODE -ne 0){throw 'Worktree baseline falhou'}
           Copy-Item qa/port001 before-src/qa/ -Recurse
@@ -57,7 +61,7 @@ jobs:
           ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
-          dotnet build qa/port001/LealInfoPDV.Port001Tests.csproj -c Release
+          dotnet build qa/port001/LealInfoPDV.Port001Tests.csproj -c Release -p:WindowsSdkPackageVersion=$sdkVersion
           if($LASTEXITCODE -ne 0){throw 'Baseline QA build falhou'}
           Copy-Item ../baseline001/LealInfoPDV.dll qa/port001/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.dll -Force
           $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
@@ -73,7 +77,7 @@ jobs:
           ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
-          dotnet run --project qa/port001/LealInfoPDV.Port001Tests.csproj -c Release -- --after
+          dotnet run --project qa/port001/LealInfoPDV.Port001Tests.csproj -c Release -p:WindowsSdkPackageVersion=$sdkVersion -- --after
           if($LASTEXITCODE -ne 0){throw 'Comparacao ANTES/DEPOIS falhou'}
       - name: Build e testes Windows antes de publicar
         shell: pwsh
