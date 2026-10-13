@@ -35,7 +35,7 @@ public static class Glass3DTechnicalOverlay
             float nx = length > 0 ? -dy / length : 0, ny = length > 0 ? dx / length : 1;
             var mid = new PointF((a.X + b.X) / 2, (a.Y + b.Y) / 2);
             if ((mid.X - center.X) * nx + (mid.Y - center.Y) * ny < 0) { nx = -nx; ny = -ny; }
-            float offset = margin * 2.4f + 8;
+            float offset = margin * 1.6f + 4;
             var start = new PointF(a.X + nx * offset, a.Y + ny * offset); var end = new PointF(b.X + nx * offset, b.Y + ny * offset);
             float labelDistance = offset + margin + Math.Max(size.Width * MathF.Abs(nx), size.Height * MathF.Abs(ny)) / 2;
             var rect = new Rectangle((int)(mid.X + nx * labelDistance - size.Width / 2f) - 3, (int)(mid.Y + ny * labelDistance - size.Height / 2f) - 2, size.Width + 6, size.Height + 4);
