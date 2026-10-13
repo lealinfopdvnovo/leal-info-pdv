@@ -35,6 +35,16 @@ public sealed class GlassBox3DView : Control
         get => showTechnicalDimensions;
         set { showTechnicalDimensions = value; TechnicalLayout = null; if (Visible && !IsUnavailable) Invalidate(); }
     }
+    public bool CanShowTechnicalDimensions
+    {
+        get
+        {
+            int margin = Math.Max(8, (int)(10 * DeviceDpi / 96f));
+            var info = TextRenderer.MeasureText(dimensionsText, Font, new Size(Math.Max(1, Width - margin * 4), int.MaxValue), TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.NoPadding);
+            var caption = TextRenderer.MeasureText("Largura: 1000000 mm", Font, Size.Empty, TextFormatFlags.NoPadding | TextFormatFlags.SingleLine);
+            return project != null && Width >= info.Width + caption.Width + margin * 5 && Height >= info.Height + Font.Height * 4 + margin * 8;
+        }
+    }
     public event EventHandler? RenderingUnavailable;
     public GlassProject? Project
     {
@@ -132,11 +142,12 @@ public sealed class GlassBox3DView : Control
         var info = new Rectangle(margin, margin, Math.Min(Width - margin * 2, textSize.Width + margin * 2), textSize.Height + margin * 2);
         g.FillRectangle(dimensionsBackground, info);
         TextRenderer.DrawText(g, dimensionsText, Font, new Rectangle(info.X + margin, info.Y + margin, info.Width - margin * 2, textSize.Height), Color.FromArgb(175, 231, 247), flags);
-        if (showTechnicalDimensions)
+        if (showTechnicalDimensions && CanShowTechnicalDimensions)
         {
             TechnicalLayout = Glass3DTechnicalOverlay.Layout(ClientRectangle, projected, project!, YawDegrees, PitchDegrees, Font, info, margin);
             Glass3DTechnicalOverlay.Draw(g, TechnicalLayout, Font);
         }
+        else TechnicalLayout = null;
     }
     private void DrawLeaf(Graphics g, PointF[] face, float left, float right)
     {
