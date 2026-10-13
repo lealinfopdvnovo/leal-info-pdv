@@ -47,6 +47,14 @@ internal static class GlassWorkshopVisuals
             panel.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, panel.ClientRectangle, palette: palette, texture: form.BackgroundImage);
         foreach (var header in all.OfType<SalesGlowLabel>()) header.GlowColor = palette.Accent;
     }
+    internal static void ApplyPiece(Form form)
+    {
+        var all = All(form).ToArray();
+        var button = all.OfType<Button>().Single(b => b.Name == "ConfirmPieceEdit");
+        var field = all.OfType<NumericUpDown>().Single(n => n.Name == "EditPieceWidth");
+        var palette = new SalesPalette(form.BackColor, form.BackColor, button.BackColor, form.ForeColor, field.BackColor, field.ForeColor);
+        foreach (var card in all.OfType<FramedPanel>()) { card.Palette = palette; card.Invalidate(); }
+    }
     private sealed class FramedPanel : Panel
     {
         internal SalesPalette Palette { get; set; } = SalesPalette.For("Futurista Azul");
