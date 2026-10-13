@@ -28,6 +28,13 @@ public sealed class GlassBox3DView : Control
     public float PitchDegrees { get; private set; } = 18;
     public float ZoomFactor { get; private set; } = 1;
     public bool IsUnavailable { get; private set; }
+    private bool showTechnicalDimensions;
+    public Glass3DTechnicalLayout? TechnicalLayout { get; private set; }
+    public bool ShowTechnicalDimensions
+    {
+        get => showTechnicalDimensions;
+        set { showTechnicalDimensions = value; TechnicalLayout = null; if (Visible && !IsUnavailable) Invalidate(); }
+    }
     public event EventHandler? RenderingUnavailable;
     public GlassProject? Project
     {
@@ -35,6 +42,7 @@ public sealed class GlassBox3DView : Control
         set
         {
             project = value;
+            TechnicalLayout = null;
             dimensionsText = value == null ? string.Empty : $"DIMENSÕES DO PROJETO\nLargura: {value.WidthMm:0.##} mm\nAltura: {value.HeightMm:0.##} mm";
             if (value != null && value.ValidationError == null)
             {
@@ -124,6 +132,11 @@ public sealed class GlassBox3DView : Control
         var info = new Rectangle(margin, margin, Math.Min(Width - margin * 2, textSize.Width + margin * 2), textSize.Height + margin * 2);
         g.FillRectangle(dimensionsBackground, info);
         TextRenderer.DrawText(g, dimensionsText, Font, new Rectangle(info.X + margin, info.Y + margin, info.Width - margin * 2, textSize.Height), Color.FromArgb(175, 231, 247), flags);
+        if (showTechnicalDimensions)
+        {
+            TechnicalLayout = Glass3DTechnicalOverlay.Layout(ClientRectangle, projected, project!, YawDegrees, PitchDegrees, Font, info, margin);
+            Glass3DTechnicalOverlay.Draw(g, TechnicalLayout, Font);
+        }
     }
     private void DrawLeaf(Graphics g, PointF[] face, float left, float right)
     {
