@@ -5,7 +5,7 @@ on:
 permissions: {contents: read, actions: read}
 concurrency:
   group: persistencia-vidracaria-003-10393
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   validar-publicar:
     runs-on: windows-latest
