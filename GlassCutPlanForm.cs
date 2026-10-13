@@ -85,7 +85,12 @@ public sealed class GlassCutPlanForm : Form
         RefreshMaterials(); AddReference();
         applyTheme?.Invoke(this); GlassWorkshopVisuals.ApplyCut(this);
         view.BackColor = BackColor; view.ForeColor = ForeColor;
-        Shown += (_, _) => { RefreshMaterials(); var area = Screen.FromControl(Owner ?? this).WorkingArea; Size = new(Math.Min(Width, area.Width), Math.Min(Height, area.Height)); };
+        Shown += (_, _) =>
+        {
+            RefreshMaterials(); var area = Screen.FromControl(Owner ?? this).WorkingArea;
+            Size = new(Math.Min(Width, area.Width), Math.Min(Height, area.Height));
+            Location = new Point(Math.Clamp(Left, area.Left, Math.Max(area.Left, area.Right - Width)), Math.Clamp(Top, area.Top, Math.Max(area.Top, area.Bottom - Height)));
+        };
     }
     private static TableLayoutPanel Fields(out Panel scroll)
     {
