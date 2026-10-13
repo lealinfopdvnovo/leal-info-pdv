@@ -20,7 +20,7 @@ jobs:
         run: |
           import subprocess
           base='d2f99f3ffa6820ae3b5bb41c2f8519077af71bb4'
-          allowed=set(["GlassProjectForm.cs","GlassCutPlanForm.cs","GlassWorkshopVisuals.cs","GlassDimensionUnits.cs","GlassDimensionField.cs","GlassCutPieceEditor.cs","LealInfoPDV.csproj","UpdateManager.cs","qa/glass-cotas/Program.cs","qa/glass-units/Program.cs","qa/glass-units/LealInfoPDV.GlassUnitsTests.csproj",".github/workflows/publicar_abas_vidracaria_003.yml"])
+          allowed=set(["GlassProjectForm.cs","GlassCutPlanForm.cs","GlassWorkshopVisuals.cs","GlassDimensionUnits.cs","GlassDimensionField.cs","GlassCutPieceEditor.cs","LealInfoPDV.csproj","UpdateManager.cs","qa/glass-cotas/Program.cs","qa/kitchen/Program.cs","qa/glass-units/Program.cs","qa/glass-units/LealInfoPDV.GlassUnitsTests.csproj",".github/workflows/publicar_abas_vidracaria_003.yml"])
           changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
           assert changed==allowed,changed
           for n in ['GlassCutPlan.cs','GlassWorkshopForm.cs','GlassBox3DView.cs','Glass3DTechnicalOverlay.cs','GlassCutDrawingView.cs','GlassCutPlanPrint.cs','MainForm.cs','GlassQuote.cs','GlassQuoteForm.cs','GlassProject.cs','GlassProjectPrint.cs','GlassWindowRenderer.cs','GlassCommercialDocument.cs','GlassMaterialSelection.cs','LoginForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs','SalesVisuals.cs','SalesDialogTheme.cs','Assets/kitchen.png','Assets/services.png']:
