@@ -32,8 +32,8 @@ static class Program
         {
             login.Show();var clock=Stopwatch.StartNew();while(clock.ElapsedMilliseconds<6000)Pump();
             var inputs=All(login).OfType<TextBox>().ToArray();inputs.Single(t=>!t.UseSystemPasswordChar).Text="qa_port001";inputs.Single(t=>t.UseSystemPasswordChar).Text="Senha_Ficticia_123";
-            All(login).OfType<Button>().Single(b=>b.Text=="ENTRAR").PerformClick();Check(login.DialogResult==DialogResult.OK,"Login real "+(before?"ANTES":"DEPOIS"));
             using var picture=new Bitmap(login.Width,login.Height);login.DrawToBitmap(picture,new Rectangle(Point.Empty,picture.Size));picture.Save(Path.Combine(root,before?"login-antes.png":"login-depois.png"));
+            All(login).OfType<Button>().Single(b=>b.Text=="ENTRAR").PerformClick();Check(login.DialogResult==DialogResult.OK,"Login real "+(before?"ANTES":"DEPOIS"));
         }
         var license=typeof(MainForm).Assembly.GetType("LealInfoPDV.Licensing.InstallationLicense",true)!;
         license.GetProperty("Current",S)!.SetValue(null,new LicenseTerms("QA",2,"unico",null,"",1,"QA","standard","001"));
