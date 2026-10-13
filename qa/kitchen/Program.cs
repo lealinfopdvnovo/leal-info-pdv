@@ -82,7 +82,7 @@ static class Program
                     tabs.SelectedTab=page;f.PerformLayout();Pump(20);
                     if(page.Text=="Projetos") Check(All(page).Any(x=>x.Visible&&x.Name=="QuoteCustomer")&&All(page).Any(x=>x.Name=="Description"),"Dados gerais integrados ausentes");
                     else if(page.Text=="Materiais") Check(All(page).OfType<Label>().Any(x=>x.Visible&&x.Text.Contains("próxima etapa")),"Reserva de materiais ausente");
-                    else if(page.Text=="Medidas") Check(All(page).Any(x=>x.Visible&&x.Name=="WidthMm")&&All(page).Any(x=>x.Name=="HeightMm"),"Medidas integradas ausentes");
+                    else if(page.Text=="Medidas") Check(new[]{"WidthMmEntry","HeightMmEntry","WidthMmUnit","HeightMmUnit"}.All(name=>All(page).Any(x=>x.Visible&&x.Name==name))&&All(page).Any(x=>x.Name=="WidthMm")&&All(page).Any(x=>x.Name=="HeightMm"),"Medidas integradas e unidades individuais ausentes");
                     else if(page.Text=="Cálculos") Check(All(page).Any(x=>x.Visible&&x.Name=="QuotePrice")&&All(page).Any(x=>x.Name=="QuoteSummary"),"Cálculos integrados ausentes");
                     else if(page.Text=="Desenho") Check(All(page).OfType<GlassDrawingView>().Any(x=>x.Visible),"2D integrado ausente");
                     else if(page.Text=="Visualização") Check(All(page).OfType<GlassBox3DView>().Any(x=>x.Visible),"3D integrado ausente");
