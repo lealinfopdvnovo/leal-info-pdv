@@ -50,8 +50,8 @@ public sealed class GlassProjectForm : Form
         Add(thumbnail);
         Add(new Label { Text = GlassProject.ModelName, AutoSize = true, MaximumSize = new Size(255, 0) });
         Add(new Label { Text = "DESCRIÇÃO DO PROJETO", AutoSize = true }); Add(description);
-        Add(new Label { Text = "LARGURA DO VÃO (mm)", AutoSize = true }); Add(widthMm);
-        Add(new Label { Text = "ALTURA DO VÃO (mm)", AutoSize = true }); Add(heightMm);
+        Add(new Label { Text = "LARGURA DO VÃO", AutoSize = true }); Add(new GlassDimensionField(widthMm));
+        Add(new Label { Text = "ALTURA DO VÃO", AutoSize = true }); Add(new GlassDimensionField(heightMm));
         Add(new Label { Text = "QUANTIDADE", AutoSize = true }); Add(quantity);
         Add(visualize); Add(print);
         var commercial = Button("GlassQuote", "ORÇAMENTO DA VIDRAÇARIA");
@@ -115,8 +115,8 @@ public sealed class GlassProjectForm : Form
         GlassWorkshopForm.AddField(projects, "QUANTIDADE", quantity);
         quote = new GlassQuoteForm(CurrentProject());
         quote.Mount(projects, calculations);
-        GlassWorkshopForm.AddField(measures, "LARGURA DO VÃO (mm)", widthMm);
-        GlassWorkshopForm.AddField(measures, "ALTURA DO VÃO (mm)", heightMm);
+        GlassWorkshopForm.AddField(measures, "LARGURA DO VÃO", widthMm.Parent!);
+        GlassWorkshopForm.AddField(measures, "ALTURA DO VÃO", heightMm.Parent!);
         GlassWorkshopForm.AddField(measures, "", visualize);
         GlassWorkshopForm.AddField(measures, "", message);
         GlassWorkshopForm.AddField(printing, "IMPRESSÃO TÉCNICA A4", print);
@@ -209,3 +209,4 @@ public sealed class GlassProjectForm : Form
         Height = 42, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(11, 113, 161), ForeColor = Color.White };
     protected override void Dispose(bool disposing) { base.Dispose(disposing); if (disposing) { quote?.Dispose(); heading.Dispose(); body.Dispose(); } }
 }
+
