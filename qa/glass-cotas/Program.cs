@@ -98,7 +98,7 @@ static class Program
             {
                 opened = true; remembered = cut; Check(cut.Modal && cut.Owner == central, "Plano integrado à Central em modal própria");
                 var grid = Find<DataGridView>(cut, "CutPieces"); var rows = (BindingList<GlassCutPlanForm.PieceRow>)grid.DataSource!;
-                Check(grid.Columns.Cast<DataGridViewColumn>().All(c => c is DataGridViewTextBoxColumn or DataGridViewCheckBoxColumn), "Tipos da grade corretos");
+                Check(grid.Columns.Cast<DataGridViewColumn>().All(c => c is DataGridViewTextBoxColumn or DataGridViewCheckBoxColumn or DataGridViewComboBoxColumn), "Tipos da grade corretos");
                 Check(rows.Count == 1 && rows[0].Width == "1200" && rows[0].Height == "1000", "Referência inicial do projeto sem folgas inventadas");
                 Check(Find<NumericUpDown>(cut, "SheetWidth").Value == 0 && Find<NumericUpDown>(cut, "SheetHeight").Value == 0, "Chapa não hardcoded");
                 Find<NumericUpDown>(cut, "SheetWidth").Value = 2500; Find<NumericUpDown>(cut, "SheetHeight").Value = 1800;
