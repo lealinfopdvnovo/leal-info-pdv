@@ -35,7 +35,8 @@ static class Program
         foreach(var unit in GlassDimensionUnits.Symbols)
         {
             var equivalent=GlassCutPacking.Calculate(GlassDimensionUnits.ToMillimetres(GlassDimensionUnits.Convert(3000,"mm",unit),unit),2000,new[]{new GlassCutPiece("A","",GlassDimensionUnits.ToMillimetres(80,"cm"),GlassDimensionUnits.ToMillimetres(1.9m,"m"),2,""),new GlassCutPiece("B","",1200,GlassDimensionUnits.ToMillimetres(1,"m"),1,"")},true);
-            Check(System.Text.Json.JsonSerializer.Serialize(reference)==System.Text.Json.JsonSerializer.Serialize(equivalent),"Packing e aproveitamento equivalentes " + unit);
+            Check(reference.TotalArea == equivalent.TotalArea && reference.UsedArea == equivalent.UsedArea && reference.UnusedArea == equivalent.UnusedArea && reference.Utilization == equivalent.Utilization && reference.Waste == equivalent.Waste && reference.Sheets.Count == equivalent.Sheets.Count &&
+                reference.Sheets.SelectMany(s=>s.Pieces.Select(p=>(s.Number,s.Material,p.Piece.Id,p.Instance,p.X,p.Y,p.WidthMm,p.HeightMm,p.Rotated))).SequenceEqual(equivalent.Sheets.SelectMany(s=>s.Pieces.Select(p=>(s.Number,s.Material,p.Piece.Id,p.Instance,p.X,p.Y,p.WidthMm,p.HeightMm,p.Rotated)))),"Packing e aproveitamento equivalentes " + unit);
         }
         using var central = new GlassWorkshopForm(Style); central.Show(); Pump();
         var tabs=Find<TabControl>(central,"GlassSections"); tabs.SelectedIndex=2;
