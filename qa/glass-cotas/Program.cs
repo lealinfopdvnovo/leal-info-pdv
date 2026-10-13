@@ -82,6 +82,9 @@ static class Program
             Check(Pixels(current).SequenceEqual(Pixels(baseline)), "Zoom limpo idêntico");
             current.ShowTechnicalDimensions = true; Pixels(current); Check(!current.IsUnavailable && current.TechnicalLayout != null, "Overlay no zoom");
         }
+        using var tiny = new GlassBox3DView { Size = new Size(500, 100), Dock = DockStyle.None, Font = font, Project = new GlassProject("PEQUENO", 1200, 1000, 1), ShowTechnicalDimensions = true };
+        using var tinyBaseline = new BaselineGlassBox3DView { Size = tiny.Size, Dock = DockStyle.None, Font = font, Project = tiny.Project };
+        Check(!tiny.CanShowTechnicalDimensions && Pixels(tiny).SequenceEqual(Pixels(tinyBaseline)) && tiny.TechnicalLayout == null && !tiny.IsUnavailable, "Visor pequeno preserva 3D/dimensões originais sem sobrepor novas cotas");
     }
     static void TestCutModal(GlassWorkshopForm central)
     {
