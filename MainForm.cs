@@ -830,12 +830,22 @@ public sealed class MainForm : Form
         // Distribui todos os atalhos pela largura disponível.
         // Assim não existe barra de rolagem horizontal, independentemente
         // da resolução da tela.
+        bool resizingShortcutBar = false;
         void ResizeShortcutBar()
         {
-            if (bar.Controls.Count == 0) return;
+            if (bar.Controls.Count == 0 || resizingShortcutBar) return;
+            resizingShortcutBar = true;
+            try
+            {
 
             int usable = Math.Max(560, bar.ClientSize.Width - bar.Padding.Horizontal - 4);
             int each = Math.Max(58, usable / bar.Controls.Count);
+            bool overflow = each * bar.Controls.Count > usable;
+            if (bar.AutoScroll != overflow)
+            {
+                bar.AutoScroll = overflow;
+                bar.Height += overflow ? SystemInformation.HorizontalScrollBarHeight : -SystemInformation.HorizontalScrollBarHeight;
+            }
 
             foreach (Control shortcut in bar.Controls)
             {
@@ -854,6 +864,8 @@ public sealed class MainForm : Form
                     }
                 }
             }
+            }
+            finally { resizingShortcutBar = false; }
         }
 
         bar.SizeChanged += (_, _) => ResizeShortcutBar();
