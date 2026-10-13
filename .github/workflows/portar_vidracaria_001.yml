@@ -1,0 +1,153 @@
+name: Abas e tema Vidracaria 003 - publicar 10.391
+on:
+  push:
+    branches: ['release/vidracaria-port-001-10391']
+permissions: {contents: read}
+concurrency:
+  group: port-vidracaria-001
+  cancel-in-progress: true
+jobs:
+  publicar:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Validar isolamento e metadados
+        shell: python
+        run: |
+          import subprocess
+          import json
+          base='121021377266444344f3545cdfc253a0604b0163'
+          donor='e14429525c457210b233e80ce3bc268d0b89019d'
+          allowed=set(["Glass3DTechnicalOverlay.cs","GlassBox3DView.cs","GlassCommercialDocument.cs","GlassCutDrawingView.cs","GlassCutPieceEditor.cs","GlassCutPlan.cs","GlassCutPlanForm.cs","GlassCutPlanPrint.cs","GlassDimensionField.cs","GlassDimensionUnits.cs","GlassMaterialSelection.cs","GlassProject.cs","GlassProjectForm.cs","GlassProjectPrint.cs","GlassQuote.cs","GlassQuoteForm.cs","GlassWindowRenderer.cs","GlassWorkshopForm.cs","GlassWorkshopIcon.cs","GlassWorkshopVisuals.cs","qa/glass-commercial/LealInfoPDV.GlassCommercialTests.csproj","qa/glass-commercial/Program.cs","qa/glass-cotas/BaselineGlassBox3DView.cs","qa/glass-cotas/LealInfoPDV.GlassCotasTests.csproj","qa/glass-cotas/Program.cs","qa/glass-cut/LealInfoPDV.GlassCutTests.csproj","qa/glass-cut/Program.cs","qa/glass-quote-windows/LealInfoPDV.GlassQuoteWindowsTests.csproj","qa/glass-quote-windows/Program.cs","qa/glass-quote/LealInfoPDV.GlassQuoteTests.csproj","qa/glass-quote/Program.cs","qa/glass-tabs/LealInfoPDV.GlassTabsTests.csproj","qa/glass-tabs/Program.cs","qa/glass-units/LealInfoPDV.GlassUnitsTests.csproj","qa/glass-units/Program.cs","qa/glass/LealInfoPDV.GlassTests.csproj","qa/glass/Program.cs","qa/glass3d/LealInfoPDV.Glass3DTests.csproj","qa/glass3d/Program.cs","MainForm.cs","LealInfoPDV.csproj","UpdateManager.cs","qa/kitchen/Program.cs","qa/port001/Program.cs","qa/port001/LealInfoPDV.Port001Tests.csproj",".github/workflows/portar_vidracaria_001.yml"])
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed==allowed,changed
+          for name in ["Glass3DTechnicalOverlay.cs","GlassBox3DView.cs","GlassCommercialDocument.cs","GlassCutDrawingView.cs","GlassCutPieceEditor.cs","GlassCutPlan.cs","GlassCutPlanForm.cs","GlassCutPlanPrint.cs","GlassDimensionField.cs","GlassDimensionUnits.cs","GlassMaterialSelection.cs","GlassProject.cs","GlassProjectForm.cs","GlassProjectPrint.cs","GlassQuote.cs","GlassQuoteForm.cs","GlassWindowRenderer.cs","GlassWorkshopForm.cs","GlassWorkshopIcon.cs","GlassWorkshopVisuals.cs","qa/glass-commercial/LealInfoPDV.GlassCommercialTests.csproj","qa/glass-commercial/Program.cs","qa/glass-cotas/BaselineGlassBox3DView.cs","qa/glass-cotas/LealInfoPDV.GlassCotasTests.csproj","qa/glass-cotas/Program.cs","qa/glass-cut/LealInfoPDV.GlassCutTests.csproj","qa/glass-cut/Program.cs","qa/glass-quote-windows/LealInfoPDV.GlassQuoteWindowsTests.csproj","qa/glass-quote-windows/Program.cs","qa/glass-quote/LealInfoPDV.GlassQuoteTests.csproj","qa/glass-quote/Program.cs","qa/glass-tabs/LealInfoPDV.GlassTabsTests.csproj","qa/glass-tabs/Program.cs","qa/glass-units/LealInfoPDV.GlassUnitsTests.csproj","qa/glass-units/Program.cs","qa/glass/LealInfoPDV.GlassTests.csproj","qa/glass/Program.cs","qa/glass3d/LealInfoPDV.Glass3DTests.csproj","qa/glass3d/Program.cs"]:
+              assert subprocess.check_output(['git','show',donor+':'+name])==subprocess.check_output(['git','show','HEAD:'+name]),name
+          original=subprocess.check_output(['git','show',base+':MainForm.cs']).decode()
+          merged=subprocess.check_output(['git','show','HEAD:MainForm.cs']).decode()
+          for old,new in [["        AddTool(bar, \"COZINHA\", \"kitchen.png\", OpenKitchen);","        AddTool(bar, \"COZINHA\", \"kitchen.png\", OpenKitchen);\n        AddTool(bar, \"VIDRAÇARIA\", \"vidracaria-local\", OpenGlassWorkshop);"],["    private void OpenKitchen()","    private void OpenGlassWorkshop()\n    {\n        using var form = new GlassWorkshopForm(dialog =>\n        {\n            ApplyFloatingTheme(dialog);\n            if (!Application.OpenForms.Cast<Form>().Any(x => x.Name == \"SalesForm\"))\n                SalesDialogTheme.Apply(dialog, GetSetting(\"sales_theme\", \"Futurista Azul\"), null);\n        });\n        form.ShowDialog(this);\n    }\n\n    private void OpenKitchen()"],["        string normalizedText = text.Trim();","        string normalizedText = text.Trim();\n        bool isGlass = normalizedText == \"VIDRAÇARIA\";"],["            Color topColor = isProducts","            Color topColor = isGlass\n                ? (hover ? Color.FromArgb(72, 217, 245) : Color.FromArgb(27, 174, 217))\n                : isProducts"],["                : isSales ? Color.FromArgb(85, 5, 18) : Color.FromArgb(2, 28, 66);","                : isSales ? Color.FromArgb(85, 5, 18) : isGlass ? Color.FromArgb(7, 49, 92) : Color.FromArgb(2, 28, 66);"],["        if (File.Exists(iconPath))\n        {\n            using var source = Image.FromFile(iconPath);","        if (File.Exists(iconPath) || isGlass)\n        {\n            using var source = isGlass ? GlassWorkshopIcon.Create() : Image.FromFile(iconPath);"]]:
+              assert original.count(old)==1
+              original=original.replace(old,new)
+          assert original==merged,'Merge MainForm extrapolou Vidracaria'
+          for name in ['LealInfoPDV.csproj','UpdateManager.cs']:
+              assert subprocess.check_output(['git','show',base+':'+name]).replace(b'10.385',b'10.391')==subprocess.check_output(['git','show','HEAD:'+name]),name
+          assert subprocess.check_output(['git','show',base+':LoginForm.cs'])==subprocess.check_output(['git','show','HEAD:LoginForm.cs'])
+          print('PASS: merge seletivo 001; todos os demais arquivos 001 preservados; modulo exato 10.390')
+      - name: Comparar com DLL realmente publicado no 001 antes da integração
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:GITHUB_ACTIONS -ne 'true'){throw 'Exige Windows descartavel'}
+          $env:PORT001_EVIDENCE=Join-Path $PWD 'port001-evidencias'
+          New-Item -ItemType Directory $env:PORT001_EVIDENCE -Force|Out-Null
+          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.385/LEAL_INFO_PDV_001_V10_385_UPDATE.zip' -OutFile baseline001.zip
+          if((Get-FileHash baseline001.zip).Hash.ToLowerInvariant() -ne '5866bb086adf2cd0f61b523f2da6f27313470f2b06620d631aea9e88dae23308'){throw 'Baseline 001 mudou'}
+          Expand-Archive baseline001.zip baseline001
+          git worktree add --detach before-src 121021377266444344f3545cdfc253a0604b0163
+          if($LASTEXITCODE -ne 0){throw 'Worktree baseline falhou'}
+          Copy-Item qa/port001 before-src/qa/ -Recurse
+          Push-Location before-src
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet build qa/port001/LealInfoPDV.Port001Tests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Baseline QA build falhou'}
+          Copy-Item ../baseline001/LealInfoPDV.dll qa/port001/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.dll -Force
+          $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+          if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+          dotnet qa/port001/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Port001Tests.dll --before
+          if($LASTEXITCODE -ne 0){throw 'Baseline real 001 falhou'}
+          Pop-Location
+          git worktree remove --force before-src
+          if($LASTEXITCODE -ne 0){throw 'Baseline worktree nao retirado'}
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet run --project qa/port001/LealInfoPDV.Port001Tests.csproj -c Release -- --after
+          if($LASTEXITCODE -ne 0){throw 'Comparacao ANTES/DEPOIS falhou'}
+      - name: Build e testes Windows antes de publicar
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet build LealInfoPDV.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          if($env:GITHUB_ACTIONS -ne 'true'){throw 'Exige runner descartavel'}
+          $tests=Get-ChildItem qa -Recurse -Filter '*.csproj' | Where-Object {$_.FullName -notmatch '[\\/](speedfood|port001)[\\/]'}
+          $tests=$tests | Sort-Object @{Expression={if($_.FullName -match '[\\/](glass-cotas|glass-units)[\\/]'){0}else{1}}},FullName
+          foreach($test in $tests){
+            $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+            if([IO.Path]::GetFileName($sandbox) -ne 'LealInfoPDV'){throw 'Pasta inesperada'}
+            if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+            Write-Host ('TEST SUITE '+$test.FullName)
+            $argsExtra=@()
+            if($test.FullName -match '[\\/]kitchen[\\/]'){$argsExtra=@('--','--global')}
+            if($test.FullName -match '[\\/](company-cep|sales-logo)[\\/]'){$argsExtra=@('--','003')}
+            dotnet run --project $test.FullName -c Release @argsExtra
+            if($LASTEXITCODE -ne 0){throw ('Suite falhou: '+$test.FullName)}
+          }
+          Write-Host 'PASS suites locais; SpeedFood/Firebase online nao executado para preservar escopo'
+          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.385/LEAL_INFO_PDV_001_V10_385_UPDATE.zip' -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne '5866bb086adf2cd0f61b523f2da6f27313470f2b06620d631aea9e88dae23308'){throw 'Baseline mudou'}
+          Expand-Archive baseline.zip baseline
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdk=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdk){throw 'SDK nao encontrado'}
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$($sdk.Split('/')[1]) -o publish
+          if($LASTEXITCODE -ne 0){throw 'Publish build falhou'}
+          New-Item -ItemType Directory package|Out-Null
+          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
+          $before=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          $after=Get-Content package/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          $old=@($before.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
+          $new=@($after.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
+          if(Compare-Object $old $new){throw 'Dependencias mudaram'}
+          Compress-Archive package/* LEAL_INFO_PDV_001_V10_391_UPDATE.zip
+      - name: Validar PDF real e multipagina
+        shell: pwsh
+        run: |
+          python -m pip install pypdf
+          if($LASTEXITCODE -ne 0){throw 'Validador PDF indisponivel'}
+          @'
+          from pypdf import PdfReader
+          for name in ['orcamento-real.pdf','orcamento-multipagina.pdf']:
+              r=PdfReader('glass-commercial-evidencias/'+name,strict=True)
+              assert len(r.pages)>0
+              if 'multipagina' in name: assert len(r.pages)>1
+              for p in r.pages:
+                  assert abs(float(p.mediabox.width)-595.28)<1
+                  assert abs(float(p.mediabox.height)-841.89)<1
+                  assert len(p.images)>0
+              print('PASS PDF A4',name,len(r.pages))
+          '@ | python
+          if($LASTEXITCODE -ne 0){throw 'PDF invalido'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vidracaria-001-10391
+          path: |
+            kitchen-evidencias/
+            glass-evidencias/
+            glass3d-evidencias/
+            glass-tabs-evidencias/
+            glass-commercial-evidencias/
+            glass-cotas-evidencias/
+            glass-units-evidencias/
+            port001-evidencias/
+            LEAL_INFO_PDV_001_V10_391_UPDATE.zip
+          retention-days: 14
