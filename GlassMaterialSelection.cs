@@ -26,7 +26,7 @@ internal sealed class GlassMaterialSelection : IDisposable
         var remove = new SalesVisualButton { Name = "RemoveMaterialLink", Text = "REMOVER VÍNCULO DO PROJETO" };
         remove.Click += (_, _) => { if (selected.CurrentRow?.DataBoundItem is GlassMaterialLink item) links.Remove(item); };
         GlassWorkshopForm.AddField(fields, "", remove);
-        GlassWorkshopForm.AddField(fields, "", new Label { AutoSize = true, Text = "Vínculo informativo em memória. Não altera preço do orçamento, estoque ou cadastro. Plano de corte/aproveitamento/sobras bloqueado para próxima etapa: faltam regras profissionais validadas." });
+        GlassWorkshopForm.AddField(fields, "", new Label { AutoSize = true, Text = "Vínculo informativo em memória. Não altera preço do orçamento, estoque ou cadastro. Plano geométrico disponível abaixo. Fabricação e estoque de sobras continuam para próxima etapa, com regras profissionais validadas." });
     }
     private void Search()
     {
