@@ -42,6 +42,7 @@ public static class GlassCutPlanRenderer
             using var fill = new SolidBrush(paper ? Color.FromArgb(220, 237, 246) : Color.FromArgb(75, 25, 162, 218));
             g.FillRectangle(fill, r); g.DrawRectangle(string.Equals(selected, p.Piece.Id, StringComparison.OrdinalIgnoreCase) ? highlight : outline, r.X, r.Y, r.Width, r.Height);
             string id = p.Piece.Id + (p.Piece.Quantity > 1 ? $" #{p.Instance}" : "");
+            if (g.MeasureString(id, font).Width >= r.Width - 8) id = p.Piece.Id;
             string measures = $"{p.WidthMm:0.##} × {p.HeightMm:0.##} mm" + (p.Rotated ? " (90°)" : "");
             if (r.Width > 36 && r.Height > font.Height + 8 && g.MeasureString(id, font).Width < r.Width - 8)
             {
