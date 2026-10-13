@@ -74,6 +74,11 @@ jobs:
           ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          foreach($qaFile in @('qa/company-cep/Program.cs','qa/sales-logo/Program.cs')){
+            $qa=Get-Content $qaFile -Raw
+            $qa=$qa.Replace('(flavor == "003")','(flavor == "001" || flavor == "003")')
+            [IO.File]::WriteAllText((Join-Path $PWD $qaFile),$qa)
+          }
           foreach($test in @('qa/company-cep/LealInfoPDV.CompanyCepTests.csproj','qa/sales-logo/LealInfoPDV.SalesLogoTests.csproj')){
             $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
             if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
