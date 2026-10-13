@@ -123,8 +123,7 @@ static class Program
         Check(GlassProjectStore.List().Count==1,"Processos não duplicam projeto");
         Check(Data()==before,"Todas as tabelas operacionais intactas");
         string taskName="CreateZipAsync";
-        var task=(Task<string>)typeof(DatabaseBackupService).GetMethod(taskName,BindingFlags.NonPublic|BindingFlags.Static)!.Invoke(null,new object[]{CancellationToken.None})!;
-        string zip=task.GetAwaiter().GetResult();
+        string zip=Task.Run(async () => await (Task<string>)typeof(DatabaseBackupService).GetMethod(taskName,BindingFlags.NonPublic|BindingFlags.Static)!.Invoke(null,new object[]{CancellationToken.None})!).GetAwaiter().GetResult();
         using(var archive=ZipFile.OpenRead(zip)){archive.GetEntry("lealinfo.db")!.ExtractToFile("glass-persistence-evidencias/backup.db",true);}
         using(var b=new Microsoft.Data.Sqlite.SqliteConnection("Data Source=glass-persistence-evidencias/backup.db"))
         {b.Open();using var q=b.CreateCommand();q.CommandText="SELECT COUNT(*) FROM glass_projects_v1 WHERE id='"+a.Id+"'";Check(Convert.ToInt32(q.ExecuteScalar())==1,"Backup normal inclui projeto");}
