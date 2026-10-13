@@ -839,7 +839,7 @@ public sealed class MainForm : Form
             {
 
             int usable = Math.Max(560, bar.ClientSize.Width - bar.Padding.Horizontal - 4);
-            int each = Math.Max(58, usable / bar.Controls.Count);
+            int each = Math.Max(60, usable / bar.Controls.Count);
             bool overflow = each * bar.Controls.Count > usable;
             if (bar.AutoScroll != overflow)
             {
