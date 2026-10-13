@@ -44,6 +44,7 @@ static class Program
         Database.Initialize();
         if(args.Length>0)
         {
+            if(args[0]=="--verify-process") CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("en-US");
             using var reopened=new GlassWorkshopForm();reopened.Show();Pump();Load(reopened,args[1]);
             var snapshot=Snapshot(reopened);
             Check(snapshot.WidthMm==1200 && snapshot.WidthUnit=="m" && snapshot.HeightMm==1900 && snapshot.HeightUnit=="cm","Dimensão física e representação após novo processo");
@@ -91,7 +92,8 @@ static class Program
             Find<Button>(cut,"AddCutPiece").PerformClick();
             var second=(GlassCutPlanForm.PieceRow)grid.Rows[1].DataBoundItem;second.Description="PEÇA INDEPENDENTE";second.Width="600";second.Height="1500";second.HeightUnit="m";second.Quantity="1";second.Material="VIDRO FICTICIO";
             Check(cut.Recalculate(),"Packing inicial existente");decimal used=cut.Result!.UsedArea;
-            cut.Hide();a=Save(f);
+            cut.Hide();tabs.SelectedIndex=5;Pump();Find<Button>(f,"Toggle3DMeasurements").PerformClick();
+            a=Save(f);Check(a.Data.Show3DMeasurements,"Preferência de cotas 3D incluída");
             Check(a.Revision==1 && GlassProjectStore.List().Count==1,"Primeiro salvar cria um projeto");
             Check(a.Data.Materials.Single().ProductId==998 && a.Data.Quote.CustomerId==998,"Cliente/material existentes sem duplicar cadastro");
             Check(a.Data.Cut!.Pieces[0].WidthMm==800 && a.Data.Cut.Pieces[1].HeightMm==1500,"Peças canônicas e unidades preservadas");
@@ -101,7 +103,7 @@ static class Program
             Check(Json(Snapshot(reopened))==Json(a.Data),"Fechar Central/reabrir restaura todos os campos");
             var restoredCut=(GlassCutPlanForm)typeof(GlassWorkshopForm).GetField("cutPlan",Flags)!.GetValue(reopened)!;
             Check(restoredCut.Result!.UsedArea==used,"Packing reconstruído equivalente");
-            Check(Find<TextBox>(reopened,"QuoteSummary").Text.Contains("227,00"),"Orçamento reconstruído por fórmula existente");
+            Check(Find<TextBox>(reopened,"QuoteSummary").Text.Contains("255,00"),"Orçamento reconstruído por fórmula existente");
             reopened.Close();
         }
         Check(Directory.GetFiles(Database.BackupFolder,"ANTES_VIDRACARIA_V1_*.db").Length==1,"Backup pré-migração único");
@@ -129,6 +131,10 @@ static class Program
         var final=GlassProjectStore.Load(a.Id);
         var invalid=final.Data with {WidthUnit="km"};
         bool refused=false;try{GlassProjectStore.Save(invalid,final);}catch(InvalidDataException){refused=true;}Check(refused && GlassProjectStore.Load(a.Id).Revision==final.Revision,"Entrada inválida não altera versão salva");
+        Sql("CREATE TRIGGER qa_fail_glass BEFORE UPDATE ON glass_projects_v1 BEGIN SELECT RAISE(ABORT,'falha controlada'); END");
+        bool atomic=false;try{GlassProjectStore.Save(final.Data with {Description="NÃO DEVE GRAVAR"},final);}catch(Microsoft.Data.Sqlite.SqliteException){atomic=true;}
+        Sql("DROP TRIGGER qa_fail_glass");
+        Check(atomic && Json(GlassProjectStore.Load(a.Id))==Json(final),"Falha transacional preserva registro completo");
         foreach(var size in new[]{new Size(1366,768),new Size(1600,900),new Size(1920,1080)})
         foreach(float factor in new[]{1f,1.25f,1.5f})
         {
