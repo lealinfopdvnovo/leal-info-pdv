@@ -13,8 +13,14 @@ internal sealed class GlassSavedProjectBrowser : Form
         AutoScaleMode=AutoScaleMode.Dpi;AutoScaleDimensions=new SizeF(96,96);
         var layout=new TableLayoutPanel { Dock=DockStyle.Fill,Padding=new Padding(16),RowCount=2,ColumnCount=1 };
         layout.RowStyles.Add(new RowStyle(SizeType.Percent,100));layout.RowStyles.Add(new RowStyle(SizeType.Absolute,56));
-        foreach(var (name,title) in new[]{("Description","Projeto"),("Customer","Cliente"),("Model","Modelo"),("CreatedUtc","Criação (UTC)"),("UpdatedUtc","Última alteração (UTC)")})
+        foreach(var (name,title) in new[]{("Description","Projeto"),("Customer","Cliente"),("Model","Modelo"),("CreatedUtc","Criação"),("UpdatedUtc","Última alteração")})
             grid.Columns.Add(new DataGridViewTextBoxColumn { Name=name,DataPropertyName=name,HeaderText=title,ValueType=typeof(string) });
+        grid.CellFormatting+=(_,e)=>{
+            if(e.ColumnIndex>=0 && grid.Columns[e.ColumnIndex].Name is "CreatedUtc" or "UpdatedUtc" &&
+                e.Value is string value && DateTime.TryParse(value,System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind,out var date))
+            { e.Value=date.ToLocalTime().ToString("g");e.FormattingApplied=true; }
+        };
         layout.Controls.Add(grid,0,0);
         var footer=new FlowLayoutPanel { Dock=DockStyle.Fill,WrapContents=true,AutoScroll=true };
         var open=new SalesVisualButton { Name="ConfirmOpenGlassProject",Text="ABRIR",Width=140,Height=42 };
@@ -30,7 +36,7 @@ internal sealed class GlassSavedProjectBrowser : Form
         };
         close.Click+=(_,_)=>Close();CancelButton=close;footer.Controls.AddRange(new Control[]{open,delete,close});
         layout.Controls.Add(footer,0,1);Controls.Add(layout);
-        Reload();theme?.Invoke(this);GlassWorkshopVisuals.Apply(this);
+        Reload();if(theme!=null) theme(this); else SalesDialogTheme.Apply(this,"Futurista Azul",null);
         Shown+=(_,_)=>{var area=Screen.FromControl(this).WorkingArea;Size=new(Math.Min(Width,area.Width),Math.Min(Height,area.Height));};
     }
     private void Reload()=>grid.DataSource=GlassProjectStore.List().ToList();
