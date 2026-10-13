@@ -50,7 +50,14 @@ static class Program
             {
                 var caption=card.Controls.OfType<Label>().Single();
                 if(caption.Text=="VIDRAÇARIA"){Check(!before,"Somente versão integrada possui Vidraçaria");continue;}
-                records[$"{size.Width}-{scale}-{caption.Text}"]=Hash(card);
+                Hash(card); // Executa a medição real do renderer antes de verificar legibilidade.
+                var fits=caption.GetType().GetProperty("CompleteTextFits");
+                Check(fits==null||(bool)fits.GetValue(caption)!,"Legenda completa "+caption.Text);
+                var icon=card.Controls.OfType<PictureBox>().SingleOrDefault();
+                string iconHash="";
+                if(icon?.Image!=null){using var bytes=new MemoryStream();icon.Image.Save(bytes,ImageFormat.Png);iconHash=Convert.ToHexString(SHA256.HashData(bytes.ToArray()));}
+                records[$"{size.Width}-{scale}-{caption.Text}"]=$"{caption.Text}|{caption.Font.FontFamily.Name}|{caption.ForeColor.ToArgb()}|{caption.Dock}|{caption.AutoEllipsis}|{card.Cursor==Cursors.Hand}|{icon?.SizeMode}|{iconHash}";
+                if(!before){bar.ScrollControlIntoView(card);Pump();Check(bar.RectangleToScreen(bar.ClientRectangle).IntersectsWith(card.RectangleToScreen(card.ClientRectangle)),"Atalho acessível "+caption.Text);}
             }
             using var image=new Bitmap(bar.Width,bar.Height);bar.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(root,$"barra-{(before?"antes":"depois")}-{size.Width}-{scale}.png"),ImageFormat.Png);
         }
@@ -60,7 +67,7 @@ static class Program
         {
             var previous=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"antes.json")));
             Check(previous.RootElement.GetProperty("Data").GetString()==initial,"Dados fictícios preservados ANTES/DEPOIS");
-            foreach(var property in previous.RootElement.GetProperty("Buttons").EnumerateObject())Check(records.TryGetValue(property.Name,out var hash)&&hash==property.Value.GetString(),"Botão anterior idêntico "+property.Name);
+            foreach(var property in previous.RootElement.GetProperty("Buttons").EnumerateObject())Check(records.TryGetValue(property.Name,out var hash)&&hash==property.Value.GetString(),"Ícone, texto, tipografia e comportamento preservados "+property.Name);
             Check(All(main).OfType<Label>().Any(l=>l.Text=="VIDRAÇARIA"),"Entrada Vidraçaria presente no 001");
             File.WriteAllText(Path.Combine(root,"depois.json"),JsonSerializer.Serialize(snapshot));
         }
