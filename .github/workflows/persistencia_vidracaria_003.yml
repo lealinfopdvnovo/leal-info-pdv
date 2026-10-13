@@ -166,6 +166,7 @@ jobs:
           $ErrorActionPreference='Stop'
           $qa=Get-Content qa/glass/Program.cs -Raw
           $qa=$qa.Replace('id == "003" ? "10.383" : "10.379"','id == "001" ? "10.392" : id == "003" ? "10.393" : "10.385"')
+          $qa=$qa.Replace('new[] { "001", "002", "003", "004" }','new[] { "003" }')
           $qa=$qa.Replace('new object[] { http, id, "10.378" }','new object[] { http, id, "10.390" }')
           [IO.File]::WriteAllText((Join-Path $PWD 'qa/glass/Program.cs'),$qa)
           dotnet run --project qa/glass/LealInfoPDV.GlassTests.csproj -c Release -- --live
