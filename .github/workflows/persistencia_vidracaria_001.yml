@@ -2,15 +2,25 @@ name: Validar persistencia Vidracaria somente 001 - 10.392
 on:
   push:
     branches: ['release/vidracaria-persistencia-001-10392']
-permissions: {contents: read, actions: read}
+permissions: {contents: read, actions: write}
 concurrency:
-  group: persistencia-vidracaria-001
+  group: persistencia-vidracaria-001-com-timeout
   cancel-in-progress: true
 jobs:
   validar:
     runs-on: windows-latest
     timeout-minutes: 25
     steps:
+      - name: Encerrar testes anteriores supersedidos desta candidata isolada
+        shell: pwsh
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          foreach($run in @(38439889572,38441042575)){
+            $r=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$run"|ConvertFrom-Json
+            if($r.head_branch -ne 'release/vidracaria-persistencia-001-10392'){throw 'Run fora da bancada'}
+            if($r.status -ne 'completed'){gh api --method POST "repos/$env:GITHUB_REPOSITORY/actions/runs/$run/cancel"}
+          }
+          exit 0
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
       - uses: actions/setup-dotnet@v4
