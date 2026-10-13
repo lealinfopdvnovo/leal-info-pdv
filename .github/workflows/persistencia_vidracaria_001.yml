@@ -47,7 +47,7 @@ jobs:
           $qa=Get-Content qa/port001/Program.cs -Raw
           $qa=$qa.Replace('Check(!before,"Somente versão integrada possui Vidraçaria");','')
           [IO.File]::WriteAllText((Join-Path $PWD 'qa/port001/Program.cs'),$qa)
-          Copy-Item qa/port001 before-src/qa/ -Recurse
+          Copy-Item qa/port001/Program.cs before-src/qa/port001/Program.cs -Force
           Push-Location before-src
           ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
           ./scripts/aplicar_lic_ai_botao_v10_186.ps1
