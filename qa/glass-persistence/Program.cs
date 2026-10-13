@@ -56,6 +56,7 @@ static class Program
                 Find<NumericUpDown>(reopened,"QuotePrice").Value=72;
                 Call(reopened,"EnsureCutPlan");
                 var cut=(GlassCutPlanForm)typeof(GlassWorkshopForm).GetField("cutPlan",Flags)!.GetValue(reopened)!;
+                cut.Show(reopened);Pump();
                 var grid=Find<DataGridView>(cut,"CutPieces");
                 ((GlassCutPlanForm.PieceRow)grid.Rows[0].DataBoundItem).Description="PEÇA ALTERADA";
                 Check(cut.Recalculate(),"Recálculo depois de edição");
@@ -144,7 +145,25 @@ static class Program
             using var image=new Bitmap(f.Width,f.Height);f.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save("glass-persistence-evidencias/central-"+size.Width+"-"+factor+".png");
             f.Close();
         }
-        File.WriteAllText("glass-persistence-evidencias/projeto-final.json",Json(final));
+        using(var f=new GlassWorkshopForm())
+        {
+            f.Show();Load(f,a.Id);Pump();
+            long revision=GlassProjectStore.Load(a.Id).Revision;
+            Find<Button>(f,"SaveGlassProject").PerformClick();
+            Check(GlassProjectStore.Load(a.Id).Revision==revision+1,"Botão SALVAR PROJETO real grava");
+            bool opened=false;
+            using var timer=new System.Windows.Forms.Timer {Interval=60};
+            timer.Tick+=(_,_)=>{
+                var chooser=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Text.StartsWith("ABRIR PROJETO"));
+                if(chooser==null)return;
+                timer.Stop();opened=true;
+                Find<Button>(chooser,"ConfirmOpenGlassProject").PerformClick();
+            };
+            timer.Start();Find<Button>(f,"OpenGlassProject").PerformClick();
+            Check(opened && Snapshot(f).Description=="PROJETO A EDITADO","Botão ABRIR/lista/modal restaura projeto");
+            f.Close();
+        }
+        File.WriteAllText("glass-persistence-evidencias/projeto-final.json",Json(GlassProjectStore.Load(a.Id)));
         Console.WriteLine("PASS PERSISTENCIA "+checks+" verificações; fechamento/reabertura e novos processos Windows; nenhum cadastro/estoque/venda/pagamento alterado.");
     }
 }
