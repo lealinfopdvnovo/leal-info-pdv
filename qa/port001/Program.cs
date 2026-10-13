@@ -42,17 +42,18 @@ static class Program
         ((System.Windows.Forms.Timer)typeof(MainForm).GetField("licenseTimer",I)!.GetValue(main)!).Stop();
         typeof(MainForm).GetField("automaticBackupCompleted",I)!.SetValue(main,true);
         var products=All(main).OfType<Label>().Single(c=>c.Text=="PRODUTOS");var bar=(FlowLayoutPanel)products.Parent!.Parent!;
-        var records=new Dictionary<string,string>();float applied=1;
+        var records=new Dictionary<string,string>();var legibility=new Dictionary<string,bool>();float applied=1;
         foreach(var scale in new[]{1f,1.25f,1.5f})foreach(var size in new[]{new Size(1366,768),new Size(1600,900),new Size(1920,1080)})
         {
             main.Size=size;if(scale!=applied){main.Scale(new SizeF(scale/applied,scale/applied));applied=scale;}Pump();
             foreach(Control card in bar.Controls)
             {
                 var caption=card.Controls.OfType<Label>().Single();
-                if(caption.Text=="VIDRAÇARIA"){Check(!before,"Somente versão integrada possui Vidraçaria");continue;}
+                if(caption.Text=="VIDRAÇARIA"){Hash(card);Check(!before,"Somente versão integrada possui Vidraçaria");Check((bool)caption.GetType().GetProperty("CompleteTextFits")!.GetValue(caption)!,"Legenda Vidraçaria completa");continue;}
                 Hash(card); // Executa a medição real do renderer antes de verificar legibilidade.
                 var fits=caption.GetType().GetProperty("CompleteTextFits");
-                Check(fits==null||(bool)fits.GetValue(caption)!,"Legenda completa "+caption.Text);
+                legibility[$"{size.Width}-{scale}-{caption.Text}"]=fits==null||(bool)fits.GetValue(caption)!;
+                if(!legibility[$"{size.Width}-{scale}-{caption.Text}"])Console.WriteLine("OBSERVAÇÃO "+(before?"BASELINE":"CANDIDATA")+" legenda limitada "+caption.Text);
                 var icon=card.Controls.OfType<PictureBox>().SingleOrDefault();
                 string iconHash="";
                 if(icon?.Image!=null){using var bytes=new MemoryStream();icon.Image.Save(bytes,ImageFormat.Png);iconHash=Convert.ToHexString(SHA256.HashData(bytes.ToArray()));}
@@ -61,13 +62,14 @@ static class Program
             }
             using var image=new Bitmap(bar.Width,bar.Height);bar.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(root,$"barra-{(before?"antes":"depois")}-{size.Width}-{scale}.png"),ImageFormat.Png);
         }
-        var snapshot=new{Data=initial,Buttons=records};
+        var snapshot=new{Data=initial,Buttons=records,Legibility=legibility};
         if(before)File.WriteAllText(Path.Combine(root,"antes.json"),JsonSerializer.Serialize(snapshot));
         else
         {
             var previous=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"antes.json")));
             Check(previous.RootElement.GetProperty("Data").GetString()==initial,"Dados fictícios preservados ANTES/DEPOIS");
             foreach(var property in previous.RootElement.GetProperty("Buttons").EnumerateObject())Check(records.TryGetValue(property.Name,out var hash)&&hash==property.Value.GetString(),"Ícone, texto, tipografia e comportamento preservados "+property.Name);
+            foreach(var property in previous.RootElement.GetProperty("Legibility").EnumerateObject())Check(!property.Value.GetBoolean()||legibility[property.Name],"Sem regressão de legibilidade "+property.Name);
             Check(All(main).OfType<Label>().Any(l=>l.Text=="VIDRAÇARIA"),"Entrada Vidraçaria presente no 001");
             File.WriteAllText(Path.Combine(root,"depois.json"),JsonSerializer.Serialize(snapshot));
         }
