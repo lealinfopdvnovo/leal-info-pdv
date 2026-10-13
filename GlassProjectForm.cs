@@ -14,6 +14,7 @@ public sealed class GlassProjectForm : Form
     private readonly Button mode2D = new SalesVisualButton() { Name = "Mode2D", Text = "2D", Width = 54, Height = 30 };
     private readonly Button mode3D = new SalesVisualButton() { Name = "Mode3D", Text = "3D", Width = 54, Height = 30, Enabled = false };
     private readonly Button reset3D = new SalesVisualButton() { Name = "Reset3D", Text = "RESETAR VISÃO", Width = 160, Height = 30, Visible = false };
+    private readonly Button measurements3D = new SalesVisualButton { Name = "Toggle3DMeasurements", Text = "MOSTRAR MEDIDAS", Width = 210, Height = 30, Visible = false };
     private readonly Label viewHint = new() { Name = "ViewHint", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(174, 201, 220) };
     private GlassBox3DView? drawing3D;
     private bool unavailable3D;
@@ -80,6 +81,12 @@ public sealed class GlassProjectForm : Form
         mode2D.Click += (_, _) => Show2D();
         mode3D.Click += (_, _) => Show3D();
         reset3D.Click += (_, _) => drawing3D?.ResetView();
+        measurements3D.Click += (_, _) =>
+        {
+            if (drawing3D == null || drawing3D.IsUnavailable) return;
+            drawing3D.ShowTechnicalDimensions = !drawing3D.ShowTechnicalDimensions;
+            measurements3D.Text = drawing3D.ShowTechnicalDimensions ? "OCULTAR MEDIDAS" : "MOSTRAR MEDIDAS";
+        };
         graph.Controls.Add(modes, 0, 1);
         surface.Controls.Add(drawing);
         graph.Controls.Add(surface, 0, 2);
@@ -124,6 +131,7 @@ public sealed class GlassProjectForm : Form
         var viewFooter = new Panel { Dock = DockStyle.Bottom, Height = 44 };
         visualization.Controls.Add(viewFooter);
         reset3D.Dock = DockStyle.Left; viewFooter.Controls.Add(reset3D);
+        measurements3D.Dock = DockStyle.Right; viewFooter.Controls.Add(measurements3D);
         tabs.SelectedIndexChanged += (_, _) =>
         {
             if (tabs.SelectedTab == visualization) MoveSurface(true);
@@ -141,6 +149,7 @@ public sealed class GlassProjectForm : Form
     }
     internal GlassCommercialSnapshot CommercialSnapshot(IReadOnlyList<GlassMaterialLink> materials)
         => (quote ?? throw new InvalidOperationException("Projeto não disponível.")).CommercialSnapshot(materials);
+    internal GlassProject CutReferenceProject => CurrentProject();
     private GlassProject CurrentProject() => new(description.Text.Trim(), widthMm.Value, heightMm.Value, (int)quantity.Value);
     public void UpdateDrawing()
     {
@@ -154,6 +163,7 @@ public sealed class GlassProjectForm : Form
     {
         if (drawing3D != null) drawing3D.Visible = false;
         drawing.Visible = true; drawing.BringToFront(); reset3D.Visible = false;
+        measurements3D.Visible = false;
         mode2D.BackColor = Color.FromArgb(20, 149, 194); mode3D.BackColor = Color.FromArgb(11, 113, 161);
         viewHint.Text = unavailable3D ? "3D indisponível neste equipamento. O desenho 2D continua disponível."
             : "Esquema do vão • medidas em mm • sem regras de fabricação/corte";
@@ -172,6 +182,7 @@ public sealed class GlassProjectForm : Form
             drawing3D.Project = drawing.Project;
             drawing.Visible = false; drawing3D.Visible = true; drawing3D.BringToFront(); drawing3D.Focus();
             reset3D.Visible = true;
+            measurements3D.Visible = true;
             mode3D.BackColor = Color.FromArgb(20, 149, 194); mode2D.BackColor = Color.FromArgb(11, 113, 161);
             viewHint.Text = "3D técnico • arraste para girar • rodinha: zoom • profundidade apenas ilustrativa";
         }
