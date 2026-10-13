@@ -35,6 +35,18 @@ internal static class GlassWorkshopVisuals
         };
     }
     private static IEnumerable<Control> All(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(All(x)));
+    internal static void ApplyCut(Form form)
+    {
+        var all = All(form).ToArray();
+        var button = all.OfType<Button>().First(b => b.Name == "RecalculateCut");
+        var field = all.OfType<NumericUpDown>().First(n => n.Name == "SheetWidth");
+        var panelColor = all.OfType<Panel>().First(p => p.AutoScroll).BackColor;
+        var palette = new SalesPalette(form.BackColor, panelColor, button.BackColor, form.ForeColor, field.BackColor, field.ForeColor);
+        foreach (var card in all.OfType<FramedPanel>()) { card.Palette = palette; card.Invalidate(); }
+        foreach (var panel in all.OfType<Panel>().Where(p => p.AutoScroll))
+            panel.Paint += (_, e) => SalesVisuals.Frame(e.Graphics, panel.ClientRectangle, palette: palette, texture: form.BackgroundImage);
+        foreach (var header in all.OfType<SalesGlowLabel>()) header.GlowColor = palette.Accent;
+    }
     private sealed class FramedPanel : Panel
     {
         internal SalesPalette Palette { get; set; } = SalesPalette.For("Futurista Azul");
