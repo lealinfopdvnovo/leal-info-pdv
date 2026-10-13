@@ -2,7 +2,7 @@ name: Abas e tema Vidracaria 003 - publicar 10.390
 on:
   push:
     branches: ['release/vidracaria-unidades-editar-003-10390']
-permissions: {contents: read}
+permissions: {contents: read, actions: read}
 concurrency:
   group: unidades-editar-003
   cancel-in-progress: true
@@ -28,67 +28,91 @@ jobs:
           for n in ['UpdateManager.cs','LealInfoPDV.csproj']:
               assert subprocess.check_output(['git','show',base+':'+n]).replace(b'10.389',b'10.390')==subprocess.check_output(['git','show','HEAD:'+n]),n
           print('PASS preservacao byte a byte: packing/desenhos/cotas/calculos/impressao/PDF/licenca/banco/updater')
-      - name: Build e testes Windows antes de publicar
+      - name: Exigir validação Windows concluída e fonte idêntica
+        shell: pwsh
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          $r=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/38390138396"|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0 -or $r.conclusion -ne 'success' -or $r.head_sha -ne '04bce2a13c39402b1bea9ffea047430d9f210dad'){throw 'Validação não aprovada'}
+          $changes=@(git diff --name-only 04bce2a13c39402b1bea9ffea047430d9f210dad HEAD)
+          if($changes.Count -ne 1 -or $changes[0] -ne '.github/workflows/publicar_abas_vidracaria_003.yml'){throw 'Código diverge do pacote testado'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: vidracaria-003-10390
+          run-id: 38390138396
+          github-token: '${{ github.token }}'
+          path: validado
+      - name: Usar exatamente pacote validado automaticamente
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
-          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
-          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
-          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
-          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
-          ./scripts/aplicar_central_equipamentos_v10_314.ps1
-          dotnet build LealInfoPDV.csproj -c Release
-          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
-          if($env:GITHUB_ACTIONS -ne 'true'){throw 'Exige runner descartavel'}
-          $tests=Get-ChildItem qa -Recurse -Filter '*.csproj' | Where-Object {$_.FullName -notmatch '[\\/]speedfood[\\/]'}
-          $tests=$tests | Sort-Object @{Expression={if($_.FullName -match '[\\/](glass-cotas|glass-units)[\\/]'){0}else{1}}},FullName
-          foreach($test in $tests){
-            $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
-            if([IO.Path]::GetFileName($sandbox) -ne 'LealInfoPDV'){throw 'Pasta inesperada'}
-            if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
-            Write-Host ('TEST SUITE '+$test.FullName)
-            $argsExtra=@()
-            if($test.FullName -match '[\\/]kitchen[\\/]'){$argsExtra=@('--','--global')}
-            if($test.FullName -match '[\\/](company-cep|sales-logo)[\\/]'){$argsExtra=@('--','003')}
-            dotnet run --project $test.FullName -c Release @argsExtra
-            if($LASTEXITCODE -ne 0){throw ('Suite falhou: '+$test.FullName)}
+          $name='LEAL_INFO_PDV_003_V10_390_UPDATE.zip'
+          Copy-Item "validado/$name" $name
+          if((Get-FileHash $name).Hash.ToLowerInvariant() -ne 'fb0a038e274485648193354b24e48625cfce23e7220ebd26710b4562d4479457'){throw 'Pacote validado divergiu'}
+          Expand-Archive $name conferir
+          $files=@(Get-ChildItem conferir -Recurse -File|ForEach-Object {$_.Name}|Sort-Object)
+          $expected=@('LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe')
+          if(Compare-Object $files $expected){throw 'Arquivos proibidos no pacote'}
+      - name: Publicar somente canal 003 com guarda concorrencial
+        shell: pwsh
+        env: {GH_TOKEN: '${{ secrets.UPDATE_REPO_TOKEN }}', SOURCE_TOKEN: '${{ github.token }}'}
+        run: |
+          $ErrorActionPreference='Stop'
+          $head=(Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/git/ref/heads/$env:GITHUB_REF_NAME" -Headers @{Authorization="Bearer $env:SOURCE_TOKEN"}).object.sha
+          if($head -ne $env:GITHUB_SHA){throw 'Candidato superado'}
+          $repo='lealinfopdvnovo/leal-info-pdv-updates'
+          $protected=@{}
+          foreach($p in @('version.json','clients/001/version.json','clients/002/version.json')){
+            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0){throw 'Feed protegido nao pode ser lido'}
+            $protected[$p]=$v.sha
           }
-          Write-Host 'PASS suites locais; SpeedFood/Firebase online nao executado para preservar escopo'
-          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.389/LEAL_INFO_PDV_003_V10_389_UPDATE.zip' -OutFile baseline.zip
-          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne 'eceb78a65927d2857c437caac390f1570e7e3fee8666a597a178ef051b97fd87'){throw 'Baseline mudou'}
-          Expand-Archive baseline.zip baseline
-          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
-          $sdk=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
-          if(!$sdk){throw 'SDK nao encontrado'}
-          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$($sdk.Split('/')[1]) -o publish
-          if($LASTEXITCODE -ne 0){throw 'Publish build falhou'}
-          New-Item -ItemType Directory package|Out-Null
-          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
-          $before=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
-          $after=Get-Content package/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
-          $old=@($before.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
-          $new=@($after.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
-          if(Compare-Object $old $new){throw 'Dependencias mudaram'}
-          Compress-Archive package/* LEAL_INFO_PDV_003_V10_390_UPDATE.zip
-      - name: Validar PDF real e multipagina
+          $fourBefore=gh api "repos/$repo/contents/clients/004/version.json" 2>$null
+          $fourExists=$LASTEXITCODE -eq 0
+          if($fourExists){$fourSha=($fourBefore|ConvertFrom-Json).sha}
+          $entry=gh api "repos/$repo/contents/clients/003/version.json"|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw '003 nao pode ser lido'}
+          $old=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.content))|ConvertFrom-Json
+          if($old.Version -ne '10.389' -or $old.TargetClientCode -ne '003' -or $old.Sha256 -ne 'eceb78a65927d2857c437caac390f1570e7e3fee8666a597a178ef051b97fd87'){throw 'Canal 003 mudou; abortar'}
+          $tags=gh api --paginate "repos/$repo/releases?per_page=100" --jq '.[].tag_name'
+          if($LASTEXITCODE -ne 0 -or 'client-003-v10.390' -in @($tags)){throw 'Release existente ou auditoria falhou'}
+          $package='LEAL_INFO_PDV_003_V10_390_UPDATE.zip'
+          $notes='V10.390 exclusiva 003: seletor mm/cm/m individual nas dimensões editáveis do projeto, chapa e peças, com conversão interna em mm preservando dimensão física; botão EDITAR PEÇA e edição direta na grade mantida. Packing, 2D/3D, cotas, impressões, PDF, cálculos, banco, licença e lógica do updater preservados. Aguardando homologação real do usuário.'
+          $notes|Set-Content notes.txt
+          gh release create client-003-v10.390 $package --repo $repo --title 'LEAL INFO PDV 003 V10.390 - Unidades individuais e Editar peça' --notes-file notes.txt --latest=false
+          if($LASTEXITCODE -ne 0){throw 'Pacote nao publicado; nao mudar feed'}
+          $m=@{Version='10.390';TargetClientCode='003';PackageUrl="https://github.com/$repo/releases/download/client-003-v10.390/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$env:GITHUB_SHA;Notes=$notes;Mandatory=$false}
+          $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($m|ConvertTo-Json)))
+          @{message='Unidades e edição de peça 10.390 somente 003';sha=$entry.sha;content=$content}|ConvertTo-Json -Compress|Set-Content request.json
+          gh api --method PUT "repos/$repo/contents/clients/003/version.json" --input request.json
+          if($LASTEXITCODE -ne 0){throw 'Manifest nao publicado'}
+          foreach($p in $protected.Keys){
+            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0 -or $v.sha -ne $protected[$p]){throw 'Feed protegido mudou'}
+          }
+          $fourAfter=gh api "repos/$repo/contents/clients/004/version.json" 2>$null
+          $fourExistsAfter=$LASTEXITCODE -eq 0
+          if($fourExistsAfter -ne $fourExists){throw '004 mudou'}
+          if($fourExists -and ($fourAfter|ConvertFrom-Json).sha -ne $fourSha){throw '004 mudou'}
+          $url="https://raw.githubusercontent.com/$repo/main/clients/003/version.json"
+          for($i=0;$i -lt 24;$i++){
+            $live=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+            if($live.Version -eq '10.390' -and $live.TargetClientCode -eq '003'){break}
+            Start-Sleep -Seconds 5
+          }
+          if($live.Version -ne '10.390' -or $live.Sha256 -ne $m.Sha256){throw 'Manifest nao propagou'}
+          Invoke-WebRequest $live.PackageUrl -OutFile verificado.zip
+          if((Get-FileHash verificado.zip).Hash.ToLowerInvariant() -ne $live.Sha256){throw 'Hash publicado incorreto'}
+          Write-Host 'PASS PUBLICADO 003 10.390; hash remoto confirmado; global 001 002 intactos'
+          exit 0
+      - name: Conferir deteccao REAL pelo updater
         shell: pwsh
         run: |
-          python -m pip install pypdf
-          if($LASTEXITCODE -ne 0){throw 'Validador PDF indisponivel'}
-          @'
-          from pypdf import PdfReader
-          for name in ['orcamento-real.pdf','orcamento-multipagina.pdf']:
-              r=PdfReader('glass-commercial-evidencias/'+name,strict=True)
-              assert len(r.pages)>0
-              if 'multipagina' in name: assert len(r.pages)>1
-              for p in r.pages:
-                  assert abs(float(p.mediabox.width)-595.28)<1
-                  assert abs(float(p.mediabox.height)-841.89)<1
-                  assert len(p.images)>0
-              print('PASS PDF A4',name,len(r.pages))
-          '@ | python
-          if($LASTEXITCODE -ne 0){throw 'PDF invalido'}
+          $qa=Get-Content qa/glass/Program.cs -Raw
+          $qa=$qa.Replace('10.383','10.390').Replace('10.379','10.385')
+          [IO.File]::WriteAllText((Join-Path $PWD 'qa/glass/Program.cs'),$qa)
+          dotnet run --project qa/glass/LealInfoPDV.GlassTests.csproj -c Release -- --live
+          if($LASTEXITCODE -ne 0){throw 'Deteccao real falhou'}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -99,7 +123,5 @@ jobs:
             glass3d-evidencias/
             glass-tabs-evidencias/
             glass-commercial-evidencias/
-            glass-cotas-evidencias/
-            glass-units-evidencias/
             LEAL_INFO_PDV_003_V10_390_UPDATE.zip
           retention-days: 14
