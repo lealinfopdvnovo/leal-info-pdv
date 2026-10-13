@@ -19,7 +19,8 @@ internal sealed class GlassDimensionField : TableLayoutPanel
             DecimalPlaces = source.DecimalPlaces, Value = source.Value, ThousandsSeparator = false };
         unit = new ComboBox { Name = source.Name + "Unit", DropDownStyle = ComboBoxStyle.DropDownList };
         unit.Items.AddRange(GlassDimensionUnits.Symbols); unit.SelectedIndex = 0;
-        Controls.Add(GlassWorkshopVisuals.Field(entry), 0, 0);
+        var valueFrame = GlassWorkshopVisuals.Field(entry); valueFrame.Name = "FieldFrame" + source.Name;
+        Controls.Add(valueFrame, 0, 0);
         Controls.Add(GlassWorkshopVisuals.Field(unit), 1, 0);
         Controls.Add(canonical); canonical.Visible = false;
         canonical.ValueChanged += CanonicalChanged;
