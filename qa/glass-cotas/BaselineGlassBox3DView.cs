@@ -171,4 +171,3 @@ public sealed class BaselineGlassBox3DView : Control
         base.Dispose(disposing);
     }
 }
-
