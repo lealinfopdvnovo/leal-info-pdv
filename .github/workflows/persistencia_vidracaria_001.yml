@@ -87,8 +87,25 @@ jobs:
           }
           $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
           if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
-          dotnet run --project qa/glass-persistence/LealInfoPDV.GlassPersistenceTests.csproj -c Release
-          if($LASTEXITCODE -ne 0){throw 'Persistencia/reinicio falhou'}
+          dotnet build qa/glass-persistence/LealInfoPDV.GlassPersistenceTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Harness de persistencia nao compilou'}
+          New-Item -ItemType Directory glass-persistence-evidencias -Force|Out-Null
+          $process=Start-Process dotnet -ArgumentList 'qa/glass-persistence/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.GlassPersistenceTests.dll' -PassThru -NoNewWindow -RedirectStandardOutput glass-persistence-evidencias/stdout.log -RedirectStandardError glass-persistence-evidencias/stderr.log
+          $finished=$process.WaitForExit(90000)
+          if(!$finished){$process.Kill($true);$process.WaitForExit()}
+          Get-Content glass-persistence-evidencias/stdout.log
+          Get-Content glass-persistence-evidencias/stderr.log
+          if(!$finished -or $process.ExitCode -ne 0){throw 'Persistencia/reinicio/interface falhou'}
+      - name: Regressao completa Windows da 10.391
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:GITHUB_ACTIONS -ne 'true'){throw 'Exige runner descartavel'}
+          foreach($qaFile in @('qa/company-cep/Program.cs','qa/sales-logo/Program.cs')){
+            $qa=Get-Content $qaFile -Raw
+            $qa=$qa.Replace('(flavor == "003")','(flavor == "001" || flavor == "003")')
+            [IO.File]::WriteAllText((Join-Path $PWD $qaFile),$qa)
+          }
           $tests=Get-ChildItem qa -Recurse -Filter '*.csproj' | Where-Object {$_.FullName -notmatch '[\\/](speedfood|port001|glass-persistence)[\\/]'}
           $tests=$tests | Sort-Object @{Expression={if($_.FullName -match '[\\/](glass-cotas|glass-units)[\\/]'){0}else{1}}},FullName
           foreach($test in $tests){
