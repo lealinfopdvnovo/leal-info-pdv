@@ -93,6 +93,14 @@ static class Program
         grid.CurrentCell=grid.Rows[1].Cells["Width"];grid.BeginEdit(true);((TextBox)grid.EditingControl!).Text="65";grid.EndEdit();Pump();
         Check(rows[1].Width=="65" && cut.Recalculate(),"Edição inline existente e recálculo preservados");
         Check(cut.Result!.UsedArea==1.655m,"Área normalizada após edição");
+        string beforeCancel=System.Text.Json.JsonSerializer.Serialize(rows);
+        using var cancelTimer=new System.Windows.Forms.Timer{Interval=50};
+        cancelTimer.Tick+=(_,_)=>{
+            var editor=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Name=="GlassCutPieceEditor");if(editor==null)return;cancelTimer.Stop();
+            Find<TextBox>(editor,"EditPieceDescription").Text="NÃO CONFIRMADO";Find<Button>(editor,"CancelPieceEdit").PerformClick();
+        };
+        cancelTimer.Start();Find<Button>(cut,"EditCutPiece").PerformClick();
+        Check(System.Text.Json.JsonSerializer.Serialize(rows)==beforeCancel,"Cancelar não modifica nenhuma peça");
         Find<Button>(cut,"RemoveCutPiece").PerformClick();Check(rows.Count==1,"Remoção preservada");
         using(var image=GlassCutPlanPrint.RenderPage(new(new("TESTE",1200,1000,1),"TESTE",Array.Empty<GlassMaterialLink>()),cut.Recalculate()?cut.Result!:throw new Exception("Plano")))image.Save("glass-units-evidencias/plano-a4.png",ImageFormat.Png);
         cut.Close();
