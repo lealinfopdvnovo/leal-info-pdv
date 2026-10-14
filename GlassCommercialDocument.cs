@@ -15,7 +15,7 @@ public static class GlassCommercialDocument
     {
         if (s.Quote.ValidationError != null || s.CustomerId <= 0 || string.IsNullOrWhiteSpace(s.CustomerName))
             throw new ArgumentException("Projeto e cliente válidos são obrigatórios.");
-        string Money(decimal v) => v.ToString("C2", Pt);
+        string Money(decimal v) => GlassBrazilianMoney.Format(v);
         var q = s.Quote; var p = q.Project;
         var rows = new List<string> {
             "Empresa: " + (string.IsNullOrWhiteSpace(s.CompanyName) ? "Não configurada" : s.CompanyName),
@@ -24,10 +24,10 @@ public static class GlassCommercialDocument
             "Serviço: " + s.ServiceDescription,
             $"Medidas: {p.WidthMm.ToString("0.##", Pt)} x {p.HeightMm.ToString("0.##", Pt)} mm",
             "Quantidade: " + p.Quantity,
-            "Área unitária: " + q.Area.ToString("0.######", Pt) + " m²",
-            "Área total: " + q.TotalArea.ToString("0.######", Pt) + " m²",
+            "Área unitária: " + q.Area.ToString("0.00####", Pt) + " m²",
+            "Área total: " + q.TotalArea.ToString("0.00####", Pt) + " m²",
             "Preço por m²: " + Money(q.PricePerSquareMeter), "Valor por área: " + Money(q.MaterialValue),
-            "Serviço adicional (total): " + Money(q.ServiceValue), "Desconto: " + Money(q.Discount),
+            "Serviço adicional (total): " + Money(q.ServiceValue), "Subtotal (área + serviço): " + Money(q.BaseValue), "Desconto: " + Money(q.Discount),
             "Acréscimo: " + Money(q.Addition), "TOTAL DO ORÇAMENTO: " + Money(q.Total), "",
             "Materiais vinculados (informativo; não compõem o preço acima):" };
         foreach (var m in s.Materials) rows.Add($"ID {m.ProductId} — {m.Name} — {m.Category} — preço cadastrado {Money(m.Price)}");
@@ -106,7 +106,7 @@ public static class GlassCommercialDocument
     }
     public static void Preview(Form owner, GlassCommercialSnapshot snapshot)
     {
-        using var dialog = new Form { Text = "ORÇAMENTO COMERCIAL — VIDRAÇARIA", ClientSize = new Size(780, 730), MinimumSize = new Size(420, 360), AutoScaleMode = AutoScaleMode.Dpi, StartPosition = FormStartPosition.CenterParent };
+        using var dialog = new Form { Text = "ORÇAMENTO COMERCIAL — VIDRAÇARIA", Tag = snapshot, ClientSize = new Size(780, 730), MinimumSize = new Size(420, 360), AutoScaleMode = AutoScaleMode.Dpi, StartPosition = FormStartPosition.CenterParent };
         int pageIndex = 0; var picture = new PictureBox { Name = "CommercialPage", Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom };
         void Update() { var old = picture.Image; picture.Image = RenderPage(snapshot, pageIndex); old?.Dispose(); }
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, WrapContents = true };

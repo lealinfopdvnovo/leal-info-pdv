@@ -14,7 +14,11 @@ public sealed class GlassQuoteForm : Form
     private readonly NumericUpDown discount = Money("QuoteDiscount");
     private readonly NumericUpDown addition = Money("QuoteAddition");
     private readonly TextBox summary = new() { Name = "QuoteSummary", ReadOnly = true, Multiline = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical, MinimumSize = new Size(100, 270) };
-    private readonly Button load = new SalesVisualButton() { Name = "LoadQuoteCustomers", Text = "CARREGAR CLIENTES", AutoSize = true };
+    private readonly Button load = new SalesVisualButton() { Name = "LoadQuoteCustomers", Text = "CARREGAR CLIENTES", AutoSize = true, MinimumSize = new Size(180, 42) };
+    private readonly Button registerCustomer = new SalesVisualButton { Name = "RegisterGlassCustomer", Text = "+ CADASTRAR CLIENTE", AutoSize = true, MinimumSize = new Size(220, 42) };
+    private readonly Button selectCustomer = new SalesVisualButton { Name = "SelectGlassCustomer", Text = "SELECIONAR CLIENTE", AutoSize = true, MinimumSize = new Size(220, 42) };
+    private readonly Label selectedCustomer = new() { Name = "SelectedGlassCustomer", AutoSize = true, Dock = DockStyle.Top };
+    private readonly FlowLayoutPanel customerActions = new() { Name = "GlassCustomerActions", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top, WrapContents = true };
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
     private sealed record Customer(long Id, string Name) { public override string ToString() => Name; }
 
@@ -39,7 +43,12 @@ public sealed class GlassQuoteForm : Form
         }
         customer.Items.Add(new Customer(0, "Selecionar cliente cadastrado")); customer.SelectedIndex = 0;
         Add("CLIENTE (cadastro existente)", customer);
-        load.Click += (_, _) => LoadCustomers(); fields.Controls.Add(load);
+        load.Click += (_, _) => LoadCustomers();
+        registerCustomer.Click += (_, _) => RegisterCustomer();
+        selectCustomer.Click += (_, _) => SelectCustomer();
+        customerActions.Controls.AddRange(new Control[] { load, registerCustomer, selectCustomer });
+        fields.Controls.Add(customerActions);
+        fields.Controls.Add(selectedCustomer);
         Add("DESCRIÇÃO DO SERVIÇO (opcional)", service);
         Add("VALOR POR m² (R$)", price);
         Add("SERVIÇO ADICIONAL — VALOR TOTAL (R$)", serviceValue);
@@ -62,7 +71,8 @@ public sealed class GlassQuoteForm : Form
     {
         embedded = true;
         GlassWorkshopForm.AddField(projects, "CLIENTE (cadastro existente)", customer);
-        GlassWorkshopForm.AddField(projects, "", load);
+        GlassWorkshopForm.AddField(projects, "", customerActions);
+        GlassWorkshopForm.AddField(projects, "", selectedCustomer);
         GlassWorkshopForm.AddField(projects, "DESCRIÇÃO DO SERVIÇO (opcional)", service);
         GlassWorkshopForm.AddField(calculations, "VALOR POR m² (R$)", price);
         GlassWorkshopForm.AddField(calculations, "SERVIÇO ADICIONAL — VALOR TOTAL (R$)", serviceValue);
@@ -79,7 +89,7 @@ public sealed class GlassQuoteForm : Form
     }
     internal GlassCommercialSnapshot CommercialSnapshot(IReadOnlyList<GlassMaterialLink> materials)
     {
-        var value = new GlassQuote(project, price.Value, serviceValue.Value, discount.Value, addition.Value);
+        var value = CurrentQuote();
         if (value.ValidationError != null) throw new InvalidOperationException(value.ValidationError);
         if (customer.SelectedItem is not Customer selected || selected.Id == 0)
             throw new InvalidOperationException("Selecione um cliente cadastrado na aba Projetos.");
@@ -107,6 +117,27 @@ public sealed class GlassQuoteForm : Form
         service.Text=saved.Service; price.Value=saved.Price; serviceValue.Value=saved.ServiceValue;
         discount.Value=saved.Discount; addition.Value=saved.Addition; RefreshQuote();
     }
+    private void SelectCustomer() => RegisterCustomer();
+    private void LinkCustomer(long id)
+    {
+        LoadCustomers();
+        int index = customer.Items.Cast<Customer>().ToList().FindIndex(c => c.Id == id && c.Id > 0);
+        if (index < 1) throw new InvalidOperationException("O cliente escolhido não está mais disponível no cadastro.");
+        customer.SelectedIndex = index;
+        RefreshQuote();
+    }
+    private void RegisterCustomer()
+    {
+        Form? host = registerCustomer.FindForm();
+        while (host != null && host is not MainForm) host = host.Owner;
+        if (host is not MainForm main)
+        {
+            MessageBox.Show(registerCustomer.FindForm(), "Abra a Vidraçaria pela tela principal para acessar o cadastro de clientes.", "Cadastro de clientes", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        try { main.OpenCustomersFromGlass(LinkCustomer); }
+        finally { LoadCustomers(); }
+    }
     private void LoadCustomers()
     {
         try
@@ -123,14 +154,17 @@ public sealed class GlassQuoteForm : Form
         }
         catch (Exception) { MessageBox.Show(this, "Não foi possível consultar o cadastro de clientes. Nenhum dado foi alterado.", Text); }
     }
+    private GlassQuote CurrentQuote() => new(project, price.Value, serviceValue.Value, discount.Value, addition.Value);
     private void RefreshQuote()
     {
-        var quote = new GlassQuote(project, price.Value, serviceValue.Value, discount.Value, addition.Value);
+        selectedCustomer.Text = customer.SelectedItem is Customer c && c.Id > 0
+            ? $"CLIENTE SELECIONADO: {c.Name} (ID {c.Id})"
+            : "NENHUM CLIENTE VINCULADO — use SELECIONAR CLIENTE.";
+        var quote = CurrentQuote();
         if (quote.ValidationError != null) { summary.Text = quote.ValidationError + "\r\nTotal indisponível até corrigir os dados."; return; }
-        string MoneyText(decimal value) => value.ToString("C2", Pt);
-        summary.Text = $"CLIENTE: {customer.SelectedItem}\r\nPROJETO: {project.Description}\r\nMODELO: {GlassProject.ModelName}\r\nSERVIÇO: {service.Text}\r\nMEDIDAS: {project.WidthMm.ToString("0.##", Pt)} × {project.HeightMm.ToString("0.##", Pt)} mm\r\nQUANTIDADE: {project.Quantity}\r\nÁREA POR UNIDADE: {quote.Area.ToString("0.######", Pt)} m²\r\nÁREA TOTAL: {quote.TotalArea.ToString("0.######", Pt)} m²\r\nVALOR POR m²: {MoneyText(price.Value)}\r\nVALOR BASE POR ÁREA: {MoneyText(quote.MaterialValue)}\r\nSERVIÇO ADICIONAL (total): {MoneyText(serviceValue.Value)}\r\nDESCONTO: {MoneyText(discount.Value)}\r\nACRÉSCIMO: {MoneyText(addition.Value)}\r\nTOTAL: {MoneyText(quote.Total)}";
+        string MoneyText(decimal value) => GlassBrazilianMoney.Format(value);
+        summary.Text = $"CLIENTE: {customer.SelectedItem}\r\nPROJETO: {project.Description}\r\nMODELO: {GlassProject.ModelName}\r\nSERVIÇO: {service.Text}\r\nMEDIDAS: {project.WidthMm.ToString("0.##", Pt)} × {project.HeightMm.ToString("0.##", Pt)} mm\r\nQUANTIDADE: {project.Quantity}\r\nÁREA POR UNIDADE: {quote.Area.ToString("0.00####", Pt)} m²\r\nÁREA TOTAL: {quote.TotalArea.ToString("0.00####", Pt)} m²\r\nVALOR POR m²: {MoneyText(price.Value)}\r\nVALOR BASE POR ÁREA: {MoneyText(quote.MaterialValue)}\r\nSERVIÇO ADICIONAL (total): {MoneyText(serviceValue.Value)}\r\nSUBTOTAL (área + serviço): {MoneyText(quote.BaseValue)}\r\nDESCONTO: {MoneyText(discount.Value)}\r\nACRÉSCIMO: {MoneyText(addition.Value)}\r\nTOTAL: {MoneyText(quote.Total)}";
         if (embedded) summary.Text = summary.Text[summary.Text.IndexOf("QUANTIDADE:", StringComparison.Ordinal)..];
     }
-    private static NumericUpDown Money(string name) => new() { Name = name, Dock = DockStyle.Fill,
-        DecimalPlaces = 2, Maximum = 1000000000m, ThousandsSeparator = true };
+    private static NumericUpDown Money(string name) => new GlassMoneyInput { Name = name, Dock = DockStyle.Fill };
 }

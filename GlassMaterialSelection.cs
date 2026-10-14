@@ -47,6 +47,8 @@ internal sealed class GlassMaterialSelection : IDisposable
         var grid = new DataGridView { Name = name, AutoGenerateColumns = false, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false, MultiSelect = false, SelectionMode = DataGridViewSelectionMode.FullRowSelect, Height = 170, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill };
         foreach (var column in new[] { ("ProductId", "ID"), ("Name", "Material"), ("Barcode", "Código"), ("Category", "Categoria"), ("Price", "Preço cadastrado") })
             grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = column.Item1, Name = column.Item1, HeaderText = column.Item2 });
+        grid.Columns["Price"].DefaultCellStyle.Format = "C2";
+        grid.Columns["Price"].DefaultCellStyle.FormatProvider = GlassBrazilianMoney.Culture;
         return grid;
     }
     internal void RestoreSaved(IReadOnlyList<GlassMaterialLink> saved)

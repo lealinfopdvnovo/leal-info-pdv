@@ -2516,16 +2516,18 @@ private void ApplyFloatingTheme(Form f)
         f.ShowDialog(this);
     }
 
+    internal void OpenCustomersFromGlass(Action<long>? select = null) => RunAllowed("customers", () => ShowPersonCrud("CLIENTES", "customers", select));
+
     private void OpenCustomers() => ShowPersonCrud("CLIENTES", "customers");
     private void OpenSuppliers() => ShowPersonCrud("FORNECEDORES", "suppliers");
 
-    private void ShowPersonCrud(string title, string table)
+    private void ShowPersonCrud(string title, string table, Action<long>? select = null)
     {
         ShowCrud(title,
             $"SELECT id AS ID,name AS Nome,document AS Documento,phone AS Telefone,email AS Email,address AS Endereço FROM {table} ORDER BY name",
             () => EditPerson(table, null, title[..^1]),
             id => EditPerson(table, id, title[..^1]),
-            id => { if (Confirm("Excluir este cadastro?")) Exec($"DELETE FROM {table} WHERE id=$id", ("$id",id)); });
+            id => { if (Confirm("Excluir este cadastro?")) Exec($"DELETE FROM {table} WHERE id=$id", ("$id",id)); }, select);
     }
 
     private void EditPerson(string table, long? id, string title)
@@ -7008,7 +7010,7 @@ private void ApplyFloatingTheme(Form f)
         c.Controls.Add(new Label{Text=text,Left=x,Top=y,AutoSize=true,ForeColor=Color.White,Font=new Font("Segoe UI",18,FontStyle.Bold)});
     }
 
-    private void ShowCrud(string title,string sql,Action add,Action<long>? edit,Action<long>? delete)
+    private void ShowCrud(string title,string sql,Action add,Action<long>? edit,Action<long>? delete,Action<long>? select=null)
     {
         var f=GridForm(title,sql,out var grid);
         var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};
@@ -7016,6 +7018,16 @@ private void ApplyFloatingTheme(Form f)
         p.Controls.Add(b1);
         if(edit!=null)p.Controls.Add(ActionButton("EDITAR",()=>{var id=SelectedId(grid);if(id.HasValue){edit(id.Value);ReloadGrid(grid,sql);}}));
         if(delete!=null)p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue){delete(id.Value);ReloadGrid(grid,sql);}}));
+        if(select!=null)
+        {
+            var choose=ActionButton("SELECIONAR CLIENTE",()=>
+            {
+                var id=SelectedId(grid);
+                if(!id.HasValue){Info("Escolha um cliente na lista.");return;}
+                select(id.Value);f.DialogResult=DialogResult.OK;f.Close();
+            });
+            choose.Name="SelectCustomerForGlass";p.Controls.Add(choose);
+        }
         p.Controls.Add(ActionButton("FECHAR",f.Close));
         f.Controls.Add(p);
         ApplyFloatingTheme(f);

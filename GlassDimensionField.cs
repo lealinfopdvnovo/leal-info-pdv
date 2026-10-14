@@ -8,12 +8,13 @@ internal sealed class GlassDimensionField : TableLayoutPanel
     private readonly NumericUpDown entry;
     private readonly ComboBox unit;
     private bool syncing;
+    private string displayedUnit = "mm";
     internal GlassDimensionField(NumericUpDown source)
     {
         canonical = source; Name = source.Name + "DimensionField";
         Dock = DockStyle.Top; Height = 54; ColumnCount = 2; RowCount = 1;
         ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
+        ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         entry = new NumericUpDown { Name = source.Name + "Entry", Minimum = source.Minimum, Maximum = source.Maximum,
             DecimalPlaces = source.DecimalPlaces, Value = source.Value, ThousandsSeparator = false };
@@ -24,16 +25,27 @@ internal sealed class GlassDimensionField : TableLayoutPanel
         Controls.Add(GlassWorkshopVisuals.Field(unit), 1, 0);
         Controls.Add(canonical); canonical.Visible = false;
         canonical.ValueChanged += CanonicalChanged;
-        entry.ValueChanged += (_, _) => { if (!syncing) canonical.Value = GlassDimensionUnits.ToMillimetres(entry.Value, unit.Text); };
-        unit.SelectedIndexChanged += (_, _) => RefreshDisplay();
+        entry.ValueChanged += (_, _) => { if (!syncing) canonical.Value = GlassDimensionUnits.ToMillimetres(entry.Value, displayedUnit); };
+        unit.SelectedIndexChanged += (_, _) => ChangeUnit();
     }
-    private void CanonicalChanged(object? sender, EventArgs args) => RefreshDisplay();
+    private void CanonicalChanged(object? sender, EventArgs args) { if (!syncing) RefreshDisplay(); }
+    private void ChangeUnit()
+    {
+        if (syncing) return;
+        // Value valida também texto digitado ainda não confirmado. Ele pertence
+        // à unidade anteriormente exibida, nunca à nova seleção do ComboBox.
+        syncing = true;
+        try { canonical.Value = GlassDimensionUnits.ToMillimetres(entry.Value, displayedUnit); }
+        finally { syncing = false; }
+        RefreshDisplay();
+    }
     private void RefreshDisplay()
     {
         syncing = true;
         try
         {
-            decimal factor = GlassDimensionUnits.Factor(unit.Text);
+            displayedUnit = unit.Text;
+            decimal factor = GlassDimensionUnits.Factor(displayedUnit);
             // Alterar limites não pode reinterpretar o valor antigo na nova unidade.
             entry.Value = entry.Minimum;
             entry.Minimum = canonical.Minimum / factor;

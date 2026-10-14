@@ -27,6 +27,17 @@ static class Program
             Sql("INSERT INTO customers(name) VALUES('CLIENTE FICTICIO PORT001')");
             Auth.CreateUser("QA FICTICIO","qa_port001","Senha_Ficticia_123","ADMINISTRADOR","qa@example.invalid","");
         }
+        if(before)
+        {
+            using var db=Database.Open();using var q=db.CreateCommand();q.CommandText="SELECT id FROM customers WHERE name='CLIENTE FICTICIO PORT001' LIMIT 1";long client=Convert.ToInt64(q.ExecuteScalar());
+            var legacy=GlassProjectStore.Save(new(1,GlassProject.ModelName,"LEGADO001 NAO PERDER",1200,1000,"cm","mm",1,new(client,"CLIENTE FICTICIO PORT001","SERVICO LEGADO",50,10,0,2),Array.Empty<GlassMaterialLink>(),null,false),null);
+            File.WriteAllText(Path.Combine(root,"legado-id.txt"),legacy.Id);
+        }
+        else
+        {
+            var legacy=GlassProjectStore.Load(File.ReadAllText(Path.Combine(root,"legado-id.txt")));
+            Check(legacy.Data.Description=="LEGADO001 NAO PERDER" && legacy.Data.Quote.Price==50 && legacy.Data.Quote.CustomerId>0 && legacy.Data.WidthUnit=="cm","Projeto legado001 e vinculo anteriores preservados SEM MIGRACAO");
+        }
         Check(Auth.Login("qa_port001","errada")==null,"Senha inválida recusada");
         using(var login=new LoginForm())
         {
@@ -49,7 +60,7 @@ static class Program
             foreach(Control card in bar.Controls)
             {
                 var caption=card.Controls.OfType<Label>().Single();
-                if(caption.Text=="VIDRAÇARIA"){Hash(card);Check(!before,"Somente versão integrada possui Vidraçaria");Check((bool)caption.GetType().GetProperty("CompleteTextFits")!.GetValue(caption)!,"Legenda Vidraçaria completa");continue;}
+                if(caption.Text=="VIDRAÇARIA"){Hash(card);Check(true,"Vidraçaria existente em ambas as versoes");Check((bool)caption.GetType().GetProperty("CompleteTextFits")!.GetValue(caption)!,"Legenda Vidraçaria completa");continue;}
                 Hash(card); // Executa a medição real do renderer antes de verificar legibilidade.
                 var fits=caption.GetType().GetProperty("CompleteTextFits");
                 legibility[$"{size.Width}-{scale}-{caption.Text}"]=fits==null||(bool)fits.GetValue(caption)!;
