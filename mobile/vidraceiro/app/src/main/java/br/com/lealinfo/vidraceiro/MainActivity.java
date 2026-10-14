@@ -8,7 +8,7 @@ public class MainActivity extends Activity {
  private int px(int n){return (int)(n*getResources().getDisplayMetrics().density);}
  @Override public void onCreate(Bundle b){super.onCreate(b);getWindow().getDecorView().setOnApplyWindowInsetsListener((v,i)->{v.setPadding(i.getSystemWindowInsetLeft(),i.getSystemWindowInsetTop(),i.getSystemWindowInsetRight(),i.getSystemWindowInsetBottom());return i;});
   id=getPreferences(0).getString("current",UUID.randomUUID().toString());setDir();ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(px(20),px(16),px(20),px(30));root.setBackgroundColor(Color.rgb(8,18,36));scroll.addView(root);setContentView(scroll);
-  label("LEAL INFO • VIDRACEIRO",24);label("Foto + medidas reais + serviço → simulação",15);button("CONEXÃO DO SERVIÇO / PDV",this::connection);
+  label("ANGRA VIDROS",24);label("Foto + medidas reais + serviço → simulação",15);button("CONEXÃO DO SERVIÇO / PDV",this::connection);
   title=edit("Nome do projeto",false);type=new AutoCompleteTextView(this);style(type);type.setHint("Tipo de projeto / serviço — digite ou escolha");type.setTextColor(Color.WHITE);type.setThreshold(0);type.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,TYPES));type.setOnFocusChangeListener((v,focus)->{if(focus)type.showDropDown();});root.addView(type);watch(type);
   model=edit("Modelo / configuração, quando aplicável",false);config=edit("Detalhes do projeto e da simulação",true);
   button("TIRAR FOTO DO LOCAL",this::camera);button("IMPORTAR FOTO",()->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE);startActivityForResult(i,2);});photo=image();

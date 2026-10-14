@@ -35,7 +35,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: LEAL_INFO_VIDRACEIRO_ANDROID_0_1_0_TESTE
+          name: ANGRA_VIDROS_ANDROID_0_1_1_TESTE
           path: |
             mobile/vidraceiro/app/build/outputs/apk/debug/*.apk
             mobile/vidraceiro/app/build/outputs/apk/debug/SHA256.txt
