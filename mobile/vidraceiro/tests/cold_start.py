@@ -13,7 +13,8 @@ adb('install','-r','app/build/outputs/apk/debug/app-debug.apk')
 adb('shell','settings','put','global','window_animation_scale','1')
 adb('shell','settings','put','global','transition_animation_scale','1')
 adb('shell','settings','put','global','animator_duration_scale','1')
-for attempt in (1,2):
+for attempt,(screen_width,screen_height) in enumerate(((540,960),(540,1200),(800,1280)),1):
+    adb('shell','wm','size',f'{screen_width}x{screen_height}')
     adb('shell','am','force-stop',PKG)
     adb('logcat','-c')
     record=subprocess.Popen(['adb','shell','screenrecord','--time-limit','9',f'/sdcard/angra-{attempt}.mp4'],stdout=subprocess.DEVNULL)

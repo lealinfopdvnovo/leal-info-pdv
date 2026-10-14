@@ -30,7 +30,7 @@ jobs:
         working-directory: mobile/vidraceiro
         run: |
           node --test gateway/*.test.mjs
-          gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
+          gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
           sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/SHA256.txt
       - name: Enable KVM for actual Android execution
         run: |
@@ -46,11 +46,15 @@ jobs:
           profile: pixel_2
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: cd mobile/vidraceiro && python3 tests/cold_start.py
+          script: |
+            cd mobile/vidraceiro && python3 tests/cold_start.py
+            cd mobile/vidraceiro && adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            cd mobile/vidraceiro && adb shell am instrument -w br.com.lealinfo.vidraceiro.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/measure-ui.txt
+            cd mobile/vidraceiro && grep -q 'PASS MEASURE_UI_FLOW' app/build/reports/measure-ui.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ANGRA_VIDROS_ANDROID_0_1_2_TESTE
+          name: ANGRA_VIDROS_ANDROID_0_1_3_TESTE
           path: |
             mobile/vidraceiro/app/build/outputs/apk/debug/*.apk
             mobile/vidraceiro/app/build/outputs/apk/debug/SHA256.txt

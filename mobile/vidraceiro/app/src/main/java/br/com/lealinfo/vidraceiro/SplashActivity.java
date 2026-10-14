@@ -45,9 +45,23 @@ public final class SplashActivity extends Activity {
         progress.setProgressTintList(ColorStateList.valueOf(Color.rgb(0, 211, 240)));
         progress.setProgressBackgroundTintList(ColorStateList.valueOf(Color.rgb(25, 45, 55)));
         int margin = Math.round(24 * getResources().getDisplayMetrics().density);
-        FrameLayout.LayoutParams bar = new FrameLayout.LayoutParams(-1, Math.max(4, margin / 5), Gravity.BOTTOM);
-        bar.setMargins(margin, 0, margin, margin);
+        FrameLayout.LayoutParams bar = new FrameLayout.LayoutParams(1, 1, Gravity.TOP | Gravity.LEFT);
         frame.addView(progress, bar);
+        // Follow the fitted artwork, not a fixed screen offset. The gap between
+        // the slogan and the lower callout is at 67.5% of the original artwork.
+        frame.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            int width = r - l, height = b - t;
+            android.graphics.drawable.Drawable image = artwork.getDrawable();
+            float scale = Math.min(width / (float) image.getIntrinsicWidth(), height / (float) image.getIntrinsicHeight());
+            float imageWidth = image.getIntrinsicWidth() * scale;
+            float imageHeight = image.getIntrinsicHeight() * scale;
+            FrameLayout.LayoutParams placement = (FrameLayout.LayoutParams) progress.getLayoutParams();
+            placement.width = Math.round(imageWidth * .70f);
+            placement.height = Math.max(2, Math.min(Math.max(4, margin / 5), Math.round(imageHeight * .004f)));
+            placement.leftMargin = (width - placement.width) / 2;
+            placement.topMargin = Math.round((height - imageHeight) / 2 + imageHeight * .675f - placement.height / 2f);
+            progress.setLayoutParams(placement);
+        });
         setContentView(frame);
         apply(elapsed);
     }

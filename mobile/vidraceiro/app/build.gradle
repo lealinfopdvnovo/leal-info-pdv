@@ -2,7 +2,7 @@ plugins { id 'com.android.application' }
 android {
  namespace 'br.com.lealinfo.vidraceiro'
  compileSdk 35
- defaultConfig { applicationId 'br.com.lealinfo.vidraceiro'; minSdk 26; targetSdk 35; versionCode 3; versionName '0.1.2' }
+ defaultConfig { applicationId 'br.com.lealinfo.vidraceiro'; minSdk 26; targetSdk 35; versionCode 4; versionName '0.1.3'; testInstrumentationRunner 'br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation' }
  compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
 dependencies { implementation 'androidx.core:core:1.13.1'; testImplementation 'junit:junit:4.13.2' }
