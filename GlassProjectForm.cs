@@ -123,9 +123,13 @@ public sealed class GlassProjectForm : Form
         GlassWorkshopForm.AddField(printing, "IMPRESSÃO TÉCNICA A4", print);
         printOwner = owner;
         status.Controls.Add(viewHint); viewHint.Dock = DockStyle.Fill;
+        // Reintegra o seletor original, antes retido na janela de projeto não exibida.
+        var modes = mode2D.Parent!;
+        modes.Dock = DockStyle.Top; modes.Height = 42;
         void MoveSurface(bool three)
         {
-            if (three) visualization.Controls.Add(surface); else design.Controls.Add(surface);
+            var page = three ? visualization : design;
+            page.Controls.Add(modes); page.Controls.Add(surface);
             surface.Dock = DockStyle.Fill; surface.BringToFront();
             if (three) Show3D(); else Show2D();
         }
@@ -133,6 +137,8 @@ public sealed class GlassProjectForm : Form
         visualization.Controls.Add(viewFooter);
         reset3D.Dock = DockStyle.Left; viewFooter.Controls.Add(reset3D);
         measurements3D.Dock = DockStyle.Right; viewFooter.Controls.Add(measurements3D);
+        mode2D.Click += (_, _) => tabs.SelectedTab = design;
+        mode3D.Click += (_, _) => tabs.SelectedTab = visualization;
         tabs.SelectedIndexChanged += (_, _) =>
         {
             if (tabs.SelectedTab == visualization) MoveSurface(true);
