@@ -53,12 +53,11 @@ public final class SplashActivity extends Activity {
             int width = r - l, height = b - t;
             android.graphics.drawable.Drawable image = artwork.getDrawable();
             float scale = Math.min(width / (float) image.getIntrinsicWidth(), height / (float) image.getIntrinsicHeight());
-            float imageWidth = image.getIntrinsicWidth() * scale;
             float imageHeight = image.getIntrinsicHeight() * scale;
             FrameLayout.LayoutParams placement = (FrameLayout.LayoutParams) progress.getLayoutParams();
-            placement.width = Math.round(imageWidth * .70f);
-            placement.height = Math.max(2, Math.min(Math.max(4, margin / 5), Math.round(imageHeight * .004f)));
-            placement.leftMargin = (width - placement.width) / 2;
+            placement.width = Math.max(1, width - margin * 2);
+            placement.height = Math.max(4, margin / 5);
+            placement.leftMargin = margin;
             placement.topMargin = Math.round((height - imageHeight) / 2 + imageHeight * .675f - placement.height / 2f);
             progress.setLayoutParams(placement);
         });

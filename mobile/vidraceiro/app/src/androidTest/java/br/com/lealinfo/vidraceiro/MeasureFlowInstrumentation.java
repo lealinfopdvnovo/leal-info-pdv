@@ -52,6 +52,7 @@ public class MeasureFlowInstrumentation extends Instrumentation {
         fill("2","m");ui(()->((EditText)field(rows().get(1),"value")).setText(""));ui(()->((Spinner)field(rows().get(1),"unit")).setSelection(0));ui(()->((EditText)field(rows().get(1),"value")).setText("2"));JSONArray mixed=spec().getJSONArray("measures");check("2000".equals(mixed.getJSONObject(0).getString("mm"))&&"2".equals(mixed.getJSONObject(1).getString("mm")),"independent units");report.append("PASS independent units: 2m x 2mm = 2000mm x 2mm\n");
         String[][] invalid={{"F","0"},{"G","-2"},{"H","abc"},{"EMPTY",""}};
         for(String[] item:invalid){fill("2","m");ui(()->((EditText)field(rows().get(0),"value")).setText(item[1]));createExpect("Medida 1 (Largura): preencha VALOR DA MEDIDA");report.append("PASS ").append(item[0]).append(": invalid value blocked with field-specific error\n");}
+        fill("","m");ui(()->((EditText)field(rows().get(0),"label")).setText("2,00"));createExpect("Medida 1 (2,00): preencha VALOR DA MEDIDA");report.append("PASS real-video reproduction: numeric dimension name does not fill an empty measurement; actionable error\n");
         result.putString("stream","\n"+report+"PASS MEASURE_UI_FLOW\n");ui(()->activity.finish());finish(Activity.RESULT_OK,result);
     }catch(Throwable error){result.putString("stream","FAIL MEASURE_UI_FLOW: "+error);finish(Activity.RESULT_CANCELED,result);}}
 }
