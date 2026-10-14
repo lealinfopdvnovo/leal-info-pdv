@@ -73,6 +73,21 @@ static class Program
             foreach(var name in new[]{"LoadQuoteCustomers","RegisterGlassCustomer"}){var b=Find<Button>(layout,name);panel.ScrollControlIntoView(b);Pump();Check(b.Visible && b.Width>100 && b.Height>=30 && panel.RectangleToScreen(panel.ClientRectangle).IntersectsWith(b.RectangleToScreen(b.ClientRectangle)),"Botao visivel "+name+" "+size+" "+factor);}
             using var image=new Bitmap(layout.Width,layout.Height);layout.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save($"glass-customer-evidencias/botoes-{size.Width}-{factor}.png");layout.Close();
         }
+        int modalStage=0;bool actualModal=false;
+        using(var timer=new System.Windows.Forms.Timer{Interval=60})
+        {
+            var watch=Stopwatch.StartNew();
+            timer.Tick+=(_,_)=>{
+                if(watch.ElapsedMilliseconds>15000)throw new Exception("Timeout da Central modal real");
+                var central=Application.OpenForms.Cast<Form>().OfType<GlassWorkshopForm>().FirstOrDefault();
+                var crud=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Text=="CLIENTES");
+                if(modalStage==0 && central!=null){modalStage=1;Check(central.Modal && central.Owner==main,"Central aberta pela entrada real do PDV");Find<Button>(central,"RegisterGlassCustomer").PerformClick();}
+                else if(modalStage==1 && crud!=null){modalStage=2;actualModal=true;crud.Close();}
+                else if(modalStage==2 && central!=null){timer.Stop();Check(Find<ComboBox>(central,"QuoteCustomer").Items.Cast<object>().Any(x=>x.ToString()=="CLIENTE NOVO VIDRACARIA QA"),"Retorno funcional pela Central modal real");central.Close();}
+            };
+            timer.Start();Call(main,"OpenGlassWorkshop");
+        }
+        Check(actualModal,"Cadastro existente acessivel com tela principal desabilitada pela Central modal");
         main.Close();Console.WriteLine("PASS CADASTRO REAL VIDRACARIA: "+checks+" verificacoes Windows");
     }
 }

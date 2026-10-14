@@ -14,8 +14,8 @@ public sealed class GlassQuoteForm : Form
     private readonly NumericUpDown discount = Money("QuoteDiscount");
     private readonly NumericUpDown addition = Money("QuoteAddition");
     private readonly TextBox summary = new() { Name = "QuoteSummary", ReadOnly = true, Multiline = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical, MinimumSize = new Size(100, 270) };
-    private readonly Button load = new SalesVisualButton() { Name = "LoadQuoteCustomers", Text = "CARREGAR CLIENTES", AutoSize = true };
-    private readonly Button registerCustomer = new SalesVisualButton { Name = "RegisterGlassCustomer", Text = "+ CADASTRAR CLIENTE", AutoSize = true };
+    private readonly Button load = new SalesVisualButton() { Name = "LoadQuoteCustomers", Text = "CARREGAR CLIENTES", AutoSize = true, MinimumSize = new Size(180, 42) };
+    private readonly Button registerCustomer = new SalesVisualButton { Name = "RegisterGlassCustomer", Text = "+ CADASTRAR CLIENTE", AutoSize = true, MinimumSize = new Size(220, 42) };
     private readonly FlowLayoutPanel customerActions = new() { Name = "GlassCustomerActions", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top, WrapContents = true };
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
     private sealed record Customer(long Id, string Name) { public override string ToString() => Name; }
