@@ -77,7 +77,7 @@ public sealed class GlassWorkshopForm : Form
         var finance=new SalesVisualButton{Name="OpenGlassFinance",Text="FINANCEIRO DO PROJETO"};
         finance.Click+=(_,_)=>RunProjectAction(()=>{var saved=OperationsProject(true);OperationsHost().OpenFinanceFromGlass(saved);RefreshOperations();});
         var agenda=new SalesVisualButton{Name="OpenGlassAgenda",Text="AGENDA — MEDIÇÃO / INSTALAÇÃO"};
-        agenda.Click+=(_,_)=>RunProjectAction(()=>{var saved=OperationsProject(false);string? id=OperationsHost().OpenAgendaFromGlass(saved);if(id!=null && (!HasUnsavedChanges()||MessageBox.Show(this,"Abrir outro projeto descarta alterações não salvas. Continuar?","Agenda",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)==DialogResult.Yes))LoadSavedProject(id);});
+        agenda.Click+=(_,_)=>RunProjectAction(()=>{GlassStoredProject? context=stored!=null&&!HasUnsavedChanges()?stored:null;string? id=OperationsHost().OpenAgendaFromGlass(context);if(id!=null && (!HasUnsavedChanges()||MessageBox.Show(this,"Abrir outro projeto descarta alterações não salvas. Continuar?","Agenda",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)==DialogResult.Yes))LoadSavedProject(id);});
         AddField(general,"FINANCEIRO / AGENDA",finance);AddField(general,"",agenda);AddField(general,"",operationsStatus);
         AddField(printing, "", new Label { AutoSize = true, Text = "DESENHO TÉCNICO A4: medidas e desenho, sem valores. Para preços e total, use ORÇAMENTO COMERCIAL A4 / PDF abaixo." });
         var commercial = new SalesVisualButton { Name = "CommercialPreview", Text = "ORÇAMENTO COMERCIAL A4 / PDF" };
