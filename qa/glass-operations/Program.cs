@@ -31,7 +31,7 @@ static class Program
             if(watch.ElapsedMilliseconds>15000)throw new Exception("Timeout fluxo financeiro real");
             var finance=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Text=="FLUXO DE CAIXA — VIDRAÇARIA");var editor=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Text=="Nova movimentação manual");
             if(stage==0 && finance!=null){Check(Find<Label>(finance,"GlassFinanceOverview").Text.Contains("Orçamento não é pagamento"),"Mesmo Fluxo de Caixa explica operacao real");stage=1;Button(finance,"NOVO").PerformClick();}
-            else if(stage==1 && editor!=null){var fields=(List<TextBox>)editor.Tag!;fields[2].Text=amount.ToString("0.00",CultureInfo.GetCultureInfo("pt-BR"));All(editor).OfType<ComboBox>().Single().SelectedItem=type;stage=2;Button(editor,"SALVAR").PerformClick();}
+            else if(stage==1 && editor!=null){var fields=(List<TextBox>)editor.Tag!;var money=All(editor).OfType<NumericUpDown>().Single();money.Text=amount.ToString("0.00",CultureInfo.GetCultureInfo("pt-BR"));All(editor).OfType<ComboBox>().Single().SelectedItem=type;stage=2;Button(editor,"SALVAR").PerformClick();}
             else if(stage==2){var confirm=FindWindow("#32770","Confirmar movimentação");if(confirm!=IntPtr.Zero){confirmed=true;stage=3;PostMessage(confirm,0x111,(IntPtr)6,IntPtr.Zero);}}
             else if(stage==3 && finance!=null && editor==null){timer.Stop();Check(All(finance).OfType<DataGridView>().Single().Rows.Count>0,"Lancamento real aparece no historico existente");finance.Close();}
         };

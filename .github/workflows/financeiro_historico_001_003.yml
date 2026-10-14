@@ -1,0 +1,248 @@
+name: Correcao historico financeiro somente001 e003 - 10.401
+on:
+  push:
+    branches: ['release/vidracaria-fin-historico-001-10401']
+permissions: {contents: read, actions: read}
+concurrency:
+  group: vidracaria-fin-historico-001-003-10401
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        client: ['001','003']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ matrix.client == '001' && github.sha || 'c52fb75e97ac8c805a05d383ed3ca1eecee9b95a' }}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Auditar bases10.400 e alteracoes restritas ao passo05
+        shell: python
+        env: {CLIENT: '${{ matrix.client }}'}
+        run: |
+          import os,subprocess
+          client=os.environ['CLIENT']
+          base='3644bcfc3fe324949600f8f8b9b3b9ce98e6365b' if client=='001' else 'ae9bec3a758d5548ded8534d0bece0fa9bded6b2'
+          allowed={'MainForm.cs','LealInfoPDV.csproj','UpdateManager.cs','qa/glass-operations/Program.cs','qa/glass-finance-history/Program.cs','qa/glass-finance-history/LealInfoPDV.GlassFinanceHistoryTests.csproj'}
+          if client=='001':allowed.add('.github/workflows/financeiro_historico_001_003.yml')
+          assert set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())==allowed
+          old=subprocess.check_output(['git','show',base+':MainForm.cs']).decode()
+          for before,after in [('        void RefreshOverview(){if(overview!=null)overview.Text=$"PROJETO: {saved!.Data.Description} • CLIENTE: {saved.Data.Quote.CustomerName}\\r\\n"+GlassOperationsStore.Read(saved).Display+"\\r\\nOrçamento não é pagamento. NOVO registra uma operação real, após confirmação.";}\n        if(saved!=null){overview=new Label{Name="GlassFinanceOverview",Dock=DockStyle.Top,Height=105,Padding=new Padding(12)};f.Controls.Add(overview);overview.BringToFront();RefreshOverview();}\n        var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};\n        p.Controls.Add(ActionButton("NOVO",()=>{ShowCashMovement(saved);ReloadGrid(grid,sql);RefreshOverview();}));\n        p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue&&Confirm("Excluir este lançamento?")){Exec("DELETE FROM cash_movements WHERE id=$id",("$id",id.Value));ReloadGrid(grid,sql);RefreshOverview();}}));\n        p.Controls.Add(ActionButton("RESUMO DO CAIXA",()=>MessageBox.Show(f,CashFlow.ReadSummary(DateTime.Today,DateTime.Today.AddDays(1)).Display,"Resumo do caixa de hoje",MessageBoxButtons.OK,MessageBoxIcon.Information)));\n        p.Controls.Add(ActionButton("FECHAR",f.Close));f.Controls.Add(p);ApplyFloatingTheme(f);f.ShowDialog(this);\n    }\n\n    private void RegisterCashMovement()=>ShowCashMovement(null);\n    private void ShowCashMovement(GlassStoredProject? saved)\n    {\n        GlassCashOrigin? origin=saved==null?null:new(saved.Id,saved.Revision,saved.Data.Quote.CustomerId,Guid.NewGuid().ToString("N"));\n        using var f=Editor("Nova movimentação manual",new[]{"Tipo","Descrição/Motivo","Valor"});\n        var fields=(List<TextBox>)f.Tag!;\n        if(saved!=null)fields[1].Text=$"VIDRAÇARIA — {saved.Data.Description} (projeto {saved.Id}; cliente ID {saved.Data.Quote.CustomerId})";\n        var oldType=fields[0];\n        var type=new ComboBox{Left=oldType.Left,Top=oldType.Top,Width=oldType.Width,DropDownStyle=ComboBoxStyle.DropDownList};\n        type.Items.AddRange(new[]{"ENTRADA","SAÍDA"});type.SelectedIndex=0;f.Controls.Remove(oldType);oldType.Dispose();f.Controls.Add(type);\n        var oldSave=f.Controls.OfType<Button>().Single(b=>b.Text=="SALVAR");\n        var save=ActionButton("SALVAR",()=>{});save.Left=oldSave.Left;save.Top=oldSave.Top;f.Controls.Remove(oldSave);oldSave.Dispose();f.Controls.Add(save);\n        save.Click+=(_,_)=>\n        {\n            try\n            {\n                var amount=CashFlow.ParseAmount(fields[2].Text);\n                if(string.IsNullOrWhiteSpace(fields[1].Text))throw new ArgumentException("Informe a descrição/motivo.");\n                var selected=type.SelectedItem!.ToString()!;\n                if(MessageBox.Show(f,$"Confirmar {selected} de {amount.ToString("C2",CashFlow.Brazilian)}?","Confirmar movimentação",MessageBoxButtons.YesNo,MessageBoxIcon.Question,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;\n                save.Enabled=false;\n                if(origin==null)CashFlow.Register(selected,fields[1].Text,amount);\n                else CashFlow.RegisterForGlass(selected,fields[1].Text,amount,origin);\n', '        void RefreshOverview(){if(overview!=null)overview.Text=$"PROJETO: {saved!.Data.Description} • CLIENTE: {saved.Data.Quote.CustomerName}\\r\\n"+GlassOperationsStore.Read(saved).Display+"\\r\\nOrçamento não é pagamento. NOVO registra uma operação real, após confirmação.";}\n        if(saved!=null){overview=new Label{Name="GlassFinanceOverview",Dock=DockStyle.Top,Height=105,Padding=new Padding(12)};f.Controls.Add(overview);overview.BringToFront();RefreshOverview();}\n        var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};\n        p.Controls.Add(ActionButton("NOVO",()=>{ShowCashMovement(saved);ReloadGrid(grid,sql);RefreshOverview();}));\n        p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue&&Confirm("Excluir este lançamento?")){Exec("DELETE FROM cash_movements WHERE id=$id",("$id",id.Value));ReloadGrid(grid,sql);RefreshOverview();}}));\n        p.Controls.Add(ActionButton("RESUMO DO CAIXA",()=>MessageBox.Show(f,CashFlow.ReadSummary(DateTime.Today,DateTime.Today.AddDays(1)).Display,"Resumo do caixa de hoje",MessageBoxButtons.OK,MessageBoxIcon.Information)));\n        p.Controls.Add(ActionButton("FECHAR",f.Close));f.Controls.Add(p);\n        // Dock processes siblings back-to-front: fill must follow header, summary and actions.\n        // Otherwise the summary covers the first history rows despite all records being loaded.\n        if(saved!=null)grid.BringToFront();\n        ApplyFloatingTheme(f);f.ShowDialog(this);\n    }\n\n    private void RegisterCashMovement()=>ShowCashMovement(null);\n    private void ShowCashMovement(GlassStoredProject? saved)\n    {\n        GlassCashOrigin? origin=saved==null?null:new(saved.Id,saved.Revision,saved.Data.Quote.CustomerId,Guid.NewGuid().ToString("N"));\n        using var f=Editor("Nova movimentação manual",new[]{"Tipo","Descrição/Motivo","Valor"});\n        var fields=(List<TextBox>)f.Tag!;\n        if(saved!=null)fields[1].Text=$"VIDRAÇARIA — {saved.Data.Description} (projeto {saved.Id}; cliente ID {saved.Data.Quote.CustomerId})";\n        GlassMoneyInput? glassAmount=null;\n        if(saved!=null)\n        {\n            var oldAmount=fields[2];\n            glassAmount=new GlassMoneyInput{Name="GlassCashAmount",Left=oldAmount.Left,Top=oldAmount.Top,Width=oldAmount.Width,Maximum=999999999m};\n            f.Controls.Remove(oldAmount);oldAmount.Dispose();f.Controls.Add(glassAmount);\n        }\n        var oldType=fields[0];\n        var type=new ComboBox{Left=oldType.Left,Top=oldType.Top,Width=oldType.Width,DropDownStyle=ComboBoxStyle.DropDownList};\n        type.Items.AddRange(new[]{"ENTRADA","SAÍDA"});type.SelectedIndex=0;f.Controls.Remove(oldType);oldType.Dispose();f.Controls.Add(type);\n        var oldSave=f.Controls.OfType<Button>().Single(b=>b.Text=="SALVAR");\n        var save=ActionButton("SALVAR",()=>{});save.Left=oldSave.Left;save.Top=oldSave.Top;f.Controls.Remove(oldSave);oldSave.Dispose();f.Controls.Add(save);\n        save.Click+=(_,_)=>\n        {\n            try\n            {\n                var amount=glassAmount==null?CashFlow.ParseAmount(fields[2].Text):CashFlow.ParseAmount(glassAmount.Text);\n                if(string.IsNullOrWhiteSpace(fields[1].Text))throw new ArgumentException("Informe a descrição/motivo.");\n                var selected=type.SelectedItem!.ToString()!;\n                if(MessageBox.Show(f,$"Confirmar {selected} de {amount.ToString("C2",CashFlow.Brazilian)}?","Confirmar movimentação",MessageBoxButtons.YesNo,MessageBoxIcon.Question,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;\n                save.Enabled=false;\n                if(origin==null)CashFlow.Register(selected,fields[1].Text,amount);\n                else CashFlow.RegisterForGlass(selected,fields[1].Text,amount,origin);\n')]:
+              assert old.count(before)==1
+              old=old.replace(before,after,1)
+          assert old==subprocess.check_output(['git','show','HEAD:MainForm.cs']).decode(),'MainForm fora do passo05'
+          for f in ['LealInfoPDV.csproj','UpdateManager.cs']:
+              assert subprocess.check_output(['git','show',base+':'+f]).replace(b'10.400',b'10.401')==subprocess.check_output(['git','show','HEAD:'+f])
+          print('PASS passos01-04, Agenda06, financeiro/totais/banco/schema e personalizacoes individuais byte-preservados')
+      - name: Conferir canal e pacote de origem REAL
+        shell: pwsh
+        env: {CLIENT: '${{ matrix.client }}'}
+        run: |
+          $ErrorActionPreference='Stop'
+          $version='10.400'
+          $sha=if($env:CLIENT -eq '001'){'0535c48e2e9592698e8c625583b9fa2d04b3e3fffa1f0a076a9fe58df0544a7d'}else{'9b6b1b03b4bceebfb996f308aec49a984f42bf02ae8462acd99b0d401d115c9b'}
+          $m=Invoke-RestMethod "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/clients/$env:CLIENT/version.json"
+          if($m.Version -ne $version -or $m.TargetClientCode -ne $env:CLIENT -or $m.Sha256 -ne $sha){throw 'Origem mudou'}
+          Invoke-WebRequest $m.PackageUrl -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne $sha){throw 'Hash origem divergiu'}
+          Expand-Archive baseline.zip baseline
+      - name: Build e novo financeiro/agenda pelo fluxo REAL Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet build LealInfoPDV.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          if($env:GITHUB_ACTIONS -ne 'true'){throw 'Exige Windows descartavel'}
+          $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+          if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+          dotnet build qa/glass-operations/LealInfoPDV.GlassOperationsTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'QA05/06 nao compilou'}
+          $p=Start-Process dotnet -ArgumentList 'qa/glass-operations/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.GlassOperationsTests.dll' -PassThru -NoNewWindow -RedirectStandardOutput ops-stdout.log -RedirectStandardError ops-stderr.log
+          $done=$p.WaitForExit(120000)
+          if(!$done){$p.Kill($true);$p.WaitForExit()}
+          Get-Content ops-stdout.log
+          Get-Content ops-stderr.log
+          if(!$done -or $p.ExitCode -ne 0){throw 'Financeiro/agenda/UI/persistencia falhou'}
+          Remove-Item $sandbox -Recurse -Force
+          dotnet build qa/glass-finance-history/LealInfoPDV.GlassFinanceHistoryTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'QA historico nao compilou'}
+          $p=Start-Process dotnet -ArgumentList 'qa/glass-finance-history/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.GlassFinanceHistoryTests.dll' -PassThru -NoNewWindow -RedirectStandardOutput history-stdout.log -RedirectStandardError history-stderr.log
+          $done=$p.WaitForExit(120000)
+          if(!$done){$p.Kill($true);$p.WaitForExit()}
+          Get-Content history-stdout.log
+          Get-Content history-stderr.log
+          if(!$done -or $p.ExitCode -ne 0){throw 'Tres linhas moeda e novo processo falhou'}
+      - name: Regressao completa Windows por cliente - passos01-04 e financeiro original
+        shell: pwsh
+        env: {CLIENT: '${{ matrix.client }}'}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tests=Get-ChildItem qa -Recurse -Filter '*.csproj'|Where-Object {$_.FullName -notmatch '[\\/](speedfood|port001|port003|glass-operations|glass-finance-history)[\\/]'}|Sort-Object FullName
+          foreach($test in $tests){
+            $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+            if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+            Write-Host ('TEST SUITE '+$test.FullName)
+            $argsExtra=@()
+            if($test.FullName -match '[\\/]kitchen[\\/]'){$argsExtra=@('--','--global')}
+            if($test.FullName -match '[\\/](company-cep|sales-logo)[\\/]'){$argsExtra=@('--',$env:CLIENT)}
+            dotnet run --project $test.FullName -c Release @argsExtra
+            if($LASTEXITCODE -ne 0){throw ('Regressao falhou: '+$test.FullName)}
+          }
+      - name: Compilar pacote dirigido sem banco/licenca/configuracoes
+        shell: pwsh
+        env: {CLIENT: '${{ matrix.client }}'}
+        run: |
+          $ErrorActionPreference='Stop'
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdk=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdk){throw 'SDK origem ausente'}
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$($sdk.Split('/')[1]) -o publish
+          if($LASTEXITCODE -ne 0){throw 'Publish build falhou'}
+          New-Item -ItemType Directory package|Out-Null
+          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
+          $before=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          $after=Get-Content package/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          if(Compare-Object @($before.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object) @($after.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)){throw 'Dependencias mudaram'}
+          Compress-Archive package/* "LEAL_INFO_PDV_$($env:CLIENT)_V10_401_UPDATE.zip"
+      - name: Validar PDF/A4 antes e depois com clientes e sem receita automatica
+        shell: pwsh
+        run: |
+          python -m pip install pypdf
+          @'
+          from pypdf import PdfReader
+          from pathlib import Path
+          files=list(Path('glass-commercial-evidencias').glob('*.pdf'))+list(Path('glass-money-evidencias').glob('*.pdf'))+list(Path('glass-client-link-evidencias').glob('*.pdf'))+list(Path('glass-operations-evidencias').glob('*.pdf'))
+          assert len(files)>=9
+          for f in files:
+              r=PdfReader(f,strict=True)
+              assert len(r.pages)>0
+              for p in r.pages:
+                  assert abs(float(p.mediabox.width)-595.28)<1 and abs(float(p.mediabox.height)-841.89)<1 and len(p.images)>0
+              print('PASS PDF A4',f,len(r.pages))
+          '@ | python
+          if($LASTEXITCODE -ne 0){throw 'PDF invalido'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vidracaria-${{ matrix.client }}-10401
+          path: |
+            *-evidencias/
+            ops-stdout.log
+            ops-stderr.log
+            history-stdout.log
+            history-stderr.log
+            LEAL_INFO_PDV_*_V10_401_UPDATE.zip
+          retention-days: 14
+  publicar:
+    needs: validar
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - uses: actions/download-artifact@v4
+        with: {name: vidracaria-001-10401, path: validado001}
+      - uses: actions/download-artifact@v4
+        with: {name: vidracaria-003-10401, path: validado003}
+      - name: Publicar feeds001/003 ATOMICAMENTE somente apos ambas matrizes aprovadas
+        shell: pwsh
+        env: {GH_TOKEN: '${{ secrets.UPDATE_REPO_TOKEN }}', SOURCE_TOKEN: '${{ github.token }}'}
+        run: |
+          $ErrorActionPreference='Stop'
+          $repo='lealinfopdvnovo/leal-info-pdv-updates'
+          $head001=Invoke-RestMethod "https://api.github.com/repos/$env:GITHUB_REPOSITORY/git/ref/heads/release/vidracaria-fin-historico-001-10401" -Headers @{Authorization="Bearer $env:SOURCE_TOKEN"}
+          $head003=Invoke-RestMethod "https://api.github.com/repos/$env:GITHUB_REPOSITORY/git/ref/heads/release/vidracaria-fin-historico-003-10401" -Headers @{Authorization="Bearer $env:SOURCE_TOKEN"}
+          if($head001.object.sha -ne $env:GITHUB_SHA -or $head003.object.sha -ne 'c52fb75e97ac8c805a05d383ed3ca1eecee9b95a'){throw 'Candidato superado'}
+          $ref=gh api "repos/$repo/git/ref/heads/main"|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw 'Ref updates indisponivel'}
+          $parent=$ref.object.sha
+          $commit=gh api "repos/$repo/git/commits/$parent"|ConvertFrom-Json
+          $baseTree=$commit.tree.sha
+          $protected=@{}
+          foreach($path in @('version.json','clients/002/version.json')){$entry=gh api "repos/$repo/contents/$($path)?ref=$parent"|ConvertFrom-Json;if($LASTEXITCODE -ne 0){throw 'Protegido indisponivel'};$protected[$path]=$entry.sha}
+          $fourBefore=gh api "repos/$repo/contents/clients/004/version.json?ref=$parent" 2>$null
+          $fourExists=$LASTEXITCODE -eq 0
+          if($fourExists){$fourSha=($fourBefore|ConvertFrom-Json).sha}
+          $entries=@();$notes='Correcao EXCLUSIVA passo05: ordem Dock impede resumo de encobrir primeiras linhas do historico; entradas/saidas independentes preservadas. Valor reutiliza controle monetario brasileiro aprovado, aceita 50,00/60,00/20,00/100,00. Sem alteracao de totais, SQL, schema, passos01-04 ou Agenda06. Aguardando homologacao fisica.'
+          $notes|Set-Content notes.txt
+          foreach($id in @('001','003')){
+            $expected='10.400'
+            $oldHash=if($id -eq '001'){'0535c48e2e9592698e8c625583b9fa2d04b3e3fffa1f0a076a9fe58df0544a7d'}else{'9b6b1b03b4bceebfb996f308aec49a984f42bf02ae8462acd99b0d401d115c9b'}
+            $entry=gh api "repos/$repo/contents/clients/$id/version.json?ref=$parent"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0){throw 'Canal nao pode ser lido'}
+            $old=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.content))|ConvertFrom-Json
+            if($old.Version -ne $expected -or $old.Sha256 -ne $oldHash -or $old.TargetClientCode -ne $id){throw 'Origem alterada'}
+            $package="LEAL_INFO_PDV_$($id)_V10_401_UPDATE.zip"
+            $source=if($id -eq '001'){$env:GITHUB_SHA}else{'c52fb75e97ac8c805a05d383ed3ca1eecee9b95a'}
+            Copy-Item "validado$id/$package" $package
+            gh release create "client-$id-v10.401" $package --repo $repo --title "LEAL INFO PDV $id V10.401 - Correcao historico Financeiro Vidracaria" --notes-file notes.txt --latest=false
+            if($LASTEXITCODE -ne 0){throw 'Release falhou; feeds ainda intactos'}
+            $m=@{Version='10.401';TargetClientCode=$id;PackageUrl="https://github.com/$repo/releases/download/client-$id-v10.401/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$source;Notes=$notes;Mandatory=$false}
+            Invoke-WebRequest $m.PackageUrl -OutFile "verificado-$id.zip"
+            if((Get-FileHash "verificado-$id.zip").Hash.ToLowerInvariant() -ne $m.Sha256){throw 'Hash remoto divergiu; feeds ainda intactos'}
+            $entries+=@{path="clients/$id/version.json";mode='100644';type='blob';content=($m|ConvertTo-Json)}
+          }
+          @{base_tree=$baseTree;tree=$entries}|ConvertTo-Json -Depth 6|Set-Content tree-request.json
+          $tree=gh api --method POST "repos/$repo/git/trees" --input tree-request.json|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw 'Tree falhou'}
+          @{message='Vidracaria correcao financeiro 10.401 somente001 e003';tree=$tree.sha;parents=@($parent)}|ConvertTo-Json -Depth 5|Set-Content commit-request.json
+          $new=gh api --method POST "repos/$repo/git/commits" --input commit-request.json|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw 'Commit falhou'}
+          $current=gh api "repos/$repo/git/ref/heads/main"|ConvertFrom-Json
+          if($current.object.sha -ne $parent){throw 'Concorrencia; feeds nao alterados'}
+          @{sha=$new.sha;force=$false}|ConvertTo-Json|Set-Content ref-request.json
+          gh api --method PATCH "repos/$repo/git/refs/heads/main" --input ref-request.json
+          if($LASTEXITCODE -ne 0){throw 'Publicacao atomica falhou'}
+          foreach($path in $protected.Keys){$entry=gh api "repos/$repo/contents/$path"|ConvertFrom-Json;if($LASTEXITCODE -ne 0 -or $entry.sha -ne $protected[$path]){throw 'Canal protegido alterado'}}
+          $fourAfter=gh api "repos/$repo/contents/clients/004/version.json" 2>$null
+          $existsAfter=$LASTEXITCODE -eq 0
+          if($existsAfter -ne $fourExists -or ($fourExists -and ($fourAfter|ConvertFrom-Json).sha -ne $fourSha)){throw '004 alterado'}
+          foreach($id in @('001','003')){
+            for($i=0;$i -lt 24;$i++){$m=Invoke-RestMethod "https://raw.githubusercontent.com/$repo/main/clients/$id/version.json?t=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())";if($m.Version -eq '10.401' -and $m.TargetClientCode -eq $id){break};Start-Sleep -Seconds 5}
+            if($m.Version -ne '10.401' -or (Get-FileHash "verificado-$id.zip").Hash.ToLowerInvariant() -ne $m.Sha256){throw 'Feed nao propagou/hash'}
+            Write-Host "PASS PUBLICADO $id 10.401; hash remoto confirmado"
+          }
+          Write-Host 'PASS 002 universal 004 intactos; somente001 e003 atomicamente'
+          exit 0
+      - name: Deteccao e DOWNLOAD reais separados001/003 com SHA256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          $original=Get-Content qa/glass/Program.cs -Raw
+          foreach($id in @('001','003')){
+            $previous='10.400'
+            $qa=$original.Replace('id == "003" ? "10.383" : "10.379"','id == "003" ? "10.401" : "10.401"')
+            $qa=$qa.Replace('new[] { "001", "002", "003", "004" }',('new[] { "'+$id+'" }'))
+            $qa=$qa.Replace('new object[] { http, id, "10.378" }',('new object[] { http, id, "'+$previous+'" }'))
+            $qa=$qa.Replace('if (live && id == "003")',('if (live && id == "'+$id+'")'))
+            $qa=$qa.Replace('"Hash remoto 003"',('"Hash remoto '+$id+' - DOWNLOAD REAL"'))
+            [IO.File]::WriteAllText((Join-Path $PWD 'qa/glass/Program.cs'),$qa)
+            dotnet run --project qa/glass/LealInfoPDV.GlassTests.csproj -c Release -- --live
+            if($LASTEXITCODE -ne 0){throw "Updater real$id falhou"}
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vidracaria001003-10401-publicacao
+          path: |
+            verificado-*.zip
+            notes.txt
+          retention-days: 14
