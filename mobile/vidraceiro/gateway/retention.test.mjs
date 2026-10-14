@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,mkdir,readdir,utimes,rm} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';import {randomUUID} from 'node:crypto';import {pruneJobs,retentionHours} from './retention.mjs';
+test('retencao privada: remove so jobs expirados; preserva recentes e outras pastas',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'angra-retention-'));try{const old=randomUUID(),fresh=randomUUID();for(const id of [old,fresh,'nao-e-job'])await mkdir(join(root,id));const before=new Date(Date.now()-25*3600000);await utimes(join(root,old),before,before);assert.equal(await pruneJobs(root),1);assert.deepEqual((await readdir(root)).sort(),[fresh,'nao-e-job'].sort());assert.equal(await pruneJobs(root),0);for(const x of [0,-1,'NaN',169])assert.throws(()=>retentionHours(x));}finally{await rm(root,{recursive:true,force:true});}
+});

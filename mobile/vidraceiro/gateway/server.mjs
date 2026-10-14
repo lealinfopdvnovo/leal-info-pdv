@@ -1,8 +1,10 @@
+import {retentionHours,pruneJobs} from './retention.mjs';
 import http from 'node:http';import {mkdir,writeFile,readFile,rename,access} from 'node:fs/promises';import {join,resolve} from 'node:path';import {randomUUID,timingSafeEqual} from 'node:crypto';import {validate,prompt,hash} from './domain.mjs';
 const token=process.env.GATEWAY_TOKEN,client=process.env.CLIENT_CODE,inbox=process.env.PDV_INBOX,key=process.env.OPENAI_API_KEY;
 if(!token||token.length<32||!client||!/^[a-zA-Z0-9_-]{1,32}$/.test(client)||!inbox)throw Error('Configure GATEWAY_TOKEN forte, CLIENT_CODE e PDV_INBOX absoluto.');
 if(!inbox.startsWith('/')&&!/^[A-Za-z]:[\\/]/.test(inbox))throw Error('PDV_INBOX deve ser absoluto');
 const root=resolve(process.env.DATA_DIR||'vidraceiro-data');await mkdir(join(root,'jobs'),{recursive:true});await mkdir(inbox,{recursive:true});let generating=false;
+const retention=retentionHours(process.env.RETENTION_HOURS??24);await pruneJobs(join(root,'jobs'),retention);setInterval(()=>pruneJobs(join(root,'jobs'),retention).catch(()=>console.error('Falha na limpeza dos jobs privados; verificar armazenamento.')),300000).unref();
 async function jsonFile(path,value){const temp=path+'.'+randomUUID()+'.tmp';await writeFile(temp,JSON.stringify(value),{mode:0o600,flag:'wx'});await rename(temp,path);}
 const server=http.createServer(async(req,res)=>{
  const answer=(code,data)=>{res.writeHead(code,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));};

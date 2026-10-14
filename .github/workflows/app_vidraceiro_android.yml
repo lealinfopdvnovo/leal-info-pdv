@@ -54,7 +54,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ANGRA_VIDROS_ANDROID_0_1_3_TESTE
+          name: ANGRA_VIDROS_ANDROID_0_1_4_TESTE
           path: |
             mobile/vidraceiro/app/build/outputs/apk/debug/*.apk
             mobile/vidraceiro/app/build/outputs/apk/debug/SHA256.txt
