@@ -7,6 +7,7 @@ public sealed class GlassWorkshopForm : Form
     private readonly GlassMaterialSelection materials = new();
     private GlassCutPlanForm? cutPlan;
     private GlassStoredProject? stored;
+    private readonly Label operationsStatus=new(){Name="GlassOperationsStatus",AutoSize=false,Height=100,Text="Financeiro/Agenda: salve o projeto para continuar."};
     private readonly Label saveStatus = new() { Name="ProjectSaveStatus", AutoSize=true };
     private readonly Action<Form>? projectTheme;
     private readonly Font titleFont = new("Segoe UI", 20, FontStyle.Bold);
@@ -73,6 +74,11 @@ public sealed class GlassWorkshopForm : Form
             ResetSavedProject();
         });
         AddField(general,"PROJETOS SALVOS",save); AddField(general,"",open); AddField(general,"",fresh); AddField(general,"",saveStatus);
+        var finance=new SalesVisualButton{Name="OpenGlassFinance",Text="FINANCEIRO DO PROJETO"};
+        finance.Click+=(_,_)=>RunProjectAction(()=>{var saved=OperationsProject(true);OperationsHost().OpenFinanceFromGlass(saved);RefreshOperations();});
+        var agenda=new SalesVisualButton{Name="OpenGlassAgenda",Text="AGENDA — MEDIÇÃO / INSTALAÇÃO"};
+        agenda.Click+=(_,_)=>RunProjectAction(()=>{var saved=OperationsProject(false);string? id=OperationsHost().OpenAgendaFromGlass(saved);if(id!=null && (!HasUnsavedChanges()||MessageBox.Show(this,"Abrir outro projeto descarta alterações não salvas. Continuar?","Agenda",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)==DialogResult.Yes))LoadSavedProject(id);});
+        AddField(general,"FINANCEIRO / AGENDA",finance);AddField(general,"",agenda);AddField(general,"",operationsStatus);
         AddField(printing, "", new Label { AutoSize = true, Text = "DESENHO TÉCNICO A4: medidas e desenho, sem valores. Para preços e total, use ORÇAMENTO COMERCIAL A4 / PDF abaixo." });
         var commercial = new SalesVisualButton { Name = "CommercialPreview", Text = "ORÇAMENTO COMERCIAL A4 / PDF" };
         commercial.Click += (_, _) =>
@@ -105,14 +111,14 @@ public sealed class GlassWorkshopForm : Form
         ValidateChildren();
         var snapshot=CaptureSavedProject();
         stored=GlassProjectStore.Save(snapshot,stored);
-        return stored;
+        RefreshOperations();return stored;
     }
     internal void LoadSavedProject(string id)
     {
         var loaded=GlassProjectStore.Load(id);
         // Valida antes de alterar os controles. O registro não é modificado ao abrir.
         var prior=CaptureSavedProject();
-        try { ApplySavedProject(loaded.Data); stored=loaded; saveStatus.Text="Aberto: " + loaded.Data.Description; }
+        try { ApplySavedProject(loaded.Data); stored=loaded; saveStatus.Text="Aberto: " + loaded.Data.Description;RefreshOperations(); }
         catch { ApplySavedProject(prior); throw; }
     }
     private void ApplySavedProject(GlassSavedProject saved)
@@ -125,7 +131,25 @@ public sealed class GlassWorkshopForm : Form
     {
         ApplySavedProject(new(1,GlassProject.ModelName,"Projeto de teste",1200,1000,"mm","mm",1,
             new(0,"","",0,0,0,0),Array.Empty<GlassMaterialLink>(),null,false));
-        stored=null;saveStatus.Text="Novo projeto — ainda não salvo.";
+        stored=null;saveStatus.Text="Novo projeto — ainda não salvo.";RefreshOperations();
+    }
+    private MainForm OperationsHost()
+    {
+        Form? host=Owner;while(host!=null && host is not MainForm)host=host.Owner;
+        return host as MainForm??throw new InvalidOperationException("Abra a Vidraçaria pela tela principal do PDV.");
+    }
+    internal GlassStoredProject OperationsProject(bool needsCustomer)
+    {
+        ValidateChildren();
+        if(stored==null||HasUnsavedChanges())throw new InvalidOperationException("Salve o projeto e suas alterações antes de abrir Financeiro/Agenda.");
+        if(needsCustomer && stored.Data.Quote.CustomerId<=0)throw new InvalidOperationException("Selecione e salve o cliente do projeto antes de abrir o financeiro.");
+        return stored;
+    }
+    private void RefreshOperations()
+    {
+        if(stored==null){operationsStatus.Text="Financeiro/Agenda: salve o projeto para continuar.";return;}
+        try{operationsStatus.Text=GlassOperationsStore.Read(stored).Display;}
+        catch(InvalidOperationException){operationsStatus.Text="Projeto alterado por outra sessão: reabra para atualizar o financeiro.";}
     }
     private bool HasUnsavedChanges()=>stored==null || System.Text.Json.JsonSerializer.Serialize(CaptureSavedProject())!=System.Text.Json.JsonSerializer.Serialize(stored.Data);
     private void RunProjectAction(Action action)

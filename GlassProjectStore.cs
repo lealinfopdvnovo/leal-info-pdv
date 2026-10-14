@@ -61,6 +61,7 @@ public static class GlassProjectStore
         string id = previous?.Id ?? Guid.NewGuid().ToString("N");
         long revision = checked((previous?.Revision ?? 0) + 1);
         using var db = Database.Open(); using var tx = db.BeginTransaction();
+        if(previous!=null)GlassOperationsStore.CheckCustomer(db,tx,id,data.Quote.CustomerId);
         using var q = db.CreateCommand(); q.Transaction = tx;
         q.CommandText = previous == null
             ? "INSERT INTO glass_projects_v1(id,revision,created_utc,updated_utc,description,customer_name,model,format_version,payload) VALUES($id,$r,$created,$now,$description,$customer,$model,1,$payload)"
