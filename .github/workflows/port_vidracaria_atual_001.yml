@@ -152,9 +152,9 @@ jobs:
           dotnet run --project qa/port001/LealInfoPDV.Port001Tests.csproj -c Release -- --before
           if($LASTEXITCODE -ne 0){throw 'Baseline001 falhou'}
           Pop-Location
+          Remove-Item baseline-src -Recurse -Force
           dotnet run --project qa/port001/LealInfoPDV.Port001Tests.csproj -c Release
           if($LASTEXITCODE -ne 0){throw 'Regressao exclusiva001 falhou'}
-          Remove-Item baseline-src -Recurse -Force
       - name: Regressao completa Windows da 10.392
         shell: pwsh
         run: |
