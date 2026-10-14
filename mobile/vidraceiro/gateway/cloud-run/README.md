@@ -16,7 +16,7 @@ Máximo1 instância, concorrência1, mínimo0; contador local de até30 tentativ
 
 ## Executar sem senha ou chave na conversa
 
-O workflow .github/workflows/angra_cloud_run.yml verifica a credencial Google já referenciada no repositório (LEAL_FIREBASE_SERVICE_ACCOUNT) e o projeto em ANGRA_GCP_PROJECT ou LEAL_FIREBASE_PROJECT_ID. Esses nomes são referências, não confirmação de que valores existem. Nunca imprimir/exportar o conteúdo da credencial. A presença de um projeto Firebase não adiciona Firebase ao Android: é apenas um projeto Google Cloud que pode ou não conceder permissão para novos recursos isolados.
+O workflow .github/workflows/angra_cloud_run.yml exige configuração exclusiva ANGRA: secret ANGRA_GCP_DEPLOY_CREDENTIALS e variável ANGRA_GCP_PROJECT. Não reutiliza automaticamente credencial ou projeto do licenciamento/SpeedFood. A existência desses valores precisa ser verificada na execução. Nunca imprimir/exportar o conteúdo da credencial.
 
 No Google Cloud Shell autenticado, a alternativa é executar:
 
