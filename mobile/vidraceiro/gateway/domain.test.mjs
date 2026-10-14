@@ -1,0 +1,5 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {mm,prompt,validate} from './domain.mjs';
+const spec=(type)=>({schemaVersion:1,id:'f87c880b-b23e-43aa-83ea-27118bf40540',revision:1,title:'Cliente teste',type,model:'Personalizado',configuration:'Detalhes escolhidos',measures:[{label:'Largura',value:'1.2',unit:'m',mm:'1200'},{label:'Espessura',value:'6',unit:'mm',mm:'6'}]});
+test('Tipos abertos sem fundacao janela',()=>{for(const name of ['Janela','Box','Espelho','Fechamento','Serviço futuro não catalogado']){assert.equal(validate(spec(name)).type,name);assert.ok(prompt(spec(name)).includes('Tipo: '+name));}});
+test('Unidade canonica exata',()=>{assert.equal(mm('1.2','m'),'1200');assert.equal(mm('120','cm'),'1200');assert.equal(mm('1234.56789','mm'),'1234.56789');assert.equal(mm('1.000','m'),'1000');assert.throws(()=>validate({...spec('Box'),measures:[{label:'x',value:'2',unit:'m',mm:'2'}]}));});
+test('Imagens nao sao financeiro',()=>{const p=validate(spec('Porta'));assert.equal(p.measures.length,2);assert.equal(p.payment,undefined);assert.equal(p.total,undefined);assert.throws(()=>validate({...p,type:''}));});
