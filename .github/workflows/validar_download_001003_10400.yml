@@ -1,0 +1,47 @@
+name: Confirmar seletores e DOWNLOAD 001003 10.400 sem publicar
+on:
+  push:
+    branches: ['release/validar-download-001003-10400']
+permissions: {contents: read}
+jobs:
+  verificar:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Codigo produtivo identico e updater comum aos dois perfis
+        shell: python
+        run: |
+          import subprocess
+          assert subprocess.check_output(['git','diff','--name-only','3644bcfc3fe324949600f8f8b9b3b9ce98e6365b','HEAD']).decode().splitlines()==['.github/workflows/validar_download_001003_10400.yml']
+          assert subprocess.check_output(['git','show','ae9bec3a758d5548ded8534d0bece0fa9bded6b2:UpdateManager.cs'])==subprocess.check_output(['git','show','HEAD:UpdateManager.cs'])
+          print('PASS updater real identico001/003; pacotes publicados inalterados')
+      - name: Detectar e BAIXAR separadamente001003 e verificar SHA256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          $original=Get-Content qa/glass/Program.cs -Raw
+          foreach($id in @('001','003')){
+            $previous=if($id -eq '001'){'10.399'}else{'10.398'}
+            $sha=if($id -eq '001'){'0535c48e2e9592698e8c625583b9fa2d04b3e3fffa1f0a076a9fe58df0544a7d'}else{'9b6b1b03b4bceebfb996f308aec49a984f42bf02ae8462acd99b0d401d115c9b'}
+            $source=if($id -eq '001'){'3644bcfc3fe324949600f8f8b9b3b9ce98e6365b'}else{'ae9bec3a758d5548ded8534d0bece0fa9bded6b2'}
+            $m=Invoke-RestMethod "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/clients/$id/version.json"
+            if($m.Version -ne '10.400' -or $m.SourceCommit -ne $source -or $m.Sha256 -ne $sha -or $m.TargetClientCode -ne $id){throw 'Publicado divergiu'}
+            $qa=$original.Replace('id == "003" ? "10.383" : "10.379"','id == "003" ? "10.400" : "10.400"')
+            $qa=$qa.Replace('new[] { "001", "002", "003", "004" }',('new[] { "'+$id+'" }'))
+            $qa=$qa.Replace('new object[] { http, id, "10.378" }',('new object[] { http, id, "'+$previous+'" }'))
+            $qa=$qa.Replace('if (live && id == "003")',('if (live && id == "'+$id+'")'))
+            $qa=$qa.Replace('"Hash remoto 003"',('"Hash remoto '+$id+' - DOWNLOAD REAL"'))
+            [IO.File]::WriteAllText((Join-Path $PWD 'qa/glass/Program.cs'),$qa)
+            dotnet run --project qa/glass/LealInfoPDV.GlassTests.csproj -c Release -- --live
+            if($LASTEXITCODE -ne 0){throw "Updater real$id falhou"}
+          }
