@@ -117,23 +117,14 @@ public sealed class GlassQuoteForm : Form
         service.Text=saved.Service; price.Value=saved.Price; serviceValue.Value=saved.ServiceValue;
         discount.Value=saved.Discount; addition.Value=saved.Addition; RefreshQuote();
     }
-    private void SelectCustomer()
+    private void SelectCustomer() => RegisterCustomer();
+    private void LinkCustomer(long id)
     {
         LoadCustomers();
-        using var picker = new Form { Name = "GlassCustomerPicker", Text = "SELECIONAR CLIENTE PARA O PROJETO", StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(620, 380), MinimumSize = new Size(420, 300), ShowInTaskbar = false };
-        var list = new ListBox { Name = "GlassCustomerOptions", Dock = DockStyle.Fill };
-        foreach (var item in customer.Items.Cast<Customer>().Where(c => c.Id > 0)) list.Items.Add(item);
-        list.SelectedItem = customer.SelectedItem;
-        var confirm = new SalesVisualButton { Name = "ConfirmGlassCustomer", Text = "VINCULAR CLIENTE AO PROJETO", Dock = DockStyle.Bottom, Height = 48 };
-        void Confirm()
-        {
-            if (list.SelectedItem is not Customer chosen) return;
-            customer.SelectedItem = customer.Items.Cast<Customer>().Single(c => c.Id == chosen.Id);
-            picker.DialogResult = DialogResult.OK; picker.Close();
-        }
-        confirm.Click += (_, _) => Confirm(); list.DoubleClick += (_, _) => Confirm();
-        picker.Controls.Add(list); picker.Controls.Add(confirm); picker.AcceptButton = confirm;
-        picker.ShowDialog(selectCustomer.FindForm());
+        int index = customer.Items.Cast<Customer>().ToList().FindIndex(c => c.Id == id && c.Id > 0);
+        if (index < 1) throw new InvalidOperationException("O cliente escolhido não está mais disponível no cadastro.");
+        customer.SelectedIndex = index;
+        RefreshQuote();
     }
     private void RegisterCustomer()
     {
@@ -144,7 +135,7 @@ public sealed class GlassQuoteForm : Form
             MessageBox.Show(registerCustomer.FindForm(), "Abra a Vidraçaria pela tela principal para acessar o cadastro de clientes.", "Cadastro de clientes", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-        try { main.OpenCustomersFromGlass(); }
+        try { main.OpenCustomersFromGlass(LinkCustomer); }
         finally { LoadCustomers(); }
     }
     private void LoadCustomers()

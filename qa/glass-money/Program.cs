@@ -52,12 +52,8 @@ static class Program
         {using var reopened=new GlassWorkshopForm(Style);reopened.Show();Load(reopened,args[1]);Scenario(reopened);Check(Snapshot(reopened).CustomerId==996 && Snapshot(reopened).CustomerName=="CLIENTE QA MOEDA" && Find<Label>(reopened,"SelectedGlassCustomer").Text.Contains("ID 996"),"Cliente vinculado persistido em NOVO PROCESSO e reconhecido pelo A4/PDF");Preview(reopened,Snapshot(reopened));Check(Find<NumericUpDown>(reopened,"QuotePrice").Text=="R$ 100,00" && Find<NumericUpDown>(reopened,"QuoteAddition").Text=="R$ 12,00","Campos salvos brasileiros em processo/cultura distintos");File.WriteAllBytes("glass-money-evidencias/reaberto-132.pdf",GlassCommercialDocument.PdfBytes(Snapshot(reopened)));reopened.Close();return;}
         Sql("INSERT INTO customers(id,name) VALUES(996,'CLIENTE QA MOEDA'); SELECT 1");long customers=Convert.ToInt64(Sql("SELECT COUNT(*) FROM customers"));long sales=Convert.ToInt64(Sql("SELECT COUNT(*) FROM sales"));
         using var f=new GlassWorkshopForm(Style);f.Show();Pump();Find<Button>(f,"LoadQuoteCustomers").PerformClick();
-        bool picked=false;using(var timer=new System.Windows.Forms.Timer{Interval=60})
-        {
-            timer.Tick+=(_,_)=>{var picker=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Name=="GlassCustomerPicker");if(picker==null)return;timer.Stop();Find<ListBox>(picker,"GlassCustomerOptions").SelectedIndex=0;Find<Button>(picker,"ConfirmGlassCustomer").PerformClick();picked=true;};
-            timer.Start();Find<Button>(f,"SelectGlassCustomer").PerformClick();
-        }
-        Check(picked && Snapshot(f).CustomerId==996 && Find<Label>(f,"SelectedGlassCustomer").Text.Contains("CLIENTE QA MOEDA (ID 996)"),"Acao explicita vincula cliente REAL e confirma na interface");
+        Find<ComboBox>(f,"QuoteCustomer").SelectedIndex=1;
+        Check(Snapshot(f).CustomerId==996 && Find<Label>(f,"SelectedGlassCustomer").Text.Contains("CLIENTE QA MOEDA (ID 996)"),"Seletor existente confirma cliente REAL e ID");
         var tabs=Find<TabControl>(f,"GlassSections");tabs.SelectedIndex=3;Pump();
         foreach(string culture in new[]{"pt-BR","en-US","de-DE"})
         {
