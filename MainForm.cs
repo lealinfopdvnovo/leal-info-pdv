@@ -2635,7 +2635,7 @@ private void ApplyFloatingTheme(Form f)
     }
 
     internal void OpenFinanceFromGlass(GlassStoredProject saved)=>RunAllowed("cash",()=>ShowFinance(saved));
-    internal string? OpenAgendaFromGlass(GlassStoredProject saved)
+    internal string? OpenAgendaFromGlass(GlassStoredProject? saved)
     {
         string? selected=null;
         RunAllowed("orders",()=>{using var agenda=new GlassAgendaForm(saved,ApplyFloatingTheme);if(agenda.ShowDialog(this)==DialogResult.OK)selected=agenda.SelectedProjectId;});
