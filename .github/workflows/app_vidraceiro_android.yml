@@ -29,7 +29,7 @@ jobs:
       - name: Testes de dominio, lint e APK
         working-directory: mobile/vidraceiro
         run: |
-          node --test gateway/domain.test.mjs
+          node --test gateway/*.test.mjs
           gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --stacktrace
           sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/SHA256.txt
       - uses: actions/upload-artifact@v4
