@@ -39,7 +39,7 @@ static class Program
     }
     static void Agenda(GlassWorkshopForm f,string kind,string? expectedProject=null)
     {
-        int stage=0;bool seen=false;var watch=Stopwatch.StartNew();using var timer=new System.Windows.Forms.Timer{Interval=60};
+        int stage=0;bool seen=false;Task? nativeConfirmation=null;var watch=Stopwatch.StartNew();using var timer=new System.Windows.Forms.Timer{Interval=60};
         timer.Tick+=(_,_)=>{
             if(watch.ElapsedMilliseconds>15000)throw new Exception("Timeout agenda real");
             var agenda=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Name=="GlassAgenda");var editor=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Name=="GlassAppointmentEditor");
@@ -51,10 +51,10 @@ static class Program
                 Check((string)Prop(row.DataBoundItem!,"Phone")! =="TEL QA" && (string)Prop(row.DataBoundItem!,"Address")! =="END QA","Agenda consulta contato ORIGINAL sem duplicar");seen=true;timer.Stop();
                 if(expectedProject!=null){grid.CurrentCell=row.Cells["Kind"];
                     bool fresh=typeof(GlassWorkshopForm).GetField("stored",I)!.GetValue(f)==null;
-                    var confirm=Task.Run(async()=>{if(!fresh)return;for(int i=0;i<100;i++){var h=FindWindow("#32770","Agenda");if(h!=IntPtr.Zero){PostMessage(h,0x111,(IntPtr)6,IntPtr.Zero);return;}await Task.Delay(50);}throw new Exception("Confirmacao de abrir projeto nao encontrada");});
-                    Find<Button>(agenda,"OpenGlassAgendaProject").PerformClick();confirm.GetAwaiter().GetResult();}else agenda.Close();
+                    nativeConfirmation=Task.Run(async()=>{if(!fresh)return;for(int i=0;i<100;i++){var h=FindWindow("#32770","Agenda");if(h!=IntPtr.Zero){PostMessage(h,0x111,(IntPtr)6,IntPtr.Zero);return;}await Task.Delay(50);}throw new Exception("Confirmacao de abrir projeto nao encontrada");});
+                    Find<Button>(agenda,"OpenGlassAgendaProject").PerformClick();}else agenda.Close();
             }
-        };timer.Start();Find<Button>(f,"OpenGlassAgenda").PerformClick();Check(seen,"Agenda REAL localizar "+kind);
+        };timer.Start();Find<Button>(f,"OpenGlassAgenda").PerformClick();nativeConfirmation?.GetAwaiter().GetResult();Check(seen,"Agenda REAL localizar "+kind);
     }
     [STAThread]static void Main(string[] args)
     {

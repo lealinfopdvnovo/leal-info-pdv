@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ matrix.client == '001' && github.sha || 'b6f46cf16431445cf56e4312cddb51c08e0db290' }}
+          ref: ${{ matrix.client == '001' && github.sha || 'ae9bec3a758d5548ded8534d0bece0fa9bded6b2' }}
       - uses: actions/setup-dotnet@v4
         with: {dotnet-version: '8.0.x'}
       - name: Auditar cada BASE REAL e preservar passos01-04
@@ -157,7 +157,7 @@ jobs:
           $repo='lealinfopdvnovo/leal-info-pdv-updates'
           $head001=Invoke-RestMethod "https://api.github.com/repos/$env:GITHUB_REPOSITORY/git/ref/heads/release/vidracaria-fin-agenda-001-10400" -Headers @{Authorization="Bearer $env:SOURCE_TOKEN"}
           $head003=Invoke-RestMethod "https://api.github.com/repos/$env:GITHUB_REPOSITORY/git/ref/heads/release/vidracaria-fin-agenda-003-10400" -Headers @{Authorization="Bearer $env:SOURCE_TOKEN"}
-          if($head001.object.sha -ne $env:GITHUB_SHA -or $head003.object.sha -ne 'b6f46cf16431445cf56e4312cddb51c08e0db290'){throw 'Candidato superado'}
+          if($head001.object.sha -ne $env:GITHUB_SHA -or $head003.object.sha -ne 'ae9bec3a758d5548ded8534d0bece0fa9bded6b2'){throw 'Candidato superado'}
           $ref=gh api "repos/$repo/git/ref/heads/main"|ConvertFrom-Json
           if($LASTEXITCODE -ne 0){throw 'Ref updates indisponivel'}
           $parent=$ref.object.sha
@@ -178,7 +178,7 @@ jobs:
             $old=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.content))|ConvertFrom-Json
             if($old.Version -ne $expected -or $old.Sha256 -ne $oldHash -or $old.TargetClientCode -ne $id){throw 'Origem alterada'}
             $package="LEAL_INFO_PDV_$($id)_V10_400_UPDATE.zip"
-            $source=if($id -eq '001'){$env:GITHUB_SHA}else{'b6f46cf16431445cf56e4312cddb51c08e0db290'}
+            $source=if($id -eq '001'){$env:GITHUB_SHA}else{'ae9bec3a758d5548ded8534d0bece0fa9bded6b2'}
             Copy-Item "validado$id/$package" $package
             gh release create "client-$id-v10.400" $package --repo $repo --title "LEAL INFO PDV $id V10.400 - Financeiro e Agenda Vidracaria" --notes-file notes.txt --latest=false
             if($LASTEXITCODE -ne 0){throw 'Release falhou; feeds ainda intactos'}
