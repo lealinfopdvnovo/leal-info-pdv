@@ -82,9 +82,11 @@ public static class GlassCommercialDocument
         try { using var g = Graphics.FromImage(image); DrawPage(g, new RectangleF(0, 0, image.Width, image.Height), s, index); return image; }
         catch { image.Dispose(); throw; }
     }
-    public static byte[] PdfBytes(GlassCommercialSnapshot s)
+    public static byte[] PdfBytes(GlassCommercialSnapshot s) => PdfPages(PageCount(s), i => RenderPage(s, i));
+    // O mesmo motor PDF aprovado serve aos documentos vinculados; conteúdo comercial permanece igual.
+    internal static byte[] PdfPages(int pages, Func<int, Bitmap> renderPage)
     {
-        int pages = PageCount(s); var offsets = new List<long> { 0 };
+        var offsets = new List<long> { 0 };
         using var stream = new MemoryStream();
         void Text(string value) { var data = Encoding.ASCII.GetBytes(value); stream.Write(data); }
         void Object(int id, Action write) { offsets.Add(stream.Position); Text(id + " 0 obj\n"); write(); Text("\nendobj\n"); }
@@ -97,7 +99,7 @@ public static class GlassCommercialDocument
             Object(id, () => Text($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /XObject << /PageImage {id + 2} 0 R >> >> /Contents {id + 1} 0 R >>"));
             string command = "q\n595.28 0 0 841.89 0 0 cm\n/PageImage Do\nQ\n";
             Object(id + 1, () => Text($"<< /Length {Encoding.ASCII.GetByteCount(command)} >>\nstream\n{command}endstream"));
-            using var bitmap = RenderPage(s, i); using var image = new MemoryStream(); bitmap.Save(image, ImageFormat.Jpeg); var jpeg = image.ToArray();
+            using var bitmap = renderPage(i); using var image = new MemoryStream(); bitmap.Save(image, ImageFormat.Jpeg); var jpeg = image.ToArray();
             Object(id + 2, () => { Text($"<< /Type /XObject /Subtype /Image /Width {bitmap.Width} /Height {bitmap.Height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length {jpeg.Length} >>\nstream\n"); stream.Write(jpeg); Text("\nendstream"); });
         }
         long xref = stream.Position; Text($"xref\n0 {offsets.Count}\n0000000000 65535 f \n");

@@ -87,7 +87,12 @@ public sealed class GlassWorkshopForm : Form
             catch (Exception error) { MessageBox.Show(this, error.Message, "Orçamento comercial", MessageBoxButtons.OK, MessageBoxIcon.Information); }
         };
         AddField(printing, "DOCUMENTO COMERCIAL", commercial);
-        AddField(printing, "RECIBO", new SalesVisualButton { Name = "GlassReceiptPending", Text = "PENDENTE: VÍNCULO COM VENDA/PAGAMENTO", Enabled = false });
+        var receipts=new SalesVisualButton{Name="OpenGlassReceipts",Text="RECIBOS — RECEBIMENTOS REAIS"};
+        receipts.Click+=(_,_)=>RunProjectAction(()=>OperationsHost().OpenReceiptsFromGlass(OperationsProject(true)));
+        AddField(printing,"RECIBOS",receipts);
+        var contracts=new SalesVisualButton{Name="OpenGlassContracts",Text="CONTRATO COMERCIAL — REVISÕES / PDF"};
+        contracts.Click+=(_,_)=>RunProjectAction(()=>OperationsHost().OpenContractsFromGlass(OperationsProject(true)));
+        AddField(printing,"CONTRATOS",contracts);
         // Reutiliza a rotina do PDV, sem estilizá-los por aproximação.
         var drawing = Descendants(this).OfType<GlassDrawingView>().Single();
         var drawingBackground = drawing.BackColor; var drawingForeground = drawing.ForeColor;
