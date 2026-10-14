@@ -14,7 +14,7 @@ static class Program
     static object? Scalar(string sql){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText=sql;return q.ExecuteScalar();}
     static void Sql(string sql){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText=sql;q.ExecuteNonQuery();}
     [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern IntPtr FindWindow(string cls,string title);
-    [DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr w,IntPtr l);
+    [DllImport("user32.dll")]static extern bool PostMessage(IntPtr hwnd,uint msg,IntPtr w,IntPtr l);
     static void Pump(){Application.DoEvents();Thread.Sleep(30);Application.DoEvents();}
     [STAThread]static void Main()
     {
@@ -62,8 +62,16 @@ static class Program
         {timer.Tick+=(_,_)=>{var crud=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Text=="CLIENTES");if(crud!=null){timer.Stop();crud.Close();}};timer.Start();Find<Button>(f,"RegisterGlassCustomer").PerformClick();}
         Check(Convert.ToInt64(Scalar("SELECT COUNT(*) FROM customers"))==initial+1 && clients.Text=="CLIENTE NOVO VIDRACARIA QA","Fechar sem cadastrar nao duplica nem perde selecao");
         var denied=Auth.CreateUser("QA SEM ACESSO","qa_negado","Senha_Ficticia_123","OPERADOR","qa@example.invalid","");Sql($"INSERT INTO user_permissions(user_id,permission_key,allowed) VALUES({denied},'customers',0)");Auth.Login("qa_negado","Senha_Ficticia_123");Check(!Auth.HasPermission("customers"),"Permissao de clientes negada no mecanismo real");
-        using(var timer=new System.Windows.Forms.Timer{Interval=60})
-        {timer.Tick+=(_,_)=>{var dialog=FindWindow("#32770","Acesso não permitido");if(dialog!=IntPtr.Zero){timer.Stop();SendMessage(dialog,0x0111,new IntPtr(1),IntPtr.Zero);}};timer.Start();Find<Button>(f,"RegisterGlassCustomer").PerformClick();}
+        var dismiss=Task.Run(async ()=>{
+            for(int attempt=0;attempt<150;attempt++){
+                var dialog=FindWindow("#32770","Acesso não permitido");
+                if(dialog!=IntPtr.Zero){Console.WriteLine("PASS aviso nativo de permissao localizado");PostMessage(dialog,0x0010,IntPtr.Zero,IntPtr.Zero);return true;}
+                await Task.Delay(100);
+            }
+            return false;
+        });
+        Find<Button>(f,"RegisterGlassCustomer").PerformClick();
+        Check(dismiss.GetAwaiter().GetResult(),"Aviso real de acesso negado exibido e fechado");
         Check(!Application.OpenForms.Cast<Form>().Any(x=>x.Text=="CLIENTES") && Convert.ToInt64(Scalar("SELECT COUNT(*) FROM customers"))==initial+1,"Botao respeita bloqueio sem abrir cadastro ou gravar");Auth.Login("qa_cliente","Senha_Ficticia_123");
         f.Close();
         foreach(var size in new[]{new Size(1366,768),new Size(1600,900),new Size(1920,1080)})foreach(float factor in new[]{1f,1.25f,1.5f})
