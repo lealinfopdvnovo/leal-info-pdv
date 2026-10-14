@@ -2504,6 +2504,8 @@ private void ApplyFloatingTheme(Form f)
         f.ShowDialog(this);
     }
 
+    internal void OpenCustomersFromGlass() => RunAllowed("customers", OpenCustomers);
+
     private void OpenCustomers() => ShowPersonCrud("CLIENTES", "customers");
     private void OpenSuppliers() => ShowPersonCrud("FORNECEDORES", "suppliers");
 
