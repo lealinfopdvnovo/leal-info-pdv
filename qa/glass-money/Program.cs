@@ -5,9 +5,16 @@ using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 static class Program
 {
     const BindingFlags I=BindingFlags.NonPublic|BindingFlags.Instance;
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr h, uint message, IntPtr w, IntPtr l);
+    static void TypeMoney(NumericUpDown field, string input)
+    {
+        field.Focus(); field.Select(0,field.Text.Length); Pump();
+        foreach(char ch in input) { SendMessage(field.Controls.OfType<TextBox>().Single().Handle,0x102,(IntPtr)ch,IntPtr.Zero); Pump(); }
+    }
     static int checks;
     static void Check(bool b,string name){if(!b)throw new Exception("FAIL "+name);checks++;Console.WriteLine("PASS "+name);}
     static IEnumerable<Control> All(Control c)=>c.Controls.Cast<Control>().SelectMany(x=>new[]{x}.Concat(All(x)));
@@ -42,9 +49,15 @@ static class Program
         Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true","Windows descartavel");Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);Application.EnableVisualStyles();Database.Initialize();Directory.CreateDirectory("glass-money-evidencias");
         CultureInfo.CurrentCulture=CultureInfo.GetCultureInfo("en-US");
         if(args.Length>0 && args[0]=="--reopen")
-        {using var reopened=new GlassWorkshopForm(Style);reopened.Show();Load(reopened,args[1]);Scenario(reopened);Check(Find<NumericUpDown>(reopened,"QuotePrice").Text=="R$ 100,00" && Find<NumericUpDown>(reopened,"QuoteAddition").Text=="R$ 12,00","Campos salvos brasileiros em processo/cultura distintos");File.WriteAllBytes("glass-money-evidencias/reaberto-132.pdf",GlassCommercialDocument.PdfBytes(Snapshot(reopened)));reopened.Close();return;}
+        {using var reopened=new GlassWorkshopForm(Style);reopened.Show();Load(reopened,args[1]);Scenario(reopened);Check(Snapshot(reopened).CustomerId==996 && Snapshot(reopened).CustomerName=="CLIENTE QA MOEDA" && Find<Label>(reopened,"SelectedGlassCustomer").Text.Contains("ID 996"),"Cliente vinculado persistido em NOVO PROCESSO e reconhecido pelo A4/PDF");Preview(reopened,Snapshot(reopened));Check(Find<NumericUpDown>(reopened,"QuotePrice").Text=="R$ 100,00" && Find<NumericUpDown>(reopened,"QuoteAddition").Text=="R$ 12,00","Campos salvos brasileiros em processo/cultura distintos");File.WriteAllBytes("glass-money-evidencias/reaberto-132.pdf",GlassCommercialDocument.PdfBytes(Snapshot(reopened)));reopened.Close();return;}
         Sql("INSERT INTO customers(id,name) VALUES(996,'CLIENTE QA MOEDA'); SELECT 1");long customers=Convert.ToInt64(Sql("SELECT COUNT(*) FROM customers"));long sales=Convert.ToInt64(Sql("SELECT COUNT(*) FROM sales"));
-        using var f=new GlassWorkshopForm(Style);f.Show();Pump();Find<Button>(f,"LoadQuoteCustomers").PerformClick();Find<ComboBox>(f,"QuoteCustomer").SelectedIndex=1;
+        using var f=new GlassWorkshopForm(Style);f.Show();Pump();Find<Button>(f,"LoadQuoteCustomers").PerformClick();
+        bool picked=false;using(var timer=new System.Windows.Forms.Timer{Interval=60})
+        {
+            timer.Tick+=(_,_)=>{var picker=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Name=="GlassCustomerPicker");if(picker==null)return;timer.Stop();Find<ListBox>(picker,"GlassCustomerOptions").SelectedIndex=0;Find<Button>(picker,"ConfirmGlassCustomer").PerformClick();picked=true;};
+            timer.Start();Find<Button>(f,"SelectGlassCustomer").PerformClick();
+        }
+        Check(picked && Snapshot(f).CustomerId==996 && Find<Label>(f,"SelectedGlassCustomer").Text.Contains("CLIENTE QA MOEDA (ID 996)"),"Acao explicita vincula cliente REAL e confirma na interface");
         var tabs=Find<TabControl>(f,"GlassSections");tabs.SelectedIndex=3;Pump();
         foreach(string culture in new[]{"pt-BR","en-US","de-DE"})
         {
@@ -52,10 +65,17 @@ static class Program
             foreach(string name in new[]{"QuotePrice","QuoteServiceValue","QuoteDiscount","QuoteAddition"})
             {
                 var field=Find<NumericUpDown>(f,name);
-                foreach(var example in new[]{("100,50",100.50m,"R$ 100,50"),("100",100m,"R$ 100,00"),("R$ 12,00",12m,"R$ 12,00"),("1.234,56",1234.56m,"R$ 1.234,56"),("100,5",100.5m,"R$ 100,50")})
+                foreach(var example in new[]{("100,50",100.50m,"R$ 100,50"),("100",1m,"R$ 1,00"),("10050",100.50m,"R$ 100,50"),("R$ 12,00",12m,"R$ 12,00"),("1.234,56",1234.56m,"R$ 1.234,56"),("100,5",100.5m,"R$ 100,50")})
                 {field.Text=example.Item1;Check(field.Value==example.Item2 && field.Text==example.Item3,"Entrada/exibicao "+name+" "+culture+" "+example.Item1);}
                 field.Value=19.90m;field.Text="100.50";Check(field.Value==19.90m,"Formato ambiguo nao vira10050 "+name+" "+culture);
                 field.Text="-10,00";Check(field.Value==19.90m,"Valor negativo nao gravado "+name);
+                field.Value=0;
+                foreach(var example in new[]{("1",0.01m),("10",0.10m),("100",1m),("1000",10m),("10050",100.50m),("100,50",100.50m),("0",0m)})
+                { TypeMoney(field,example.Item1);Check(field.Value==example.Item2 && field.Text==example.Item2.ToString("C2",CultureInfo.GetCultureInfo("pt-BR")).Replace('\u00a0',' '),"Teclado nativo imediato "+name+" "+culture+" "+example.Item1); }
+                TypeMoney(field,"10050");SendMessage(field.Controls.OfType<TextBox>().Single().Handle,0x102,(IntPtr)'\b',IntPtr.Zero);Pump();Check(field.Value==10.05m,"Backspace remove ultimo centavo "+name);
+                TypeMoney(field,"\b");Check(field.Value==0,"Limpar selecao zera "+name);
+                TypeMoney(field,"250");Check(field.Value==2.50m,"Nova digitacao apos limpar "+name);
+                field.Text="";Check(field.Value==0 && field.Text=="R$ 0,00","Vazio nunca restaura dinheiro antigo "+name);
                 field.Value=0;
             }
             Check(CultureInfo.CurrentCulture.Name==culture,"Cultura global do PDV preservada");

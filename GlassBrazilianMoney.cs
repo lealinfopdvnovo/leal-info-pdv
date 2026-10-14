@@ -23,42 +23,80 @@ internal static class GlassBrazilianMoney
 internal sealed class GlassMoneyInput : NumericUpDown
 {
     private readonly ToolTip hint = new();
+    private string? keyboard;
+    private bool writing;
+    private TextBox? Editor => Controls.OfType<TextBox>().FirstOrDefault();
     internal GlassMoneyInput()
     {
         DecimalPlaces = 2; Maximum = 1000000000m; ThousandsSeparator = true;
-        hint.SetToolTip(this, "Valor em reais. Use vírgula para centavos: 100,50 ou R$ 100,50.");
+        hint.SetToolTip(this, "Digite centavos: 10050 = R$ 100,50. Também aceita 100,50. Apagar zera o valor.");
     }
     protected override void UpdateEditText()
     {
-        ChangingText = true;
-        Text = GlassBrazilianMoney.Format(Value);
+        writing = true;
+        try { ChangingText = true; Text = GlassBrazilianMoney.Format(Value); }
+        finally { writing = false; }
+    }
+    private bool ParseInput(string input, out decimal number)
+    {
+        number = 0;
+        if (string.IsNullOrWhiteSpace(input)) return true;
+        if (Regex.IsMatch(input, @"^[0-9]+$", RegexOptions.CultureInvariant))
+            return decimal.TryParse(input, NumberStyles.None, CultureInfo.InvariantCulture, out number) && (number /= 100m) <= Maximum;
+        return GlassBrazilianMoney.TryParse(input, out number);
     }
     protected override void ValidateEditText()
     {
         if (UserEdit)
         {
-            string input = Text;
-            UserEdit = false;
-            if (GlassBrazilianMoney.TryParse(input, out var number) && number >= Minimum && number <= Maximum)
-                Value = number;
-            // Entrada inválida conserva o último valor; nunca remove a vírgula
-            // nem grava um valor financeiro inventado.
+            string input = Text; UserEdit = false; keyboard = null;
+            if (ParseInput(input, out var number) && number >= Minimum && number <= Maximum) Value = number;
         }
         UpdateEditText();
     }
+    protected override void OnTextChanged(EventArgs e)
+    {
+        base.OnTextChanged(e);
+        if (!writing && string.IsNullOrWhiteSpace(Text))
+        { UserEdit = false; keyboard = ""; Value = 0; }
+    }
+    private void ApplyKeyboard()
+    {
+        string input = keyboard ?? "";
+        string parsed = input.EndsWith(',') ? input + "0" : input;
+        if (!ParseInput(parsed, out var number) || number < Minimum || number > Maximum) return;
+        UserEdit = false; Value = number; UpdateEditText();
+        if (Editor != null) Editor.SelectionStart = Text.Length;
+    }
     protected override void OnKeyPress(KeyPressEventArgs e)
     {
+        if (char.IsDigit(e.KeyChar) || e.KeyChar == ',' || e.KeyChar == '\b')
+        {
+            bool selectedAll = Editor != null && Editor.SelectionLength == Text.Length;
+            if (selectedAll) keyboard = "";
+            keyboard ??= decimal.Truncate(Value * 100m).ToString(CultureInfo.InvariantCulture);
+            if (e.KeyChar == '\b') keyboard = keyboard.Length > 0 ? keyboard[..^1] : "";
+            else if (e.KeyChar == ',') { if (!keyboard.Contains(',')) keyboard += ","; }
+            else if (!keyboard.Contains(',') || keyboard.Length - keyboard.IndexOf(',') <= 2) keyboard += e.KeyChar;
+            e.Handled = true; ApplyKeyboard(); return;
+        }
         base.OnKeyPress(e);
-        if (e.KeyChar is ',' or '.') e.Handled = false;
+    }
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.Delete)
+        { keyboard = ""; ApplyKeyboard(); e.Handled = true; e.SuppressKeyPress = true; return; }
+        if (e.Control && e.KeyCode == Keys.A) { Select(0, Text.Length); e.Handled = true; return; }
+        base.OnKeyDown(e);
     }
     protected override void OnEnter(EventArgs e)
     {
-        base.OnEnter(e);
-        Select(0, Text.Length);
+        base.OnEnter(e); keyboard = null; Select(0, Text.Length);
     }
+    protected override void OnLeave(EventArgs e)
+    { base.OnLeave(e); keyboard = null; }
     protected override void Dispose(bool disposing)
     {
-        if (disposing) hint.Dispose();
-        base.Dispose(disposing);
+        if (disposing) hint.Dispose(); base.Dispose(disposing);
     }
 }

@@ -16,6 +16,8 @@ public sealed class GlassQuoteForm : Form
     private readonly TextBox summary = new() { Name = "QuoteSummary", ReadOnly = true, Multiline = true, Dock = DockStyle.Fill, ScrollBars = ScrollBars.Vertical, MinimumSize = new Size(100, 270) };
     private readonly Button load = new SalesVisualButton() { Name = "LoadQuoteCustomers", Text = "CARREGAR CLIENTES", AutoSize = true, MinimumSize = new Size(180, 42) };
     private readonly Button registerCustomer = new SalesVisualButton { Name = "RegisterGlassCustomer", Text = "+ CADASTRAR CLIENTE", AutoSize = true, MinimumSize = new Size(220, 42) };
+    private readonly Button selectCustomer = new SalesVisualButton { Name = "SelectGlassCustomer", Text = "SELECIONAR CLIENTE", AutoSize = true, MinimumSize = new Size(220, 42) };
+    private readonly Label selectedCustomer = new() { Name = "SelectedGlassCustomer", AutoSize = true, Dock = DockStyle.Top };
     private readonly FlowLayoutPanel customerActions = new() { Name = "GlassCustomerActions", AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top, WrapContents = true };
     private static readonly CultureInfo Pt = CultureInfo.GetCultureInfo("pt-BR");
     private sealed record Customer(long Id, string Name) { public override string ToString() => Name; }
@@ -43,8 +45,10 @@ public sealed class GlassQuoteForm : Form
         Add("CLIENTE (cadastro existente)", customer);
         load.Click += (_, _) => LoadCustomers();
         registerCustomer.Click += (_, _) => RegisterCustomer();
-        customerActions.Controls.AddRange(new Control[] { load, registerCustomer });
+        selectCustomer.Click += (_, _) => SelectCustomer();
+        customerActions.Controls.AddRange(new Control[] { load, registerCustomer, selectCustomer });
         fields.Controls.Add(customerActions);
+        fields.Controls.Add(selectedCustomer);
         Add("DESCRIÇÃO DO SERVIÇO (opcional)", service);
         Add("VALOR POR m² (R$)", price);
         Add("SERVIÇO ADICIONAL — VALOR TOTAL (R$)", serviceValue);
@@ -68,6 +72,7 @@ public sealed class GlassQuoteForm : Form
         embedded = true;
         GlassWorkshopForm.AddField(projects, "CLIENTE (cadastro existente)", customer);
         GlassWorkshopForm.AddField(projects, "", customerActions);
+        GlassWorkshopForm.AddField(projects, "", selectedCustomer);
         GlassWorkshopForm.AddField(projects, "DESCRIÇÃO DO SERVIÇO (opcional)", service);
         GlassWorkshopForm.AddField(calculations, "VALOR POR m² (R$)", price);
         GlassWorkshopForm.AddField(calculations, "SERVIÇO ADICIONAL — VALOR TOTAL (R$)", serviceValue);
@@ -112,6 +117,24 @@ public sealed class GlassQuoteForm : Form
         service.Text=saved.Service; price.Value=saved.Price; serviceValue.Value=saved.ServiceValue;
         discount.Value=saved.Discount; addition.Value=saved.Addition; RefreshQuote();
     }
+    private void SelectCustomer()
+    {
+        LoadCustomers();
+        using var picker = new Form { Name = "GlassCustomerPicker", Text = "SELECIONAR CLIENTE PARA O PROJETO", StartPosition = FormStartPosition.CenterParent, ClientSize = new Size(620, 380), MinimumSize = new Size(420, 300), ShowInTaskbar = false };
+        var list = new ListBox { Name = "GlassCustomerOptions", Dock = DockStyle.Fill };
+        foreach (var item in customer.Items.Cast<Customer>().Where(c => c.Id > 0)) list.Items.Add(item);
+        list.SelectedItem = customer.SelectedItem;
+        var confirm = new SalesVisualButton { Name = "ConfirmGlassCustomer", Text = "VINCULAR CLIENTE AO PROJETO", Dock = DockStyle.Bottom, Height = 48 };
+        void Confirm()
+        {
+            if (list.SelectedItem is not Customer chosen) return;
+            customer.SelectedItem = customer.Items.Cast<Customer>().Single(c => c.Id == chosen.Id);
+            picker.DialogResult = DialogResult.OK; picker.Close();
+        }
+        confirm.Click += (_, _) => Confirm(); list.DoubleClick += (_, _) => Confirm();
+        picker.Controls.Add(list); picker.Controls.Add(confirm); picker.AcceptButton = confirm;
+        picker.ShowDialog(selectCustomer.FindForm());
+    }
     private void RegisterCustomer()
     {
         Form? host = registerCustomer.FindForm();
@@ -143,6 +166,9 @@ public sealed class GlassQuoteForm : Form
     private GlassQuote CurrentQuote() => new(project, price.Value, serviceValue.Value, discount.Value, addition.Value);
     private void RefreshQuote()
     {
+        selectedCustomer.Text = customer.SelectedItem is Customer c && c.Id > 0
+            ? $"CLIENTE SELECIONADO: {c.Name} (ID {c.Id})"
+            : "NENHUM CLIENTE VINCULADO — use SELECIONAR CLIENTE.";
         var quote = CurrentQuote();
         if (quote.ValidationError != null) { summary.Text = quote.ValidationError + "\r\nTotal indisponível até corrigir os dados."; return; }
         string MoneyText(decimal value) => GlassBrazilianMoney.Format(value);
