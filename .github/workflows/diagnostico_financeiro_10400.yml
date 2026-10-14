@@ -1,0 +1,35 @@
+name: Diagnostico grade financeiro real 10.400
+on:
+  push:
+    branches: ['audit/financeiro-10400-historico']
+permissions: {contents: read}
+jobs:
+  diagnostico:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet build qa/glass-operations/LealInfoPDV.GlassOperationsTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'build'}
+          $p=Start-Process dotnet -ArgumentList 'qa/glass-operations/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.GlassOperationsTests.dll' -PassThru -NoNewWindow -RedirectStandardOutput diagnostic.log -RedirectStandardError diagnostic-error.log
+          $done=$p.WaitForExit(120000)
+          if(!$done){$p.Kill($true);$p.WaitForExit()}
+          Get-Content diagnostic.log
+          Get-Content diagnostic-error.log
+          if(!$done -or $p.ExitCode -ne 0){throw 'diagnostico falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostico-financeiro
+          path: '*diagnostic*.log'
