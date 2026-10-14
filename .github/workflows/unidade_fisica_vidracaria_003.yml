@@ -59,16 +59,16 @@ jobs:
           Expand-Archive original003.zip original003
           $deps=Get-Content original003/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
           $sdk=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
-          dotnet build qa/glass-unit-physical/LealInfoPDV.GlassUnitPhysicalTests.csproj -c Release -p:WindowsSdkPackageVersion=$($sdk.Split('/')[1])
+          dotnet build qa/glass-unit-physical/LealInfoPDV.GlassUnitPhysicalTests.csproj -c Release -p:Version=10.394.0 -p:AssemblyVersion=10.394.0.0 -p:FileVersion=10.394.0.0 -p:WindowsSdkPackageVersion=$($sdk.Split('/')[1])
           if($LASTEXITCODE -ne 0){throw 'QA fisica nao compilou'}
           $dir='qa/glass-unit-physical/bin/Release/net8.0-windows10.0.19041.0'
-          Copy-Item "$dir/LealInfoPDV.dll" candidato.dll
           Copy-Item original003/LealInfoPDV.dll "$dir/LealInfoPDV.dll" -Force
           $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
           if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
           dotnet "$dir/LealInfoPDV.GlassUnitPhysicalTests.dll" --baseline
           if($LASTEXITCODE -ne 0){throw 'Reproducao do pacote real falhou'}
-          Copy-Item candidato.dll "$dir/LealInfoPDV.dll" -Force
+          dotnet build qa/glass-unit-physical/LealInfoPDV.GlassUnitPhysicalTests.csproj -c Release -p:WindowsSdkPackageVersion=$($sdk.Split('/')[1])
+          if($LASTEXITCODE -ne 0){throw 'Candidata QA nao compilou'}
           if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
           $process=Start-Process dotnet -ArgumentList "$dir/LealInfoPDV.GlassUnitPhysicalTests.dll" -PassThru -NoNewWindow -RedirectStandardOutput physical-stdout.log -RedirectStandardError physical-stderr.log
           $finished=$process.WaitForExit(120000)
