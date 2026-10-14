@@ -24,9 +24,6 @@ for attempt in (1,2):
         frames=[(int(t),float(a),int(p)) for t,a,p in re.findall(r'FRAME ms=(\d+) alpha=([0-9.E-]+) progress=(\d+)',log)]
         if frames:
             t=frames[-1][0]
-            key=next((name for threshold,name in [(0,'initial'),(500,'fade'),(1600,'visible'),(3000,'progress'),(5000,'complete')] if t>=threshold and name not in captured),None)
-            if key:
-                data=adb('exec-out','screencap','-p');(OUT/f'{attempt}-{key}.png').write_bytes(data);captured[key]=(t,data)
             if t>=5000:break
         time.sleep(.06)
     (OUT/f'{attempt}-log.txt').write_text(log)
@@ -44,11 +41,20 @@ for attempt in (1,2):
     adb('shell','uiautomator','dump','/sdcard/angra.xml')
     ui=adb('shell','cat','/sdcard/angra.xml').decode()
     assert 'ANGRA VIDROS' in ui and 'Nome do projeto' in ui and 'LEAL INFO' not in ui,ui
-    def brightness(data):
-        image=Image.open(io.BytesIO(data)).convert('RGB');w,h=image.size
-        return sum(ImageStat.Stat(image.crop((w//8,h//8,w*7//8,h*7//8))).mean)
-    assert 'initial' in captured and 'visible' in captured,captured.keys()
-    early=brightness(captured['initial'][1]);visible=brightness(captured['visible'][1])
-    assert visible>early+12,(early,visible,captured['initial'][0])
-    (OUT/f'{attempt}-result.json').write_text(json.dumps({'passed':True,'frames':frames,'brightness_initial':early,'brightness_visible':visible,'main_screen':True},indent=2))
+    # Validate actual rendered pixels from continuous video, without blocking the
+    # animation with synchronous screenshot commands on the emulator.
+    video=OUT/f'{attempt}-cold-start.mp4'
+    pixels=subprocess.check_output(['ffmpeg','-v','error','-i',str(video),
+        '-vf','fps=5,crop=iw*0.75:ih*0.75:iw*0.125:ih*0.125,scale=1:1',
+        '-f','rawvideo','-pix_fmt','rgb24','-'])
+    brightness=[sum(pixels[i:i+3]) for i in range(0,len(pixels),3)]
+    dark=next(i for i,v in enumerate(brightness) if v<10)
+    # Full artwork occupies the middle of the recording, before MainActivity.
+    steady=sorted(brightness[15:28]);visible=steady[len(steady)//2]
+    full=next(i for i in range(dark+1,len(brightness)) if brightness[i]>=visible*.96)
+    intermediate=[v for v in brightness[dark:full] if 10<v<visible*.94]
+    assert visible>80 and len(set(intermediate))>=3,(brightness,visible)
+    assert all(b>=a-8 for a,b in zip(brightness[dark:full],brightness[dark+1:full+1])),brightness
+    early=brightness[dark]
+    (OUT/f'{attempt}-result.json').write_text(json.dumps({'passed':True,'frames':frames,'brightness_initial':early,'brightness_visible':visible,'video_brightness_5fps':brightness,'main_screen':True},indent=2))
     print(f'PASS cold launch {attempt}: dark -> opacity -> 5000ms/100% -> main; brightness {early:.1f} -> {visible:.1f}')
