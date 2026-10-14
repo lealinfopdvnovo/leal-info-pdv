@@ -51,7 +51,7 @@ static class Program
         Check(GlassCommercialDocument.PageCount(longDoc)>1,"Paginação para descrições e listas longas");
         File.WriteAllBytes("glass-commercial-evidencias/orcamento-multipagina.pdf",GlassCommercialDocument.PdfBytes(longDoc));
         using(var font=new Font("Segoe UI",15,FontStyle.Regular,GraphicsUnit.Pixel)) foreach(var line in GlassCommercialDocument.Lines(longDoc))Check(TextRenderer.MeasureText(line,font,Size.Empty,TextFormatFlags.SingleLine|TextFormatFlags.NoPadding|TextFormatFlags.NoPrefix).Width<=690,"Linha comercial sem corte");
-        tabs.SelectedIndex=6;Check(!Find<Button>(f,"GlassReceiptPending").Enabled,"Recibo bloqueado sem pagamento/venda");
+        tabs.SelectedIndex=6;Check(Find<Button>(f,"OpenGlassReceipts").Enabled && !All(f).OfType<Button>().Any(x=>x.Name=="GlassReceiptPending"),"Recibos integrados; emissao exige entrada real no fluxo 07");
         bool preview=false;
         using(var timer=new System.Windows.Forms.Timer{Interval=50})
         {

@@ -2634,6 +2634,8 @@ private void ApplyFloatingTheme(Form f)
         }
     }
 
+    internal void OpenReceiptsFromGlass(GlassStoredProject saved)=>RunAllowed("cash",()=>{using var dialog=new GlassReceiptForm(saved,ApplyFloatingTheme);dialog.ShowDialog(this);});
+    internal void OpenContractsFromGlass(GlassStoredProject saved)=>RunAllowed("quotes",()=>{using var dialog=new GlassContractForm(saved,ApplyFloatingTheme);dialog.ShowDialog(this);});
     internal void OpenFinanceFromGlass(GlassStoredProject saved)=>RunAllowed("cash",()=>ShowFinance(saved));
     internal string? OpenAgendaFromGlass(GlassStoredProject? saved)
     {
