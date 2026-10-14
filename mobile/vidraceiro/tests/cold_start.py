@@ -1,7 +1,7 @@
 """Run against an actual booted emulator; force-stop before each independent launch."""
 import io,json,re,subprocess,time
 from pathlib import Path
-from PIL import Image,ImageStat
+from imageio_ffmpeg import get_ffmpeg_exe
 OUT=Path('app/build/reports/splash-runtime');OUT.mkdir(parents=True,exist_ok=True)
 PKG='br.com.lealinfo.vidraceiro'
 def adb(*args):return subprocess.check_output(['adb',*args])
@@ -44,7 +44,7 @@ for attempt in (1,2):
     # Validate actual rendered pixels from continuous video, without blocking the
     # animation with synchronous screenshot commands on the emulator.
     video=OUT/f'{attempt}-cold-start.mp4'
-    pixels=subprocess.check_output(['ffmpeg','-v','error','-i',str(video),
+    pixels=subprocess.check_output([get_ffmpeg_exe(),'-v','error','-i',str(video),
         '-vf','fps=5,crop=iw*0.75:ih*0.75:iw*0.125:ih*0.125,scale=1:1',
         '-f','rawvideo','-pix_fmt','rgb24','-'])
     brightness=[sum(pixels[i:i+3]) for i in range(0,len(pixels),3)]
