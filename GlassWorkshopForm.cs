@@ -73,8 +73,8 @@ public sealed class GlassWorkshopForm : Form
             ResetSavedProject();
         });
         AddField(general,"PROJETOS SALVOS",save); AddField(general,"",open); AddField(general,"",fresh); AddField(general,"",saveStatus);
-        AddField(printing, "", new Label { AutoSize = true, Text = "Impressão técnica existente • A4 • sem orçamento financeiro no documento." });
-        var commercial = new SalesVisualButton { Name = "CommercialPreview", Text = "ORÇAMENTO COMERCIAL / PDF" };
+        AddField(printing, "", new Label { AutoSize = true, Text = "DESENHO TÉCNICO A4: medidas e desenho, sem valores. Para preços e total, use ORÇAMENTO COMERCIAL A4 / PDF abaixo." });
+        var commercial = new SalesVisualButton { Name = "CommercialPreview", Text = "ORÇAMENTO COMERCIAL A4 / PDF" };
         commercial.Click += (_, _) =>
         {
             try { GlassCommercialDocument.Preview(this, project.CommercialSnapshot(materials.Materials)); }

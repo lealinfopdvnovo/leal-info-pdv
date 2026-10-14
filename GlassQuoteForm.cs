@@ -84,7 +84,7 @@ public sealed class GlassQuoteForm : Form
     }
     internal GlassCommercialSnapshot CommercialSnapshot(IReadOnlyList<GlassMaterialLink> materials)
     {
-        var value = new GlassQuote(project, price.Value, serviceValue.Value, discount.Value, addition.Value);
+        var value = CurrentQuote();
         if (value.ValidationError != null) throw new InvalidOperationException(value.ValidationError);
         if (customer.SelectedItem is not Customer selected || selected.Id == 0)
             throw new InvalidOperationException("Selecione um cliente cadastrado na aba Projetos.");
@@ -140,14 +140,14 @@ public sealed class GlassQuoteForm : Form
         }
         catch (Exception) { MessageBox.Show(this, "Não foi possível consultar o cadastro de clientes. Nenhum dado foi alterado.", Text); }
     }
+    private GlassQuote CurrentQuote() => new(project, price.Value, serviceValue.Value, discount.Value, addition.Value);
     private void RefreshQuote()
     {
-        var quote = new GlassQuote(project, price.Value, serviceValue.Value, discount.Value, addition.Value);
+        var quote = CurrentQuote();
         if (quote.ValidationError != null) { summary.Text = quote.ValidationError + "\r\nTotal indisponível até corrigir os dados."; return; }
-        string MoneyText(decimal value) => value.ToString("C2", Pt);
-        summary.Text = $"CLIENTE: {customer.SelectedItem}\r\nPROJETO: {project.Description}\r\nMODELO: {GlassProject.ModelName}\r\nSERVIÇO: {service.Text}\r\nMEDIDAS: {project.WidthMm.ToString("0.##", Pt)} × {project.HeightMm.ToString("0.##", Pt)} mm\r\nQUANTIDADE: {project.Quantity}\r\nÁREA POR UNIDADE: {quote.Area.ToString("0.######", Pt)} m²\r\nÁREA TOTAL: {quote.TotalArea.ToString("0.######", Pt)} m²\r\nVALOR POR m²: {MoneyText(price.Value)}\r\nVALOR BASE POR ÁREA: {MoneyText(quote.MaterialValue)}\r\nSERVIÇO ADICIONAL (total): {MoneyText(serviceValue.Value)}\r\nDESCONTO: {MoneyText(discount.Value)}\r\nACRÉSCIMO: {MoneyText(addition.Value)}\r\nTOTAL: {MoneyText(quote.Total)}";
+        string MoneyText(decimal value) => GlassBrazilianMoney.Format(value);
+        summary.Text = $"CLIENTE: {customer.SelectedItem}\r\nPROJETO: {project.Description}\r\nMODELO: {GlassProject.ModelName}\r\nSERVIÇO: {service.Text}\r\nMEDIDAS: {project.WidthMm.ToString("0.##", Pt)} × {project.HeightMm.ToString("0.##", Pt)} mm\r\nQUANTIDADE: {project.Quantity}\r\nÁREA POR UNIDADE: {quote.Area.ToString("0.00####", Pt)} m²\r\nÁREA TOTAL: {quote.TotalArea.ToString("0.00####", Pt)} m²\r\nVALOR POR m²: {MoneyText(price.Value)}\r\nVALOR BASE POR ÁREA: {MoneyText(quote.MaterialValue)}\r\nSERVIÇO ADICIONAL (total): {MoneyText(serviceValue.Value)}\r\nSUBTOTAL (área + serviço): {MoneyText(quote.BaseValue)}\r\nDESCONTO: {MoneyText(discount.Value)}\r\nACRÉSCIMO: {MoneyText(addition.Value)}\r\nTOTAL: {MoneyText(quote.Total)}";
         if (embedded) summary.Text = summary.Text[summary.Text.IndexOf("QUANTIDADE:", StringComparison.Ordinal)..];
     }
-    private static NumericUpDown Money(string name) => new() { Name = name, Dock = DockStyle.Fill,
-        DecimalPlaces = 2, Maximum = 1000000000m, ThousandsSeparator = true };
+    private static NumericUpDown Money(string name) => new GlassMoneyInput { Name = name, Dock = DockStyle.Fill };
 }
