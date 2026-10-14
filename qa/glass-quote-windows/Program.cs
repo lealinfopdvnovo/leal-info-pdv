@@ -12,8 +12,8 @@ static class Program
         var quote = form.OwnedForms.OfType<GlassQuoteForm>().Single();
         Find<NumericUpDown>(quote,"QuotePrice").Value = 100;
         var summary = Find<TextBox>(quote,"QuoteSummary");
-        Check(summary.Text.Contains("1200 × 1000 mm") && summary.Text.Contains("1,2 m²"),"Projeto transferido sem redigitação");
-        foreach (var measure in new[] { (1800m,1000m,1,"1,8 m²"), (1000m,1500m,2,"3 m²") })
+        Check(summary.Text.Contains("1200 × 1000 mm") && summary.Text.Contains("1,20 m²"),"Projeto transferido sem redigitação");
+        foreach (var measure in new[] { (1800m,1000m,1,"1,80 m²"), (1000m,1500m,2,"3,00 m²") })
         {
             Find<NumericUpDown>(form,"WidthMm").Value = measure.Item1;
             Find<NumericUpDown>(form,"HeightMm").Value = measure.Item2;

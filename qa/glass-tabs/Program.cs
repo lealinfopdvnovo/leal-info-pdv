@@ -48,7 +48,7 @@ static class Program
                 Find<NumericUpDown>(f,"QuotePrice").Value=100;Find<NumericUpDown>(f,"QuoteServiceValue").Value=50;
                 Find<NumericUpDown>(f,"QuoteDiscount").Value=10;Find<NumericUpDown>(f,"QuoteAddition").Value=5;
                 var summary=Find<TextBox>(f,"QuoteSummary");
-                Check(summary.Text.Contains("ÁREA TOTAL: "+value.Item4.ToString("0.######")+" m²"),"Área automática "+value);
+                Check(summary.Text.Contains("ÁREA TOTAL: "+value.Item4.ToString("0.00####")+" m²"),"Área automática "+value);
                 Check(summary.Text.Contains("TOTAL: "+(value.Item4*100+45).ToString("C2")),"Total automático "+value);
                 tabs.SelectedIndex=4;Pump();var drawing=Find<GlassDrawingView>(f,"Drawing");
                 Check(drawing.Project==new GlassProject("PROJETO QA ABAS",value.Item1,value.Item2,value.Item3),"2D recebe fonte única");

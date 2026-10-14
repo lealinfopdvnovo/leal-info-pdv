@@ -20,7 +20,7 @@ jobs:
         run: |
           import subprocess
           base='355a81f36ab561779b1b7e88cdc51ac95615b668'
-          allowed={'GlassBrazilianMoney.cs','GlassQuoteForm.cs','GlassCommercialDocument.cs','GlassWorkshopForm.cs','GlassMaterialSelection.cs','LealInfoPDV.csproj','UpdateManager.cs','qa/glass-money/Program.cs','qa/glass-money/LealInfoPDV.GlassMoneyTests.csproj','.github/workflows/moeda_a4_vidracaria_003.yml'}
+          allowed={'GlassBrazilianMoney.cs','GlassQuoteForm.cs','GlassCommercialDocument.cs','GlassWorkshopForm.cs','GlassMaterialSelection.cs','LealInfoPDV.csproj','UpdateManager.cs','qa/glass-money/Program.cs','qa/glass-money/LealInfoPDV.GlassMoneyTests.csproj','qa/glass-quote-windows/Program.cs','qa/glass-tabs/Program.cs','.github/workflows/moeda_a4_vidracaria_003.yml'}
           changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
           assert changed==allowed,changed
           for f in ['LealInfoPDV.csproj','UpdateManager.cs']:
