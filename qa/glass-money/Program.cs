@@ -29,12 +29,13 @@ static class Program
     }
     static void Preview(GlassWorkshopForm f,GlassCommercialSnapshot expected)
     {
+        var tabs=Find<TabControl>(f,"GlassSections");int previous=tabs.SelectedIndex;tabs.SelectedIndex=6;Pump();
         bool opened=false;Exception? error=null;using var timer=new System.Windows.Forms.Timer{Interval=60};
         timer.Tick+=(_,_)=>{var dialog=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Text=="ORÇAMENTO COMERCIAL — VIDRAÇARIA");if(dialog==null)return;timer.Stop();opened=true;try{
             Check(dialog.Modal && dialog.Owner==f,"Previa comercial real pertence ao projeto");var image=Find<PictureBox>(dialog,"CommercialPage").Image!;
             var real=(GlassCommercialSnapshot)dialog.Tag!;Check(real.Quote==expected.Quote && real.CustomerId==expected.CustomerId,"Previa consome mesmo modelo/cliente da tela");using var rendered=GlassCommercialDocument.RenderPage(real);using var a=new MemoryStream();using var b=new MemoryStream();image.Save(a,ImageFormat.Png);rendered.Save(b,ImageFormat.Png);Check(a.ToArray().SequenceEqual(b.ToArray()),"Previa A4 renderiza exatamente snapshot comercial real");
             Check(All(dialog).OfType<Button>().Any(x=>x.Text=="GERAR PDF"),"Documento comercial inclui PDF");image.Save("glass-money-evidencias/previa-comercial-132.png");
-        }catch(Exception e){error=e;}dialog.Close();};timer.Start();Find<Button>(f,"CommercialPreview").PerformClick();Check(opened,"Botao correto abre orcamento comercial A4");if(error!=null)throw error;
+        }catch(Exception e){error=e;}dialog.Close();};timer.Start();Find<Button>(f,"CommercialPreview").PerformClick();Check(opened,"Botao correto abre orcamento comercial A4");if(error!=null)throw error;tabs.SelectedIndex=previous;Pump();
     }
     [STAThread]static void Main(string[] args)
     {
