@@ -1,0 +1,41 @@
+name: Confirmar download REAL 001 10.399 sem publicar
+on:
+  push:
+    branches: ['release/validar-download-001-10399']
+permissions: {contents: read}
+jobs:
+  verificar:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Exigir codigo IDENTICO ao pacote publicado
+        shell: python
+        run: |
+          import subprocess
+          assert subprocess.check_output(['git','diff','--name-only','3d076f7bdd53903ec4b6560b52cb8965ad918532','HEAD']).decode().splitlines()==['.github/workflows/validar_download_001_10399.yml']
+          print('PASS codigo produtivo identico a 10.399 publicada')
+      - name: Deteccao e DOWNLOAD pelo seletor REAL 001 com SHA256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          $m=Invoke-RestMethod 'https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/clients/001/version.json'
+          if($m.Version -ne '10.399' -or $m.SourceCommit -ne '3d076f7bdd53903ec4b6560b52cb8965ad918532' -or $m.Sha256 -ne 'd3b516b792b2ffd8f003c26147b0af3da674377caf0b4bb53587da365cbbd9e4'){throw 'Publicado divergiu'}
+          $qa=Get-Content qa/glass/Program.cs -Raw
+          $qa=$qa.Replace('id == "003" ? "10.383" : "10.379"','id == "001" ? "10.399" : "10.398"')
+          $qa=$qa.Replace('new[] { "001", "002", "003", "004" }','new[] { "001" }')
+          $qa=$qa.Replace('new object[] { http, id, "10.378" }','new object[] { http, id, "10.392" }')
+          $qa=$qa.Replace('if (live && id == "003")','if (live && id == "001")')
+          $qa=$qa.Replace('"Hash remoto 003"','"Hash remoto 001 - DOWNLOAD REAL DO PACOTE SELECIONADO"')
+          [IO.File]::WriteAllText((Join-Path $PWD 'qa/glass/Program.cs'),$qa)
+          dotnet run --project qa/glass/LealInfoPDV.GlassTests.csproj -c Release -- --live
+          if($LASTEXITCODE -ne 0){throw 'Download real001/hash falhou'}
