@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+*.pem
+*.key
+*credentials*.json
+node_modules
+vidraceiro-data
+*.test.mjs
+cloud-run

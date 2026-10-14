@@ -1,0 +1,64 @@
+name: ANGRA Cloud Run - preparar e implantar gateway privado
+on:
+  push:
+    branches: ['feature/app-vidraceiro-android-foundation']
+    paths: ['mobile/vidraceiro/gateway/**', '.github/workflows/angra_cloud_run.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validar codigo e conteiner sem chamar IA
+        working-directory: mobile/vidraceiro/gateway
+        run: |
+          npm test
+          bash -n cloud-run/deploy.sh
+          docker build -t angra-gateway:test .
+          export GATEWAY_TOKEN="$(openssl rand -hex 32)"
+          docker run -d --name angra-test -p 127.0.0.1:8080:8080 --env GATEWAY_TOKEN angra-gateway:test >/dev/null
+          for attempt in $(seq 1 30); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8080/v1/simulations || true)
+            if [ "$status" = 401 ]; then break; fi
+            sleep 1
+          done
+          test "$status" = 401
+          docker rm -f angra-test >/dev/null
+          echo 'PASS conteiner/bind/PORT/protecao; nenhuma geracao de IA executada.'
+      - name: Verificar acesso Google existente sem expor credenciais
+        id: access
+        env:
+          GOOGLE_CREDENTIAL: ${{ secrets.LEAL_FIREBASE_SERVICE_ACCOUNT }}
+          ANGRA_PROJECT: ${{ vars.ANGRA_GCP_PROJECT || vars.LEAL_FIREBASE_PROJECT_ID }}
+        run: |
+          ready=true
+          if [ -z "$GOOGLE_CREDENTIAL" ]; then
+            ready=false
+            echo 'BLOQUEIO: credencial Google de implantacao nao disponibilizada ao workflow.' | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -z "$ANGRA_PROJECT" ]; then
+            ready=false
+            echo 'BLOQUEIO: ID do projeto Google Cloud nao disponibilizado nas variaveis ANGRA_GCP_PROJECT/LEAL_FIREBASE_PROJECT_ID.' | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "ready=$ready" >> "$GITHUB_OUTPUT"
+      - uses: google-github-actions/auth@v2
+        if: steps.access.outputs.ready == 'true'
+        with:
+          credentials_json: ${{ secrets.LEAL_FIREBASE_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+        if: steps.access.outputs.ready == 'true'
+      - name: Implantar ou parar no bloqueio exato do proprietario
+        if: steps.access.outputs.ready == 'true'
+        env:
+          ANGRA_PROJECT: ${{ vars.ANGRA_GCP_PROJECT || vars.LEAL_FIREBASE_PROJECT_ID }}
+          ANGRA_REGION: ${{ vars.ANGRA_CLOUD_RUN_REGION || 'southamerica-east1' }}
+        run: bash mobile/vidraceiro/gateway/cloud-run/deploy.sh "$ANGRA_PROJECT" "$ANGRA_REGION"
+      - name: Acesso indispensavel pendente
+        if: steps.access.outputs.ready == 'false'
+        run: |
+          echo 'Implantacao nao executada. Nenhuma URL ou geracao real disponivel.' >> "$GITHUB_STEP_SUMMARY"
+          exit 3

@@ -15,7 +15,7 @@ jobs:
         run: |
           import subprocess
           files=subprocess.check_output(['git','diff','--name-only','3dfab93e04ebb1cfef72606c2d52a76c05eead94','HEAD']).decode().splitlines()
-          assert all(f.startswith('mobile/vidraceiro/') or f=='.github/workflows/app_vidraceiro_android.yml' for f in files)
+          assert all(f.startswith('mobile/vidraceiro/') or f in ('.github/workflows/app_vidraceiro_android.yml','.github/workflows/angra_cloud_run.yml') for f in files)
           print('PASS PDV10.403 e todos canais inalterados')
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
