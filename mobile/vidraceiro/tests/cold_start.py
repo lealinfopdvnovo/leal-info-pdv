@@ -3,7 +3,7 @@ import io,json,re,subprocess,time
 from pathlib import Path
 from imageio_ffmpeg import get_ffmpeg_exe
 OUT=Path('app/build/reports/splash-runtime');OUT.mkdir(parents=True,exist_ok=True)
-PKG='br.com.lealinfo.vidraceiro'
+PKG='br.com.lealinfo.vidraceiro.teste'
 def adb(*args):return subprocess.check_output(['adb',*args])
 adb('shell','wm','size','540x960')
 adb('shell','wm','density','240')
@@ -19,7 +19,7 @@ for attempt,(screen_width,screen_height) in enumerate(((540,960),(540,1200),(800
     adb('logcat','-c')
     record=subprocess.Popen(['adb','shell','screenrecord','--time-limit','9',f'/sdcard/angra-{attempt}.mp4'],stdout=subprocess.DEVNULL)
     time.sleep(1)  # Let screenrecord attach before starting the cold Activity.
-    adb('shell','am','start','-n',PKG+'/.SplashActivity')
+    adb('shell','am','start','-n',PKG+'/br.com.lealinfo.vidraceiro.SplashActivity')
     captured={};start=time.monotonic();frames=[]
     while time.monotonic()-start<15:
         log=adb('logcat','-d','-v','brief').decode()

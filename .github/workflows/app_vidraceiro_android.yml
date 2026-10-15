@@ -2,7 +2,7 @@ name: App Vidraceiro Android - base generica isolada
 on:
   push:
     branches: ['feature/app-vidraceiro-android-foundation']
-permissions: {contents: read, id-token: write}
+permissions: {contents: read, actions: read, id-token: write}
 jobs:
   android:
     runs-on: ubuntu-latest
@@ -39,6 +39,24 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
           python3 -m pip install Pillow imageio-ffmpeg
+      - name: APK 0.1.4 aprovado para testar preservacao lado a lado
+        uses: actions/download-artifact@v4
+        with:
+          repository: lealinfopdvnovo/leal-info-pdv
+          run-id: 38654283648
+          name: ANGRA_VIDROS_ANDROID_0_1_4_TESTE
+          github-token: ${{ github.token }}
+          path: /tmp/angra-approved
+      - name: Verificar hash do APK aprovado
+        shell: python
+        run: |
+          from pathlib import Path
+          import hashlib,shutil
+          files=list(Path('/tmp/angra-approved').rglob('app-debug.apk'))
+          assert len(files)==1
+          assert hashlib.sha256(files[0].read_bytes()).hexdigest()=='b17a1a22e7d7ec6c244766a32528c1f16e93512bbf4b72aa2a06b80facfc354b'
+          shutil.copyfile(files[0],'/tmp/angra-approved.apk')
+          print('PASS approved 0.1.4 APK SHA256')
       - name: Two cold launches - opacity, progress and transition
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -48,18 +66,23 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
+            adb install /tmp/angra-approved.apk
+            adb shell run-as br.com.lealinfo.vidraceiro mkdir -p files
+            adb shell run-as br.com.lealinfo.vidraceiro touch files/approved-marker
             cd mobile/vidraceiro && python3 tests/cold_start.py
             cd mobile/vidraceiro && adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            cd mobile/vidraceiro && adb shell am instrument -w br.com.lealinfo.vidraceiro.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/measure-ui.txt
+            cd mobile/vidraceiro && adb shell am instrument -w br.com.lealinfo.vidraceiro.teste.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/measure-ui.txt
             cd mobile/vidraceiro && grep -q 'PASS MEASURE_UI_FLOW' app/build/reports/measure-ui.txt
-            cd mobile/vidraceiro && adb shell am instrument -w -e networkPhase prepare br.com.lealinfo.vidraceiro.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/network-prepare.txt
+            cd mobile/vidraceiro && adb shell am instrument -w -e networkPhase prepare br.com.lealinfo.vidraceiro.teste.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/network-prepare.txt
             cd mobile/vidraceiro && grep -q 'PASS NETWORK_PREPARE' app/build/reports/network-prepare.txt
-            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro cat files/network-device.json > app/build/reports/network-device.json
+            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.teste cat files/network-device.json > app/build/reports/network-device.json
             cd mobile/vidraceiro && node tests/authorize-ci.mjs
-            cd mobile/vidraceiro && adb shell am instrument -w -e networkPhase generate br.com.lealinfo.vidraceiro.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/network-image-ui.txt
+            cd mobile/vidraceiro && adb shell am instrument -w -e networkPhase generate br.com.lealinfo.vidraceiro.teste.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/network-image-ui.txt
             cd mobile/vidraceiro && grep -q 'PASS REAL_NETWORK_IMAGE_UI' app/build/reports/network-image-ui.txt
-            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro cat files/network-screen.png > app/build/reports/network-image-ui.png
-            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro cat files/network-result.json > app/build/reports/network-result.json
+            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.teste cat files/network-screen.png > app/build/reports/network-image-ui.png
+            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.teste cat files/network-result.json > app/build/reports/network-result.json
+            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro ls files/approved-marker > app/build/reports/approved-preservation.txt
+            cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro | grep 'versionName=0.1.4' >> app/build/reports/approved-preservation.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
