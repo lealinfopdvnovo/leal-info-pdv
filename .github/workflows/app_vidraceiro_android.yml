@@ -89,8 +89,7 @@ jobs:
             adb shell wm size 1080x1920
             cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-large.txt
             cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-large.txt
-            adb shell run-as br.com.lealinfo.vidraceiro.profissional tar -cf /data/data/br.com.lealinfo.vidraceiro.profissional/files/proof.tar -C /data/data/br.com.lealinfo.vidraceiro.profissional/files --exclude=proof.tar .
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional cat files/proof.tar > app/build/reports/proof.tar
+            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional tar -cf - files > app/build/reports/proof.tar
             cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro ls files/approved-marker > app/build/reports/approved-preservation.txt
             cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro | grep 'versionName=0.1.4' >> app/build/reports/approved-preservation.txt
 
