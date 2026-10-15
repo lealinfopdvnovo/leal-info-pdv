@@ -71,7 +71,7 @@ internal sealed class AngraSyncStore
   }
   var records=(response["records"] as JsonArray??new()).OrderBy(x=>AngraProjectData.Text(x?["entity"])=="projects"?1:0);
   foreach(var item in records){var r=item!.AsObject();string entity=AngraProjectData.Text(r["entity"]),id=AngraProjectData.Text(r["id"]);if(!new[]{"clients","suppliers","materials","projects"}.Contains(entity))continue;var l=Link(entity,id);if(r["revision"]!.GetValue<long>()<=l.Revision)continue;var remote=r["payload"]!.AsObject();var current=ReadLocal(l);if(l.Pending!=null||current!=null&&!JsonNode.DeepEquals(current,l.Baseline)&&!JsonNode.DeepEquals(current,remote)){Save(l with{Conflict=r.DeepClone().AsObject(),Error="Conflito: versão local e remota preservadas."});continue;}
-   try{string local=ApplyRecord(l,remote,current);Save(l with{LocalId=local,Revision=r["revision"]!.GetValue<long>(),Baseline=remote.DeepClone().AsObject(),Pending=null,Conflict=null,Error=""});}
+   try{string local=ApplyRecord(l,remote,current);long revision=r["revision"]!.GetValue<long>();JsonObject? confirmation=null;if(AngraProjectData.Text(r["officialId"])!=LocalNumber(local))confirmation=new(){["entity"]=entity,["id"]=id,["baseRevision"]=revision,["operationId"]=Guid.NewGuid().ToString(),["payload"]=remote.DeepClone(),["officialId"]=LocalNumber(local)};Save(l with{LocalId=local,Revision=revision,Baseline=remote.DeepClone().AsObject(),Pending=confirmation,Conflict=null,Error=""});}
    catch(Exception e){Save(l with{Conflict=r.DeepClone().AsObject(),Error=e.Message});}
   }
  }
