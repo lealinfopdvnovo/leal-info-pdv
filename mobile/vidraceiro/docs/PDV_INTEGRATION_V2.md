@@ -49,3 +49,5 @@ Implementados: painel nativo, navegação/retorno, projetos genéricos, medidas 
 Preparados: financeiro oficial, estoque empresarial e sincronização/recepção PDV. Os cards identificam essa condição e mostram a explicação, não dados fictícios. Não há pagamentos locais, notas fiscais, assinatura digital ou regra de fabricante presumida.
 
 Fluxo cancelado: MainActivity não possui geração por foto, autorização para IA, solicitação ao motor, exibição de imagem IA ou envio dependente de simulationId. Testes CI de geração e autorização do motor foram retirados. Código/recurso de splash, parser de medidas, câmera/normalização e infraestrutura segura reaproveitável foram preservados. O antigo serviço remoto não foi destruído nem republishado; o app novo não o aciona.
+
+Nota da0.2.1: metadados `project.photoAttachment` identificam o JPEG permanente por UUID/projeto, MIME, tamanho, SHA256 e instante de vínculo. Exportação inclui manifesto, sem upload automático. A build de teste usa pacote isolado `.profissional021`; instalações anteriores e seus dados permanecem preservados.

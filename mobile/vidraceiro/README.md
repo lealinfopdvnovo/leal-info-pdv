@@ -1,4 +1,4 @@
-# ANGRA VIDROS — oficina profissional Android 0.2.0 (teste)
+# ANGRA VIDROS — oficina profissional Android 0.2.1 (teste)
 
 Estado atual: aplicativo nativo offline, remodulado a partir da 0.1.5, após o splash aprovado e preservado byte a byte. Não transforma fotos por IA/API. Não altera a Vidraçaria Windows 10.403, qualquer cliente, canal, licença ou banco do PDV.
 
@@ -23,6 +23,8 @@ O transporte HTTPS/P-256 e o gateway existente permanecem preservados para avali
 
 Java 17, Gradle 8.9, Android SDK35, minSdk26. Workflow `app_vidraceiro_android.yml`: preservação PDV e arquivos congelados, testes de domínio Java/Node, lint, APK, emulador, três aberturas frias, controles reais, reabertura em processo novo, PDFs e evidências em diferentes proporções.
 
-Execução técnica aprovada: GitHub Actions `38751439545`, código `a0edd8ea2e807f746f1fd07f6dba5a2a6e95262c`. Homologação física pendente do usuário.
+Execução técnica aprovada: GitHub Actions `38758448213`, código `d5988a2d414d9e9cb2dc515b3993e312386e66f6`. Homologação física pendente do usuário.
 
-A instalação de teste usa sufixo `.profissional` para preservar apps anteriores diante da indisponibilidade da chave privada de assinatura deles. Não migra automaticamente dados entre pacotes Android distintos. Não desinstale a versão anterior para testar esta. Namespace e applicationId de produção permanecem intactos.
+A instalação de teste usa sufixo `.profissional021` para preservar apps anteriores diante da indisponibilidade da chave privada de assinatura deles. Não migra automaticamente dados entre pacotes Android distintos. Não desinstale a versão anterior para testar esta. Namespace e applicationId de produção permanecem intactos.
+
+Correções pontuais da0.2.1: ver `DELIVERY_0_2_1.md`. Tipos3D legíveis, foto vinculada, ícone adaptativo e home nativa de vidro; splash e PDV intactos.
