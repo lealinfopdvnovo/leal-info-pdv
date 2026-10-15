@@ -35,3 +35,7 @@ O decorador visita controles novos após layout, sem reparentear campos, trocar 
 ## Congelamento verificável
 
 A CI exige Home byte-idêntica à base, HomeVisuals e recursos intactos. Em MainActivity, exclui somente screen() e normaliza exclusivamente o nome do Builder visual e o recurso de layout de dropdown antes de comparar todo o restante à base. Isso mantém todos os callbacks e regras comerciais/foto/3D/persistência como estavam. As classes de domínio, armazenamento e 3D não foram modificadas. Nenhum arquivo PDV, canal ou updater foi alterado.
+
+## Teclado: causa real encontrada em execução
+
+O listener original de insets aplicava a altura completa do teclado como padding inferior do decor, ao mesmo tempo em que o Android já redimensionava a área de conteúdo. Isso eliminava a área útil e deixava o formulário invisível com o teclado. Em screen(), somente as telas internas passam a aplicar o inset estável da barra do sistema no padding inferior. O redimensionamento do IME continua a cargo do Android. Ao voltar à Home, restaura-se o tratamento original, preservando sua composição. Não há mudança nos campos, listeners de edição, valores ou regras.
