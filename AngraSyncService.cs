@@ -17,6 +17,7 @@ internal sealed class AngraSyncService : IDisposable
  internal string Status{get;private set;}="PDV NÃO CONECTADO";
  internal string AuthorizationUrl{get;private set;}="";
  private static string ConfigPath=>Path.Combine(Database.AppFolder,"angra-sync.config");
+ internal static AngraSyncService? TryStart(){try{return new AngraSyncService();}catch{return null;}}
  internal AngraSyncService(AngraSyncTransport? transport=null,bool startTimer=true)
  {
   Transport=transport??new();Current=this;if(File.Exists(ConfigPath)){try{var config=JsonNode.Parse(ProtectedData.Unprotect(File.ReadAllBytes(ConfigPath),null,DataProtectionScope.CurrentUser))!;tenant=AngraProjectData.Text(config["tenant"]);enabled=config["enabled"]?.GetValue<bool>()==true;if(enabled&&tenant!=""&&NetworkConfiguration.Current.Mode!="terminal")Store=new AngraSyncStore(tenant);}catch{Status="Configuração protegida indisponível. Nenhum vínculo foi recriado.";}}
