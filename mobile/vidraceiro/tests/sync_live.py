@@ -16,4 +16,8 @@ with urllib.request.urlopen(req) as r:
  assert grant['tenant']=='test-'+os.environ['GITHUB_RUN_ID']
 phase('syncLive')
 shell('shell','am','force-stop',pkg)
+state=json.loads(shell('shell','run-as',pkg,'cat','files/pdv-sync-state.json'))
+assert any('pending' in link for link in state['links'].values()),'offline outbox lost after actual force-stop'
+phase('syncResume')
+shell('shell','am','force-stop',pkg)
 phase('syncReopen')

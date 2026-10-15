@@ -206,13 +206,17 @@ jobs:
           dotnet build LealInfoPDV.csproj -c Release
           if($LASTEXITCODE -ne 0){throw '003 build failed'}
           Pop-Location
+          New-Item -ItemType Directory -Force test-candidates/001,test-candidates/003
+          Copy-Item bin/Release/net8.0-windows10.0.19041.0/* test-candidates/001 -Recurse
+          Copy-Item ../candidate003/bin/Release/net8.0-windows10.0.19041.0/* test-candidates/003 -Recurse
+          'CANDIDATO ISOLADO DE TESTE. Base 10.403. Nenhuma publicacao pelo updater. Nao inclui banco/licenca/configuracao. Fazer backup antes de qualquer teste com dados reais.' | Set-Content test-candidates/LEIA-ME.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: ANGRA_PDV_SYNC_TEST_ONLY
           path: |
             qa/angra-sync/evidence/
-            bin/Release/net8.0-windows10.0.19041.0/
+            test-candidates/
           retention-days: 14
 
   verify-roundtrip:
