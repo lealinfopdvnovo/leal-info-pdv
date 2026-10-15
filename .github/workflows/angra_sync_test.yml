@@ -5,6 +5,7 @@ on:
 permissions: {contents: read, actions: read, id-token: write}
 jobs:
   android:
+    needs: windows
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -76,12 +77,12 @@ jobs:
           name: ANGRA_VIDROS_ANDROID_0_2_1_TESTE
           github-token: ${{ github.token }}
           path: /tmp/angra-021
-      - name: Base real 0.2.3 para validar atualizacao direta
+      - name: Base real 0.2.4 para validar atualizacao direta
         uses: actions/download-artifact@v4
         with:
           repository: lealinfopdvnovo/leal-info-pdv
-          run-id: 38779709766
-          name: ANGRA_VIDROS_ANDROID_0_2_3_TESTE
+          run-id: 38802221536
+          name: ANGRA_VIDROS_ANDROID_0_2_4_TESTE
           github-token: ${{ github.token }}
           path: /tmp/angra-022
       - name: Verificar hash do APK aprovado
@@ -100,7 +101,7 @@ jobs:
           shutil.copyfile(old[0],'/tmp/angra-021.apk')
           recent=list(Path('/tmp/angra-022').rglob('app-debug.apk'))
           assert len(recent)==1
-          assert hashlib.sha256(recent[0].read_bytes()).hexdigest()=='910c83f18ae67af973a3431680e960aaa6dc09ed7bc978fd69cceac6bd896ee9'
+          assert hashlib.sha256(recent[0].read_bytes()).hexdigest()=='36b742c6c3b2efa731be891c90bda1d885c5c38a2ed5948b79df4daad89b8aaf'
           shutil.copyfile(recent[0],'/tmp/angra-022.apk')
       - name: Two cold launches - opacity, progress and transition
         uses: reactivecircus/android-emulator-runner@v2
@@ -158,6 +159,9 @@ jobs:
             cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.profissional022 ls files/approved-022-marker > app/build/reports/direct-upgrade-022.txt
             cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro.profissional022 | grep 'versionName=0.3.0' >> app/build/reports/direct-upgrade-022.txt
             cd mobile/vidraceiro && test "$(grep -c 'PASS PROFESSIONAL_INTERIORS' app/build/reports/interiors.txt)" = 4
+            cd mobile/vidraceiro && python3 tests/sync_live.py
+            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
+
             cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.profissional021 ls files/approved-021-marker > app/build/reports/approved-021-preservation.txt
             cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro.profissional021 | grep 'versionName=0.2.1' >> app/build/reports/approved-021-preservation.txt
             cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro ls files/approved-marker > app/build/reports/approved-preservation.txt
@@ -210,3 +214,40 @@ jobs:
             qa/angra-sync/evidence/
             bin/Release/net8.0-windows10.0.19041.0/
           retention-days: 14
+
+  verify-roundtrip:
+    needs: [windows, android]
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ANGRA_PDV_SYNC_TEST_ONLY
+          path: fixture
+      - shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force qa/angra-sync/evidence
+          $db=Get-ChildItem fixture -Recurse -Filter fixture.db | Select-Object -First 1
+          Copy-Item $db.FullName qa/angra-sync/evidence/fixture.db
+          dotnet run --project qa/angra-sync/AngraSyncTests.csproj -c Release -- verify
+          if($LASTEXITCODE -ne 0){throw 'roundtrip failed'}
+
+  pdv-regression:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [glass-persistence, glass-client-link, glass-money, glass-commercial, glass-cut, glass-central-3d, glass-operations, glass-documents, glass-unit-physical, glass-finance-history]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - shell: pwsh
+        run: |
+          $project=Get-ChildItem qa/${{ matrix.suite }}/*.csproj | Select-Object -First 1
+          dotnet run --project $project.FullName -c Release
+          if($LASTEXITCODE -ne 0){throw 'regression failed'}
