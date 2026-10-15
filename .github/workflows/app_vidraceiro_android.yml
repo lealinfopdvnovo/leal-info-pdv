@@ -32,6 +32,7 @@ jobs:
           node --test gateway/*.test.mjs
           gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
           sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/SHA256.txt
+          cp app/src/androidTest/assets/ATTRIBUTION.txt app/build/reports/IMAGE_ATTRIBUTION.txt
       - name: Enable KVM for actual Android execution
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -57,7 +58,7 @@ jobs:
             cd mobile/vidraceiro && node tests/authorize-ci.mjs
             cd mobile/vidraceiro && adb shell am instrument -w -e networkPhase generate br.com.lealinfo.vidraceiro.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/network-image-ui.txt
             cd mobile/vidraceiro && grep -q 'PASS REAL_NETWORK_IMAGE_UI' app/build/reports/network-image-ui.txt
-            cd mobile/vidraceiro && adb exec-out screencap -p > app/build/reports/network-image-ui.png
+            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro cat files/network-screen.png > app/build/reports/network-image-ui.png
             cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro cat files/network-result.json > app/build/reports/network-result.json
 
       - uses: actions/upload-artifact@v4

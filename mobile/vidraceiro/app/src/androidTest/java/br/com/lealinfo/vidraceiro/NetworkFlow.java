@@ -26,6 +26,7 @@ final class NetworkFlow {
   if(SecureGateway.hash(image).equals(SecureGateway.hash(Files.readAllBytes(new File(dir,"photo.jpg").toPath()))))throw new AssertionError("Original image returned unchanged");
   android.widget.ImageView displayed=(android.widget.ImageView)field(activity,"result");if(displayed.getDrawable()==null)throw new AssertionError("Result ImageView has no drawable");
   test.runOnMainSync(()->{android.widget.ScrollView scroll=(android.widget.ScrollView)((android.view.View)fieldUnchecked(activity,"root")).getParent();scroll.scrollTo(0,displayed.getTop()-80);});test.waitForIdleSync();
+  Thread.sleep(300);android.graphics.Bitmap screen=test.getUiAutomation().takeScreenshot();if(screen==null)throw new AssertionError("No actual Android screenshot");try(FileOutputStream out=new FileOutputStream(new File(context.getFilesDir(),"network-screen.png"))){screen.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);}
   JSONObject evidence=new JSONObject().put("endpoint",SecureGateway.ENDPOINT).put("simulationId",simulation).put("imageSha256",SecureGateway.hash(image)).put("bytes",image.length).put("scenario","Dona Maria / Box / 2m x 2m / real licensed photograph");
   Files.write(new File(context.getFilesDir(),"network-result.json").toPath(),evidence.toString().getBytes(StandardCharsets.UTF_8));
   report.putString("stream","PASS REAL_NETWORK_IMAGE_UI: actual CREATE button -> signed HTTPS -> free Space -> returned image decoded and displayed. "+evidence+"\n");test.finish(Activity.RESULT_OK,report);
