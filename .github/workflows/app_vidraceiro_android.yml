@@ -67,6 +67,7 @@ jobs:
           node --test gateway/*.test.mjs
           gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee app/build/reports/signature.txt
+          grep -q 2ee54920efe7042320f90814e45fd10997f9deb28e213ee92a8955b3e00ffac7 app/build/reports/signature.txt
           sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/SHA256.txt
           cp app/src/androidTest/assets/ATTRIBUTION.txt app/build/reports/IMAGE_ATTRIBUTION.txt
       - name: Enable KVM for actual Android execution
