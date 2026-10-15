@@ -44,7 +44,7 @@ A chave de assinatura privada das builds de teste anteriores não está disponí
 
 ## Escopo funcional
 
-Implementados: painel nativo, navegação/retorno, projetos genéricos, medidas individuais exatas, clientes/fornecedores/materiais como rascunhos locais, vínculo explícito, orçamento decimal, prévia/A4/PDF/impressão nativa, contrato com revisões, registro de especificações de têmpera, calculadora geométrica, 2D/3D determinístico plano de corte geométrico com edição de peças, rotação e exportação JSON.
+Implementados: painel nativo, navegação/retorno, projetos genéricos, medidas individuais exatas, clientes/fornecedores/materiais como rascunhos locais, vínculo explícito, orçamento decimal, prévia/A4/PDF/impressão nativa, contrato com revisões, registro de especificações de têmpera, calculadora geométrica, 2D/3D determinístico, plano de corte geométrico com edição de peças, rotação e exportação JSON.
 
 Preparados: financeiro oficial, estoque empresarial e sincronização/recepção PDV. Os cards identificam essa condição e mostram a explicação, não dados fictícios. Não há pagamentos locais, notas fiscais, assinatura digital ou regra de fabricante presumida.
 
