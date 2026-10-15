@@ -1,7 +1,7 @@
 name: ANGRA integration isolated tests
 on:
-  push:
-    branches: ['feature/angra-pdv-sync']
+  pull_request:
+    branches: ['feature/app-vidraceiro-android-foundation']
 permissions: {contents: read, actions: read, id-token: write}
 jobs:
   android:
