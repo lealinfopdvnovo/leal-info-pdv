@@ -1,0 +1,30 @@
+name: ANGRA client003 isolated regressions
+on:
+  push:
+    branches: ['feature/angra-pdv003-qa']
+permissions: {contents: read}
+jobs:
+  client003:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [glass-persistence, glass-client-link, glass-money, glass-commercial, glass-cut, glass-central-3d, glass-operations, glass-documents, glass-unit-physical, glass-finance-history]
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Selective integration over exact published 003
+        shell: pwsh
+        run: |
+          git worktree add ../candidate003 d1525b64db03bc4608aabe020ecfc6e200ec2f05
+          $files=@('GlassProjectStore.cs','GlassWorkshopForm.cs','Program.cs','AngraProjectData.cs','AngraProjectForm.cs','AngraSyncForm.cs','AngraSyncService.cs','AngraSyncStore.cs','AngraSyncTransport.cs')
+          foreach($f in $files){Copy-Item $f ../candidate003/$f}
+          Copy-Item qa/${{ matrix.suite }}/* ../candidate003/qa/${{ matrix.suite }}/ -Force
+          Push-Location ../candidate003
+          if((git diff -- MainForm.cs | Out-String).Trim() -ne ''){throw '003 MainForm modified'}
+          $project=Get-ChildItem qa/${{ matrix.suite }}/*.csproj | Select-Object -First 1
+          dotnet run --project $project.FullName -c Release
+          if($LASTEXITCODE -ne 0){throw '003 regression failed'}
