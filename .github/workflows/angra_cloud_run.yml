@@ -4,7 +4,7 @@ on:
     branches: ['feature/app-vidraceiro-android-foundation']
     paths: ['mobile/vidraceiro/gateway/**', '.github/workflows/angra_cloud_run.yml']
   workflow_dispatch:
-permissions: {contents: read}
+permissions: {contents: read, id-token: write}
 jobs:
   gateway:
     runs-on: ubuntu-latest
@@ -29,26 +29,27 @@ jobs:
           test "$status" = 401
           docker rm -f angra-test >/dev/null
           echo 'PASS conteiner/bind/PORT/protecao; nenhuma geracao de IA executada.'
-      - name: Verificar acesso Google existente sem expor credenciais
+      - name: Verificar identidade exclusiva ANGRA sem expor credenciais
         id: access
         env:
-          GOOGLE_CREDENTIAL: ${{ secrets.ANGRA_GCP_DEPLOY_CREDENTIALS }}
           ANGRA_PROJECT: ${{ vars.ANGRA_GCP_PROJECT }}
+          ANGRA_PROVIDER: ${{ vars.ANGRA_WIF_PROVIDER }}
+          ANGRA_DEPLOY_SA: ${{ vars.ANGRA_DEPLOY_SERVICE_ACCOUNT }}
         run: |
           ready=true
-          if [ -z "$GOOGLE_CREDENTIAL" ]; then
-            ready=false
-            echo 'BLOQUEIO: credencial Google de implantacao nao disponibilizada ao workflow.' | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
-          if [ -z "$ANGRA_PROJECT" ]; then
-            ready=false
-            echo 'BLOQUEIO: ID do projeto Google Cloud nao disponibilizado nas variaveis ANGRA_GCP_PROJECT.' | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
+          for config in ANGRA_PROJECT ANGRA_PROVIDER ANGRA_DEPLOY_SA; do
+            if [ -z "${!config}" ]; then
+              ready=false
+              echo "BLOQUEIO: configuracao exclusiva ausente: $config" | tee -a "$GITHUB_STEP_SUMMARY"
+            fi
+          done
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
-      - uses: google-github-actions/auth@v2
+      - uses: google-github-actions/auth@v3
         if: steps.access.outputs.ready == 'true'
         with:
-          credentials_json: ${{ secrets.ANGRA_GCP_DEPLOY_CREDENTIALS }}
+          project_id: ${{ vars.ANGRA_GCP_PROJECT }}
+          workload_identity_provider: ${{ vars.ANGRA_WIF_PROVIDER }}
+          service_account: ${{ vars.ANGRA_DEPLOY_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
         if: steps.access.outputs.ready == 'true'
       - name: Implantar ou parar no bloqueio exato do proprietario

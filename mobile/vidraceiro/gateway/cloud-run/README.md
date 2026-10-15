@@ -16,7 +16,9 @@ Máximo1 instância, concorrência1, mínimo0; contador local de até30 tentativ
 
 ## Executar sem senha ou chave na conversa
 
-O workflow .github/workflows/angra_cloud_run.yml exige configuração exclusiva ANGRA: secret ANGRA_GCP_DEPLOY_CREDENTIALS e variável ANGRA_GCP_PROJECT. Não reutiliza automaticamente credencial ou projeto do licenciamento/SpeedFood. A existência desses valores precisa ser verificada na execução. Nunca imprimir/exportar o conteúdo da credencial.
+O workflow .github/workflows/angra_cloud_run.yml usa Workload Identity Federation (OIDC), sem chave JSON estática. Exige variáveis exclusivas ANGRA_GCP_PROJECT, ANGRA_WIF_PROVIDER e ANGRA_DEPLOY_SERVICE_ACCOUNT. O job recebe id-token:write; isso só permite obter identidade GitHub e não concede acesso Google automaticamente. Projeto, pool/provider e vínculo IAM precisam existir previamente no Google Cloud, com confiança restrita ao repositório e à branch autorizada. Não reutiliza credenciais/projeto do licenciamento. A verificação registra somente os nomes das configurações ausentes, nunca tokens.
+
+Auditoria programática: gcloud/gh e autenticação Google local ausentes; API Resource Manager acessível por HTTPS, mas retorna401 CREDENTIALS_MISSING sem identidade. GitHub Actions executa Node/Docker e pode instalar gcloud; o workflow verifica a configuração ANGRA antes de autenticar. A criação da confiança inicial WIF requer identidade Google autorizada; um token GitHub sozinho não cria projeto nem permissões Google.
 
 No Google Cloud Shell autenticado, a alternativa é executar:
 
