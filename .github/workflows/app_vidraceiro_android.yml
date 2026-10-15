@@ -131,17 +131,21 @@ jobs:
             cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_VERIFY' app/build/reports/professional-reopen.txt
             adb shell wm size 540x960
             cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-small.txt
+            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
             cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-small.txt
             adb shell wm size 480x900
             cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-compact.txt
+            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
             cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-compact.txt
             adb shell wm density 320
             adb shell wm size 960x1600
             cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-medium.txt
+            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
             cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-medium.txt
             adb shell wm density 240
             adb shell wm size 1080x1920
             cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-large.txt
+            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
             cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-large.txt
             cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
             cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.profissional021 ls files/approved-021-marker > app/build/reports/approved-021-preservation.txt
