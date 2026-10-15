@@ -94,6 +94,14 @@ jobs:
           name: ANGRA_VIDROS_ANDROID_0_2_1_TESTE
           github-token: ${{ github.token }}
           path: /tmp/angra-021
+      - name: Base aprovada 0.2.2 para validar atualizacao direta
+        uses: actions/download-artifact@v4
+        with:
+          repository: lealinfopdvnovo/leal-info-pdv
+          run-id: 38772269767
+          name: ANGRA_VIDROS_ANDROID_0_2_2_TESTE
+          github-token: ${{ github.token }}
+          path: /tmp/angra-022
       - name: Verificar hash do APK aprovado
         shell: python
         run: |
@@ -108,6 +116,10 @@ jobs:
           assert len(old)==1
           assert hashlib.sha256(old[0].read_bytes()).hexdigest()=='7eac8217c73a9b6aa5e2681ba88c7b7d1a51430c9433f97b23dd3efe2237e171'
           shutil.copyfile(old[0],'/tmp/angra-021.apk')
+          recent=list(Path('/tmp/angra-022').rglob('app-debug.apk'))
+          assert len(recent)==1
+          assert hashlib.sha256(recent[0].read_bytes()).hexdigest()=='6d0c517abd214b01659d22d3e39334aa011cf513e9989e39a5c2a76b485d3821'
+          shutil.copyfile(recent[0],'/tmp/angra-022.apk')
       - name: Two cold launches - opacity, progress and transition
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -117,6 +129,9 @@ jobs:
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
+            adb install /tmp/angra-022.apk
+            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 mkdir -p files
+            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 touch files/approved-022-marker
             adb install /tmp/angra-021.apk
             adb shell run-as br.com.lealinfo.vidraceiro.profissional021 mkdir -p files
             adb shell run-as br.com.lealinfo.vidraceiro.profissional021 touch files/approved-021-marker
@@ -158,6 +173,8 @@ jobs:
             cd mobile/vidraceiro && adb shell am instrument -w -e phase interiors br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee -a app/build/reports/interiors.txt
             cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
             cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
+            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.profissional022 ls files/approved-022-marker > app/build/reports/direct-upgrade-022.txt
+            cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro.profissional022 | grep 'versionName=0.2.3' >> app/build/reports/direct-upgrade-022.txt
             cd mobile/vidraceiro && test "$(grep -c 'PASS PROFESSIONAL_INTERIORS' app/build/reports/interiors.txt)" = 4
             cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.profissional021 ls files/approved-021-marker > app/build/reports/approved-021-preservation.txt
             cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro.profissional021 | grep 'versionName=0.2.1' >> app/build/reports/approved-021-preservation.txt
