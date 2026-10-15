@@ -24,6 +24,23 @@ jobs:
           for prohibited in ('/v1/simulations','CRIAR IMAGEM COM AS MEDIDAS','SecureGateway.request','Hugging Face','generateFree'):
               assert prohibited not in main,prohibited
           print('PASS frozen splash/assets/units byte-identical; operational AI flow absent')
+      - name: Congelar funcoes aprovadas da 0.2.1
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          baseline='c655290a9f68dad551f4c43d9a53b377f0536657'
+          prefix='mobile/vidraceiro/app/src/main/'
+          changed=subprocess.check_output(['git','diff','--name-only',baseline,'HEAD','--',prefix]).decode().splitlines()
+          allowed={prefix+'java/br/com/lealinfo/vidraceiro/MainActivity.java',prefix+'java/br/com/lealinfo/vidraceiro/HomeVisuals.java',prefix+'res/drawable-nodpi/home_facade.webp',prefix+'res/drawable-nodpi/home_module_art.webp'}
+          assert set(changed)<=allowed,changed
+          path=prefix+'java/br/com/lealinfo/vidraceiro/MainActivity.java'
+          old=subprocess.check_output(['git','show',baseline+':'+path]).decode()
+          new=Path(path).read_text()
+          def without_home(s):
+              a=s.index(' void home(){');b=s.index(' void projects(',a);return s[:a]+s[b:]
+          assert without_home(old)==without_home(new)
+          print('PASS all production functions outside Home byte-identical; 3D/photo/store/icon/splash/PDV frozen')
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: android-actions/setup-android@v3
@@ -43,6 +60,8 @@ jobs:
         run: |
           node --test gateway/*.test.mjs
           gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee app/build/reports/signature.txt
+          grep -q ede6e2bdb6998d1cce3ca9f989ec2590cb39ff80758b7484ee06a503d529bfa8 app/build/reports/signature.txt
           sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/SHA256.txt
           cp app/src/androidTest/assets/ATTRIBUTION.txt app/build/reports/IMAGE_ATTRIBUTION.txt
       - name: Enable KVM for actual Android execution
@@ -92,6 +111,14 @@ jobs:
             adb shell wm size 540x960
             cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional021.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-small.txt
             cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-small.txt
+            adb shell wm size 480x900
+            cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional021.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-compact.txt
+            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-compact.txt
+            adb shell wm density 320
+            adb shell wm size 960x1600
+            cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional021.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-medium.txt
+            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-medium.txt
+            adb shell wm density 240
             adb shell wm size 1080x1920
             cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional021.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-large.txt
             cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-large.txt
@@ -102,7 +129,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ANGRA_VIDROS_ANDROID_0_2_1_TESTE
+          name: ANGRA_VIDROS_ANDROID_0_2_2_TESTE
           path: |
             mobile/vidraceiro/app/build/outputs/apk/debug/*.apk
             mobile/vidraceiro/app/build/outputs/apk/debug/SHA256.txt

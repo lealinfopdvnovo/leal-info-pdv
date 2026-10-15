@@ -2,13 +2,24 @@ package br.com.lealinfo.vidraceiro;
 import android.content.Context;import android.graphics.*;import android.graphics.drawable.Drawable;import android.view.View;
 /** Native glass surfaces and line icons, not a screenshot masquerading as UI. */
 final class HomeVisuals {
+ static Bitmap facadeImage, moduleImage;
+ static synchronized void images(Context c){if(facadeImage==null){facadeImage=BitmapFactory.decodeResource(c.getResources(),R.drawable.home_facade);moduleImage=BitmapFactory.decodeResource(c.getResources(),R.drawable.home_module_art);}}
+ static final class Hero extends Drawable {
+ final Paint p=new Paint(3);Hero(Context c){images(c);}
+ public void draw(Canvas c){Rect b=getBounds();float w=b.width(),h=b.height();p.setAlpha(255);c.drawColor(0xff020e1c);float scale=Math.max(w/facadeImage.getWidth(),h/facadeImage.getHeight());float iw=facadeImage.getWidth()*scale,ih=facadeImage.getHeight()*scale;c.drawBitmap(facadeImage,null,new RectF(w-iw,0,w,ih),p);p.setShader(new LinearGradient(0,0,w,0,new int[]{0xf5020d1b,0xcc020d1b,0x10020d1b},new float[]{0,.48f,1},Shader.TileMode.CLAMP));c.drawRect(b,p);p.setShader(new LinearGradient(0,h*.7f,0,h,new int[]{0x00020d1b,0xff020d1b},null,Shader.TileMode.CLAMP));c.drawRect(b,p);p.setShader(null);}
+ public void setAlpha(int a){}public void setColorFilter(ColorFilter f){}public int getOpacity(){return PixelFormat.OPAQUE;}
+ }
  static final class Glass extends Drawable {
- final Paint p=new Paint(3);final int accent;final boolean facade;final float radius;
- Glass(Context context,int color,boolean header){accent=color;facade=header;radius=18*context.getResources().getDisplayMetrics().density;}
- @Override public void draw(Canvas c){Rect b=getBounds();float w=b.width(),h=b.height(),r=radius;RectF box=new RectF(b);c.save();Path clip=new Path();clip.addRoundRect(box,r,r,Path.Direction.CW);c.clipPath(clip);p.setShader(new LinearGradient(0,0,w,h,new int[]{0xff102e49,0xff092139,0xff061322},null,Shader.TileMode.CLAMP));c.drawRoundRect(box,r,r,p);p.setShader(null);
- if(facade){c.save();c.clipRect(b);for(int i=0;i<6;i++){float x=w*(.54f+i*.1f);Path glass=new Path();glass.moveTo(x,h*.02f);glass.lineTo(x+w*.08f,h*.13f);glass.lineTo(x+w*.08f,h*.92f);glass.lineTo(x,h);glass.close();p.setShader(new LinearGradient(x,0,x+w*.08f,h,new int[]{0x5532d7ff,0x07194769,0x661377b2},null,Shader.TileMode.CLAMP));c.drawPath(glass,p);p.setShader(null);p.setStyle(Paint.Style.STROKE);p.setColor(0x4469dfff);p.setStrokeWidth(1);c.drawPath(glass,p);p.setStyle(Paint.Style.FILL);}p.setShader(new LinearGradient(0,0,w,0,new int[]{0xff071729,0xec071729,0x22071729},new float[]{0,.47f,1},Shader.TileMode.CLAMP));c.drawRect(box,p);p.setShader(null);c.restore();}
- else{p.setShader(new RadialGradient(w*.1f,0,w,new int[]{(accent&0xffffff)|0x55000000,0x00000000},null,Shader.TileMode.CLAMP));c.drawRoundRect(box,r,r,p);p.setShader(null);p.setColor(accent);c.drawRoundRect(new RectF(b.left,b.top+14,b.left+4,b.bottom-14),3,3,p);p.setColor(0x1266e9ff);Path shine=new Path();shine.moveTo(w*.58f,0);shine.lineTo(w*.85f,0);shine.lineTo(w*.45f,h);shine.lineTo(w*.22f,h);shine.close();c.save();c.clipRect(b);c.drawPath(shine,p);c.restore();}
- p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.5f);p.setColor(0x8861cce8);c.drawRoundRect(new RectF(b.left+1,b.top+1,b.right-1,b.bottom-1),r,r,p);p.setStyle(Paint.Style.FILL);c.restore();
+ final Paint p=new Paint(3);final int accent,index;final float radius,d;
+ Glass(Context c,int color,boolean header){this(c,color,-1);}
+ Glass(Context c,int color,int module){images(c);accent=color;index=module;d=c.getResources().getDisplayMetrics().density;radius=15*d;}
+ @Override public void draw(Canvas c){Rect b=getBounds();float w=b.width(),h=b.height(),r=radius;RectF box=new RectF(b);c.save();Path clip=new Path();clip.addRoundRect(box,r,r,Path.Direction.CW);c.clipPath(clip);
+ int dark=Color.rgb(Color.red(accent)/8,Color.green(accent)/8,Color.blue(accent)/8);int mid=Color.rgb(Color.red(accent)/3,Color.green(accent)/3,Color.blue(accent)/3);
+ p.setAlpha(255);p.setShader(new LinearGradient(0,0,w,h,new int[]{mid,dark,0xff041120},null,Shader.TileMode.CLAMP));c.drawRect(box,p);p.setShader(null);
+ if(index>=0){int cell=moduleImage.getWidth()/4;Rect src=new Rect(index%4*cell,index/4*cell,(index%4+1)*cell,(index/4+1)*cell);float sz=Math.min(h*1.12f,w*.82f);p.setAlpha(105);c.drawBitmap(moduleImage,src,new RectF(w-sz+8*d,-3*d,w+8*d,sz-3*d),p);p.setAlpha(255);p.setShader(new LinearGradient(0,0,w,0,new int[]{(dark&0xffffff)|0xa0000000,0x00000000},null,Shader.TileMode.CLAMP));c.drawRect(box,p);p.setShader(null);}
+ p.setShader(new RadialGradient(0,h*.35f,Math.max(w,h),new int[]{(accent&0xffffff)|0x88000000,0x00000000},null,Shader.TileMode.CLAMP));c.drawRect(box,p);p.setShader(null);p.setColor(accent);c.drawRoundRect(new RectF(0,9*d,3*d,h-9*d),2*d,2*d,p);
+ p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(d);p.setColor((accent&0xffffff)|0xb0000000);c.drawRoundRect(new RectF(.7f*d,.7f*d,w-.7f*d,h-.7f*d),r,r,p);
+ p.setColor(0xff7bdcf2);p.setStrokeWidth(1.7f*d);Path arrow=new Path();arrow.moveTo(w-13*d,h*.50f-6*d);arrow.lineTo(w-7*d,h*.50f);arrow.lineTo(w-13*d,h*.50f+6*d);c.drawPath(arrow,p);p.setStyle(Paint.Style.FILL);c.restore();
  }
  @Override public void setAlpha(int a){p.setAlpha(a);}@Override public void setColorFilter(ColorFilter f){p.setColorFilter(f);}@Override public int getOpacity(){return PixelFormat.TRANSLUCENT;}
  }
