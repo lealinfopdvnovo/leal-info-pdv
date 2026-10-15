@@ -16,6 +16,10 @@ jobs:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.9'}
+      - name: Ephemeral signing for isolated UI fixture only
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 30 -dname "CN=CEP QA,O=Test,C=BR" >/dev/null 2>&1
       - working-directory: mobile/vidraceiro
         run: gradle :app:assembleDebug :app:assembleDebugAndroidTest
       - run: |
