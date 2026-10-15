@@ -12,7 +12,7 @@ public class MeasureFlowInstrumentation extends Instrumentation {
  EditText input(String label){for(int i=0;i<a.root.getChildCount();i++){View v=a.root.getChildAt(i);if(v instanceof EditText&&label.equals(String.valueOf(v.getContentDescription())))return (EditText)v;}throw new AssertionError("Missing input "+label);}
  void set(String label,String value){ui(()->input(label).setText(value));}
  void dismiss(){ui(()->{});getUiAutomation().performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);waitForIdleSync();}
- void screenshot(String name)throws Exception{Thread.sleep(200);Bitmap image=getUiAutomation().takeScreenshot();if(image==null)throw new Exception("No screenshot");try(FileOutputStream out=new FileOutputStream(new File(getTargetContext().getFilesDir(),name+".png"))){image.compress(Bitmap.CompressFormat.PNG,100,out);}}
+ void screenshot(String name)throws Exception{Thread.sleep(650);Bitmap image=getUiAutomation().takeScreenshot();if(image==null)throw new Exception("No screenshot");try(FileOutputStream out=new FileOutputStream(new File(getTargetContext().getFilesDir(),name+".png"))){image.compress(Bitmap.CompressFormat.PNG,100,out);}}
  @Override public void onStart(){Bundle report=new Bundle();try{
   a=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
   String phase=args==null?"create":args.getString("phase","create");
