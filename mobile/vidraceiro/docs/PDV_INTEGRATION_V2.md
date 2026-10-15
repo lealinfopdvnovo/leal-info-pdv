@@ -8,7 +8,7 @@ Android: commit real `2a2f4e611ec82802039bcadfce6fe9e73628c4c4` (0.1.5). Referê
 
 PDV, somente leitura: `GlassProject.cs`, `GlassBox3DView.cs`, `Glass3DTechnicalOverlay.cs`, `GlassCutPlan.cs`, estruturas `GlassProjectStore`, `GlassQuote`, documentos e operações. O projeto legado do Windows possui um modelo fixo de janela de duas folhas. Essa restrição **não foi copiada** para a fundação mobile. A projeção ortográfica, yaw/pitch, ordenação de faces e zoom inspiram a adaptação Canvas; divisões somente quando informadas. Profundidade ausente = plano, não espessura inventada.
 
-`GlassCutPacking.Calculate` usa ordenação estável por área/maior lado, separação de material, seleção por área livre/menor lado e partição guilhotinada disjunta; rotação global e individual, limites de 1000 peças e 1.000.000mm. Não é algoritmo industrial e desconsidera kerf/folgas. O módulo mobile de corte permanece **preparado, sem execução** até portar essas regras com testes de equivalência. Não se substitui por heurística diferente.
+`GlassCutPacking.Calculate` usa ordenação estável por área/maior lado, separação de material, seleção por área livre/menor lado e partição guilhotinada disjunta; rotação global e individual, limites de 1000 peças e 1.000.000mm. Não é algoritmo industrial e desconsidera kerf/folgas. O módulo mobile usa `CutPacking.java`, adaptação decimal direta dessas mesmas regras, incluindo o mesmo desempate e a mesma partição, com testes de área, rotação, separação por material e ausência de sobreposição. Não se substitui por heurística diferente.
 
 ## Envelope exportado
 
@@ -34,7 +34,7 @@ PDV, somente leitura: `GlassProject.cs`, `GlassBox3DView.cs`, `Glass3DTechnicalO
 4. Conciliar cliente e materiais com IDs oficiais antes de importar; não copiar banco/configuração/licença.
 5. Orçamento, contrato e exportação jamais criam cash_movements, venda ou baixa de estoque.
 6. Recibo apenas a partir de recebimento oficial real — não implementado no app.
-7. Plano de Corte: transportar peças/chapa somente após adaptação validada; atualmente não há dados de encaixe fabricados.
+7. Plano de Corte: `project.cut` contém chapa, unidades individuais e peças reais; posições são recalculadas deterministicamente pela regra adaptada. O receptor deve revalidar as dimensões, rotação e materiais; não importar como ordem de fabricação.
 
 ## Persistência e instalação
 
@@ -44,8 +44,8 @@ A chave de assinatura privada das builds de teste anteriores não está disponí
 
 ## Escopo funcional
 
-Implementados: painel nativo, navegação/retorno, projetos genéricos, medidas individuais exatas, clientes/fornecedores/materiais como rascunhos locais, vínculo explícito, orçamento decimal, prévia/A4/PDF/impressão nativa, contrato com revisões, registro de especificações de têmpera, calculadora geométrica, 2D/3D determinístico e exportação JSON.
+Implementados: painel nativo, navegação/retorno, projetos genéricos, medidas individuais exatas, clientes/fornecedores/materiais como rascunhos locais, vínculo explícito, orçamento decimal, prévia/A4/PDF/impressão nativa, contrato com revisões, registro de especificações de têmpera, calculadora geométrica, 2D/3D determinístico plano de corte geométrico com edição de peças, rotação e exportação JSON.
 
-Preparados: financeiro oficial, estoque empresarial, plano de corte mobile e sincronização/recepção PDV. Os cards identificam essa condição e mostram a explicação, não dados fictícios. Não há pagamentos locais, notas fiscais, assinatura digital ou regra de fabricante presumida.
+Preparados: financeiro oficial, estoque empresarial e sincronização/recepção PDV. Os cards identificam essa condição e mostram a explicação, não dados fictícios. Não há pagamentos locais, notas fiscais, assinatura digital ou regra de fabricante presumida.
 
 Fluxo cancelado: MainActivity não possui geração por foto, autorização para IA, solicitação ao motor, exibição de imagem IA ou envio dependente de simulationId. Testes CI de geração e autorização do motor foram retirados. Código/recurso de splash, parser de medidas, câmera/normalização e infraestrutura segura reaproveitável foram preservados. O antigo serviço remoto não foi destruído nem republishado; o app novo não o aciona.

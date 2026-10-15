@@ -79,6 +79,7 @@ jobs:
             cd mobile/vidraceiro && python3 tests/cold_start.py
             cd mobile/vidraceiro && adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             cd mobile/vidraceiro && adb shell am instrument -w -e phase create br.com.lealinfo.vidraceiro.profissional.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-create.txt
+            cd mobile/vidraceiro && adb logcat -d > app/build/reports/runtime-logcat.txt
             cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_CREATE' app/build/reports/professional-create.txt
             adb shell am force-stop br.com.lealinfo.vidraceiro.profissional
             cd mobile/vidraceiro && adb shell am instrument -w -e phase verify br.com.lealinfo.vidraceiro.profissional.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-reopen.txt
