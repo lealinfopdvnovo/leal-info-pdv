@@ -1,8 +1,8 @@
-name: App Vidraceiro Android - base generica isolada
+name: ANGRA VIDROS - oficina profissional offline
 on:
   push:
     branches: ['feature/app-vidraceiro-android-foundation']
-permissions: {contents: read, actions: read, id-token: write}
+permissions: {contents: read, actions: read}
 jobs:
   android:
     runs-on: ubuntu-latest
@@ -17,6 +17,13 @@ jobs:
           files=subprocess.check_output(['git','diff','--name-only','3dfab93e04ebb1cfef72606c2d52a76c05eead94','HEAD']).decode().splitlines()
           assert all(f.startswith('mobile/vidraceiro/') or f in ('.github/workflows/app_vidraceiro_android.yml','.github/workflows/angra_cloud_run.yml') for f in files)
           print('PASS PDV10.403 e todos canais inalterados')
+          frozen=['mobile/vidraceiro/app/src/main/java/br/com/lealinfo/vidraceiro/SplashActivity.java','mobile/vidraceiro/app/src/main/res/drawable-nodpi/angra_abertura.png','mobile/vidraceiro/app/src/main/res/anim/abertura_entrada.xml','mobile/vidraceiro/app/src/main/res/anim/abertura_saida.xml','mobile/vidraceiro/app/src/main/res/values/styles.xml','mobile/vidraceiro/app/src/main/java/br/com/lealinfo/vidraceiro/Measures.java']
+          for path in frozen:
+              assert subprocess.check_output(['git','show','2a2f4e611ec82802039bcadfce6fe9e73628c4c4:'+path])==open(path,'rb').read(),path
+          main=open('mobile/vidraceiro/app/src/main/java/br/com/lealinfo/vidraceiro/MainActivity.java').read()
+          for prohibited in ('/v1/simulations','CRIAR IMAGEM COM AS MEDIDAS','SecureGateway.request','Hugging Face','generateFree'):
+              assert prohibited not in main,prohibited
+          print('PASS frozen splash/assets/units byte-identical; operational AI flow absent')
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: android-actions/setup-android@v3
@@ -71,23 +78,26 @@ jobs:
             adb shell run-as br.com.lealinfo.vidraceiro touch files/approved-marker
             cd mobile/vidraceiro && python3 tests/cold_start.py
             cd mobile/vidraceiro && adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            cd mobile/vidraceiro && adb shell am instrument -w br.com.lealinfo.vidraceiro.teste.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/measure-ui.txt
-            cd mobile/vidraceiro && grep -q 'PASS MEASURE_UI_FLOW' app/build/reports/measure-ui.txt
-            cd mobile/vidraceiro && adb shell am instrument -w -e networkPhase prepare br.com.lealinfo.vidraceiro.teste.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/network-prepare.txt
-            cd mobile/vidraceiro && grep -q 'PASS NETWORK_PREPARE' app/build/reports/network-prepare.txt
-            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.teste cat files/network-device.json > app/build/reports/network-device.json
-            cd mobile/vidraceiro && node tests/authorize-ci.mjs
-            cd mobile/vidraceiro && adb shell am instrument -w -e networkPhase generate br.com.lealinfo.vidraceiro.teste.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/network-image-ui.txt
-            cd mobile/vidraceiro && grep -q 'PASS REAL_NETWORK_IMAGE_UI' app/build/reports/network-image-ui.txt
-            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.teste cat files/network-screen.png > app/build/reports/network-image-ui.png
-            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.teste cat files/network-result.json > app/build/reports/network-result.json
+            cd mobile/vidraceiro && adb shell am instrument -w -e phase create br.com.lealinfo.vidraceiro.profissional.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-create.txt
+            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_CREATE' app/build/reports/professional-create.txt
+            adb shell am force-stop br.com.lealinfo.vidraceiro.profissional
+            cd mobile/vidraceiro && adb shell am instrument -w -e phase verify br.com.lealinfo.vidraceiro.profissional.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-reopen.txt
+            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_VERIFY' app/build/reports/professional-reopen.txt
+            adb shell wm size 540x960
+            cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-small.txt
+            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-small.txt
+            adb shell wm size 1080x1920
+            cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-large.txt
+            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-large.txt
+            adb shell run-as br.com.lealinfo.vidraceiro.profissional tar -cf /data/data/br.com.lealinfo.vidraceiro.profissional/files/proof.tar -C /data/data/br.com.lealinfo.vidraceiro.profissional/files --exclude=proof.tar .
+            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional cat files/proof.tar > app/build/reports/proof.tar
             cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro ls files/approved-marker > app/build/reports/approved-preservation.txt
             cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro | grep 'versionName=0.1.4' >> app/build/reports/approved-preservation.txt
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ANGRA_VIDROS_ANDROID_0_1_5_TESTE
+          name: ANGRA_VIDROS_ANDROID_0_2_0_PROFISSIONAL_TESTE
           path: |
             mobile/vidraceiro/app/build/outputs/apk/debug/*.apk
             mobile/vidraceiro/app/build/outputs/apk/debug/SHA256.txt

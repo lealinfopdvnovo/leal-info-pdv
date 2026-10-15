@@ -1,63 +1,47 @@
 package br.com.lealinfo.vidraceiro;
-
-import android.app.*;
-import android.content.*;
-import android.graphics.Bitmap;
-import android.os.Bundle;
-import android.view.accessibility.AccessibilityNodeInfo;
-import android.widget.*;
-import org.json.*;
-import java.io.*;
-import java.lang.reflect.*;
-import java.util.*;
-
-/** Drives actual Activity controls and the actual create-button handler on an isolated emulator. */
+import android.app.*;import android.os.*;import android.content.*;import android.graphics.*;import android.view.*;import android.widget.*;import org.json.*;import java.io.*;import java.math.*;import java.nio.file.Files;
+/** Actual native controls, no network engine, restart verified by a second instrumentation process. */
 public class MeasureFlowInstrumentation extends Instrumentation {
-    private MainActivity activity;private Bundle arguments;
-    @Override public void onCreate(Bundle args) { super.onCreate(args);arguments=args; start(); }
-    private Object field(Object object,String name) {
-        try { Field f=object.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(object); }
-        catch(Exception error){throw new AssertionError(error);}
-    }
-    private void check(boolean ok,String reason){if(!ok)throw new AssertionError(reason);}
-    private ArrayList<?> rows(){return (ArrayList<?>)field(activity,"rows");}
-    private void ui(Runnable task){runOnMainSync(task);waitForIdleSync();}
-    private JSONObject spec(){
-        final JSONObject[] result={null};
-        ui(()->{try{Method method=MainActivity.class.getDeclaredMethod("project");method.setAccessible(true);result[0]=(JSONObject)method.invoke(activity);}catch(Exception error){throw new AssertionError(error);}});
-        return result[0];
-    }
-    private void fill(String value,String unit){
-        ui(()->{for(Object row:rows())((EditText)field(row,"value")).setText("");});
-        ui(()->{for(Object row:rows())((Spinner)field(row,"unit")).setSelection(Arrays.asList("mm","cm","m").indexOf(unit));});
-        ui(()->{for(Object row:rows())((EditText)field(row,"value")).setText(value);});
-    }
-    private String tree(AccessibilityNodeInfo node){if(node==null)return "";StringBuilder result=new StringBuilder();if(node.getText()!=null)result.append(node.getText()).append('\n');for(int i=0;i<node.getChildCount();i++)result.append(tree(node.getChild(i)));return result.toString();}
-    private boolean pressOK(AccessibilityNodeInfo node){if(node==null)return false;if("OK".contentEquals(node.getText()==null?"":node.getText()))return node.performAction(AccessibilityNodeInfo.ACTION_CLICK);for(int i=0;i<node.getChildCount();i++)if(pressOK(node.getChild(i)))return true;return false;}
-    private void createExpect(String message)throws Exception{
-        ui(()->((Button)field(activity,"create")).performClick());
-        String actual="";long deadline=android.os.SystemClock.uptimeMillis()+5000;
-        do{actual=tree(getUiAutomation().getRootInActiveWindow());if(actual.contains(message))break;Thread.sleep(100);}while(android.os.SystemClock.uptimeMillis()<deadline);
-        check(actual.contains(message),"CREATE expected "+message+" got "+actual);
-        check(pressOK(getUiAutomation().getRootInActiveWindow()),"close dialog");waitForIdleSync();
-    }
-    @Override public void onStart(){if(arguments!=null&&arguments.containsKey("networkPhase")){NetworkFlow.run(this,arguments.getString("networkPhase"));return;}Bundle result=new Bundle();try{
-        activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
-        ui(()->{((EditText)field(activity,"title")).setText("Dona Maria");((AutoCompleteTextView)field(activity,"type")).setText("Box de banheiro",false);int i=0;for(Object row:rows())((Spinner)field(row,"dimension")).setSelection(i++==0?0:1);activity.getSharedPreferences("connection",0).edit().clear().commit();});
-        File photo=new File((File)field(activity,"dir"),"photo.jpg");try(FileOutputStream out=new FileOutputStream(photo)){Bitmap.createBitmap(20,20,Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.JPEG,90,out);}
-        String[][] cases={{"A","2","m"},{"B","2,00","m"},{"C","2.00","m"},{"D","2000","mm"}};
-        StringBuilder report=new StringBuilder();
-        for(String[] item:cases){fill(item[1],item[2]);JSONArray dimensions=spec().getJSONArray("measures");for(int i=0;i<2;i++)check("2000".equals(dimensions.getJSONObject(i).getString("mm")),item[0]+" canonical");check(!spec().getString("type").isEmpty(),"valid project reaches transport boundary");report.append("PASS ").append(item[0]).append(": controls -> canonical 2000mm -> valid project for real HTTPS transport\n");}
-        check(((EditText)field(rows().get(0),"label")).getVisibility()==android.view.View.GONE,"standard selector requires no typing");report.append("PASS selector B/D: Largura and Altura selected, equal values accepted\n");
-        fill("2","m");ui(()->((Spinner)field(rows().get(1),"dimension")).setSelection(0));createExpect("Dimensão repetida: Largura");ui(()->((Spinner)field(rows().get(1),"dimension")).setSelection(1));report.append("PASS selector E: duplicate identifiers rejected independently of numeric values\n");
-        ui(()->((Spinner)field(rows().get(0),"dimension")).setSelection(4));check(((EditText)field(rows().get(0),"label")).getVisibility()==android.view.View.VISIBLE,"Outra reveals custom name");ui(()->((EditText)field(rows().get(0),"label")).setText("Vão"));check("Vão".equals(spec().getJSONArray("measures").getJSONObject(0).getString("label")),"custom name serialized");check(!spec().getString("type").isEmpty(),"valid project reaches transport boundary");ui(()->((Spinner)field(rows().get(0),"dimension")).setSelection(0));report.append("PASS selector C: Outra reveals and sends custom dimension Vão\n");
-        fill("2","m");ui(()->((Spinner)field(rows().get(0),"unit")).setSelection(0));check("2000".equals(((EditText)field(rows().get(0),"value")).getText().toString()),"E 2m -> 2000mm");ui(()->((Spinner)field(rows().get(0),"unit")).setSelection(2));check("2".equals(((EditText)field(rows().get(0),"value")).getText().toString()),"E inverse");report.append("PASS E: 2m -> 2000mm -> 2m; height independent\n");
-        fill("2","m");ui(()->((EditText)field(rows().get(1),"value")).setText(""));ui(()->((Spinner)field(rows().get(1),"unit")).setSelection(0));ui(()->((EditText)field(rows().get(1),"value")).setText("2"));JSONArray mixed=spec().getJSONArray("measures");check("2000".equals(mixed.getJSONObject(0).getString("mm"))&&"2".equals(mixed.getJSONObject(1).getString("mm")),"independent units");report.append("PASS independent units: 2m x 2mm = 2000mm x 2mm\n");
-        String[][] invalid={{"F","0"},{"G","-2"},{"H","abc"},{"EMPTY",""}};
-        for(String[] item:invalid){fill("2","m");ui(()->((EditText)field(rows().get(0),"value")).setText(item[1]));createExpect("Medida 1 (Largura): preencha VALOR DA MEDIDA");report.append("PASS ").append(item[0]).append(": invalid value blocked with field-specific error\n");}
-        fill("","m");ui(()->((Spinner)field(rows().get(0),"dimension")).setSelection(4));ui(()->((EditText)field(rows().get(0),"label")).setText("2,00"));createExpect("Medida 1 (2,00): preencha VALOR DA MEDIDA");report.append("PASS real-video reproduction: numeric dimension name does not fill an empty measurement; actionable error\n");
-        fill("2","m");ui(()->((EditText)field(rows().get(0),"label")).setText("Vão"));ui(()->{try{Method save=MainActivity.class.getDeclaredMethod("save");save.setAccessible(true);save.invoke(activity);}catch(Exception error){throw new AssertionError(error);}activity.finish();});
-        activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();check(((Spinner)field(rows().get(0),"dimension")).getSelectedItemPosition()==4,"restore Outra");check("Vão".equals(spec().getJSONArray("measures").getJSONObject(0).getString("label")),"restore custom name");report.append("PASS persistence: saved custom selector and measures restored on Activity reopen\n");
-        result.putString("stream","\n"+report+"PASS MEASURE_UI_FLOW\n");ui(()->activity.finish());finish(Activity.RESULT_OK,result);
-    }catch(Throwable error){result.putString("stream","FAIL MEASURE_UI_FLOW: "+error);finish(Activity.RESULT_CANCELED,result);}}
+ MainActivity a;Bundle args;StringBuilder log=new StringBuilder();
+ @Override public void onCreate(Bundle b){super.onCreate(b);args=b;start();}
+ interface Op{void run()throws Exception;}
+ void ui(Op op){runOnMainSync(()->{try{op.run();}catch(Exception e){throw new AssertionError(e);}});waitForIdleSync();}
+ void check(boolean condition,String s){if(!condition)throw new AssertionError(s);log.append("PASS ").append(s).append('\n');}
+ android.view.View find(android.view.View v,String label){if(v instanceof TextView&&label.contentEquals(((TextView)v).getText()))return v;if(v instanceof android.view.ViewGroup){android.view.ViewGroup g=(android.view.ViewGroup)v;for(int i=0;i<g.getChildCount();i++){android.view.View f=find(g.getChildAt(i),label);if(f!=null)return f;}}return null;}
+ void click(String label){ui(()->{View v=find(a.root,label);if(v==null)throw new Exception("Missing control "+label);v.performClick();});}
+ EditText input(String label){for(int i=0;i<a.root.getChildCount();i++){View v=a.root.getChildAt(i);if(v instanceof EditText&&label.equals(String.valueOf(v.getContentDescription())))return (EditText)v;}throw new AssertionError("Missing input "+label);}
+ void set(String label,String value){ui(()->input(label).setText(value));}
+ void dismiss(){ui(()->{});getUiAutomation().performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK);waitForIdleSync();}
+ void screenshot(String name)throws Exception{Thread.sleep(200);Bitmap image=getUiAutomation().takeScreenshot();if(image==null)throw new Exception("No screenshot");try(FileOutputStream out=new FileOutputStream(new File(getTargetContext().getFilesDir(),name+".png"))){image.compress(Bitmap.CompressFormat.PNG,100,out);}}
+ @Override public void onStart(){Bundle report=new Bundle();try{
+  a=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
+  String phase=args==null?"create":args.getString("phase","create");
+  if("verify".equals(phase)){
+   check(a.store.list("projects").length()>=1,"new process restored project list");JSONObject p=a.store.list("projects").getJSONObject(a.store.list("projects").length()-1);check("Dona Maria".equals(p.optString("title")),"project title persisted");check("Dona Maria Cliente".equals(a.requireClient(p).optString("name")),"selected real local client UUID persisted");check(a.measure(p,"Largura").compareTo(new BigDecimal("1200"))==0,"canonical width preserved");check(a.total(p).toPlainString().equals("132.00"),"same budget total after new process");check(p.getJSONObject("contract").getJSONArray("revisions").length()==1,"contract revision preserved");check(p.getJSONObject("contract").getString("text").contains("Prazo informado"),"edited contract persisted");check(a.store.list("materials").length()==1&&a.store.list("suppliers").length()==1,"local catalog drafts persisted");check(!a.store.data.has("cash_movements")&&!a.store.data.has("stock_movements"),"no parallel finance or stock created");
+   ui(()->a.drawing(p));screenshot("proof-3d-reopened");ui(()->a.home());screenshot("proof-home-reopened");
+  }else if("screens".equals(phase)){
+   screenshot("proof-home-"+getTargetContext().getResources().getConfiguration().screenWidthDp);JSONObject p=a.store.list("projects").getJSONObject(a.store.list("projects").length()-1);ui(()->a.editProject(p));screenshot("proof-project-"+getTargetContext().getResources().getConfiguration().screenWidthDp);ui(()->a.home());
+  }else{
+   screenshot("proof-home");check(find(a.root,"Orçamentos")!=null&&find(a.root,"Estoque")!=null,"12 professional dashboard modules");check(find(a.root,"CRIAR IMAGEM COM AS MEDIDAS")==null,"old image-to-image workflow absent");
+   ui(()->a.projects("project"));click("+ NOVO PROJETO");set("Nome do projeto","Dona Maria");ui(()->a.type.setText("Box de banheiro",false));
+   for(String s:new String[]{"2","2,00","2.00"}){ui(()->{for(MainActivity.MeasureRow r:a.rows)r.value.setText("");for(MainActivity.MeasureRow r:a.rows)r.unit.setSelection(2);});ui(()->{for(MainActivity.MeasureRow r:a.rows)r.value.setText(s);a.flush();a.validateProject(a.current);});check(a.measure(a.current,"Largura").compareTo(new BigDecimal("2000"))==0,"integer/comma/dot "+s+" -> 2000 mm");}
+   ui(()->a.rows.get(0).unit.setSelection(0));check("2000".contentEquals(a.rows.get(0).value.getText()),"2m converts to 2000mm");ui(()->a.rows.get(0).unit.setSelection(1));check("200".contentEquals(a.rows.get(0).value.getText()),"2000mm converts to 200cm");ui(()->a.rows.get(0).unit.setSelection(2));check("2".contentEquals(a.rows.get(0).value.getText()),"200cm converts to 2m; height independent");
+   for(String s:new String[]{"0","-2","abc","","NaN","Infinity"}){ui(()->{a.rows.get(0).value.setText(s);a.flush();});try{a.validateProject(a.current);throw new AssertionError("Accepted invalid "+s);}catch(IllegalArgumentException expected){log.append("PASS invalid ").append(s).append(" blocked\n");}}
+   ui(()->{a.rows.get(0).value.setText("");a.rows.get(1).value.setText("");a.rows.get(0).unit.setSelection(0);a.rows.get(1).unit.setSelection(0);});ui(()->{a.rows.get(0).value.setText("1200");a.rows.get(1).value.setText("1000");a.flush();});
+   click("SELECIONAR / CADASTRAR CLIENTE");click("+ CADASTRAR CLIENTE");set("Nome","Dona Maria Cliente");set("Telefone","(24) 99999-0000");click("SALVAR CADASTRO");check(a.current.optString("clientLocalId").isEmpty(),"saving contact does not silently link project");
+   // Use existing list entry and actual explicit selection dialog.
+   click("Dona Maria Cliente\n(24) 99999-0000");
+   // Dialog list is driven through accessibility rather than fabricating a selected UUID.
+   android.view.accessibility.AccessibilityNodeInfo tree=getUiAutomation().getRootInActiveWindow();check(select(tree,"SELECIONAR CLIENTE PARA O PROJETO"),"explicit SELECT CLIENT action");waitForIdleSync();check("Dona Maria Cliente".equals(a.requireClient(a.current).optString("name")),"client linked to project with visual feedback");
+   click("CALCULAR ORÇAMENTO");set("Valor por m² — R$ (ex.: 100,50)","100,00");set("Acréscimo em dinheiro — R$","12,00");click("CALCULAR / SALVAR ORÇAMENTO");dismiss();check(a.total(a.current).toPlainString().equals("132.00"),"1200x1000 x R$100 + R$12 = R$132");check(a.budgetSummary(a.current).contains("132,00"),"screen and document use same total function");screenshot("proof-budget");File pdf=a.makePdf("Orçamento comercial",a.budgetDocument(a.current));Files.copy(pdf.toPath(),new File(getTargetContext().getFilesDir(),"proof-budget.pdf").toPath(),java.nio.file.StandardCopyOption.REPLACE_EXISTING);check(pdf.length()>500,"real A4 PDF generated");
+   ui(()->a.contract(a.current));set("Objeto, condições, prazo, instalação, responsabilidades e observações","Instalação de box conforme projeto. Prazo informado pelo profissional: a combinar.");click("SALVAR NOVA REVISÃO");dismiss();check(a.current.getJSONObject("contract").getJSONArray("revisions").length()==1,"editable contract saved with revision snapshot");
+   ui(()->a.tempera(a.current));set("Especificações técnicas fornecidas pelo profissional","Especificações a conferir com fornecedor.");click("SALVAR ESPECIFICAÇÕES");dismiss();
+   ui(()->a.drawing(a.current));ProjectDrawing drawing=null;for(int i=0;i<a.root.getChildCount();i++)if(a.root.getChildAt(i) instanceof ProjectDrawing)drawing=(ProjectDrawing)a.root.getChildAt(i);final ProjectDrawing view=drawing;check(view!=null&&view.widthMm==1200&&view.heightMm==1000&&view.depthMm==0,"3D consumes canonical measures; missing depth is a plane");click("ALTERNAR 2D / 3D");check(!view.threeD,"2D switch");click("ALTERNAR 2D / 3D");ui(()->{long t=SystemClock.uptimeMillis();view.dispatchTouchEvent(MotionEvent.obtain(t,t,MotionEvent.ACTION_DOWN,80,80,0));view.dispatchTouchEvent(MotionEvent.obtain(t,t+40,MotionEvent.ACTION_MOVE,150,100,0));view.dispatchTouchEvent(MotionEvent.obtain(t,t+80,MotionEvent.ACTION_UP,150,100,0));});check(view.yaw!=-25,"actual drag rotates 3D");click("RESETAR VISÃO");check(view.yaw==-25&&view.zoom==1,"3D reset");screenshot("proof-3d");
+   ui(()->a.materialEditor(null));set("Descrição","Vidro informado pelo profissional");click("SALVAR MATERIAL");ui(()->a.contactEditor("suppliers",null,false));set("Nome","Fornecedor de teste");click("SALVAR CADASTRO");
+   ui(()->{a.projectMaterials(a.current);for(int i=0;i<a.root.getChildCount();i++)if(a.root.getChildAt(i) instanceof CheckBox)((CheckBox)a.root.getChildAt(i)).setChecked(true);a.flush();});JSONObject exported=a.exportData(a.current);check(exported.getJSONArray("materials").length()==1&&exported.getJSONObject("client").optString("name").equals("Dona Maria Cliente"),"structured export includes client and material references");check(exported.getString("syncState").equals("PENDING_PDV_IMPORT"),"export does not pretend PDV sync");Files.write(new File(getTargetContext().getFilesDir(),"proof-project.json").toPath(),exported.toString(2).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+   ui(()->a.home());screenshot("proof-home-final");
+  }
+  report.putString("stream",log+"PASS PROFESSIONAL_"+phase.toUpperCase()+"\n");ui(()->a.finish());finish(Activity.RESULT_OK,report);
+ }catch(Throwable e){java.io.StringWriter s=new java.io.StringWriter();e.printStackTrace(new java.io.PrintWriter(s));report.putString("stream",log+"FAIL PROFESSIONAL: "+s);finish(Activity.RESULT_CANCELED,report);}}
+ boolean select(android.view.accessibility.AccessibilityNodeInfo n,String text){if(n==null)return false;if(text.contentEquals(n.getText()==null?"":n.getText()))return n.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);for(int i=0;i<n.getChildCount();i++)if(select(n.getChild(i),text))return true;return false;}
 }

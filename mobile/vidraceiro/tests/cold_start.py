@@ -3,7 +3,7 @@ import io,json,re,subprocess,time
 from pathlib import Path
 from imageio_ffmpeg import get_ffmpeg_exe
 OUT=Path('app/build/reports/splash-runtime');OUT.mkdir(parents=True,exist_ok=True)
-PKG='br.com.lealinfo.vidraceiro.teste'
+PKG='br.com.lealinfo.vidraceiro.profissional'
 def adb(*args):return subprocess.check_output(['adb',*args])
 adb('shell','wm','size','540x960')
 adb('shell','wm','density','240')
@@ -42,7 +42,7 @@ for attempt,(screen_width,screen_height) in enumerate(((540,960),(540,1200),(800
     time.sleep(.5)
     adb('shell','uiautomator','dump','/sdcard/angra.xml')
     ui=adb('shell','cat','/sdcard/angra.xml').decode()
-    assert 'ANGRA VIDROS' in ui and 'Nome do projeto' in ui and 'LEAL INFO' not in ui,ui
+    assert 'ANGRA VIDROS' in ui and 'Seu trabalho, organizado.' in ui and 'LEAL INFO' not in ui,ui
     # Validate actual rendered pixels from continuous video, without blocking the
     # animation with synchronous screenshot commands on the emulator.
     video=OUT/f'{attempt}-cold-start.mp4'
