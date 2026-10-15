@@ -145,6 +145,7 @@ internal static class Program
                 using var main = new MainForm();
                 main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - V{UpdateManager.CurrentVersion}";
                 using var clockSync = new SystemClockSync(main);
+                using var angraSync = new AngraSyncService();
                 Application.Run(main);
                 if (!main.LogoutRequested) return;
             }
