@@ -10,7 +10,7 @@ identity=json.loads(shell('shell','run-as',pkg,'cat','files/sync-identity.json')
 aud='angra-sync-ci:'+identity['deviceId']
 req=urllib.request.Request(os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']+'&audience='+aud,headers={'Authorization':'Bearer '+os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
 with urllib.request.urlopen(req) as r:token=json.load(r)['value']
-req=urllib.request.Request('https://angra-vidros-gateway.classyglobe9.chatgpt.site/sync/ci-grant',data=json.dumps({'deviceId':identity['deviceId'],'role':'app'}).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','User-Agent':'ANGRA-Sync-QA/1.0'})
+req=urllib.request.Request('https://angra-vidros-gateway.classyglobe9.chatgpt.site/sync/ci-grant',data=json.dumps({'deviceId':identity['deviceId'],'publicKey':identity['publicKey'],'role':'app'}).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','User-Agent':'ANGRA-Sync-QA/1.0'})
 with urllib.request.urlopen(req) as r:
  grant=json.load(r)
  assert grant['tenant']=='test-'+os.environ['GITHUB_RUN_ID']

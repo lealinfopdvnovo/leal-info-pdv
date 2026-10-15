@@ -4,7 +4,7 @@ import org.json.*;import java.io.*;import java.nio.file.Files;import java.util.*
 final class SyncFlow {
  static void run(MeasureFlowInstrumentation t,String phase)throws Exception{
   MainActivity a=t.a;
-  if(phase.equals("syncIdentity")){JSONObject identity=SecureGateway.identity();SyncTransport.register();Files.write(new File(a.getFilesDir(),"sync-identity.json").toPath(),identity.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));return;}
+  if(phase.equals("syncIdentity")){JSONObject identity=SecureGateway.identity();Files.write(new File(a.getFilesDir(),"sync-identity.json").toPath(),identity.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));return;}
   if(phase.equals("syncReopen")){waitSync(t);t.check(!a.sync.state.optString("tenant").isEmpty(),"authorized tenant persisted in new Android process");t.check(find(a,"clients","CLIENTE TESTE APP")!=null,"new app contact persisted in new process");t.ui(()->t.check(a.sync.prepare().length()==0,"no pending duplicate after process restart"));return;}
   JSONObject status=SyncTransport.request("/sync/status",new JSONObject());final JSONObject[] contact={null},project={null};
   if(phase.equals("syncLive")){
