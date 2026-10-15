@@ -3,7 +3,7 @@ import io,json,re,subprocess,time
 from pathlib import Path
 from imageio_ffmpeg import get_ffmpeg_exe
 OUT=Path('app/build/reports/splash-runtime');OUT.mkdir(parents=True,exist_ok=True)
-PKG='br.com.lealinfo.vidraceiro.profissional021'
+PKG='br.com.lealinfo.vidraceiro.profissional022'
 def adb(*args):return subprocess.check_output(['adb',*args])
 adb('shell','wm','size','540x960')
 adb('shell','wm','density','240')
