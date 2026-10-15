@@ -2,7 +2,7 @@ name: App Vidraceiro Android - base generica isolada
 on:
   push:
     branches: ['feature/app-vidraceiro-android-foundation']
-permissions: {contents: read}
+permissions: {contents: read, id-token: write}
 jobs:
   android:
     runs-on: ubuntu-latest
@@ -51,10 +51,19 @@ jobs:
             cd mobile/vidraceiro && adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             cd mobile/vidraceiro && adb shell am instrument -w br.com.lealinfo.vidraceiro.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/measure-ui.txt
             cd mobile/vidraceiro && grep -q 'PASS MEASURE_UI_FLOW' app/build/reports/measure-ui.txt
+            cd mobile/vidraceiro && adb shell am instrument -w -e networkPhase prepare br.com.lealinfo.vidraceiro.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/network-prepare.txt
+            cd mobile/vidraceiro && grep -q 'PASS NETWORK_PREPARE' app/build/reports/network-prepare.txt
+            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro cat files/network-device.json > app/build/reports/network-device.json
+            cd mobile/vidraceiro && node tests/authorize-ci.mjs
+            cd mobile/vidraceiro && adb shell am instrument -w -e networkPhase generate br.com.lealinfo.vidraceiro.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/network-image-ui.txt
+            cd mobile/vidraceiro && grep -q 'PASS REAL_NETWORK_IMAGE_UI' app/build/reports/network-image-ui.txt
+            cd mobile/vidraceiro && adb exec-out screencap -p > app/build/reports/network-image-ui.png
+            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro cat files/network-result.json > app/build/reports/network-result.json
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ANGRA_VIDROS_ANDROID_0_1_4_TESTE
+          name: ANGRA_VIDROS_ANDROID_0_1_5_TESTE
           path: |
             mobile/vidraceiro/app/build/outputs/apk/debug/*.apk
             mobile/vidraceiro/app/build/outputs/apk/debug/SHA256.txt

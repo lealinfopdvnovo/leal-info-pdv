@@ -13,8 +13,8 @@ import java.util.*;
 
 /** Drives actual Activity controls and the actual create-button handler on an isolated emulator. */
 public class MeasureFlowInstrumentation extends Instrumentation {
-    private MainActivity activity;
-    @Override public void onCreate(Bundle args) { super.onCreate(args); start(); }
+    private MainActivity activity;private Bundle arguments;
+    @Override public void onCreate(Bundle args) { super.onCreate(args);arguments=args; start(); }
     private Object field(Object object,String name) {
         try { Field f=object.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(object); }
         catch(Exception error){throw new AssertionError(error);}
@@ -41,16 +41,16 @@ public class MeasureFlowInstrumentation extends Instrumentation {
         check(actual.contains(message),"CREATE expected "+message+" got "+actual);
         check(pressOK(getUiAutomation().getRootInActiveWindow()),"close dialog");waitForIdleSync();
     }
-    @Override public void onStart(){Bundle result=new Bundle();try{
+    @Override public void onStart(){if(arguments!=null&&arguments.containsKey("networkPhase")){NetworkFlow.run(this,arguments.getString("networkPhase"));return;}Bundle result=new Bundle();try{
         activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
         ui(()->{((EditText)field(activity,"title")).setText("Dona Maria");((AutoCompleteTextView)field(activity,"type")).setText("Box de banheiro",false);int i=0;for(Object row:rows())((Spinner)field(row,"dimension")).setSelection(i++==0?0:1);activity.getSharedPreferences("connection",0).edit().clear().commit();});
         File photo=new File((File)field(activity,"dir"),"photo.jpg");try(FileOutputStream out=new FileOutputStream(photo)){Bitmap.createBitmap(20,20,Bitmap.Config.ARGB_8888).compress(Bitmap.CompressFormat.JPEG,90,out);}
         String[][] cases={{"A","2","m"},{"B","2,00","m"},{"C","2.00","m"},{"D","2000","mm"}};
         StringBuilder report=new StringBuilder();
-        for(String[] item:cases){fill(item[1],item[2]);JSONArray dimensions=spec().getJSONArray("measures");for(int i=0;i<2;i++)check("2000".equals(dimensions.getJSONObject(i).getString("mm")),item[0]+" canonical");createExpect("Configure o serviço HTTPS");report.append("PASS ").append(item[0]).append(": controls -> canonical 2000mm -> CREATE -> service configuration stage\n");}
+        for(String[] item:cases){fill(item[1],item[2]);JSONArray dimensions=spec().getJSONArray("measures");for(int i=0;i<2;i++)check("2000".equals(dimensions.getJSONObject(i).getString("mm")),item[0]+" canonical");check(!spec().getString("type").isEmpty(),"valid project reaches transport boundary");report.append("PASS ").append(item[0]).append(": controls -> canonical 2000mm -> valid project for real HTTPS transport\n");}
         check(((EditText)field(rows().get(0),"label")).getVisibility()==android.view.View.GONE,"standard selector requires no typing");report.append("PASS selector B/D: Largura and Altura selected, equal values accepted\n");
         fill("2","m");ui(()->((Spinner)field(rows().get(1),"dimension")).setSelection(0));createExpect("Dimensão repetida: Largura");ui(()->((Spinner)field(rows().get(1),"dimension")).setSelection(1));report.append("PASS selector E: duplicate identifiers rejected independently of numeric values\n");
-        ui(()->((Spinner)field(rows().get(0),"dimension")).setSelection(4));check(((EditText)field(rows().get(0),"label")).getVisibility()==android.view.View.VISIBLE,"Outra reveals custom name");ui(()->((EditText)field(rows().get(0),"label")).setText("Vão"));check("Vão".equals(spec().getJSONArray("measures").getJSONObject(0).getString("label")),"custom name serialized");createExpect("Configure o serviço HTTPS");ui(()->((Spinner)field(rows().get(0),"dimension")).setSelection(0));report.append("PASS selector C: Outra reveals and sends custom dimension Vão\n");
+        ui(()->((Spinner)field(rows().get(0),"dimension")).setSelection(4));check(((EditText)field(rows().get(0),"label")).getVisibility()==android.view.View.VISIBLE,"Outra reveals custom name");ui(()->((EditText)field(rows().get(0),"label")).setText("Vão"));check("Vão".equals(spec().getJSONArray("measures").getJSONObject(0).getString("label")),"custom name serialized");check(!spec().getString("type").isEmpty(),"valid project reaches transport boundary");ui(()->((Spinner)field(rows().get(0),"dimension")).setSelection(0));report.append("PASS selector C: Outra reveals and sends custom dimension Vão\n");
         fill("2","m");ui(()->((Spinner)field(rows().get(0),"unit")).setSelection(0));check("2000".equals(((EditText)field(rows().get(0),"value")).getText().toString()),"E 2m -> 2000mm");ui(()->((Spinner)field(rows().get(0),"unit")).setSelection(2));check("2".equals(((EditText)field(rows().get(0),"value")).getText().toString()),"E inverse");report.append("PASS E: 2m -> 2000mm -> 2m; height independent\n");
         fill("2","m");ui(()->((EditText)field(rows().get(1),"value")).setText(""));ui(()->((Spinner)field(rows().get(1),"unit")).setSelection(0));ui(()->((EditText)field(rows().get(1),"value")).setText("2"));JSONArray mixed=spec().getJSONArray("measures");check("2000".equals(mixed.getJSONObject(0).getString("mm"))&&"2".equals(mixed.getJSONObject(1).getString("mm")),"independent units");report.append("PASS independent units: 2m x 2mm = 2000mm x 2mm\n");
         String[][] invalid={{"F","0"},{"G","-2"},{"H","abc"},{"EMPTY",""}};

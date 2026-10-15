@@ -1,0 +1,5 @@
+Shower room (--40wiki).jpg by Park taeho, Wikimedia Commons. CC BY-SA 4.0.
+https://commons.wikimedia.org/wiki/File:Shower_room_(--40wiki).jpg
+https://creativecommons.org/licenses/by-sa/4.0/
+Changes: crop, resize and JPEG re-encoding for an instrumented image-to-image test.
+Test asset only, not included in the production APK. No client photograph used.
