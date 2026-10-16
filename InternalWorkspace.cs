@@ -46,7 +46,7 @@ internal static class InternalWorkspace
     private static IEnumerable<Control> Descendants(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(Descendants(x)));
     private static Color Navy => Color.FromArgb(5, 38, 72);
     private static Color Light => Color.FromArgb(226, 240, 250);
-    private static Label Label(string text, float size = 10, bool bold = false) => new()
+    private static Label MakeLabel(string text, float size = 10, bool bold = false) => new()
     {
         Text = text, Dock = DockStyle.Fill, ForeColor = Light, BackColor = Color.Transparent,
         Font = new Font("Segoe UI", size, bold ? FontStyle.Bold : FontStyle.Regular),
@@ -57,7 +57,7 @@ internal static class InternalWorkspace
         var root = new TableLayoutPanel { Name = "InternalWorkspaceRoot", Dock = DockStyle.Fill, ColumnCount = 1,
             RowCount = rows.Length, Padding = new Padding(18), BackColor = Color.FromArgb(3, 20, 42) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.RowStyles.AddRange(rows);
+        foreach (var row in rows) root.RowStyles.Add(row);
         f.Controls.Add(root); root.BringToFront();
         return root;
     }
@@ -66,8 +66,8 @@ internal static class InternalWorkspace
         var header = new WorkspaceSurface { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 12), Padding = new Padding(20, 8, 20, 8) };
         var lines = new TableLayoutPanel { Name = "WorkspaceTransparent", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, BackColor = Color.Transparent };
         lines.RowStyles.Add(new RowStyle(SizeType.Percent, 62)); lines.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
-        lines.Controls.Add(Label(title, 20, true), 0, 0);
-        lines.Controls.Add(Label(subtitle, 9.5f), 0, 1);
+        lines.Controls.Add(MakeLabel(title, 20, true), 0, 0);
+        lines.Controls.Add(MakeLabel(subtitle, 9.5f), 0, 1);
         header.Controls.Add(lines); return header;
     }
     private static (Control panel, Label value) Card(string caption)
@@ -75,8 +75,8 @@ internal static class InternalWorkspace
         var p = new WorkspaceSurface { Dock = DockStyle.Fill, Padding = new Padding(12, 4, 12, 4), Margin = new Padding(0, 0, 10, 8) };
         var rows = new TableLayoutPanel { Name = "WorkspaceTransparent", Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, BackColor = Color.Transparent };
         rows.RowStyles.Add(new RowStyle(SizeType.Absolute, 19)); rows.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        rows.Controls.Add(Label(caption, 8.5f), 0, 0);
-        var value = Label("—", 12, true); rows.Controls.Add(value, 0, 1); p.Controls.Add(rows); return (p, value);
+        rows.Controls.Add(MakeLabel(caption, 8.5f), 0, 0);
+        var value = MakeLabel("—", 12, true); rows.Controls.Add(value, 0, 1); p.Controls.Add(rows); return (p, value);
     }
 
     private static void List(Form f, DataGridView grid)
@@ -98,7 +98,7 @@ internal static class InternalWorkspace
         cards.Controls.Add(total.panel, 0, 0); cards.Controls.Add(shown.panel, 1, 0); cards.Controls.Add(selected.panel, 2, 0); root.Controls.Add(cards, 0, 1);
         var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = new Padding(0, 0, 0, 12), BackColor = Color.Transparent };
         searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80)); searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
-        searchRow.Controls.Add(Label("BUSCAR", 9, true), 0, 0);
+        searchRow.Controls.Add(MakeLabel("BUSCAR", 9, true), 0, 0);
         var inputBox = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 9, 10, 5), Margin = new Padding(0, 0, 8, 0), BackColor = Navy };
         var search = new TextBox { Name = "InternalListSearch", AccessibleName = "Buscar nesta lista", PlaceholderText = "Digite nome, código ou outro dado da lista…", Dock = DockStyle.Fill,
             BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 11), TabIndex = 0 };
@@ -208,7 +208,7 @@ internal static class InternalWorkspace
         f.MinimumSize = new Size(Math.Min(f.MinimumSize.Width, area.Width - 16), Math.Min(f.MinimumSize.Height, area.Height - 16));
         if (f.WindowState == FormWindowState.Maximized && (f.Right > area.Right || f.Bottom > area.Bottom || f.Left < area.Left || f.Top < area.Top))
         {
-            f.MaximizedBounds = area; f.WindowState = FormWindowState.Normal; f.WindowState = FormWindowState.Maximized;
+            f.WindowState = FormWindowState.Normal; f.WindowState = FormWindowState.Maximized;
         }
         if (f.WindowState != FormWindowState.Normal) return;
         int width = Math.Min(f.Width, area.Width - 16), height = Math.Min(f.Height, area.Height - 16);
