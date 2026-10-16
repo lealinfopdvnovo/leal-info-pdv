@@ -116,7 +116,7 @@ internal static class InternalWorkspace
             foreach (DataGridViewColumn column in grid.Columns)
             {
                 var key = column.HeaderText.ToUpperInvariant();
-                int minimum = key is "ID" or "VENDA" ? 64 : key.Contains("PRODUTO") || key is "NOME" or "DESCRIÇÃO" ? 250 : key.Contains("CÓDIGO") || key.Contains("ENDEREÇO") || key.Contains("EMAIL") ? 175 : 110;
+                int minimum = key == "ID" ? 64 : key.Contains("PRODUTO") || key is "NOME" or "DESCRIÇÃO" ? 250 : key.Contains("CÓDIGO") || key.Contains("ENDEREÇO") || key.Contains("EMAIL") ? 175 : 110;
                 column.MinimumWidth = minimum;
                 if (column.AutoSizeMode == DataGridViewAutoSizeColumnMode.Fill) column.FillWeight = minimum;
             }
@@ -223,6 +223,7 @@ internal static class InternalWorkspace
         int row = table?.GetRow(bar) ?? -1;
         if (table != null && (row < 0 || row >= table.RowStyles.Count)) return;
         if (table != null && row != table.RowCount - 1) return;
+        if (bar.Dock == DockStyle.Fill && (table == null || table.RowStyles[row].SizeType != SizeType.Absolute)) return;
         bar.WrapContents = true;
         foreach (Button b in bar.Controls)
         {
