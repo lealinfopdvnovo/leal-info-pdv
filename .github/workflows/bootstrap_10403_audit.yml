@@ -1,0 +1,30 @@
+name: Legacy 10.403 recovery evidence - NO PUBLICATION
+on:
+  push:
+    branches: ['qa/bootstrap-10403-recovery-audit']
+permissions:
+  contents: read
+jobs:
+  legacy-apply:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        client: ['001', '003']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exercise exact legacy apply script on disposable files
+        shell: powershell
+        run: ./qa/bootstrap-10403/LegacyApplyEvidence.ps1 -Client '${{ matrix.client }}'
+      - name: Corrupt download fixture - exact CSharp hash guard
+        shell: pwsh
+        run: ./qa/bootstrap-10403/HashEvidence.ps1 -Client '${{ matrix.client }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bootstrap-10403-${{ matrix.client }}-evidence
+          path: qa/bootstrap-10403/evidence/
+          retention-days: 30
