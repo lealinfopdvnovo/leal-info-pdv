@@ -93,6 +93,9 @@ public sealed class GlassWorkshopForm : Form
         var contracts=new SalesVisualButton{Name="OpenGlassContracts",Text="CONTRATO COMERCIAL — REVISÕES / PDF"};
         contracts.Click+=(_,_)=>RunProjectAction(()=>OperationsHost().OpenContractsFromGlass(OperationsProject(true)));
         AddField(printing,"CONTRATOS",contracts);
+        var revisionDocument=new SalesVisualButton{Name="OpenGlassProjectRevision",Text="REVISÃO DE PROJETO — A4 / PDF"};
+        revisionDocument.Click+=(_,_)=>RunProjectAction(()=>{var saved=OperationsProject(true);using var editor=new GlassDocumentTextEditor("REVISÃO DE PROJETO",GlassDocumentStore.Context(saved),null,projectTheme);editor.ShowDialog(this);});
+        AddField(printing,"REVISÃO DO PROJETO",revisionDocument);
         // Reutiliza a rotina do PDV, sem estilizá-los por aproximação.
         var drawing = Descendants(this).OfType<GlassDrawingView>().Single();
         var drawingBackground = drawing.BackColor; var drawingForeground = drawing.ForeColor;
