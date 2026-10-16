@@ -1,0 +1,41 @@
+name: QA one-click restore 001 - no publication
+on:
+  push:
+    branches: [feature/001-one-click-restore-qa]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Apply existing Windows build prerequisites
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compile PDV Windows
+        run: dotnet build LealInfoPDV.csproj -c Release
+      - name: Verify restore stages and guarded restart
+        shell: python
+        run: |
+          from pathlib import Path
+          a=Path('MainForm.cs').read_text(encoding='utf-8-sig')
+          b=Path('Program.cs').read_text(encoding='utf-8-sig')
+          c=Path('DatabaseBackupService.cs').read_text(encoding='utf-8-sig')
+          assert 'PrepareAutomaticRestoreAsync(dialog.FileName)' in a
+          assert 'Application.Exit();' in a
+          assert 'previous.WaitForExit(60000)' in b
+          assert 'RestoreAsync(staged).GetAwaiter().GetResult()' in b
+          assert 'ValidateDatabaseAsync(stage, cancellationToken)' in c
+          assert 'File.Replace(stagePath, Database.DbPath, safetyCopy, true)' in c
+          assert 'Network.NetworkDatabaseServer.Current != null' in c
+          print('PASS: staged validation, closed-process handoff, atomic swap and pre-restore safety copy wired')
