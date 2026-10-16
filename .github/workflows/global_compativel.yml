@@ -8,7 +8,7 @@ permissions:
   actions: read
 concurrency:
   group: distribuicao-pdv-canais-independentes
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   bridge:
     runs-on: windows-latest

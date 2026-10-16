@@ -50,7 +50,7 @@ internal static class Program
             }
             var entry=app.EntryPoint??throw new InvalidDataException("Programa sem ponto de entrada.");
             var result=entry.Invoke(null,entry.GetParameters().Length==0?null:new object[]{args});
-            return result is int code?code:0;
+            return result is int code?code:Environment.ExitCode;
         }
         catch(Exception e)
         {
