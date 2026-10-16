@@ -1,32 +1,15 @@
-name: Publicar telas internas 001 e 003 - Windows aprovado
+name: Atualizacao automatica canal 003
 on:
   push:
-    branches: ['client/001', 'client/003']
+    branches: ['client/003']
     paths-ignore: ['README.md']
-concurrency:
-  group: publicacao-internas-001-003
-  cancel-in-progress: false
 permissions:
   contents: read
   actions: read
 jobs:
-  publicar-atualizacao:
-    runs-on: windows-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Conferir fonte aprovada e artefatos Windows exatos sem recompilar
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: python scripts/publicar_internas.py verify
-      - name: Publicar somente o canal desta branch e verificar download real
-        env:
-          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
-        run: python scripts/publicar_internas.py publish
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: publicacao-internas-evidencias
-          path: publication-evidence/
+  distribuir:
+    uses: lealinfopdvnovo/leal-info-pdv/.github/workflows/distribuir_atualizacoes.yml@main
+    with:
+      channel: '003'
+      source: ${{ github.sha }}
+    secrets: inherit
