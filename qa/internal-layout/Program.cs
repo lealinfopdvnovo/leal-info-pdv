@@ -167,7 +167,7 @@ internal static class Program
     private static void LargeList()
     {
         using var f=new Form{Text="QA LISTA",Size=new Size(1000,700)};
-        var grid=new DataGridView{Dock=DockStyle.Fill,AllowUserToAddRows=false};
+        var grid=new DataGridView{Dock=DockStyle.Fill,AllowUserToAddRows=false,ReadOnly=true};
         grid.Columns.Add("ID","ID");grid.Columns.Add("Nome","Nome");f.Controls.Add(grid);f.Show();Apply(f);
         var watch=Stopwatch.StartNew();
         for(int i=0;i<2000;i++)grid.Rows.Add(i,"QA-"+i);
