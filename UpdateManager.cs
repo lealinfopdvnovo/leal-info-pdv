@@ -13,7 +13,8 @@ using System.Text.Json;
 namespace LealInfoPDV;
 internal static class UpdateManager
 {
-    public const string CurrentVersion="10.385";
+    public const string CurrentVersion="10.407";
+ private const string DistributionChannel="GLOBAL";
  private const string LatestReleaseApi="https://api.github.com/repos/lealinfopdvnovo/leal-info-pdv-updates/releases/latest";
  private static readonly string UpdatesFolder=Path.Combine(Database.AppFolder,"Updates");
  private sealed class UpdateManifest{public string Version{get;set;}="";public string PackageUrl{get;set;}="";public string Notes{get;set;}="";public string Sha256{get;set;}="";public string SourceCommit{get;set;}="";public string TargetClientCode{get;set;}="";}
@@ -31,7 +32,7 @@ internal static class UpdateManager
  }
  private static async Task<UpdateManifest?> LoadManifestAsync(HttpClient http,string clientCode,string currentVersion)
  {
-  // Consultas independentes: falha do canal direcionado nao impede consultar o global.
+  // Consultas independentes; selecao preserva a identidade de cada canal.
   var globalTask=TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json");
   var targetedTask=ClientUpdateIdentity.GetManifestPath(clientCode) is string path
    ? TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/"+path)
@@ -43,15 +44,21 @@ internal static class UpdateManager
  }
  private static UpdateManifest? SelectManifest(string clientCode,string currentVersion,UpdateManifest? global,UpdateManifest? targeted)
  {
-  var validGlobal=global!=null && string.IsNullOrEmpty(global.TargetClientCode) && IsSafeGlobalPackage(global) && IsNewer(global.Version,currentVersion);
-  var validTargeted=targeted!=null && ClientUpdateIdentity.ManifestMatches(clientCode,targeted.TargetClientCode) && IsSafeClientPackage(targeted,clientCode) && IsNewer(targeted.Version,currentVersion);
-  if(validTargeted && (!validGlobal || !IsNewer(global!.Version,targeted!.Version)))return targeted;
-  return validGlobal?global:null;
+  // A client build never changes distribution channel because of a newer global number.
+  if(DistributionChannel!="GLOBAL" && !ClientUpdateIdentity.ManifestMatches(DistributionChannel,clientCode))return null;
+  bool validTargeted=targeted!=null && ClientUpdateIdentity.ManifestMatches(clientCode,targeted.TargetClientCode) && IsSafeClientPackage(targeted,clientCode);
+  if(validTargeted)return IsNewer(targeted!.Version,currentVersion)?targeted:null;
+  // Published personalized channels fail closed if their feed is unavailable or invalid.
+  // A neutral build remains able to serve other clients through GLOBAL.
+  if(DistributionChannel!="GLOBAL" || clientCode is "001" or "002" or "003" or "004")return null;
+  return global!=null && string.IsNullOrEmpty(global.TargetClientCode) && IsSafeGlobalPackage(global) && IsNewer(global.Version,currentVersion)?global:null;
  }
+ private static bool IsValidManifest(UpdateManifest manifest)=>
+  Version.TryParse(manifest.Version,out _) && System.Text.RegularExpressions.Regex.IsMatch(manifest.Sha256??"",@"\A[0-9a-fA-F]{64}\z");
  private static bool IsSafeGlobalPackage(UpdateManifest manifest)
  {
   if(!Uri.TryCreate(manifest.PackageUrl,UriKind.Absolute,out var uri)||uri.Scheme!="https"||uri.Host!="github.com")return false;
-  return uri.AbsolutePath.StartsWith("/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v",StringComparison.OrdinalIgnoreCase)&&manifest.Sha256.Length==64;
+  return uri.AbsolutePath.StartsWith("/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v",StringComparison.OrdinalIgnoreCase)&&IsValidManifest(manifest);
  }
  private static async Task<UpdateManifest?> TryLoadManifestAsync(HttpClient http,string url)
  {
@@ -105,7 +112,7 @@ internal static class UpdateManager
  {
   if(!Uri.TryCreate(manifest.PackageUrl,UriKind.Absolute,out var uri)||uri.Scheme!="https"||uri.Host!="github.com")return false;
   var prefix=$"/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-{clientCode}-v";
-  return uri.AbsolutePath.StartsWith(prefix,StringComparison.OrdinalIgnoreCase)&&manifest.Sha256.Length==64;
+  return uri.AbsolutePath.StartsWith(prefix,StringComparison.OrdinalIgnoreCase)&&IsValidManifest(manifest);
  }
 
  private static bool IsNewer(string candidate,string current)=>Version.TryParse(candidate.TrimStart('v','V'),out var n)&&Version.TryParse(current,out var c)&&n>c;
