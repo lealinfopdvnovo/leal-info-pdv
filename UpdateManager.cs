@@ -13,7 +13,7 @@ using System.Text.Json;
 namespace LealInfoPDV;
 internal static class UpdateManager
 {
-    public const string CurrentVersion="10.407";
+    public const string CurrentVersion="10.408";
  private const string DistributionChannel="004";
  private const string LatestReleaseApi="https://api.github.com/repos/lealinfopdvnovo/leal-info-pdv-updates/releases/latest";
  private static readonly string UpdatesFolder=Path.Combine(Database.AppFolder,"Updates");
