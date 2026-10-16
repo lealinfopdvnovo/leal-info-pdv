@@ -34,6 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {ref: main}
+      - name: Testar bloqueios de publicacao sem gravar feeds
+        run: python -m unittest discover -s qa/distribution -v
       - id: plan
         name: Resolver fontes independentes e versoes compativeis
         env:
