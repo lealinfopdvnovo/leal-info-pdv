@@ -47,7 +47,7 @@ def source_version(ref):
  check(m is not None,'No source version');return m[1]
 def plan():
  channel=os.environ.get('CHANNEL','ALL');check(channel in (*CHANNELS,'ALL'),'Unknown channel')
- feeds={ch:readfeed(ch) for ch in CHANNELS};bootstrap=json.loads((ROOT/'distribution/bootstrap.json').read_text())
+ feeds={ch:readfeed(ch) for ch in CHANNELS};bootstrap=json.loads((ROOT/'distribution/bootstrap.json').read_text(encoding='utf-8-sig'))
  entries=[]
  if channel=='ALL':
   # One-time migration: use the exact reviewed distribution-only commits.
@@ -86,7 +86,7 @@ def download(url,path):
   except (HTTPError,OSError):
    if attempt==4:raise
    time.sleep(2)
-def entry(ch):return next(e for e in json.loads(Path('release-plan.json').read_text())['Entries'] if e['Channel']==ch)
+def entry(ch):return next(e for e in json.loads(Path('release-plan.json').read_text(encoding='utf-8-sig'))['Entries'] if e['Channel']==ch)
 def normalize_deps(path):
  obj=json.loads(Path(path).read_text(encoding='utf-8-sig'))
  for bag in (obj['libraries'],*obj['targets'].values()):
@@ -94,7 +94,7 @@ def normalize_deps(path):
    if k.startswith('LealInfoPDV/'):del bag[k]
  return obj
 def prepare(ch):
- check(run('git','rev-parse','HEAD').strip()==json.loads(Path('release-plan.json').read_text())['ControllerCommit'],'Controller changed after planning')
+ check(run('git','rev-parse','HEAD').strip()==json.loads(Path('release-plan.json').read_text(encoding='utf-8-sig'))['ControllerCommit'],'Controller changed after planning')
  e=entry(ch);run('git','clone','--no-checkout','https://github.com/'+SOURCE+'.git','candidate');run('git','checkout',e['SourceCommit'],cwd='candidate')
  src=Path('candidate');run('git','fetch','origin',e['BaselineSource'],cwd=src)
  changed=run('git','diff','--name-only',e['BaselineSource'],e['SourceCommit'],cwd=src).splitlines()
@@ -108,7 +108,7 @@ def prepare(ch):
   check(old[old.index(marker):].replace('\r\n','\n')==new[new.index(marker):].replace('\r\n','\n'),'Installer/apply path changed')
   oldproj=run('git','show',e['BaselineSource']+':LealInfoPDV.csproj',cwd=src)
   strip=lambda s:re.sub(r'(<(?:Version|AssemblyVersion|FileVersion)>)10\.\d+',r'\g<1>10.VERSION',s).replace('\r\n','\n')
-  check(strip(oldproj)==strip((src/'LealInfoPDV.csproj').read_text()),'Dependencies/build settings changed')
+  check(strip(oldproj)==strip((src/'LealInfoPDV.csproj').read_text(encoding='utf-8-sig')),'Dependencies/build settings changed')
   print('PASS all business/database/license/UI files byte-identical to channel baseline '+ch)
  else:
   # Never transplant a different client's application tree.
@@ -138,13 +138,28 @@ def package(ch):
  write(folder/'candidate.json',e)
  print('PASS tested three-file incremental package '+ch)
 def publish():
- plan=json.loads(Path('release-plan.json').read_text());check(str(plan['RunId'])==os.environ['GITHUB_RUN_ID'],'Wrong workflow plan')
- check(run('git','rev-parse','HEAD').strip()==plan['ControllerCommit'],'Controller differs from Windows validation')
+ plan=json.loads(Path('release-plan.json').read_text(encoding='utf-8-sig'));check(str(plan['RunId'])==os.environ['GITHUB_RUN_ID'],'Wrong workflow plan')
+ publisher_revision=run('git','rev-parse','HEAD').strip()
+ repair=None
+ if publisher_revision!=plan['ControllerCommit']:
+  repair=json.loads((ROOT/'distribution/publication-repair.json').read_text(encoding='utf-8'))
+  check(str(repair['RunId'])==os.environ['GITHUB_RUN_ID'] and repair['BuildController']==plan['ControllerCommit'],'Controller differs from Windows validation')
  before={ch:readfeed(ch) for ch in CHANNELS};check(all(before[ch]['sha']==plan['Before'][ch]['sha'] for ch in CHANNELS),'A channel changed during build; no feed written')
  entries=[];manifests={}
  for e in plan['Entries']:
   ch=e['Channel'];folder=Path('artifacts')/('candidate-'+ch)
-  evidence=json.loads((folder/'candidate.json').read_text());check(all(evidence[k]==v for k,v in e.items()),'Tested candidate identity differs')
+  evidence=json.loads((folder/'candidate.json').read_text(encoding='utf-8-sig'))
+  if repair:
+   check(evidence['PackageSha256']==repair['Packages'][ch],'Immutable tested bytes differ from repair pins')
+   # Old Windows Python decoded only the display notes using CP1252 twice.
+   # Recover that text exactly; all identity, version, source and binary hashes remain mandatory.
+   notes=evidence['Baseline'].get('Notes','')
+   expected=e['Baseline'].get('Notes','')
+   if notes!=expected:
+    for _ in range(2):notes=notes.encode('cp1252').decode('utf-8')
+    check(notes==expected,'Metadata repair did not reproduce the approved UTF-8 notes')
+    evidence['Baseline']['Notes']=notes
+  check(all(evidence[k]==v for k,v in e.items()),'Tested candidate identity differs: '+ch)
   check(str(evidence['BuildRunId'])==os.environ['GITHUB_RUN_ID'],'Wrong tested run')
   check(evidence['TestsPassed'] is True and evidence['PayloadPolicyPassed'] is True,'Required Windows checks failed')
   package=folder/e['Package'];check(digest(package)==evidence['PackageSha256'],'Tested package bytes changed')
@@ -181,7 +196,7 @@ def publish():
    check(live==m,'Updater URL not serving exact manifest '+ch)
   after={ch:readfeed(ch) for ch in CHANNELS}
   check(all(after[ch]['sha']==before[ch]['sha'] for ch in CHANNELS if ch not in manifests),'Unselected channel changed')
-  write('publication-evidence/published.json',{'RunId':os.environ['GITHUB_RUN_ID'],'Commit':new['sha'],'Manifests':manifests,'Untouched':{ch:after[ch]['sha'] for ch in CHANNELS if ch not in manifests},'VerifiedPublicAssets':True,'VerifiedPublicManifests':True,'LegacyFence':True})
+  write('publication-evidence/published.json',{'RunId':os.environ['GITHUB_RUN_ID'],'Commit':new['sha'],'Manifests':manifests,'Untouched':{ch:after[ch]['sha'] for ch in CHANNELS if ch not in manifests},'VerifiedPublicAssets':True,'VerifiedPublicManifests':True,'LegacyFence':True,'BuildControllerCommit':plan['ControllerCommit'],'PublicationControllerCommit':publisher_revision,'MetadataEncodingRepair':bool(repair)})
   print('PASS PUBLISHED: '+','.join(manifests)+'; exact public URLs/SHA-256; atomic feeds; legacy priority preserved')
  except Exception:
   # Restore only if our atomic commit is still the head; never overwrite another publisher.
@@ -197,5 +212,5 @@ if __name__=='__main__':
  elif action=='package':package(sys.argv[2])
  elif action=='publish':publish()
  elif action=='passed':
-  p=Path('release-output/candidate.json');e=json.loads(p.read_text());e.update(TestsPassed=True,PayloadPolicyPassed=True);write(p,e)
+  p=Path('release-output/candidate.json');e=json.loads(p.read_text(encoding='utf-8-sig'));e.update(TestsPassed=True,PayloadPolicyPassed=True);write(p,e)
  else:raise ValueError(action)

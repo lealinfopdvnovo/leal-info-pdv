@@ -1,0 +1,12 @@
+{
+  "RunId": 38979263839,
+  "BuildController": "a5c00d71a519d129773c86657e67ae9e50b749cb",
+  "Reason": "Repair CP1252/UTF-8 metadata encoding only; reuse successful immutable Windows packages without rebuilding",
+  "Packages": {
+    "GLOBAL": "a0a9c4c3b7da25da8fe8bf772c60c10be4dd70f0e98e905481a4a3aa521b9069",
+    "001": "ca8e9420e38767ff255f84a836fa1c35cbd66c8fa1e6e1b9ab54f2b33f396327",
+    "002": "0ac4c03d9a6587cbf326c0ff92b8540cbf9a24889af2dc521d2fc5134a38639f",
+    "003": "9a6f680839074703bd2bba7e718128a5b6bcdf9bbc2b5602cca3dbef9b7b39c2",
+    "004": "e60032320c2f0890b46564e3e81844635f0896a8c743d098973ded39acfccd9a"
+  }
+}
