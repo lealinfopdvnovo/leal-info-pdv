@@ -9,6 +9,7 @@ namespace LealInfoPDV;
 internal static class InternalWorkspace
 {
     private static readonly ConditionalWeakTable<Form, object> Ready = new();
+    private static readonly ConditionalWeakTable<FlowLayoutPanel, Action> ActionLayouts = new();
     private static bool installed;
     internal static void Install()
     {
@@ -46,7 +47,13 @@ internal static class InternalWorkspace
         var root = f.Controls.OfType<TableLayoutPanel>().FirstOrDefault(c => c.Name == "InternalWorkspaceRoot");
         if (root != null)
         {
-            void Finish() { if (!f.IsDisposed && !root.IsDisposed) root.PerformLayout(); }
+            void Finish()
+            {
+                if (f.IsDisposed || root.IsDisposed) return;
+                foreach (var bar in Descendants(root).OfType<FlowLayoutPanel>())
+                    if (ActionLayouts.TryGetValue(bar, out var measure)) measure();
+                root.PerformLayout();
+            }
             if (f.IsHandleCreated) f.BeginInvoke((Action)Finish);
             else f.Shown += (_, _) => Finish();
         }
@@ -276,6 +283,7 @@ internal static class InternalWorkspace
         }
         bar.SizeChanged += (_, _) => Layout(); Layout();
         if (table != null) table.SizeChanged += (_, _) => Layout();
+        ActionLayouts.Add(bar, Layout);
     }
 
     private sealed class WorkspaceSurface : Panel
