@@ -79,7 +79,15 @@ function Copy-Item {
   $lock=$null
   if($mode -eq 'locked-file'){$lock=[IO.File]::Open((Join-Path $app 'z.dll'),[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)}
   try{
-    $p=Start-Process powershell.exe -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',('"'+$path+'"')) -PassThru -RedirectStandardOutput (Join-Path $out "$Client-$mode-stdout.txt") -RedirectStandardError (Join-Path $out "$Client-$mode-stderr.txt")
+    $info=New-Object System.Diagnostics.ProcessStartInfo
+    $info.FileName='powershell.exe'
+    $info.Arguments='-NoProfile -ExecutionPolicy Bypass -File "'+$path+'"'
+    $info.UseShellExecute=$false
+    $info.RedirectStandardOutput=$true
+    $info.RedirectStandardError=$true
+    $p=New-Object System.Diagnostics.Process
+    $p.StartInfo=$info
+    if(!$p.Start()){throw 'Cannot start isolated apply process'}
     if($mode -eq 'process-kill'){
       $until=(Get-Date).AddSeconds(15)
       while(!(Test-Path $signal) -and !$p.HasExited -and (Get-Date) -lt $until){Start-Sleep -Milliseconds 50}
@@ -87,7 +95,9 @@ function Copy-Item {
       $p.Kill()
     }
     if(!$p.WaitForExit(20000)){$p.Kill();throw 'Bounded fixture timeout'}
-    $p.Refresh();$exit=$p.ExitCode
+    $exit=$p.ExitCode
+    [IO.File]::WriteAllText((Join-Path $out "$Client-$mode-stdout.txt"),$p.StandardOutput.ReadToEnd())
+    [IO.File]::WriteAllText((Join-Path $out "$Client-$mode-stderr.txt"),$p.StandardError.ReadToEnd())
   }finally{if($lock){$lock.Dispose()}}
   $unchanged=@($before.Keys | Where-Object {(Hash (Join-Path $app $_)) -eq $before[$_]})
   $changed=@($before.Keys | Where-Object {(Hash (Join-Path $app $_)) -ne $before[$_]})
@@ -95,7 +105,7 @@ function Copy-Item {
   $started=Join-Path $app 'started.txt'
   if($mode -eq 'normal'){
     $until=(Get-Date).AddSeconds(4);while(!(Test-Path $started) -and (Get-Date) -lt $until){Start-Sleep -Milliseconds 50}
-    if($exit -ne 0 -or $changed.Count -ne 3 -or !(Test-Path $started) -or (Get-Content $started -Raw) -ne 'new'){throw 'Normal apply fixture failed'}
+    if($exit -ne 0 -or $changed.Count -ne 3 -or !(Test-Path $started) -or (Get-Content $started -Raw) -ne 'new'){Get-Content (Join-Path $out "$Client-$mode-stderr.txt");throw "Normal apply fixture failed: exit=$exit changed=$($changed.Count) started=$(Test-Path $started)"}
   }elseif($mode -eq 'restart-failure'){
     if($exit -eq 0 -or $changed.Count -ne 3 -or (Test-Path $started)){throw 'Restart failure not demonstrated'}
   }else{
