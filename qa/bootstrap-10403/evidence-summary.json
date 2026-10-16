@@ -1,0 +1,38 @@
+{
+  "run": 38895463139,
+  "testCommit": "7bafb8b7f9d7d85d7af734ee29c4091288ed503b",
+  "firstTransitionProtected": false,
+  "classification": "negative controlled Windows tests",
+  "evidence": [
+    {
+      "client": "001",
+      "job": 116954756846,
+      "result": "success",
+      "lines": [
+        "2026-10-16T11:42:01.5368182Z EVIDENCE 001 normal exit=0 changed=3 old=0 dataPreserved=True",
+        "2026-10-16T11:42:03.4928713Z EVIDENCE 001 copy-failure exit=1 changed=1 old=2 dataPreserved=True",
+        "2026-10-16T11:42:07.4417300Z EVIDENCE 001 process-exit exit=91 changed=1 old=2 dataPreserved=True",
+        "2026-10-16T11:42:09.1531552Z EVIDENCE 001 process-kill exit=-1 changed=1 old=2 dataPreserved=True",
+        "2026-10-16T11:42:11.0037508Z EVIDENCE 001 locked-file exit=1 changed=2 old=1 dataPreserved=True",
+        "2026-10-16T11:42:12.7761356Z EVIDENCE 001 restart-failure exit=1 changed=3 old=0 dataPreserved=True",
+        "2026-10-16T11:42:13.5106864Z PASS evidence harness; NOT an approval of bootstrap safety. No customer data or updater feeds accessed.",
+        "2026-10-16T11:42:17.8232014Z PASS exact hash guard 001; corrupted bytes rejected before application"
+      ]
+    },
+    {
+      "client": "003",
+      "job": 116954757072,
+      "result": "success",
+      "lines": [
+        "2026-10-16T11:42:02.1992891Z EVIDENCE 003 normal exit=0 changed=3 old=0 dataPreserved=True",
+        "2026-10-16T11:42:04.0458423Z EVIDENCE 003 copy-failure exit=1 changed=1 old=2 dataPreserved=True",
+        "2026-10-16T11:42:07.8614185Z EVIDENCE 003 process-exit exit=91 changed=1 old=2 dataPreserved=True",
+        "2026-10-16T11:42:09.4288491Z EVIDENCE 003 process-kill exit=-1 changed=1 old=2 dataPreserved=True",
+        "2026-10-16T11:42:11.0801434Z EVIDENCE 003 locked-file exit=1 changed=2 old=1 dataPreserved=True",
+        "2026-10-16T11:42:12.6855715Z EVIDENCE 003 restart-failure exit=1 changed=3 old=0 dataPreserved=True",
+        "2026-10-16T11:42:13.3503657Z PASS evidence harness; NOT an approval of bootstrap safety. No customer data or updater feeds accessed.",
+        "2026-10-16T11:42:16.9119448Z PASS exact hash guard 003; corrupted bytes rejected before application"
+      ]
+    }
+  ]
+}
