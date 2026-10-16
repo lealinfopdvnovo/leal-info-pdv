@@ -3657,11 +3657,31 @@ private void ApplyFloatingTheme(Form f)
         try
         {
             UseWaitCursor = true;
-            await DatabaseBackupService.RestoreAsync(dialog.FileName);
-            automaticBackupCompleted = true;
-            MessageBox.Show("Backup restaurado e validado com sucesso.\n\nO PDV será reiniciado agora para carregar os dados recuperados.",
-                "Restauração concluída", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            Application.Restart();
+            if (Network.NetworkConfiguration.Current.Mode == "terminal")
+                throw new InvalidOperationException("Faça a restauração no servidor.");
+            var stage = await DatabaseBackupService.PrepareAutomaticRestoreAsync(dialog.FileName);
+            try
+            {
+                var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "LealInfoPDV.exe");
+                var psi = new System.Diagnostics.ProcessStartInfo(exe)
+                {
+                    WorkingDirectory = AppContext.BaseDirectory,
+                    UseShellExecute = true
+                };
+                psi.ArgumentList.Add("--restaurar-automatico");
+                psi.ArgumentList.Add(stage);
+                psi.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                if (System.Diagnostics.Process.Start(psi) == null)
+                    throw new InvalidOperationException("Não foi possível iniciar o processo de recuperação.");
+                automaticBackupCompleted = true;
+                MessageBox.Show("O backup foi validado. O PDV será fechado para a restauração segura e reiniciado automaticamente.\n\nMantenha todos os terminais fechados.", "Restauração automática", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                Application.Exit();
+            }
+            catch
+            {
+                if (File.Exists(stage)) File.Delete(stage);
+                throw;
+            }
         }
         catch(Exception ex)
         {
