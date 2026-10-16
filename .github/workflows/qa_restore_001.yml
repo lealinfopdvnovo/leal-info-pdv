@@ -1,0 +1,85 @@
+name: QA one-click restore 001 - no publication
+on:
+  push:
+    branches: [feature/001-one-click-restore-qa]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Apply existing Windows build prerequisites
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compile PDV Windows
+        run: dotnet build LealInfoPDV.csproj -c Release
+      - name: Executar motor real de restauracao com falhas e processos Windows
+        timeout-minutes: 3
+        run: dotnet run --project qa/restore-real/LealInfoPDV.RestoreTests.csproj -c Release
+      - name: Preparar candidato incremental e plano verificado 001 sem publicar
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.403/LEAL_INFO_PDV_001_V10_403_UPDATE.zip' -OutFile previous001.zip
+          if((Get-FileHash previous001.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'e0000807521304983c4d6b323c91aed4e0ce9eaebdace191460f0a9c066e57f1'){throw 'O pacote 001 10.403 publicado mudou'}
+          Expand-Archive previous001.zip previous001
+          $old=Get-Content previous001/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $key=$old.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$key){throw 'SDK da versao instalada nao identificado'}
+          $sdkVersion=$key.Split('/')[1]
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdkVersion -o candidate-publish
+          if($LASTEXITCODE -ne 0){throw 'Candidato nao compilou'}
+          New-Item -ItemType Directory -Force candidate001,restore-evidence|Out-Null
+          $previous=@{};$target=@{}
+          foreach($file in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){
+            $previous[$file]=(Get-FileHash "previous001/$file" -Algorithm SHA256).Hash.ToLowerInvariant()
+            $target[$file]=(Get-FileHash "candidate-publish/$file" -Algorithm SHA256).Hash.ToLowerInvariant()
+            Copy-Item "candidate-publish/$file" "candidate001/$file"
+          }
+          @{Version='10.404';SourceCommit=$env:GITHUB_SHA;Previous=$previous;Target=$target}|ConvertTo-Json -Depth 6|Set-Content tools/RecoveryBridge/plan.json -Encoding utf8
+          Copy-Item tools/RecoveryBridge/plan.json restore-evidence/bridge-plan.json
+          Compress-Archive candidate001/* LEAL_INFO_PDV_001_V10_404_UPDATE.zip
+      - name: Preservar dependencias do pacote incremental
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          values=[json.loads(Path(p).read_text(encoding='utf-8-sig')) for p in ['previous001/LealInfoPDV.deps.json','candidate001/LealInfoPDV.deps.json']]
+          for obj in values:
+              for bag in [obj['libraries'],*obj['targets'].values()]:
+                  for k in list(bag):
+                      if k.startswith('LealInfoPDV/'):del bag[k]
+          assert values[0]==values[1], 'As dependencias mudaram; pacote de tres arquivos nao e seguro'
+      - name: Compilar servico de protecao externo independente
+        run: dotnet publish tools/RecoveryBridge/RecoveryBridge.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o bridge-publish
+      - name: Executar recuperacao externa real de executaveis
+        timeout-minutes: 3
+        run: dotnet run --project qa/bridge-real/LealInfoPDV.BridgeTests.csproj -c Release -- --service-binary bridge-publish/LealInfoProtecao001.exe
+      - name: Executar regressao de rede real
+        run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release
+      - name: Validar candidato pelo validador instalado
+        run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package LEAL_INFO_PDV_001_V10_404_UPDATE.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: protecao-001-validada
+          path: bridge-publish/LealInfoProtecao001.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidato-001-10.404
+          path: LEAL_INFO_PDV_001_V10_404_UPDATE.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: restore-real-windows-evidence
+          path: restore-evidence/

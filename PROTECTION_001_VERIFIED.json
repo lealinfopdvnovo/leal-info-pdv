@@ -1,0 +1,17 @@
+{
+  "ClientCode": "001",
+  "InstalledVersion": "10.403",
+  "TargetVersion": "10.404",
+  "ProtectionSourceCommit": "4ece3ee51754539d71d6a913e29760d03c4e3835",
+  "QaRunId": 38939192999,
+  "ProtectionExeSha256": "ab5b6b3490744dd1ce1a068ecdf364cde596a2da89600de7a05c6904d5d8c55f",
+  "EvidenceScreenshotSha256": "6b1ceec5f5a39c167ea8841e458aaada1ac519436d75fed1b5b7a7cddf2c2c27",
+  "ObservedMessage": "PROTEÇÃO ATIVA — CLIENTE 001",
+  "SafetyCopyVerifiedByAuxiliary": true,
+  "ServiceRunningConfirmedByAuxiliary": true,
+  "AutomaticWindowsStartupConfirmedByAuxiliary": true,
+  "VerificationMethod": "User-provided screenshot of supplied tested auxiliary after local activation; not a remote Windows inspection.",
+  "EvidenceReceivedUtc": "2026-10-16T17:37:33Z",
+  "PackageSha256": "a6dc443af7c8a26c191487744ce3039441363ec6670bc4759002dcefbd5b967c",
+  "BridgePlanSha256": "fbdc405a10ba0ebf18ba5f269964019dbef035583902b7d8208a178122f478fa"
+}

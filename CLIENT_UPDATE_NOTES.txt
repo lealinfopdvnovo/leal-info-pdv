@@ -1,1 +1,1 @@
-V10.376: corrige exclusivamente o acabamento cristal azul e o espaco da marca acima do login. Preserva COZINHA, autenticacao, dados, licenca e configuracoes.
+Restauração automática de backup exclusiva do 001: seleção e validação do arquivo, fechamento controlado, cópia de segurança, restauração verificada e reinício automático. Proteção externa da primeira atualização ativada localmente e confirmada pelo proprietário. Banco, licença, configurações e funcionalidades aprovadas preservados.

@@ -1,177 +1,32 @@
-name: Publicar atualizacao direcionada ao cliente
+name: Publicar 001 10.404 - pacote Windows verificado
 on:
   push:
-    branches: ['client/**']
+    branches: ['client/001']
     paths-ignore: ['README.md']
 concurrency:
-  group: atualizacao-cliente-${{ github.ref_name }}
-  cancel-in-progress: true
+  group: publicacao-segura-001-10404
+  cancel-in-progress: false
 permissions:
   contents: read
+  actions: read
 jobs:
   publicar-atualizacao:
     runs-on: windows-latest
-    env:
-      UPDATE_REPO: lealinfopdvnovo/leal-info-pdv-updates
-      GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
-      - name: Validar identificador numerico e versao
-        id: meta
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          if ($env:GITHUB_REF_NAME -notmatch '^client/([0-9]{3,9})$') { throw 'A branch deve usar client/ seguido do ID numerico, por exemplo client/003.' }
-          $client = $Matches[1]
-          [xml]$project = Get-Content LealInfoPDV.csproj -Raw
-          $projectVersion = [string]$project.Project.PropertyGroup.Version
-          if ($projectVersion -notmatch '^10\.([0-9]+)\.0$') { throw 'Versao do projeto deve ter o formato 10.NNN.0.' }
-          $version = "10.$($Matches[1])"
-          $manager = Get-Content UpdateManager.cs -Raw
-          $match = [regex]::Match($manager, 'CurrentVersion\s*=\s*"([0-9]+\.[0-9]+)"')
-          if (-not $match.Success -or $match.Groups[1].Value -ne $version) { throw 'Versao do projeto e do atualizador precisam coincidir.' }
-          $tag = "client-$client-v$version"
-          $package = "LEAL_INFO_PDV_$($client)_V$($version.Replace('.', '_'))_UPDATE.zip"
-          "CLIENT_CODE=$client" | Add-Content $env:GITHUB_OUTPUT
-          "VERSION=$version" | Add-Content $env:GITHUB_OUTPUT
-          "TAG=$tag" | Add-Content $env:GITHUB_OUTPUT
-          "PACKAGE=$package" | Add-Content $env:GITHUB_OUTPUT
-      - name: Exigir somente 001 e 003 e preservar canais protegidos
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          if($env:GITHUB_REF_NAME -notin @('client/001','client/003')){throw 'Esta publicacao de cristal autoriza somente 001/003'}
-          foreach($path in @('version.json','clients/002/version.json')){
-            $before=gh api "repos/$env:UPDATE_REPO/contents/${path}?ref=main" | ConvertFrom-Json
-            if($LASTEXITCODE -ne 0){throw 'Nao foi possivel auditar feed protegido'}
-            $before.content | Set-Content (Join-Path $env:RUNNER_TEMP ($path.Replace('/','_')+'.before'))
-          }
-      - name: Conferir fonte visual ja validada e somente metadados novos
-        shell: python
-        run: |
-          import subprocess
-          visual='a502f9999fd146311208bdbd55c1f46120c82c4c'
-          subprocess.run(['git','fetch','origin',visual],check=True)
-          assert subprocess.check_output(['git','show',visual+':LoginForm.cs'])==subprocess.check_output(['git','show','HEAD:LoginForm.cs'])
-          for f in ['MainForm.cs','Auth.cs','Database.cs','ClientUpdateIdentity.cs']:
-              assert subprocess.check_output(['git','show',visual+':'+f])==subprocess.check_output(['git','show','HEAD:'+f]),f
-          old=subprocess.check_output(['git','show',visual+':UpdateManager.cs']).decode()
-          new=subprocess.check_output(['git','show','HEAD:UpdateManager.cs']).decode()
-          assert old==new
-          oldproject=subprocess.check_output(['git','show',visual+':LealInfoPDV.csproj']).decode()
-          newproject=subprocess.check_output(['git','show','HEAD:LealInfoPDV.csproj']).decode()
-          assert oldproject==newproject
-          allowed={'.github/workflows/atualizacao_cliente.yml'}
-          assert set(subprocess.check_output(['git','diff','--name-only',visual,'HEAD']).decode().splitlines())<=allowed
-          print('PASS LoginForm aprovado exato; funcionalidades e updater preservados')
-      - name: Restaurar ajustes aprovados da compilacao
-        shell: pwsh
-        run: |
-          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
-          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
-          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
-          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
-          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
-          ./scripts/aplicar_central_equipamentos_v10_314.ps1
-      - run: dotnet restore LealInfoPDV.csproj
-      - name: Compilar PDV preservando dependencias distribuidas
-        shell: pwsh
-        run: |
-          $ErrorActionPreference='Stop'
-          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.374/LEAL_INFO_PDV_V10_374_UPDATE.zip' -OutFile baseline.zip
-          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne '063bd64f1a90c093a72631bcef7e96d6fd4666d3a5098cae7ccd70c05b732d99'){throw 'Baseline mudou'}
-          Expand-Archive baseline.zip baseline
-          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
-          $sdkKey=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
-          if(!$sdkKey){throw 'SDK atual nao identificado'}
-          $sdkVersion=$sdkKey.Split('/')[1]
-          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdkVersion -o publish_update
-          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
-      - name: Conferir dependencias e isolamento pelo updater real
-        shell: python
-        run: |
-          import json,subprocess
-          from pathlib import Path
-          old=json.loads(Path('baseline/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
-          new=json.loads(Path('publish_update/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
-          for d in [old,new]:
-              for bag in [d['libraries'],*d['targets'].values()]:
-                  for k in list(bag):
-                      if k.startswith('LealInfoPDV/'):del bag[k]
-          assert old==new,'Dependencias novas impedem update incremental seguro'
-          subprocess.run(['dotnet','run','--project','qa/directed/LealInfoPDV.DirectedTests.csproj','-c','Release'],check=True)
-      - name: Validar novamente login e marca antes de publicar
-        shell: pwsh
-        run: |
-          dotnet run --project qa/crystal/LealInfoPDV.CrystalTests.csproj -c Release
-          if($LASTEXITCODE -ne 0){throw 'Login/layout falhou: nao publicar'}
+          fetch-depth: 0
+      - name: Conferir protecao local, QA aprovado e pacote exato sem recompilar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/publicar_restauracao_001.py verify
+      - name: Publicar pacote e manifesto exclusivo 001 com verificacao real
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python scripts/publicar_restauracao_001.py publish
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: correcao-cristal-evidencias
-          path: crystal-evidencias/
-      - name: Gerar pacote de atualizacao (sem instalador)
-        shell: pwsh
-        env:
-          PACKAGE: ${{ steps.meta.outputs.PACKAGE }}
-        run: |
-          New-Item -ItemType Directory -Force incremental|Out-Null
-          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish_update/$_" incremental/}
-          Compress-Archive -Path 'incremental/*' -DestinationPath $env:PACKAGE -CompressionLevel Optimal
-      - name: Validar pacote pelo validador do PDV
-        env:
-          PACKAGE: ${{ steps.meta.outputs.PACKAGE }}
-        run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package $env:PACKAGE
-      - name: Publicar pacote e manifesto apenas neste ID
-        shell: pwsh
-        env:
-          CLIENT_CODE: ${{ steps.meta.outputs.CLIENT_CODE }}
-          VERSION: ${{ steps.meta.outputs.VERSION }}
-          TAG: ${{ steps.meta.outputs.TAG }}
-          PACKAGE: ${{ steps.meta.outputs.PACKAGE }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $notesPath = 'CLIENT_UPDATE_NOTES.txt'
-          $notes = if (Test-Path $notesPath) { (Get-Content $notesPath -Raw).Trim() } else { "Correcao direcionada ao cliente $env:CLIENT_CODE." }
-          if ([string]::IsNullOrWhiteSpace($notes)) { $notes = "Correcao direcionada ao cliente $env:CLIENT_CODE." }
-          gh release create $env:TAG $env:PACKAGE --repo $env:UPDATE_REPO --title "PDV $env:CLIENT_CODE V$env:VERSION" --notes $notes
-          if($LASTEXITCODE -ne 0){throw 'Falha ao publicar release: manifesto nao sera alterado'}
-          $assetUrl = "https://github.com/$env:UPDATE_REPO/releases/download/$env:TAG/$env:PACKAGE"
-          $sha = (Get-FileHash $env:PACKAGE -Algorithm SHA256).Hash.ToLowerInvariant()
-          $manifest = @{ Version=$env:VERSION; PackageUrl=$assetUrl; Sha256=$sha; SourceCommit=$env:GITHUB_SHA; TargetClientCode=$env:CLIENT_CODE; Notes=$notes; Mandatory=$false } | ConvertTo-Json
-          $contentBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($manifest))
-          $path = "clients/$env:CLIENT_CODE/version.json"
-          $existingSha = ''
-          $existingManifestJson = gh api "repos/$env:UPDATE_REPO/contents/${path}?ref=main" 2>$null
-          $manifestReadExitCode = $LASTEXITCODE
-          if ($manifestReadExitCode -eq 0) {
-            $existingManifest = $existingManifestJson | ConvertFrom-Json -ErrorAction Stop
-            $existingSha = [string]$existingManifest.sha
-            if ([string]::IsNullOrWhiteSpace($existingSha)) { throw 'O manifesto existente nao retornou SHA.' }
-          } elseif ($manifestReadExitCode -ne 1) {
-            throw "Nao foi possivel consultar o manifesto do cliente ($manifestReadExitCode)."
-          }
-          $payload = @{ message="Atualizacao $env:CLIENT_CODE V$env:VERSION"; content=$contentBase64 }
-          if (-not [string]::IsNullOrWhiteSpace($existingSha)) { $payload.sha = $existingSha }
-          $requestPath = Join-Path $env:RUNNER_TEMP 'client-manifest-request.json'
-          $payload | ConvertTo-Json -Compress | Set-Content $requestPath -Encoding utf8
-          gh api --method PUT "repos/$env:UPDATE_REPO/contents/$path" --input $requestPath
-          if ($LASTEXITCODE -ne 0) { throw 'Falha ao gravar o manifesto do cliente.' }
-      - name: Validar publicacao real e preservacao global e 002
-        shell: pwsh
-        env:
-          CLIENT_CODE: ${{ steps.meta.outputs.CLIENT_CODE }}
-        run: |
-          $ErrorActionPreference='Stop'
-          dotnet run --project qa/directed/LealInfoPDV.DirectedTests.csproj -c Release -- --live $env:CLIENT_CODE
-          if($LASTEXITCODE -ne 0){throw 'Validacao real do feed falhou'}
-          foreach($path in @('version.json','clients/002/version.json')){
-            $after=gh api "repos/$env:UPDATE_REPO/contents/${path}?ref=main"|ConvertFrom-Json
-            if($LASTEXITCODE -ne 0){throw 'Nao foi possivel conferir feed protegido'}
-            $before=Get-Content (Join-Path $env:RUNNER_TEMP ($path.Replace('/','_')+'.before')) -Raw
-            if($before.Trim() -ne $after.content.Trim()){throw 'Feed protegido mudou durante publicacao'}
-          }
-          Write-Output 'PASS feeds global e 002 preservados exatamente'
+          name: publicacao-001-10404-evidencias
+          path: publication-evidence/

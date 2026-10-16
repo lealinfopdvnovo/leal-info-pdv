@@ -1,0 +1,305 @@
+name: Port seletivo Vidracaria somente 001 - 10.399
+on:
+  push:
+    branches: ['release/vidracaria-port-001-10399']
+permissions: {contents: read, actions: read}
+concurrency:
+  group: vinculo-cliente-vidracaria-001-10399
+  cancel-in-progress: true
+jobs:
+  validar-publicar:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Auditar preservacao 001 homologado 10.392
+        shell: python
+        run: |
+          import subprocess
+          base='e210bd4dc7a02a3992432046a98de43250c39488'
+          allowed=set(['.github/workflows/port_vidracaria_atual_001.yml', 'GlassBrazilianMoney.cs', 'GlassCommercialDocument.cs', 'GlassDimensionField.cs', 'GlassMaterialSelection.cs', 'GlassQuoteForm.cs', 'GlassWorkshopForm.cs', 'LealInfoPDV.csproj', 'MainForm.cs', 'UpdateManager.cs', 'qa/company-cep/Program.cs', 'qa/glass-client-link/LealInfoPDV.GlassClientLinkTests.csproj', 'qa/glass-client-link/Program.cs', 'qa/glass-customer/LealInfoPDV.GlassCustomerTests.csproj', 'qa/glass-customer/Program.cs', 'qa/glass-money/LealInfoPDV.GlassMoneyTests.csproj', 'qa/glass-money/Program.cs', 'qa/glass-quote-windows/Program.cs', 'qa/glass-tabs/Program.cs', 'qa/glass-unit-physical/LealInfoPDV.GlassUnitPhysicalTests.csproj', 'qa/glass-unit-physical/Program.cs', 'qa/port001/Program.cs', 'qa/sales-logo/Program.cs'])
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed==allowed,changed
+          donor='f3d855709810ab63d60a63b56e2dfadda5541463'
+          for f in ['GlassBrazilianMoney.cs', 'GlassCommercialDocument.cs', 'GlassDimensionField.cs', 'GlassMaterialSelection.cs', 'GlassQuoteForm.cs', 'GlassWorkshopForm.cs', 'qa/glass-client-link/LealInfoPDV.GlassClientLinkTests.csproj', 'qa/glass-client-link/Program.cs', 'qa/glass-customer/LealInfoPDV.GlassCustomerTests.csproj', 'qa/glass-customer/Program.cs', 'qa/glass-money/LealInfoPDV.GlassMoneyTests.csproj', 'qa/glass-money/Program.cs', 'qa/glass-quote-windows/Program.cs', 'qa/glass-tabs/Program.cs', 'qa/glass-unit-physical/LealInfoPDV.GlassUnitPhysicalTests.csproj', 'qa/glass-unit-physical/Program.cs']:
+              assert subprocess.check_output(['git','show',donor+':'+f])==subprocess.check_output(['git','show','HEAD:'+f]),f
+          for f in ['LealInfoPDV.csproj','UpdateManager.cs']:
+              assert subprocess.check_output(['git','show',base+':'+f]).replace(b'10.392',b'10.399')==subprocess.check_output(['git','show','HEAD:'+f]),f
+          for f in ['qa/company-cep/Program.cs','qa/sales-logo/Program.cs']:
+              assert subprocess.check_output(['git','show',base+':'+f]).replace(b'(flavor == "003")',b'(flavor is "001" or "003")')==subprocess.check_output(['git','show','HEAD:'+f]),f
+          original=subprocess.check_output(['git','show',base+':MainForm.cs']).decode()
+          for old,new in [('        ApplyFloatingTheme(f);\n\n\n        f.ShowDialog(this);\n    }\n\n    private void OpenCustomers() => ShowPersonCrud("CLIENTES", "customers");\n    private void OpenSuppliers() => ShowPersonCrud("FORNECEDORES", "suppliers");\n\n    private void ShowPersonCrud(string title, string table)\n    {\n        ShowCrud(title,\n            $"SELECT id AS ID,name AS Nome,document AS Documento,phone AS Telefone,email AS Email,address AS Endereço FROM {table} ORDER BY name",\n            () => EditPerson(table, null, title[..^1]),\n            id => EditPerson(table, id, title[..^1]),\n            id => { if (Confirm("Excluir este cadastro?")) Exec($"DELETE FROM {table} WHERE id=$id", ("$id",id)); });\n    }\n\n    private void EditPerson(string table, long? id, string title)\n    {\n        var f = Editor(title, new[] { "Nome", "CPF/CNPJ", "Telefone", "E-mail", "Endereço" });\n        if (id.HasValue)\n', '        ApplyFloatingTheme(f);\n\n\n        f.ShowDialog(this);\n    }\n\n    internal void OpenCustomersFromGlass(Action<long>? select = null) => RunAllowed("customers", () => ShowPersonCrud("CLIENTES", "customers", select));\n\n    private void OpenCustomers() => ShowPersonCrud("CLIENTES", "customers");\n    private void OpenSuppliers() => ShowPersonCrud("FORNECEDORES", "suppliers");\n\n    private void ShowPersonCrud(string title, string table, Action<long>? select = null)\n    {\n        ShowCrud(title,\n            $"SELECT id AS ID,name AS Nome,document AS Documento,phone AS Telefone,email AS Email,address AS Endereço FROM {table} ORDER BY name",\n            () => EditPerson(table, null, title[..^1]),\n            id => EditPerson(table, id, title[..^1]),\n            id => { if (Confirm("Excluir este cadastro?")) Exec($"DELETE FROM {table} WHERE id=$id", ("$id",id)); }, select);\n    }\n\n    private void EditPerson(string table, long? id, string title)\n    {\n        var f = Editor(title, new[] { "Nome", "CPF/CNPJ", "Telefone", "E-mail", "Endereço" });\n        if (id.HasValue)\n'), ('\n    private void AddSaleLabel(Control c,string text,int x,int y)\n    {\n        c.Controls.Add(new Label{Text=text,Left=x,Top=y,AutoSize=true,ForeColor=Color.White,Font=new Font("Segoe UI",18,FontStyle.Bold)});\n    }\n\n    private void ShowCrud(string title,string sql,Action add,Action<long>? edit,Action<long>? delete)\n    {\n        var f=GridForm(title,sql,out var grid);\n        var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};\n        var b1=ActionButton("NOVO",()=>{add();ReloadGrid(grid,sql);});\n        p.Controls.Add(b1);\n        if(edit!=null)p.Controls.Add(ActionButton("EDITAR",()=>{var id=SelectedId(grid);if(id.HasValue){edit(id.Value);ReloadGrid(grid,sql);}}));\n        if(delete!=null)p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue){delete(id.Value);ReloadGrid(grid,sql);}}));\n        p.Controls.Add(ActionButton("FECHAR",f.Close));\n        f.Controls.Add(p);\n        ApplyFloatingTheme(f);\n\n        f.ShowDialog(this);\n    }\n', '\n    private void AddSaleLabel(Control c,string text,int x,int y)\n    {\n        c.Controls.Add(new Label{Text=text,Left=x,Top=y,AutoSize=true,ForeColor=Color.White,Font=new Font("Segoe UI",18,FontStyle.Bold)});\n    }\n\n    private void ShowCrud(string title,string sql,Action add,Action<long>? edit,Action<long>? delete,Action<long>? select=null)\n    {\n        var f=GridForm(title,sql,out var grid);\n        var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};\n        var b1=ActionButton("NOVO",()=>{add();ReloadGrid(grid,sql);});\n        p.Controls.Add(b1);\n        if(edit!=null)p.Controls.Add(ActionButton("EDITAR",()=>{var id=SelectedId(grid);if(id.HasValue){edit(id.Value);ReloadGrid(grid,sql);}}));\n        if(delete!=null)p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue){delete(id.Value);ReloadGrid(grid,sql);}}));\n        if(select!=null)\n        {\n            var choose=ActionButton("SELECIONAR CLIENTE",()=>\n            {\n                var id=SelectedId(grid);\n                if(!id.HasValue){Info("Escolha um cliente na lista.");return;}\n                select(id.Value);f.DialogResult=DialogResult.OK;f.Close();\n            });\n            choose.Name="SelectCustomerForGlass";p.Controls.Add(choose);\n        }\n        p.Controls.Add(ActionButton("FECHAR",f.Close));\n        f.Controls.Add(p);\n        ApplyFloatingTheme(f);\n\n        f.ShowDialog(this);\n    }\n')]:
+              assert original.count(old)==1
+              original=original.replace(old,new,1)
+          assert original==subprocess.check_output(['git','show','HEAD:MainForm.cs']).decode()
+          print('PASS port exato Vidracaria003; preservados atalhos001, licenca, dados, SQLite/schema/persistencia, login, logos, CEP, rede, backup e packing')
+      - name: Auditar PACOTES REAIS 001 e 003 e hash/origem publicados
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          foreach($item in @(@('001','10.392','b2dffdec03445295bebed8c6d8c1033642ae16ead6f9e751b243d8e71a64c0f3','e210bd4dc7a02a3992432046a98de43250c39488'),@('003','10.398','67e1d092994a2a1ff2877400e1363865de7c70856882114249b3fe97e5cbd432','f3d855709810ab63d60a63b56e2dfadda5541463'))){
+            $m=Invoke-RestMethod "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/clients/$($item[0])/version.json"
+            if($m.Version -ne $item[1] -or $m.Sha256 -ne $item[2] -or $m.SourceCommit -ne $item[3]){throw 'Origem publicada mudou'}
+            Invoke-WebRequest $m.PackageUrl -OutFile "audit-$($item[0]).zip"
+            if((Get-FileHash "audit-$($item[0]).zip").Hash.ToLowerInvariant() -ne $item[2]){throw 'Hash origem divergente'}
+            Expand-Archive "audit-$($item[0]).zip" "audit-$($item[0])"
+            $files=@(Get-ChildItem "audit-$($item[0])" -Recurse -File|ForEach-Object {$_.Name}|Sort-Object)
+            if(Compare-Object $files @('LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe')){throw 'Conteudo origem inesperado'}
+            $v=[Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $PWD "audit-$($item[0])/LealInfoPDV.dll")).FileVersion
+            if(!$v.StartsWith($item[1]+'.')){throw 'Versao binaria origem divergente'}
+            Write-Host "PASS PACOTE REAL $($item[0]) $v hash correto sem dados operacionais"
+          }
+      - name: Build e testes Windows antes de publicar
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet build LealInfoPDV.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Build falhou'}
+          if($env:GITHUB_ACTIONS -ne 'true'){throw 'Exige runner descartavel'}
+          $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+          if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+          dotnet build qa/glass-persistence/LealInfoPDV.GlassPersistenceTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Harness de persistencia nao compilou'}
+          New-Item -ItemType Directory glass-persistence-evidencias -Force|Out-Null
+          $process=Start-Process dotnet -ArgumentList 'qa/glass-persistence/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.GlassPersistenceTests.dll' -PassThru -NoNewWindow -RedirectStandardOutput glass-persistence-evidencias/stdout.log -RedirectStandardError glass-persistence-evidencias/stderr.log
+          $finished=$process.WaitForExit(90000)
+          if(!$finished){$process.Kill($true);$process.WaitForExit()}
+          Get-Content glass-persistence-evidencias/stdout.log
+          Get-Content glass-persistence-evidencias/stderr.log
+          if(!$finished -or $process.ExitCode -ne 0){throw 'Persistencia/reinicio/interface falhou'}
+      - name: Validar moeda em tres culturas e total132 na tela/A4/persistencia
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+          if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+          dotnet build qa/glass-money/LealInfoPDV.GlassMoneyTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'QA moeda nao compilou'}
+          $process=Start-Process dotnet -ArgumentList 'qa/glass-money/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.GlassMoneyTests.dll' -PassThru -NoNewWindow -RedirectStandardOutput money-stdout.log -RedirectStandardError money-stderr.log
+          $finished=$process.WaitForExit(120000)
+          if(!$finished){$process.Kill($true);$process.WaitForExit()}
+          Get-Content money-stdout.log
+          Get-Content money-stderr.log
+          if(!$finished -or $process.ExitCode -ne 0){throw 'Moeda/tela/A4/persistencia falhou'}
+      - name: Regressao fisica do Plano de Corte aprovado sem alterar algoritmo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+          if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+          dotnet build qa/glass-unit-physical/LealInfoPDV.GlassUnitPhysicalTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'QA fisica nao compilou'}
+          $process=Start-Process dotnet -ArgumentList 'qa/glass-unit-physical/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.GlassUnitPhysicalTests.dll' -PassThru -NoNewWindow -RedirectStandardOutput physical-stdout.log -RedirectStandardError physical-stderr.log
+          $finished=$process.WaitForExit(120000)
+          if(!$finished){$process.Kill($true);$process.WaitForExit()}
+          Get-Content physical-stdout.log
+          Get-Content physical-stderr.log
+          if(!$finished -or $process.ExitCode -ne 0){throw 'Regressao plano de corte falhou'}
+      - name: Cadastro real pela Vidracaria e permissao original
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+          if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+          dotnet build qa/glass-customer/LealInfoPDV.GlassCustomerTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Teste de cadastro nao compilou'}
+          New-Item -ItemType Directory glass-customer-evidencias -Force|Out-Null
+          $process=Start-Process dotnet -ArgumentList 'qa/glass-customer/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.GlassCustomerTests.dll' -PassThru -NoNewWindow -RedirectStandardOutput glass-customer-evidencias/stdout.log -RedirectStandardError glass-customer-evidencias/stderr.log
+          $finished=$process.WaitForExit(90000)
+          if(!$finished){$process.Kill($true);$process.WaitForExit()}
+          Get-Content glass-customer-evidencias/stdout.log
+          Get-Content glass-customer-evidencias/stderr.log
+          if(!$finished -or $process.ExitCode -ne 0){throw 'Cadastro real/layout/permissao falhou'}
+      - name: Vinculo cliente existente e novo pelo CADASTRO REAL com A4/PDF e novo processo
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+          if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+          dotnet build qa/glass-client-link/LealInfoPDV.GlassClientLinkTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'QA vinculo nao compilou'}
+          $process=Start-Process dotnet -ArgumentList 'qa/glass-client-link/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.GlassClientLinkTests.dll' -PassThru -NoNewWindow -RedirectStandardOutput link-stdout.log -RedirectStandardError link-stderr.log
+          $finished=$process.WaitForExit(120000)
+          if(!$finished){$process.Kill($true);$process.WaitForExit()}
+          Get-Content link-stdout.log
+          Get-Content link-stderr.log
+          if(!$finished -or $process.ExitCode -ne 0){throw 'Vinculo cadastro/projeto/A4/reabertura falhou'}
+      - name: Comparar 001 anterior e candidata no mesmo banco Windows
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+          if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+          New-Item -ItemType Directory baseline-src|Out-Null
+          git archive e210bd4dc7a02a3992432046a98de43250c39488 -o baseline-source.tar
+          tar -xf baseline-source.tar -C baseline-src
+          Copy-Item qa/port001/Program.cs baseline-src/qa/port001/Program.cs -Force
+          $env:PORT001_EVIDENCE=Join-Path $PWD 'port001-evidencias'
+          Push-Location baseline-src
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet run --project qa/port001/LealInfoPDV.Port001Tests.csproj -c Release -- --before
+          if($LASTEXITCODE -ne 0){throw 'Baseline001 falhou'}
+          Pop-Location
+          Remove-Item baseline-src -Recurse -Force
+          dotnet run --project qa/port001/LealInfoPDV.Port001Tests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Regressao exclusiva001 falhou'}
+      - name: Regressao completa Windows da 10.392
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if($env:GITHUB_ACTIONS -ne 'true'){throw 'Exige runner descartavel'}
+          $tests=Get-ChildItem qa -Recurse -Filter '*.csproj' | Where-Object {$_.FullName -notmatch '[\\/](speedfood|port001|port003|glass-persistence|glass-customer|glass-unit-physical|glass-money|glass-client-link)[\\/]'}
+          $tests=$tests | Sort-Object @{Expression={if($_.FullName -match '[\\/](glass-cotas|glass-units)[\\/]'){0}else{1}}},FullName
+          foreach($test in $tests){
+            $sandbox=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+            if([IO.Path]::GetFileName($sandbox) -ne 'LealInfoPDV'){throw 'Pasta inesperada'}
+            if(Test-Path $sandbox){Remove-Item $sandbox -Recurse -Force}
+            Write-Host ('TEST SUITE '+$test.FullName)
+            $argsExtra=@()
+            if($test.FullName -match '[\\/]kitchen[\\/]'){$argsExtra=@('--','--global')}
+            if($test.FullName -match '[\\/](company-cep|sales-logo)[\\/]'){$argsExtra=@('--','001')}
+            dotnet run --project $test.FullName -c Release @argsExtra
+            if($LASTEXITCODE -ne 0){throw ('Suite falhou: '+$test.FullName)}
+          }
+          Write-Host 'PASS suites locais; SpeedFood/Firebase online nao executado para preservar escopo'
+          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.392/LEAL_INFO_PDV_001_V10_392_UPDATE.zip' -OutFile baseline.zip
+          if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne 'b2dffdec03445295bebed8c6d8c1033642ae16ead6f9e751b243d8e71a64c0f3'){throw 'Baseline mudou'}
+          Expand-Archive baseline.zip baseline
+          $deps=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $sdk=$deps.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$sdk){throw 'SDK nao encontrado'}
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$($sdk.Split('/')[1]) -o publish
+          if($LASTEXITCODE -ne 0){throw 'Publish build falhou'}
+          New-Item -ItemType Directory package|Out-Null
+          'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'|ForEach-Object {Copy-Item "publish/$_" package/}
+          $before=Get-Content baseline/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          $after=Get-Content package/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          $old=@($before.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
+          $new=@($after.libraries.Keys|Where-Object {$_ -notlike 'LealInfoPDV/*'}|Sort-Object)
+          if(Compare-Object $old $new){throw 'Dependencias mudaram'}
+          Compress-Archive package/* LEAL_INFO_PDV_001_V10_399_UPDATE.zip
+      - name: Validar PDF real e multipagina
+        shell: pwsh
+        run: |
+          python -m pip install pypdf
+          if($LASTEXITCODE -ne 0){throw 'Validador PDF indisponivel'}
+          @'
+          from pypdf import PdfReader
+          for name in ['orcamento-real.pdf','orcamento-multipagina.pdf']:
+              r=PdfReader('glass-commercial-evidencias/'+name,strict=True)
+              assert len(r.pages)>0
+              if 'multipagina' in name: assert len(r.pages)>1
+              for p in r.pages:
+                  assert abs(float(p.mediabox.width)-595.28)<1
+                  assert abs(float(p.mediabox.height)-841.89)<1
+                  assert len(p.images)>0
+              print('PASS PDF A4',name,len(r.pages))
+          for name in ['existente.pdf','existente-reaberto.pdf','novo.pdf','novo-reaberto.pdf']:
+              r=PdfReader('glass-client-link-evidencias/'+name,strict=True)
+              assert len(r.pages)==1 and len(r.pages[0].images)>0
+              assert abs(float(r.pages[0].mediabox.width)-595.28)<1
+              assert abs(float(r.pages[0].mediabox.height)-841.89)<1
+              print('PASS PDF cliente existente/novo A4',name)
+          for name in ['orcamento-132.pdf','reaberto-132.pdf']:
+              r=PdfReader('glass-money-evidencias/'+name,strict=True)
+              assert len(r.pages)==1
+              assert abs(float(r.pages[0].mediabox.width)-595.28)<1
+              assert abs(float(r.pages[0].mediabox.height)-841.89)<1
+              assert len(r.pages[0].images)>0
+              print('PASS PDF132 antes/depois A4',name)
+          '@ | python
+          if($LASTEXITCODE -ne 0){throw 'PDF invalido'}
+      - name: Publicar somente canal 001 com guarda concorrencial
+        shell: pwsh
+        env: {GH_TOKEN: '${{ secrets.UPDATE_REPO_TOKEN }}', SOURCE_TOKEN: '${{ github.token }}'}
+        run: |
+          $ErrorActionPreference='Stop'
+          $head=(Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/git/ref/heads/$env:GITHUB_REF_NAME" -Headers @{Authorization="Bearer $env:SOURCE_TOKEN"}).object.sha
+          if($head -ne $env:GITHUB_SHA){throw 'Candidato superado'}
+          $repo='lealinfopdvnovo/leal-info-pdv-updates'
+          $protected=@{}
+          foreach($p in @('version.json','clients/003/version.json','clients/002/version.json')){
+            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0){throw 'Feed protegido nao pode ser lido'}
+            $protected[$p]=$v.sha
+          }
+          $fourBefore=gh api "repos/$repo/contents/clients/004/version.json" 2>$null
+          $fourExists=$LASTEXITCODE -eq 0
+          if($fourExists){$fourSha=($fourBefore|ConvertFrom-Json).sha}
+          $entry=gh api "repos/$repo/contents/clients/001/version.json"|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw '001 nao pode ser lido'}
+          $old=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.content))|ConvertFrom-Json
+          if($old.Version -ne '10.392' -or $old.TargetClientCode -ne '001' -or $old.Sha256 -ne 'b2dffdec03445295bebed8c6d8c1033642ae16ead6f9e751b243d8e71a64c0f3'){throw 'Canal 001 mudou; abortar'}
+          $tags=gh api --paginate "repos/$repo/releases?per_page=100" --jq '.[].tag_name'
+          if($LASTEXITCODE -ne 0 -or 'client-001-v10.399' -in @($tags)){throw 'Release existente ou auditoria falhou'}
+          $package='LEAL_INFO_PDV_001_V10_399_UPDATE.zip'
+          $notes='V10.399 exclusiva001: port seletivo da Vidracaria003/10.398, unidades mm/cm/m, moeda brasileira com centavos, cadastro original e vinculo, subtotal e A4/PDF. Persistencia/schema existente, dados e personalizacoes do001 preservados; 003 inalterado. Aguardando homologacao fisica.'
+          $notes|Set-Content notes.txt
+          gh release create client-001-v10.399 $package --repo $repo --title 'LEAL INFO PDV 001 V10.399 - Vinculo do cliente no cadastro original' --notes-file notes.txt --latest=false
+          if($LASTEXITCODE -ne 0){throw 'Pacote nao publicado; nao mudar feed'}
+          $m=@{Version='10.399';TargetClientCode='001';PackageUrl="https://github.com/$repo/releases/download/client-001-v10.399/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$env:GITHUB_SHA;Notes=$notes;Mandatory=$false}
+          $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($m|ConvertTo-Json)))
+          @{message='Vinculo do cliente 10.399 somente 001';sha=$entry.sha;content=$content}|ConvertTo-Json -Compress|Set-Content request.json
+          gh api --method PUT "repos/$repo/contents/clients/001/version.json" --input request.json
+          if($LASTEXITCODE -ne 0){throw 'Manifest nao publicado'}
+          foreach($p in $protected.Keys){
+            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0 -or $v.sha -ne $protected[$p]){throw 'Feed protegido mudou'}
+          }
+          $fourAfter=gh api "repos/$repo/contents/clients/004/version.json" 2>$null
+          $fourExistsAfter=$LASTEXITCODE -eq 0
+          if($fourExistsAfter -ne $fourExists){throw '004 mudou'}
+          if($fourExists -and ($fourAfter|ConvertFrom-Json).sha -ne $fourSha){throw '004 mudou'}
+          $url="https://raw.githubusercontent.com/$repo/main/clients/001/version.json"
+          for($i=0;$i -lt 24;$i++){
+            $live=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+            if($live.Version -eq '10.399' -and $live.TargetClientCode -eq '001'){break}
+            Start-Sleep -Seconds 5
+          }
+          if($live.Version -ne '10.399' -or $live.Sha256 -ne $m.Sha256){throw 'Manifest nao propagou'}
+          Invoke-WebRequest $live.PackageUrl -OutFile verificado.zip
+          if((Get-FileHash verificado.zip).Hash.ToLowerInvariant() -ne $live.Sha256){throw 'Hash publicado incorreto'}
+          Write-Host 'PASS PUBLICADO 001 10.399; hash remoto confirmado; global 003 002 004 intactos'
+          exit 0
+
+      - name: Deteccao e download pelo seletor REAL do updater do 001
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $qa=Get-Content qa/glass/Program.cs -Raw
+          $qa=$qa.Replace('id == "003" ? "10.383" : "10.379"','id == "001" ? "10.399" : id == "003" ? "10.398" : "10.385"')
+          $qa=$qa.Replace('new[] { "001", "002", "003", "004" }','new[] { "001" }')
+          $qa=$qa.Replace('new object[] { http, id, "10.378" }','new object[] { http, id, "10.392" }')
+          [IO.File]::WriteAllText((Join-Path $PWD 'qa/glass/Program.cs'),$qa)
+          dotnet run --project qa/glass/LealInfoPDV.GlassTests.csproj -c Release -- --live
+          if($LASTEXITCODE -ne 0){throw 'Deteccao/download do updater real falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vidracaria-001-10399-evidencias
+          path: |
+            *-evidencias/
+            LEAL_INFO_PDV_001_V10_399_UPDATE.zip
+            verificado.zip
+            notes.txt
+            link-stdout.log
+            link-stderr.log
+            money-stdout.log
+            money-stderr.log
+            physical-stdout.log
+            physical-stderr.log
+          retention-days: 14

@@ -64,6 +64,47 @@ static class Program
         timer.Start();typeof(Control).GetMethod("OnClick",I)!.Invoke(caption,new object[]{EventArgs.Empty});
         Check(seen,"COZINHA não abriu");if(failure!=null)throw failure;Check(!Application.OpenForms.Cast<Form>().Any(x=>x.Text=="COZINHA"),"Modal não fechou");
     }
+    static void GlassModal(MainForm main,Control caption,bool escape,string name)
+    {
+        bool seen=false;Exception? failure=null;
+        using var timer=new System.Windows.Forms.Timer{Interval=80};
+        timer.Tick+=(_,_)=>
+        {
+            var f=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Text=="CENTRAL DE VIDRAÇARIA");
+            if(f==null||seen)return;seen=true;timer.Stop();
+            try
+            {
+                Check(f.Modal&&f.Owner==main,"Vidraçaria nao modal/owner incorreto");
+                var tabs=All(f).OfType<TabControl>().Single();
+                Check(tabs.TabPages.Cast<TabPage>().Select(x=>x.Text).SequenceEqual(new[]{"Projetos","Materiais","Medidas","Cálculos","Desenho","Visualização","Impressão"}),"Estrutura inicial incompleta");
+                foreach(TabPage page in tabs.TabPages)
+                {
+                    tabs.SelectedTab=page;f.PerformLayout();Pump(20);
+                    if(page.Text=="Projetos") Check(All(page).Any(x=>x.Visible&&x.Name=="QuoteCustomer")&&All(page).Any(x=>x.Name=="Description"),"Dados gerais integrados ausentes");
+                    else if(page.Text=="Materiais") Check(All(page).OfType<Label>().Any(x=>x.Visible&&x.Text.Contains("próxima etapa")),"Reserva de materiais ausente");
+                    else if(page.Text=="Medidas") Check(new[]{"WidthMmEntry","HeightMmEntry","WidthMmUnit","HeightMmUnit"}.All(name=>All(page).Any(x=>x.Visible&&x.Name==name))&&All(page).Any(x=>x.Name=="WidthMm")&&All(page).Any(x=>x.Name=="HeightMm"),"Medidas integradas e unidades individuais ausentes");
+                    else if(page.Text=="Cálculos") Check(All(page).Any(x=>x.Visible&&x.Name=="QuotePrice")&&All(page).Any(x=>x.Name=="QuoteSummary"),"Cálculos integrados ausentes");
+                    else if(page.Text=="Desenho") Check(All(page).OfType<GlassDrawingView>().Any(x=>x.Visible),"2D integrado ausente");
+                    else if(page.Text=="Visualização") Check(All(page).OfType<GlassBox3DView>().Any(x=>x.Visible),"3D integrado ausente");
+                    else if(page.Text=="Impressão") Check(All(page).OfType<Button>().Any(x=>x.Visible&&x.Name=="Preview"),"A4 integrado ausente");
+                }
+                tabs.SelectedIndex=0;
+                var close=All(f).OfType<Button>().Single(x=>x.Text=="FECHAR");
+                Check(close.Visible&&close.Bottom<=close.Parent!.Height&&f.CancelButton==close,"Fechar/ESC cortados");
+                using(var bmp=new Bitmap(f.Width,f.Height)){f.DrawToBitmap(bmp,new Rectangle(Point.Empty,bmp.Size));bmp.Save("kitchen-evidencias/vidracaria-"+name+".png",ImageFormat.Png);}
+                f.Size=new Size(640,440);f.PerformLayout();Pump(20);
+                Check(close.Visible&&close.Bottom<=close.Parent!.Height,"Fechar inacessivel em janela pequena");
+                if(escape) Check((bool)typeof(Form).GetMethod("ProcessDialogKey",I)!.Invoke(f,new object[]{Keys.Escape})!,"ESC Vidracaria falhou");
+                else close.PerformClick();
+            }
+            catch(Exception ex){failure=ex;f.Close();}
+        };
+        timer.Start();typeof(Control).GetMethod("OnClick",I)!.Invoke(caption,new object[]{EventArgs.Empty});
+        Check(seen,"VIDRAÇARIA nao abriu");if(failure!=null)throw failure;
+        Check(!Application.OpenForms.Cast<Form>().Any(x=>x.Text=="CENTRAL DE VIDRAÇARIA"),"Vidraçaria nao fechou");
+        Console.WriteLine("PASS Vidracaria clique, sete areas, fechar/ESC, janela pequena: "+name);
+    }
+
     static void ValidateLive()
     {
         using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(40)};
@@ -147,7 +188,13 @@ static class Program
                 }
                 using(var capture=new Bitmap(bar.Width,bar.Height)){bar.DrawToBitmap(capture,new Rectangle(Point.Empty,capture.Size));capture.Save($"kitchen-evidencias/textos-{size.Width}-{scale*100:0}.png",ImageFormat.Png);}
                 Console.WriteLine($"PASS tipografia: todos captions centralizados, fonte ajustada, sem cortes, hover estavel; {size.Width}x{size.Height} escala {scale}");
+                var glass=All(main).OfType<Label>().Single(x=>x.Text=="VIDRAÇARIA");
+                var glassIcon=glass.Parent!.Controls.OfType<PictureBox>().Single();
+                Check(glassIcon.Size==chef.Size&&glassIcon.SizeMode==chef.SizeMode,"Icone vidracaria nao segue dimensoes");
+                Check(glassIcon.Image!=null,"Icone proprio ausente");
                 var name=$"modal-{size.Width}x{size.Height}-dimensao-{scale*100:0}";
+                GlassModal(main,glass,false,name);
+                GlassModal(main,glass,true,name+"-esc");
                 Modal(main,kitchen,false,name);Modal(main,kitchen,true,name+"-esc");
                 Check(Snapshot()==baseline,"Modal alterou banco/configuração");
                 Console.WriteLine($"PASS {size.Width}x{size.Height} fator de dimensão {scale}: card padrão visível, modal central, FECHAR, ESC, sem negócio novo.");

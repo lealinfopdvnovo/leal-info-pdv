@@ -135,7 +135,7 @@ static class Program
             IsFixture(header.Image, Color.Purple, "Ativar não recarregou imagem principal"); IsFixture(product.Image, Color.Purple, "Ativar não atualizou vitrine");
         });
         SetLogo(nextLogo); Check(Subscribers() == 1, "Evento de venda vazou após reabertura");
-        Check((A.GetType("LealInfoPDV.PartsWithdrawal") != null) == (flavor == "002"), "Módulo 002 alterado"); Check((A.GetType("LealInfoPDV.GlassProjectForm") != null) == (flavor == "003"), "Módulo 003 alterado");
+        Check((A.GetType("LealInfoPDV.PartsWithdrawal") != null) == (flavor == "002"), "Módulo 002 alterado"); Check((A.GetType("LealInfoPDV.GlassProjectForm") != null) == (flavor is "001" or "003"), "Módulo 003 alterado");
         main.Close(); Console.WriteLine("PASS PDV real: dois logos, principal e cadastro, troca ao vivo, fotos, aviso sem foto, limpar/reabrir, descarte e particularidades " + flavor);
     }
     static void Live()

@@ -141,7 +141,7 @@ static class Program
         Console.WriteLine("OPEN cadastro inicial"); inspect.Start(); typeof(MainForm).GetMethod("ShowCompanyRegistration", I)!.Invoke(main, new object[] { false });
         Check(seen && fail == null, "Cadastro inicial falhou: " + fail); Check(Setting("company_cep") == "23934005", "CEP inicial não persistiu");
         Check((A.GetType("LealInfoPDV.PartsWithdrawal") != null) == (flavor == "002"), "Módulos 002 alterados");
-        Check((A.GetType("LealInfoPDV.GlassProjectForm") != null) == (flavor == "003"), "Módulo vidraçaria 003 alterado");
+        Check((A.GetType("LealInfoPDV.GlassProjectForm") != null) == (flavor is "001" or "003"), "Módulo vidraçaria 003 alterado");
         main.Close(); Console.WriteLine("PASS formulários reais, posição CEP, endereço editável, persistência central/inicial, rolagem e particularidades " + flavor);
     }
     static void Live()

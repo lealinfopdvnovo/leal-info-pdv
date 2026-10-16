@@ -1,0 +1,134 @@
+name: Publicar persistencia Vidracaria somente 001 - 10.392
+on:
+  push:
+    branches: ['release/vidracaria-persistencia-001-10392']
+permissions: {contents: read, actions: read}
+concurrency:
+  group: persistencia-vidracaria-001
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Guardar escopo e comparar contra 10.391
+        shell: python
+        run: |
+          import subprocess
+          base='0a8e083f07f466c501ead977289b123c863dc946'
+          allowed=set(['GlassProjectStore.cs','GlassSavedProjectBrowser.cs','GlassWorkshopForm.cs','GlassProjectForm.cs','GlassQuoteForm.cs','GlassMaterialSelection.cs','GlassCutPlanForm.cs','LealInfoPDV.csproj','UpdateManager.cs','qa/glass-persistence/Program.cs','qa/glass-persistence/LealInfoPDV.GlassPersistenceTests.csproj','.github/workflows/persistencia_vidracaria_001.yml'])
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed==allowed,changed
+          for n in ['MainForm.cs','Database.cs','DatabaseBackupService.cs','LoginForm.cs','Auth.cs','GlassCutPlan.cs','GlassDimensionField.cs','GlassDimensionUnits.cs','GlassCutPieceEditor.cs','GlassWindowRenderer.cs','GlassBox3DView.cs','Glass3DTechnicalOverlay.cs','GlassQuote.cs','GlassCommercialDocument.cs','GlassProjectPrint.cs','GlassCutPlanPrint.cs','GlassCutDrawingView.cs','SalesVisuals.cs','SalesDialogTheme.cs']:
+              assert subprocess.check_output(['git','show',base+':'+n])==subprocess.check_output(['git','show','HEAD:'+n]),n
+          for n in ['LealInfoPDV.csproj','UpdateManager.cs']:
+              assert subprocess.check_output(['git','show',base+':'+n]).replace(b'10.391',b'10.392')==subprocess.check_output(['git','show','HEAD:'+n]),n
+          print('PASS motores e demais modulos byte a byte 10.391; somente persistencia e metadados exclusivos 001')
+      - name: Exigir validação Windows concluída e fonte idêntica
+        shell: pwsh
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          $r=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/38441361254"|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0 -or $r.conclusion -ne 'success' -or $r.head_sha -ne '7da1f661edbf2019229d9418356204db37f3b6c2'){throw 'Validação não aprovada'}
+          $changes=@(git diff --name-only 7da1f661edbf2019229d9418356204db37f3b6c2 HEAD)
+          if($changes.Count -ne 1 -or $changes[0] -ne '.github/workflows/persistencia_vidracaria_001.yml'){throw 'Código diverge do pacote testado'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: vidracaria-001-10392
+          run-id: 38441361254
+          github-token: '${{ github.token }}'
+          path: validado
+      - name: Usar exatamente pacote validado automaticamente
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $name='LEAL_INFO_PDV_001_V10_392_UPDATE.zip'
+          Copy-Item "validado/$name" $name
+          if((Get-FileHash $name).Hash.ToLowerInvariant() -ne 'b2dffdec03445295bebed8c6d8c1033642ae16ead6f9e751b243d8e71a64c0f3'){throw 'Pacote validado divergiu'}
+          Expand-Archive $name conferir
+          $files=@(Get-ChildItem conferir -Recurse -File|ForEach-Object {$_.Name}|Sort-Object)
+          $expected=@('LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe')
+          if(Compare-Object $files $expected){throw 'Arquivos proibidos no pacote'}
+
+      - name: Publicar somente canal 001 com guarda concorrencial
+        shell: pwsh
+        env: {GH_TOKEN: '${{ secrets.UPDATE_REPO_TOKEN }}', SOURCE_TOKEN: '${{ github.token }}'}
+        run: |
+          $ErrorActionPreference='Stop'
+          $head=(Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/git/ref/heads/$env:GITHUB_REF_NAME" -Headers @{Authorization="Bearer $env:SOURCE_TOKEN"}).object.sha
+          if($head -ne $env:GITHUB_SHA){throw 'Candidato superado'}
+          $repo='lealinfopdvnovo/leal-info-pdv-updates'
+          $protected=@{}
+          foreach($p in @('version.json','clients/003/version.json','clients/002/version.json')){
+            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0){throw 'Feed protegido nao pode ser lido'}
+            $protected[$p]=$v.sha
+          }
+          $fourBefore=gh api "repos/$repo/contents/clients/004/version.json" 2>$null
+          $fourExists=$LASTEXITCODE -eq 0
+          if($fourExists){$fourSha=($fourBefore|ConvertFrom-Json).sha}
+          $entry=gh api "repos/$repo/contents/clients/001/version.json"|ConvertFrom-Json
+          if($LASTEXITCODE -ne 0){throw '001 nao pode ser lido'}
+          $old=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($entry.content))|ConvertFrom-Json
+          if($old.Version -ne '10.391' -or $old.TargetClientCode -ne '001' -or $old.Sha256 -ne '6a1654417537dbf22b4dc032ee55ea8786f59877aa151ffddfd50344c07e6fef'){throw 'Canal 001 mudou; abortar'}
+          $tags=gh api --paginate "repos/$repo/releases?per_page=100" --jq '.[].tag_name'
+          if($LASTEXITCODE -ne 0 -or 'client-001-v10.392' -in @($tags)){throw 'Release existente ou auditoria falhou'}
+          $package='LEAL_INFO_PDV_001_V10_392_UPDATE.zip'
+          $notes='V10.392 exclusiva 001: SALVAR/ABRIR projetos editáveis de Vidraçaria, persistência transacional no SQLite existente, unidades individuais, materiais, orçamento e entradas do Plano de Corte preservados; reabertura e recálculo pelos motores aprovados. Backup normal inclui projetos; snapshot antes da tabela aditiva; revisão protege contra sobrescrita concorrente. Banco operacional, licença, updater e demais módulos preservados. Aguardando homologação real do usuário.'
+          $notes|Set-Content notes.txt
+          gh release create client-001-v10.392 $package --repo $repo --title 'LEAL INFO PDV 001 V10.392 - Projetos salvos da Vidracaria' --notes-file notes.txt --latest=false
+          if($LASTEXITCODE -ne 0){throw 'Pacote nao publicado; nao mudar feed'}
+          $m=@{Version='10.392';TargetClientCode='001';PackageUrl="https://github.com/$repo/releases/download/client-001-v10.392/$package";Sha256=(Get-FileHash $package).Hash.ToLowerInvariant();SourceCommit=$env:GITHUB_SHA;Notes=$notes;Mandatory=$false}
+          $content=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(($m|ConvertTo-Json)))
+          @{message='Persistencia Vidracaria 10.392 somente 001';sha=$entry.sha;content=$content}|ConvertTo-Json -Compress|Set-Content request.json
+          gh api --method PUT "repos/$repo/contents/clients/001/version.json" --input request.json
+          if($LASTEXITCODE -ne 0){throw 'Manifest nao publicado'}
+          foreach($p in $protected.Keys){
+            $v=gh api "repos/$repo/contents/$p"|ConvertFrom-Json
+            if($LASTEXITCODE -ne 0 -or $v.sha -ne $protected[$p]){throw 'Feed protegido mudou'}
+          }
+          $fourAfter=gh api "repos/$repo/contents/clients/004/version.json" 2>$null
+          $fourExistsAfter=$LASTEXITCODE -eq 0
+          if($fourExistsAfter -ne $fourExists){throw '004 mudou'}
+          if($fourExists -and ($fourAfter|ConvertFrom-Json).sha -ne $fourSha){throw '004 mudou'}
+          $url="https://raw.githubusercontent.com/$repo/main/clients/001/version.json"
+          for($i=0;$i -lt 24;$i++){
+            $live=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+            if($live.Version -eq '10.392' -and $live.TargetClientCode -eq '001'){break}
+            Start-Sleep -Seconds 5
+          }
+          if($live.Version -ne '10.392' -or $live.Sha256 -ne $m.Sha256){throw 'Manifest nao propagou'}
+          Invoke-WebRequest $live.PackageUrl -OutFile verificado.zip
+          if((Get-FileHash verificado.zip).Hash.ToLowerInvariant() -ne $live.Sha256){throw 'Hash publicado incorreto'}
+          Write-Host 'PASS PUBLICADO 001 10.392; hash remoto confirmado; global 002 003 intactos'
+          exit 0
+
+      - name: Conferir deteccao REAL pelo updater
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          $qa=Get-Content qa/glass/Program.cs -Raw
+          $qa=$qa.Replace('id == "003" ? "10.383" : "10.379"','id == "001" ? "10.392" : id == "003" ? "10.390" : "10.385"')
+          $qa=$qa.Replace('if (live && id == "003")','if (live && (id == "001" || id == "003"))')
+          [IO.File]::WriteAllText((Join-Path $PWD 'qa/glass/Program.cs'),$qa)
+          dotnet run --project qa/glass/LealInfoPDV.GlassTests.csproj -c Release -- --live
+          if($LASTEXITCODE -ne 0){throw 'Deteccao real falhou'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publicacao-001-10392
+          path: |
+            LEAL_INFO_PDV_001_V10_392_UPDATE.zip
+            verificado.zip
+            notes.txt
+          retention-days: 14
