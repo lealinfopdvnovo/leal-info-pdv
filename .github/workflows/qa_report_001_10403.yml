@@ -1,0 +1,57 @@
+name: QA 001 - Relatorio Financeiro 10.403 (sem publicacao)
+on:
+  push:
+    branches:
+      - fix/001-report-sale-ref-type-10403
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Verificar patch unico e reproduzir registros mistos em SQLite
+        shell: python
+        run: |
+          import sqlite3, subprocess
+          from pathlib import Path
+          base = subprocess.check_output(['git','show','3dfab93e04ebb1cfef72606c2d52a76c05eead94:MainForm.cs']).decode('utf-8-sig')
+          source = Path('MainForm.cs').read_text(encoding='utf-8-sig')
+          before = "COALESCE(m.sale_id,'') AS Venda"
+          after = "COALESCE(CAST(m.sale_id AS TEXT),'') AS Venda"
+          assert base.count(before) == 1
+          assert source == base.replace(before,after,1), 'Mudanca alem do CAST do relatorio'
+          start = source.index('movementGrid.DataSource = QueryTable(cn, """')+len('movementGrid.DataSource = QueryTable(cn, """')
+          end = source.index('""", start, endExclusive, term, true);', start)
+          sql = source[start:end]
+          cn = sqlite3.connect(':memory:')
+          cn.execute('CREATE TABLE cash_movements (id INTEGER PRIMARY KEY, occurred_at TEXT, type TEXT, description TEXT, amount REAL, sale_id INTEGER)')
+          cn.executemany('INSERT INTO cash_movements(id, occurred_at, type, description, amount, sale_id) VALUES(?,?,?,?,?,?)', [
+            (2,'2026-10-16 09:05:00','ENTRADA','Venda teste',20.50,42),
+            (1,'2026-10-16 09:00:00','ENTRADA','Entrada manual',10.25,None)])
+          rows = cn.execute(sql, {'from':'2026-10-01 00:00:00','to':'2026-11-01 00:00:00','type':'TODOS','q':'%%'}).fetchall()
+          assert len(rows) == 2
+          assert [r[-1] for r in rows] == ['42',''], rows
+          assert all(isinstance(r[-1],str) for r in rows)
+          assert abs(sum(r[-2] for r in rows) - 30.75)<0.00001
+          print('PASS: mesmo SQL do relatorio; venda numerica e movimentacao sem venda como texto, sem alterar valores financeiros.')
+      - name: Ajustes ja utilizados na compilacao Windows do PDV
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar PDV e testes de fluxo de caixa
+        run: dotnet build qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release
+      - name: Testar persistencia e saldo do caixa em ambiente isolado
+        run: dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release --no-build
