@@ -26,8 +26,10 @@ jobs:
         run: dotnet build LealInfoPDV.csproj -c Release
       - name: Executar motor real de restauracao com falhas e processos Windows
         run: dotnet run --project qa/restore-real/LealInfoPDV.RestoreTests.csproj -c Release
+      - name: Compilar servico de protecao externo independente
+        run: dotnet publish tools/RecoveryBridge/RecoveryBridge.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o bridge-publish
       - name: Executar recuperacao externa real de executaveis
-        run: dotnet run --project qa/bridge-real/LealInfoPDV.BridgeTests.csproj -c Release
+        run: dotnet run --project qa/bridge-real/LealInfoPDV.BridgeTests.csproj -c Release -- --service-binary bridge-publish/LealInfoProtecao001.exe
       - name: Executar regressao de rede real
         run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release
       - uses: actions/upload-artifact@v4

@@ -50,6 +50,7 @@ public sealed class RecoveryCore(string root, Action<string>? checkpoint = null)
             using (var copy = new FileStream(target, FileMode.Create, FileAccess.Write, FileShare.None)) { locked.CopyTo(copy); copy.Flush(true); }
             if (Hash(target) != hash) throw new IOException("A cópia de segurança não pôde ser verificada.");
         }
+        if (!Matches(app, plan.Previous)) throw new IOException("Os arquivos do PDV mudaram durante a proteção. Nenhuma atualização foi autorizada.");
         Save(new(app, data, Guid.NewGuid().ToString("N"), plan, "Armed", null));
         checkpoint?.Invoke("armed");
     }
@@ -82,10 +83,15 @@ public sealed class RecoveryCore(string root, Action<string>? checkpoint = null)
         if (state.Phase is "Completed" or "Recovered") return state.Phase;
         if (state.Phase == "Armed")
         {
-            if (Matches(state.App, state.Plan.Previous)) return "Armed";
+            // A transient sharing violation is not evidence of changed bytes.
+            try { if (state.Plan.Previous.All(x => Hash(Path.Combine(state.App, x.Key)) == x.Value)) return "Armed"; }
+            catch (FileNotFoundException) { /* A missing executable needs recovery. */ }
+            catch (IOException) { return "Armed"; }
             state = state with { Phase = "Applying", ChangedUtc = clock }; Save(state);
             checkpoint?.Invoke("changed");
         }
+        if (state.Phase == "Applying" && Matches(state.App, state.Plan.Previous))
+        { Save(state with { Phase = "Armed", ChangedUtc = null }); return "Armed"; }
         if (state.Phase == "Applying" && HasRealStartup(state))
         { Save(state with { Phase = "Completed" }); checkpoint?.Invoke("completed"); return "Completed"; }
         if (state.Phase == "Recovering" || clock - state.ChangedUtc >= TimeSpan.FromMinutes(3))
@@ -107,8 +113,12 @@ public sealed class RecoveryCore(string root, Action<string>? checkpoint = null)
             var temp = target + ".recover001";
             File.Copy(Path.Combine(root, "previous", name), temp, true); Flush(temp);
             // Fail closed if another application still has the target open.
-            using (new FileStream(target, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Delete))
-                File.Move(temp, target, true);
+            if (File.Exists(target))
+            {
+                using (new FileStream(target, FileMode.Open, FileAccess.ReadWrite, FileShare.Delete))
+                    File.Replace(temp, target, null, true);
+            }
+            else File.Move(temp, target);
             checkpoint?.Invoke("replaced-" + name);
         }
         if (!Matches(state.App, state.Plan.Previous)) throw new IOException("Recuperação incompleta. A proteção tentará novamente.");

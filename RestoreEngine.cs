@@ -131,6 +131,7 @@ public sealed class RestoreEngine
             }
             Validate(source);
             Snapshot(source, output); // SQLite backup API includes committed WAL pages.
+            if (new FileInfo(output).Length > Limit) throw new InvalidDataException("O banco excede o limite seguro de restauração.");
             token.ThrowIfCancellationRequested();
             Validate(output);
             checkpoint?.Invoke("staged");
@@ -141,7 +142,8 @@ public sealed class RestoreEngine
     }
 
     private static void Delete(string path) { if (File.Exists(path)) File.Delete(path); }
-    private static string Hash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path)));
+    private static string Hash(string path)
+    { using var file = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(file)); }
     private void Save(State state)
     {
         var temp = Journal + ".tmp";

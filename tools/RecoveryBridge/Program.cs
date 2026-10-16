@@ -20,6 +20,7 @@ internal static class Entry
             var data = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LealInfoPDV");
             if (!Directory.Exists(app) || !File.Exists(Path.Combine(data, "lealinfo.db")))
                 throw new InvalidOperationException("Instalação esperada não encontrada. Nenhum arquivo do PDV foi alterado.");
+            ClientIdentity.Validate(data, ClientIdentity.LocalSerial());
             if (Process.GetProcessesByName("LealInfoPDV").Any())
                 throw new InvalidOperationException("Feche o PDV no servidor e nos terminais antes de ativar a proteção.");
             using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("LealInfoProtecao001.plan.json")
@@ -32,27 +33,24 @@ internal static class Entry
                 security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid, null), FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
             security.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null), FileSystemRights.ReadAndExecute, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
             new DirectoryInfo(root).SetAccessControl(security);
-            var core = new RecoveryCore(root); core.Arm(app, data, plan);
+            var core = new RecoveryCore(root);
+            if (!File.Exists(core.StatePath)) core.Arm(app, data, plan);
+            else
+            {
+                var state = core.Read();
+                if (state.App != app || state.Plan.SourceCommit != plan.SourceCommit || state.Phase != "Armed")
+                    throw new InvalidOperationException("Já existe uma proteção de outra execução. Nenhuma cópia anterior foi alterada.");
+            }
             var serviceExe = Path.Combine(root, "LealInfoProtecao001.exe");
-            File.Copy(Environment.ProcessPath!, serviceExe, false);
-            Command("sc.exe", ["create", RecoveryCore.ServiceName, "binPath=", "\"" + serviceExe + "\" --service", "start=", "auto", "DisplayName=", "LEAL INFO Proteção 001"]);
-            Command("sc.exe", ["failure", RecoveryCore.ServiceName, "reset=", "0", "actions=", "restart/5000/restart/5000/restart/5000"]);
-            Command("sc.exe", ["start", RecoveryCore.ServiceName]);
-            using var service = new ServiceController(RecoveryCore.ServiceName);
-            service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30));
+            if (!File.Exists(serviceExe)) File.Copy(Environment.ProcessPath!, serviceExe, false);
+            else if (RecoveryCore.Hash(serviceExe) != RecoveryCore.Hash(Environment.ProcessPath!)) throw new IOException("O serviço existente possui outra compilação.");
+            ServiceProvisioner.Install(serviceExe);
             if (core.Read().Phase != "Armed") throw new IOException("A proteção não confirmou estado ativo.");
             MessageBox.Show("PROTEÇÃO ATIVA — CLIENTE 001\n\nCópia dos três arquivos 10.403 verificada. Serviço de recuperação iniciado e configurado para iniciar com o Windows.\n\nBanco, licença e configurações não foram alterados.\n\nEnvie um print desta confirmação. Aguarde a publicação antes de clicar em ATUALIZAR.", "LEAL INFO — Proteção 001", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (Exception ex) { MessageBox.Show("PROTEÇÃO NÃO CONFIRMADA. NÃO ATUALIZE.\n\n" + ex.Message, "LEAL INFO — Proteção 001", MessageBoxButtons.OK, MessageBoxIcon.Error); }
     }
-    private static void Command(string file, string[] args)
-    {
-        var info = new ProcessStartInfo(file) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (var a in args) info.ArgumentList.Add(a);
-        using var p = Process.Start(info)!;
-        var output = p.StandardOutput.ReadToEnd(); var error = p.StandardError.ReadToEnd();
-        if (!p.WaitForExit(30000) || p.ExitCode != 0) throw new IOException(file + ": " + output + error);
-    }
+
 }
 
 internal sealed class ProtectionService : ServiceBase
