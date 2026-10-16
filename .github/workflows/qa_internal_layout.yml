@@ -19,14 +19,14 @@ jobs:
           import subprocess,re
           base='4cd18a648ac50fd0d932048136087b77be60e11e'
           subprocess.run(['git','fetch','origin',base],check=True)
-          changed=subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines()
+          changed=subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True,encoding='utf-8-sig').splitlines()
           allowed={'Program.cs','LealInfoPDV.csproj','UpdateManager.cs','PremiumGlobalTheme.cs','InternalWorkspace.cs','.github/workflows/qa_internal_layout.yml','qa/internal-layout/Program.cs','qa/internal-layout/LealInfoPDV.InternalTests.csproj'}
           assert set(changed)<=allowed,repr(set(changed)-allowed)
-          old=subprocess.check_output(['git','show',base+':UpdateManager.cs'],text=True)
+          old=subprocess.check_output(['git','show',base+':UpdateManager.cs'],text=True,encoding='utf-8-sig')
           new=open('UpdateManager.cs',encoding='utf-8-sig').read()
           strip=lambda s:re.sub(r'CurrentVersion\s*=\s*"10\.\d+"','CurrentVersion="VERSION"',s).replace('\r\n','\n')
           assert strip(old)==strip(new),'Updater logic changed'
-          oldprogram=subprocess.check_output(['git','show',base+':Program.cs'],text=True)
+          oldprogram=subprocess.check_output(['git','show',base+':Program.cs'],text=True,encoding='utf-8-sig')
           newprogram=open('Program.cs',encoding='utf-8-sig').read().replace('        InternalWorkspace.Install();\n','')
           assert oldprogram.replace('\r\n','\n')==newprogram.replace('\r\n','\n'),'Startup logic changed'
           print('PASS approved modules, principal, product form, data, license and updater preserved')
