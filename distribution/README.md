@@ -1,17 +1,17 @@
-# Publicação independente do PDV
+# Publicacao independente do PDV
 
-A publicação usa somente `Distribuir PDV - canais independentes` em GitHub Actions.
-O operador da loja continua usando ATUALIZAÇÕES DO SISTEMA → ATUALIZAR.
+O operador continua usando ATUALIZACOES DO SISTEMA → ATUALIZAR.
 
-- GLOBAL usa `channel/global`. Clientes usam `client/001` a `client/004`.
-- Cada pacote parte da própria árvore do canal e das dependências do pacote instalado.
-- O cliente compilado recusa outro ID, feed inválido/indisponível e substituição por GLOBAL.
-- Um canal individual válido tem prioridade independentemente da versão global.
-- Uma publicação GLOBAL reserva automaticamente a mesma versão nos canais individuais que estiverem abaixo, recompilando suas próprias bases sem transferir código GLOBAL. Isso protege instalações antigas que ainda escolhem a maior versão.
-- Todos os candidatos passam no Windows antes de qualquer manifesto ser alterado. Os pacotes publicados são os mesmos bytes testados.
-- Os manifestos de uma publicação GLOBAL são gravados num único commit. Publicação individual altera somente seu manifesto.
-- A política real do PDV verifica o payload incremental de três arquivos. Banco, licença, configurações, imagens e dependências locais não entram no pacote.
-- O publicador verifica download público, SHA-256, versão e URLs usadas pelo PDV. Falha de verificação restaura os manifestos se nenhum outro publicador tiver alterado a referência.
-- As rotinas de cópia/aplicação/reinicialização existentes não foram alteradas. Esta etapa não declara homologação de rollback integral dos executáveis.
+O workflow central `Distribuir PDV - canais independentes` publica GLOBAL ou o ID escolhido. Cada canal usa sua propria arvore e dependencias instaladas. GLOBAL usa `channel/global`; os clientes usam `client/001` a `client/004`. Os wrappers das branches chamam o mesmo publicador.
 
-Os workflows antigos de publicação com versões fixas foram arquivados em `legacy-workflows` para impedir concorrência e regressão de manifestos. Seus testes e histórico permanecem disponíveis.
+Canais individuais usam o pacote incremental original de tres arquivos. O seletor compilado prioriza o proprio canal e recusa outro ID, feed invalido ou indisponivel; GLOBAL nao substitui personalizacoes.
+
+Versoes antigas ainda podem escolher GLOBAL quando o feed individual falha. Por isso, o pacote GLOBAL nunca inclui `LealInfoPDV.dll`: ele preserva esse arquivo e inicia a base correspondente ao hash instalado, entre os DLLs exatos aprovados de cada cliente. Binario desconhecido ou perfil ausente/corrompido mantem o original. Nao ha leitura ou alteracao de banco/licenca/configuracao para escolher a base. A inicializacao continua em STA, com o aplicativo WinForms original.
+
+A publicacao GLOBAL preserva tambem o historico de hashes e reserva versoes compativeis nos canais individuais usando suas proprias bases. Nao transplanta a arvore GLOBAL sobre um cliente.
+
+Todos os candidatos passam nos testes Windows antes da publicacao. O GLOBAL passa adicionalmente por inicializacao nativa dos cinco perfis, validacao pela politica original do PDV e testes com binario personalizado desconhecido e perfis ausentes/corrompidos. Dependencias devem permanecer compativeis. Somente os bytes testados sao publicados.
+
+O publicador verifica URLs publicas, SHA-256, versao e os manifestos usados pelo PDV. A gravacao dos feeds usa um unico commit; mudancas concorrentes sao recusadas. Uma publicacao individual altera somente seu manifesto. Erro de verificacao restaura os manifestos quando nao houve outra gravacao concorrente.
+
+Os workflows antigos com versoes fixas foram arquivados em `legacy-workflows`; nao concorrem com o publicador central. Nenhuma etapa solicita AnyDesk, comandos no caixa ou reativacao de protecao.

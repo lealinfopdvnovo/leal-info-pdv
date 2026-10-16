@@ -74,7 +74,7 @@ def plan():
   check(ver(v)>ver(e['Baseline']['Version']),'Version did not advance '+ch)
  result={'Entries':entries,'Before':feeds,'RunId':os.environ['GITHUB_RUN_ID'],'ControllerCommit':run('git','rev-parse','HEAD').strip()}
  write('release-plan.json',result)
- with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:f.write('matrix='+json.dumps({'include':[{'channel':e['Channel']} for e in entries]})+'\n')
+ with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:f.write('matrix='+json.dumps({'include':[{'channel':e['Channel']} for e in entries]})+'\n');f.write('has-global='+str(any(e['Channel']=='GLOBAL' for e in entries)).lower()+'\n')
  print('PASS independent source plan: '+','.join(e['Channel'] for e in entries))
 def download(url,path):
  for attempt in range(5):
@@ -91,7 +91,7 @@ def normalize_deps(path):
  obj=json.loads(Path(path).read_text(encoding='utf-8-sig'))
  for bag in (obj['libraries'],*obj['targets'].values()):
   for k in list(bag):
-   if k.startswith('LealInfoPDV/'):del bag[k]
+   if k.startswith(('LealInfoPDV/','LealInfoPDV.ChannelLauncher/')):del bag[k]
  return obj
 def prepare(ch):
  check(run('git','rev-parse','HEAD').strip()==json.loads(Path('release-plan.json').read_text(encoding='utf-8-sig'))['ControllerCommit'],'Controller changed after planning')
@@ -122,7 +122,12 @@ def prepare(ch):
  target=src/'qa/channel-isolation';target.mkdir(parents=True,exist_ok=True)
  for p in (ROOT/'qa/channel-isolation').iterdir():shutil.copyfile(p,target/p.name)
  download(e['Baseline']['PackageUrl'],'previous.zip');check(digest('previous.zip')==e['Baseline']['Sha256'],'Baseline package hash changed')
- with zipfile.ZipFile('previous.zip') as z:z.extractall('previous')
+ with zipfile.ZipFile('previous.zip') as z:
+  z.extractall('previous')
+  if not Path('previous/LealInfoPDV.dll').exists():
+   check(ch=='GLOBAL' and e['Baseline'].get('Delivery')=='preserve-existing-core','Unexpected previous payload')
+   Path('previous/LealInfoPDV.dll').write_bytes(z.read('LealInfoPDV.Core.GLOBAL.dll'))
+   Path('previous/LealInfoPDV.deps.json').write_bytes(z.read('LealInfoPDV.ChannelLauncher.deps.json'))
  deps=json.loads(Path('previous/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
  sdk=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.Windows.SDK.NET.Ref/'))
  Path('sdk-version.txt').write_text(sdk)
@@ -164,11 +169,16 @@ def publish():
   check(evidence['TestsPassed'] is True and evidence['PayloadPolicyPassed'] is True,'Required Windows checks failed')
   package=folder/e['Package'];check(digest(package)==evidence['PackageSha256'],'Tested package bytes changed')
   with zipfile.ZipFile(package) as z:
-   check(set(z.namelist())==FILES and len(z.namelist())==3,'Unexpected payload')
-   for name in FILES:check(hashlib.sha256(z.read(name)).hexdigest()==evidence['TargetFiles'][name],'Package member changed')
+   allowed=FILES
+   if ch=='GLOBAL':
+    check(evidence.get('LegacySafeGlobal') is True,'GLOBAL must preserve the existing business DLL, including legacy feed outages')
+    allowed={'LealInfoPDV.exe','LealInfoPDV.ChannelLauncher.dll','LealInfoPDV.ChannelLauncher.deps.json','LealInfoPDV.ChannelLauncher.runtimeconfig.json',*(f'LealInfoPDV.Core.{c}.dll' for c in CHANNELS)}
+   check(set(z.namelist())==allowed and len(z.namelist())==len(allowed),'Unexpected payload')
+   for name in allowed:check(hashlib.sha256(z.read(name)).hexdigest()==evidence['TargetFiles'][name],'Package member changed')
   m={'Version':e['Version'],'PackageUrl':e['Url'],'Sha256':evidence['PackageSha256'],'SourceCommit':e['SourceCommit'],'Mandatory':False,'Notes':'Correção da distribuição: canais independentes, sem substituição de personalizações pelo GLOBAL. Banco, licença, configurações e funções preservados. Atualização pelo próprio PDV.','DistributionRevision':plan['ControllerCommit'],'BuildRunId':os.environ['GITHUB_RUN_ID']}
   if ch!='GLOBAL':m['TargetClientCode']=ch
-  else:m['Editions']=['STANDARD','PLUS','PRO']
+  else:
+   m['Editions']=['STANDARD','PLUS','PRO'];m['Delivery']='preserve-existing-core';m['InstalledCoreChannels']=evidence['InstalledCoreChannels']
   manifests[ch]=m;entries.append((e,package,m))
  # Legacy installations choose highest version: every personalized feed must be >= GLOBAL.
  final={ch:manifests.get(ch) or before[ch]['manifest'] for ch in CHANNELS}

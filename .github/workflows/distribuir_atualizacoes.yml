@@ -31,6 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      has-global: ${{ steps.plan.outputs.has-global }}
     steps:
       - uses: actions/checkout@v4
         with: {ref: main}
@@ -101,10 +102,40 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: candidate-${{ matrix.channel }}
+          name: ${{ matrix.channel == 'GLOBAL' && 'candidate-GLOBAL-core' || format('candidate-{0}', matrix.channel) }}
           path: release-output/
-  publicar:
+  global-compativel:
     needs: [planejar, validar]
+    if: needs.planejar.outputs.has-global == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main}
+      - uses: actions/download-artifact@v4
+        with: {name: release-plan}
+      - uses: actions/download-artifact@v4
+        with: {pattern: 'candidate-*', path: artifacts}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Preparar encaminhamento preservando as bases de cada cliente
+        run: python scripts/global_bridge.py prepare
+      - name: Compilar somente encaminhador com dependencias aprovadas
+        run: dotnet publish qa/channel-launcher/LealInfoPDV.ChannelLauncher.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=10.0.19041.57 -o launcher-publish
+      - name: Validar inicializacao nativa de clientes antigos e preservar DLL instalado
+        shell: pwsh
+        run: |
+          python scripts/global_bridge.py package
+          if($LASTEXITCODE -ne 0){throw 'Global dependency verification failed'}
+          python scripts/global_bridge.py test
+          if($LASTEXITCODE -ne 0){throw 'Native legacy compatibility failed'}
+          python scripts/global_bridge.py finalize
+          if($LASTEXITCODE -ne 0){throw 'Global candidate validation failed'}
+      - uses: actions/upload-artifact@v4
+        with: {name: candidate-GLOBAL, path: bridge-output/}
+  publicar:
+    needs: [planejar, validar, global-compativel]
+    if: always() && needs.validar.result == 'success' && (needs.global-compativel.result == 'success' || needs.global-compativel.result == 'skipped')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
