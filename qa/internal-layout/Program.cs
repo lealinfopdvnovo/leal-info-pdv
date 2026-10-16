@@ -199,7 +199,13 @@ internal static class Program
                 Check(form.Text != "", "Unexpected dialog");
                 Capture(form, method);
                 Check(Screen.FromControl(form).WorkingArea.Contains(form.RectangleToScreen(form.ClientRectangle)),"Window client area outside work area: "+method);
-                if(method=="ProductNew")AssertActions(form);
+                if(method=="ProductNew") {
+                    AssertActions(form);
+                    var flags=All(form).OfType<FlowLayoutPanel>().Single(p=>p.Controls.OfType<CheckBox>().Any(c=>c.Text=="Controlar estoque"));
+                    var parent=(TableLayoutPanel)flags.Parent!;
+                    var inputs=parent.Controls.Cast<Control>().Where(c=>c!=flags && !(c is Label l&&l.Text.Contains("LUCRO:")));
+                    Check(inputs.All(c=>c.Bottom<=flags.Top),"Product options overlap input fields");
+                }
                 if(method=="SelectProductFromCatalog")Check(All(form).OfType<TextBox>().Any(t=>t.Name!="InternalListSearch") && !All(form).Any(c=>c.Name=="InternalWorkspaceRoot"),"Original F5 catalog filters were replaced");
                 var root = All(form).FirstOrDefault(c=>c.Name=="InternalWorkspaceRoot");
                 if(root!=null) {
