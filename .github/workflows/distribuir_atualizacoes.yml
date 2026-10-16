@@ -81,6 +81,14 @@ jobs:
           $sdk=Get-Content sdk-version.txt
           dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
           if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
+      - name: Validar modelos profissionais, revisoes, recibos e PDF na implementacao real
+        shell: pwsh
+        run: |
+          if(Test-Path candidate/GlassDocumentTemplates.cs){
+            if(!(Test-Path candidate/qa/glass-documents/LealInfoPDV.GlassDocumentsTests.csproj)){throw 'Document validation project missing'}
+            dotnet run --project candidate/qa/glass-documents/LealInfoPDV.GlassDocumentsTests.csproj -c Release 2>&1|Tee-Object glass-documents-tests.log
+            if($LASTEXITCODE -ne 0){throw 'Real document Windows checks failed'}
+          }
       - name: Conferir pacote incremental e dependencias
         run: python scripts/distribute_channels.py package $env:CHANNEL
       - name: Testar selecao real e copia real preservando dados em Windows isolado
@@ -103,7 +111,10 @@ jobs:
         if: always()
         with:
           name: ${{ matrix.channel == 'GLOBAL' && 'candidate-GLOBAL-core' || format('candidate-{0}', matrix.channel) }}
-          path: release-output/
+          path: |
+            release-output/
+            glass-documents-evidencias/
+            glass-documents-tests.log
   global-compativel:
     needs: [planejar, validar]
     if: needs.planejar.outputs.has-global == 'true'
