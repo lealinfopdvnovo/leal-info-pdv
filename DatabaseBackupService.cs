@@ -59,6 +59,33 @@ public static class DatabaseBackupService
         finally { OperationGate.Release(); }
     }
 
+    // Stage and validate while the ordinary PDV is still running. Never replace its live DB here.
+    public static async Task<string> PrepareAutomaticRestoreAsync(string selectedPath, CancellationToken cancellationToken = default)
+    {
+        if (Network.NetworkConfiguration.Current.Mode == "terminal")
+            throw new InvalidOperationException("A restauração só pode ser iniciada no servidor.");
+        if (!File.Exists(selectedPath))
+            throw new FileNotFoundException("Backup não encontrado.", selectedPath);
+        await OperationGate.WaitAsync(cancellationToken);
+        var stage = Path.Combine(Database.AppFolder, $"restore_pending_{Guid.NewGuid():N}.db");
+        try
+        {
+            Directory.CreateDirectory(Database.AppFolder);
+            if (Path.GetExtension(selectedPath).Equals(".zip", StringComparison.OrdinalIgnoreCase))
+                await ExtractDatabaseAsync(selectedPath, stage, cancellationToken);
+            else
+                await CopyCheckedAsync(selectedPath, stage, cancellationToken);
+            await ValidateDatabaseAsync(stage, cancellationToken);
+            return stage;
+        }
+        catch
+        {
+            if (File.Exists(stage)) File.Delete(stage);
+            throw;
+        }
+        finally { OperationGate.Release(); }
+    }
+
     public static async Task RestoreAsync(string selectedPath, CancellationToken cancellationToken = default)
     {
         if (Network.NetworkConfiguration.Current.Mode == "terminal")
