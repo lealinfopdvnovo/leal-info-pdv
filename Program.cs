@@ -26,6 +26,35 @@ internal static class Program
         try
         {
             Network.NetworkConfiguration.Load();
+            // Dedicated maintenance process: wait for the operational process to leave before changing any data.
+            var argv = Environment.GetCommandLineArgs();
+            if (argv.Length == 4 && argv[1] == "--restaurar-automatico")
+            {
+                var staged = Path.GetFullPath(argv[2]);
+                var app = Path.GetFullPath(Database.AppFolder);
+                if (!staged.StartsWith(app + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                    !Path.GetFileName(staged).StartsWith("restore_pending_", StringComparison.OrdinalIgnoreCase) ||
+                    !staged.EndsWith(".db", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Solicitação de restauração inválida.");
+                if (!int.TryParse(argv[3], out var previousPid) || previousPid <= 0 || previousPid == Environment.ProcessId)
+                    throw new InvalidOperationException("Processo anterior inválido.");
+                try
+                {
+                    using var previous = System.Diagnostics.Process.GetProcessById(previousPid);
+                    if (!previous.WaitForExit(60000))
+                        throw new InvalidOperationException("O PDV não fechou. Nenhum dado foi alterado.");
+                }
+                catch (ArgumentException) { /* Process has already exited. */ }
+                DatabaseBackupService.RestoreAsync(staged).GetAwaiter().GetResult();
+                File.Delete(staged);
+                var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "LealInfoPDV.exe");
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+                {
+                    WorkingDirectory = AppContext.BaseDirectory,
+                    UseShellExecute = true
+                });
+                return;
+            }
             if (Environment.GetCommandLineArgs().Contains("--check-lia"))
             {
                 try {
