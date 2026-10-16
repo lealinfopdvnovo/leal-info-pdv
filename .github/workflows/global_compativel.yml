@@ -1,0 +1,50 @@
+name: GLOBAL compativel com clientes antigos - Windows real
+on:
+  push:
+    branches: [release/global-preserve-core-407]
+    paths: [RELEASE_GLOBAL_PRESERVE_CORE_407.trigger]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: distribuicao-pdv-canais-independentes
+  cancel-in-progress: false
+jobs:
+  bridge:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: 38979263839
+          pattern: candidate-*
+          path: artifacts
+      - name: Conferir bytes ja aprovados de cada cliente sem recompilar o PDV
+        run: python scripts/global_bridge.py prepare
+      - name: Compilar somente o encaminhador de distribuicao
+        shell: pwsh
+        run: |
+          $runtime=Get-Content runtime-version.txt
+          dotnet publish qa/channel-launcher/LealInfoPDV.ChannelLauncher.csproj -c Release -r win-x64 --self-contained true -p:RuntimeFrameworkVersion=$runtime -p:WindowsSdkPackageVersion=10.0.19041.57 -o launcher-publish
+          if($LASTEXITCODE -ne 0){throw 'Launcher build failed'}
+      - name: Conferir dependencias e pacote que preserva o DLL original
+        run: python scripts/global_bridge.py package
+      - name: Testar inicializacao nativa real de todas as bases e preservacao
+        run: python scripts/global_bridge.py test
+      - name: Publicar somente GLOBAL e conferir URLs reais
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python scripts/global_bridge.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: global-preserve-core-evidence
+          path: |
+            bridge-candidate.json
+            bridge-tests.json
+            bridge-publication.json
+            LEAL_INFO_PDV_V10_407_CHANNELS_UPDATE.zip
