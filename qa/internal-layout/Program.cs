@@ -77,7 +77,7 @@ internal static class Program
         Check(Auth.Login("visual-qa", "isolated-only") != null, "Fixture login failed");
         Invariants();
         EditorInvariant();
-        using var main = new MainForm();
+        using var main = NewMain();
         main.CreateControl();
         Apply(main);
         Preview(main, "principal");
@@ -131,6 +131,14 @@ internal static class Program
         Console.WriteLine("PASS control invariants and logical scaling");
     }
 
+    private static MainForm NewMain()
+    {
+        var main=new MainForm();
+        // The isolated UI fixture has no activated retail license. Its periodic
+        // activation refresh is outside this presentation-only test.
+        ((System.Windows.Forms.Timer)typeof(MainForm).GetField("licenseTimer",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(main)!).Stop();
+        return main;
+    }
     private static void AssertActions(Form f)
     {
         foreach(var button in All(f).OfType<Button>().Where(b=>b.Visible)) {
@@ -140,7 +148,7 @@ internal static class Program
     }
     private static void EditorInvariant()
     {
-        using var owner=new MainForm();
+        using var owner=NewMain();
         using var f=(Form)typeof(MainForm).GetMethod("Editor",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(owner,["CLIENTE",new[]{"Nome","CPF/CNPJ","Telefone","E-mail","Endereço"}])!;
         var fields=(List<TextBox>)f.Tag!;
         for(int i=0;i<fields.Count;i++)fields[i].Text="UNCHANGED-"+i;
@@ -162,6 +170,7 @@ internal static class Program
         {
             var form = Application.OpenForms.Cast<Form>().LastOrDefault(f => f != main);
             if (form == null) { if (watch.Elapsed.TotalSeconds > 20) throw new Exception("No module: " + method); return; }
+            timer.Stop();
             try
             {
                 Check(form.Text != "", "Unexpected dialog");
