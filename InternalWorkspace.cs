@@ -65,6 +65,7 @@ internal static class InternalWorkspace
     {
         var header = new WorkspaceSurface { Dock = DockStyle.Fill, Margin = new Padding(0, 0, 0, 12), Padding = new Padding(20, 8, 20, 8) };
         var lines = new TableLayoutPanel { Name = "WorkspaceTransparent", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, BackColor = Color.Transparent };
+        lines.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         lines.RowStyles.Add(new RowStyle(SizeType.Percent, 62)); lines.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
         lines.Controls.Add(MakeLabel(title, 20, true), 0, 0);
         lines.Controls.Add(MakeLabel(subtitle, 9.5f), 0, 1);
@@ -74,6 +75,7 @@ internal static class InternalWorkspace
     {
         var p = new WorkspaceSurface { Dock = DockStyle.Fill, Padding = new Padding(12, 4, 12, 4), Margin = new Padding(0, 0, 10, 8) };
         var rows = new TableLayoutPanel { Name = "WorkspaceTransparent", Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, BackColor = Color.Transparent };
+        rows.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         rows.RowStyles.Add(new RowStyle(SizeType.Absolute, 19)); rows.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         rows.Controls.Add(MakeLabel(caption, 8.5f), 0, 0);
         var value = MakeLabel("—", 12, true); rows.Controls.Add(value, 0, 1); p.Controls.Add(rows); return (p, value);
@@ -93,10 +95,12 @@ internal static class InternalWorkspace
             new RowStyle(SizeType.Percent, 100), new RowStyle(SizeType.Absolute, 76));
         root.Controls.Add(Header(f.Text, "LEAL INFO PDV PRO  /  Cadastros e consultas"), 0, 0);
         var cards = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = new Padding(0), BackColor = Color.Transparent };
+        cards.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22)); cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 22)); cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 56));
         var total = Card("REGISTROS NA LISTA"); var shown = Card("RESULTADO DA BUSCA"); var selected = Card("SELECIONADO");
         cards.Controls.Add(total.panel, 0, 0); cards.Controls.Add(shown.panel, 1, 0); cards.Controls.Add(selected.panel, 2, 0); root.Controls.Add(cards, 0, 1);
         var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Margin = new Padding(0, 0, 0, 12), BackColor = Color.Transparent };
+        searchRow.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 80)); searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
         searchRow.Controls.Add(MakeLabel("BUSCAR", 9, true), 0, 0);
         var inputBox = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 9, 10, 5), Margin = new Padding(0, 0, 8, 0), BackColor = Navy };
@@ -239,7 +243,7 @@ internal static class InternalWorkspace
         }
         void Layout()
         {
-            int available = Math.Max(100, bar.ClientSize.Width - bar.Padding.Horizontal), used = 0, line = 0, height = bar.Padding.Vertical;
+            int available = Math.Max(100, (table == null ? bar.ClientSize.Width : table.ClientSize.Width - table.Padding.Horizontal - bar.Margin.Horizontal) - bar.Padding.Horizontal), used = 0, line = 0, height = bar.Padding.Vertical;
             foreach (Control button in bar.Controls)
             {
                 int w = button.Width + button.Margin.Horizontal, h = button.Height + button.Margin.Vertical;
@@ -251,6 +255,7 @@ internal static class InternalWorkspace
             else if (bar.Dock == DockStyle.Bottom && bar.Height != height) bar.Height = height;
         }
         bar.SizeChanged += (_, _) => Layout(); Layout();
+        if (table != null) table.SizeChanged += (_, _) => Layout();
     }
 
     private sealed class WorkspaceSurface : Panel
