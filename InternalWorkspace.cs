@@ -164,9 +164,16 @@ internal static class InternalWorkspace
             int column = grid.Columns.Cast<DataGridViewColumn>().FirstOrDefault(c => c.HeaderText is "Produto" or "Nome" or "Descrição")?.Index ?? Math.Min(1, grid.Columns.Count - 1);
             selected.value.Text = row == null || column < 0 ? "Nenhum registro" : Convert.ToString(row.Cells[column].FormattedValue);
         }
+        bool refreshQueued = false;
+        void QueueRefresh()
+        {
+            if (refreshQueued || !f.IsHandleCreated || f.IsDisposed || f.Disposing) return;
+            refreshQueued = true;
+            f.BeginInvoke((Action)(() => { refreshQueued = false; Refresh(); }));
+        }
         search.TextChanged += (_, _) => Refresh(); grid.SelectionChanged += (_, _) => { if (!filtering) Selection(); };
-        grid.RowsAdded += (_, _) => { if (f.IsHandleCreated && !f.IsDisposed) f.BeginInvoke((Action)Refresh); };
-        grid.RowsRemoved += (_, _) => { if (f.IsHandleCreated && !f.IsDisposed) f.BeginInvoke((Action)Refresh); };
+        grid.RowsAdded += (_, _) => QueueRefresh();
+        grid.RowsRemoved += (_, _) => QueueRefresh();
         Refresh(); f.AccessibleDescription = "Lista com busca, resumo e ações fixas";
     }
 
