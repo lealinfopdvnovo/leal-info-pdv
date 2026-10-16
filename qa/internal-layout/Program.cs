@@ -3,9 +3,12 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 
 internal static class Program
 {
+    [DllImport("user32.dll",SetLastError=true)]
+    private static extern bool SetWindowPos(IntPtr window,IntPtr after,int x,int y,int width,int height,uint flags);
     private const BindingFlags Hidden = BindingFlags.Static | BindingFlags.NonPublic;
     private static readonly Type Theme = typeof(MainForm).Assembly.GetType("LealInfoPDV.PremiumGlobalTheme", true)!;
     private static readonly List<object> Evidence = [];
@@ -218,7 +221,7 @@ internal static class Program
                         input.Clear();Check(listing.Rows.Count==original.Length && listing.Rows.Cast<DataGridViewRow>().All(r=>r.Visible),"Clearing search lost rows");
                         Check(original.SelectMany(x=>x).SequenceEqual(listing.Rows.Cast<DataGridViewRow>().SelectMany(r=>r.Cells.Cast<DataGridViewCell>().Select(c=>Convert.ToString(c.Value)))),"Search changed data");
                         foreach(var size in new[]{new Size(1024,640),new Size(1366,768),new Size(1600,900),new Size(1920,1080)}) {
-                            form.MaximumSize=new Size(4096,2304);form.Size=size;form.PerformLayout();Application.DoEvents();Check(form.Size==size,"Requested test size not applied");AssertActions(form);
+                            form.AutoScaleMode=AutoScaleMode.None;form.MaximumSize=new Size(4096,2304);form.WindowState=FormWindowState.Normal;form.ClientSize=size;Check(SetWindowPos(form.Handle,IntPtr.Zero,0,0,size.Width,size.Height,0x0006),"Native test resize failed");form.PerformLayout();Application.DoEvents();Check(form.Size==size,"Requested test size not applied: "+form.Size+" vs "+size);AssertActions(form);
                             Capture(form,method+"-"+size.Width);
                         }
                     }
@@ -237,8 +240,8 @@ internal static class Program
         // Settings is intentionally modeless; run its real message loop too.
         while (!seen && failure == null && watch.Elapsed < TimeSpan.FromSeconds(20))
         { Application.DoEvents(); Thread.Sleep(10); }
-        Check(seen, "Module did not open: " + method);
         if (failure != null) throw failure;
+        Check(seen, "Module did not open: " + method);
         Console.WriteLine("PASS " + method);
     }
 }
