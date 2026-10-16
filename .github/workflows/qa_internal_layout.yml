@@ -1,0 +1,90 @@
+name: QA internal layout 003 - no publication
+on:
+  push:
+    branches: [feature/003-internal-layout-406]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Preserve approved business code and installed updater
+        shell: python
+        run: |
+          import subprocess,re
+          base='d1525b64db03bc4608aabe020ecfc6e200ec2f05'
+          subprocess.run(['git','fetch','origin',base],check=True)
+          changed=subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines()
+          allowed={'Program.cs','LealInfoPDV.csproj','UpdateManager.cs','PremiumGlobalTheme.cs','InternalWorkspace.cs','.github/workflows/qa_internal_layout.yml','qa/internal-layout/Program.cs','qa/internal-layout/LealInfoPDV.InternalTests.csproj'}
+          assert set(changed)<=allowed,repr(set(changed)-allowed)
+          old=subprocess.check_output(['git','show',base+':UpdateManager.cs'],text=True)
+          new=open('UpdateManager.cs',encoding='utf-8-sig').read()
+          strip=lambda s:re.sub(r'CurrentVersion\s*=\s*"10\.\d+"','CurrentVersion="VERSION"',s).replace('\r\n','\n')
+          assert strip(old)==strip(new),'Updater logic changed'
+          oldprogram=subprocess.check_output(['git','show',base+':Program.cs'],text=True)
+          newprogram=open('Program.cs',encoding='utf-8-sig').read().replace('        InternalWorkspace.Install();\n','')
+          assert oldprogram.replace('\r\n','\n')==newprogram.replace('\r\n','\n'),'Startup logic changed'
+          print('PASS approved modules, principal, product form, data, license and updater preserved')
+      - name: Apply existing Windows build prerequisites
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compile Windows PDV
+        run: dotnet build LealInfoPDV.csproj -c Release
+      - name: Exercise real modules and capture Windows UI
+        timeout-minutes: 5
+        run: dotnet run --project qa/internal-layout/LealInfoPDV.InternalTests.csproj -c Release
+      - name: Build incremental candidate from installed 10.403 dependencies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Invoke-WebRequest 'https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.403/LEAL_INFO_PDV_003_V10_403_UPDATE.zip' -OutFile previous001.zip
+          if((Get-FileHash previous001.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne '4dbf912f043f2ec1c30775a62fd67f045da761d9957736725467a424eace671d'){throw 'Published 10.403 baseline changed'}
+          Expand-Archive previous001.zip previous001
+          $old=Get-Content previous001/LealInfoPDV.deps.json -Raw|ConvertFrom-Json
+          $key=$old.libraries.PSObject.Properties.Name|Where-Object {$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1
+          if(!$key){throw 'Installed SDK not found'}
+          $sdkVersion=$key.Split('/')[1]
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdkVersion -o candidate-publish
+          if($LASTEXITCODE -ne 0){throw 'Candidate build failed'}
+          New-Item -ItemType Directory -Force candidate001,internal-evidence|Out-Null
+          $previous=@{};$target=@{}
+          foreach($file in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){
+            $previous[$file]=(Get-FileHash "previous001/$file" -Algorithm SHA256).Hash.ToLowerInvariant()
+            $target[$file]=(Get-FileHash "candidate-publish/$file" -Algorithm SHA256).Hash.ToLowerInvariant()
+            Copy-Item "candidate-publish/$file" "candidate001/$file"
+          }
+          @{Version='10.406';SourceCommit=$env:GITHUB_SHA;Previous=$previous;Target=$target}|ConvertTo-Json -Depth 6|Set-Content internal-evidence/candidate-plan.json -Encoding utf8
+          Compress-Archive candidate001/* LEAL_INFO_PDV_003_V10_406_UPDATE.zip
+      - name: Verify unchanged incremental dependencies
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          values=[json.loads(Path(p).read_text(encoding='utf-8-sig')) for p in ['previous001/LealInfoPDV.deps.json','candidate001/LealInfoPDV.deps.json']]
+          for obj in values:
+              for bag in [obj['libraries'],*obj['targets'].values()]:
+                  for k in list(bag):
+                      if k.startswith('LealInfoPDV/'):del bag[k]
+          assert values[0]==values[1], 'Incremental dependencies changed'
+      - name: Validate candidate with installed payload policy
+        run: dotnet run --project qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package LEAL_INFO_PDV_003_V10_406_UPDATE.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: candidato-003-10.406
+          path: LEAL_INFO_PDV_003_V10_406_UPDATE.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: internal-layout-windows-evidence
+          path: internal-evidence/
