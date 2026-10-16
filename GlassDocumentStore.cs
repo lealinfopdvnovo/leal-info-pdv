@@ -9,7 +9,11 @@ internal sealed record GlassDocumentParty(long Id,string Name,string Document,st
 internal sealed record GlassDocumentContext(GlassDocumentParty Company,GlassDocumentParty Customer,string ProjectId,long ProjectRevision,GlassSavedProject Project,decimal CommercialValue,string FinancialCondition,DateTime CapturedAt);
 internal sealed record GlassReceiptSource(long MovementId,DateTime ReceivedAt,decimal Amount,string Description,string PaymentMethod,GlassDocumentContext Context);
 internal sealed record GlassReceiptListItem(long MovementId,DateTime ReceivedAt,decimal Amount,string Description);
-internal sealed record GlassContractClauses(string Object,string Value,string Payment,string Deadline,string Installation,string Responsibilities,string Notes);
+internal sealed record GlassContractClauses(string Object,string Value,string Payment,string Deadline,string Installation,string Responsibilities,string Notes)
+{
+    public string Warranty { get; init; } = "";
+    public string Signatures { get; init; } = "";
+}
 internal sealed record GlassContractContent(GlassDocumentContext Context,GlassContractClauses Clauses);
 internal sealed record GlassStoredContract(string ProjectId,long Revision,long ProjectRevision,long CustomerId,string State,string CreatedUtc,string ContentHash,GlassContractContent Content);
 
@@ -28,7 +32,7 @@ internal static class GlassDocumentStore
         GlassDocumentParty customer;
         using(var q=db.CreateCommand()){q.Transaction=tx;q.CommandText="SELECT id,name,COALESCE(document,''),COALESCE(phone,''),COALESCE(email,''),COALESCE(address,'') FROM customers WHERE id=$id";q.Parameters.AddWithValue("$id",id);using var r=q.ExecuteReader();if(!r.Read())throw new InvalidOperationException("Cliente não localizado no cadastro do PDV.");customer=new(r.GetInt64(0),r.GetString(1),r.GetString(2),r.GetString(3),r.GetString(4),r.GetString(5),"");}
         string name=Setting(db,tx,"company_trade_name");if(string.IsNullOrWhiteSpace(name))name=Setting(db,tx,"company_name");
-        var company=new GlassDocumentParty(0,name,Setting(db,tx,"company_document"),Setting(db,tx,"company_phone"),"",Setting(db,tx,"company_address"),Setting(db,tx,"company_city_state"));
+        var company=new GlassDocumentParty(0,name,Setting(db,tx,"company_document"),Setting(db,tx,"company_phone"),Setting(db,tx,"company_email"),Setting(db,tx,"company_address"),Setting(db,tx,"company_city_state"));
         var financial=GlassOperationsStore.Read(saved);
         return new(company,customer,saved.Id,saved.Revision,p,quote.Total,financial.Display,DateTime.Now);
     }
@@ -66,12 +70,12 @@ internal static class GlassDocumentStore
     internal static GlassContractContent NewContract(GlassStoredProject saved)
     {
         var c=Context(saved);var p=c.Project;
-        return new(c,new($"{p.Description} — {p.Model}. {p.Quote.Service}",$"Valor comercial do projeto: {GlassBrazilianMoney.Format(c.CommercialValue)}.",c.FinancialCondition,"","","",""));
+        return new(c,GlassDocumentTemplates.Contract(c));
     }
     internal static GlassStoredContract SaveContract(GlassStoredProject saved,GlassContractContent content,long expectedRevision,bool finalize)
     {
         if(content.Context.ProjectId!=saved.Id||content.Context.ProjectRevision!=saved.Revision||content.Context.Customer.Id!=saved.Data.Quote.CustomerId)throw new InvalidOperationException("Carregue os dados atuais do projeto/cliente antes de salvar nova revisão.");
-        var clauses=content.Clauses;var texts=new[]{clauses.Object,clauses.Value,clauses.Payment,clauses.Deadline,clauses.Installation,clauses.Responsibilities,clauses.Notes};
+        var clauses=content.Clauses;var texts=new[]{clauses.Object,clauses.Value,clauses.Payment,clauses.Deadline,clauses.Installation,clauses.Responsibilities,clauses.Notes,clauses.Warranty,clauses.Signatures};
         if(texts.Any(x=>x==null||x.Length>12000)||string.IsNullOrWhiteSpace(clauses.Object)||string.IsNullOrWhiteSpace(clauses.Value))throw new ArgumentException("Informe objeto e valor; cada texto aceita até 12.000 caracteres.");
         string payload=JsonSerializer.Serialize(content);if(payload.Length>150000)throw new InvalidDataException("Contrato excede o limite do documento.");
         EnsureContracts();using var db=Database.Open();using var tx=db.BeginTransaction();var project=GlassOperationsStore.Project(db,tx,saved.Id,saved.Revision);
