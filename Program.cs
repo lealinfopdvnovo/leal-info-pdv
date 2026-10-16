@@ -22,6 +22,7 @@ internal static class Program
 
         ApplicationConfiguration.Initialize();
         PremiumGlobalTheme.Install();
+        InternalWorkspace.Install();
         Application.AddMessageFilter(new GlobalEscapeCloseFilter());
 
         try

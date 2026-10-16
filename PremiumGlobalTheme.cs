@@ -136,6 +136,7 @@ internal static class PremiumGlobalTheme
                 strip.ItemAdded += (_, e) => StyleItem(e.Item!);
                 break;
             case Panel panel:
+                if (panel.Name == "WorkspaceTransparent") break;
                 // Respect the existing custom workshop canvases and sales frame renderers.
                 if (panel.GetType() == typeof(Panel) || panel is FlowLayoutPanel or TableLayoutPanel)
                 { panel.BackColor = Surface; panel.ForeColor = Ink; }
