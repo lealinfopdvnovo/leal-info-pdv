@@ -1,1 +1,1 @@
-V10.376: corrige exclusivamente o acabamento cristal azul e o espaco da marca acima do login. Preserva COZINHA, autenticacao, dados, licenca e configuracoes.
+V10.406: estrutura reutilizável para cadastros e consultas, busca integrada, resumo da lista, formulários com rolagem e ações adaptáveis ao tamanho da janela. Ajustes de espaçamento e limites da área útil nas telas internas. Preserva tela principal, módulos aprovados, dados, licença e o atualizador existente.

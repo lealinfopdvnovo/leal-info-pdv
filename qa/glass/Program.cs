@@ -103,10 +103,11 @@ static class Program
         }
         using (var central = new GlassWorkshopForm())
         {
-            central.Show(); Pump(); bool seen = false;
-            using var timer = new System.Windows.Forms.Timer { Interval = 60 };
-            timer.Tick += (_, _) => { var f = Application.OpenForms.OfType<GlassProjectForm>().FirstOrDefault(); if (f == null) return; timer.Stop(); seen = true; Check(f.Owner == central && f.Modal, "Novo Projeto na Central"); Escape(f); };
-            timer.Start(); Find<Button>(central, "NewGlassProject").PerformClick(); Check(seen, "Central Projetos Novo Projeto"); Escape(central);
+            central.Show(); Pump();
+            Check(Find<TabControl>(central, "GlassSections").TabPages.Count == 7, "Central mantém sete abas");
+            Check(All(central).OfType<NumericUpDown>().Count(x => x.Name == "WidthMm") == 1, "Uma única fonte de medidas");
+            Check(!All(central).OfType<Button>().Any(x => x.Name == "NewGlassProject"), "Projeto integrado sem segunda janela");
+            Escape(central);
         }
         using (var page = GlassProjectPrint.RenderPage(new GlassProject("Janela homologacao", 1800, 1200, 3)))
         { Check(page.GetPixel(1, 1).ToArgb() == Color.White.ToArgb(), "Papel branco A4"); page.Save("glass-evidencias/A4-1800-1200.png", ImageFormat.Png); }

@@ -946,7 +946,12 @@ public sealed class MainForm : Form
 
     private void OpenGlassWorkshop()
     {
-        using var form = new GlassWorkshopForm();
+        using var form = new GlassWorkshopForm(dialog =>
+        {
+            ApplyFloatingTheme(dialog);
+            if (!Application.OpenForms.Cast<Form>().Any(x => x.Name == "SalesForm"))
+                SalesDialogTheme.Apply(dialog, GetSetting("sales_theme", "Futurista Azul"), null);
+        });
         form.ShowDialog(this);
     }
 
@@ -2499,16 +2504,18 @@ private void ApplyFloatingTheme(Form f)
         f.ShowDialog(this);
     }
 
+    internal void OpenCustomersFromGlass(Action<long>? select = null) => RunAllowed("customers", () => ShowPersonCrud("CLIENTES", "customers", select));
+
     private void OpenCustomers() => ShowPersonCrud("CLIENTES", "customers");
     private void OpenSuppliers() => ShowPersonCrud("FORNECEDORES", "suppliers");
 
-    private void ShowPersonCrud(string title, string table)
+    private void ShowPersonCrud(string title, string table, Action<long>? select = null)
     {
         ShowCrud(title,
             $"SELECT id AS ID,name AS Nome,document AS Documento,phone AS Telefone,email AS Email,address AS Endereço FROM {table} ORDER BY name",
             () => EditPerson(table, null, title[..^1]),
             id => EditPerson(table, id, title[..^1]),
-            id => { if (Confirm("Excluir este cadastro?")) Exec($"DELETE FROM {table} WHERE id=$id", ("$id",id)); });
+            id => { if (Confirm("Excluir este cadastro?")) Exec($"DELETE FROM {table} WHERE id=$id", ("$id",id)); }, select);
     }
 
     private void EditPerson(string table, long? id, string title)
@@ -2615,20 +2622,49 @@ private void ApplyFloatingTheme(Form f)
         }
     }
 
-    private void OpenFinance()
+    internal void OpenReceiptsFromGlass(GlassStoredProject saved)=>RunAllowed("cash",()=>{using var dialog=new GlassReceiptForm(saved,ApplyFloatingTheme);dialog.ShowDialog(this);});
+    internal void OpenContractsFromGlass(GlassStoredProject saved)=>RunAllowed("quotes",()=>{using var dialog=new GlassContractForm(saved,ApplyFloatingTheme);dialog.ShowDialog(this);});
+    internal void OpenFinanceFromGlass(GlassStoredProject saved)=>RunAllowed("cash",()=>ShowFinance(saved));
+    internal string? OpenAgendaFromGlass(GlassStoredProject? saved)
     {
-        using var f=GridForm("FLUXO DE CAIXA",CashFlow.HistorySql,out var grid);
+        string? selected=null;
+        RunAllowed("orders",()=>{using var agenda=new GlassAgendaForm(saved,ApplyFloatingTheme);if(agenda.ShowDialog(this)==DialogResult.OK)selected=agenda.SelectedProjectId;});
+        return selected;
+    }
+    private void OpenFinance()=>ShowFinance(null);
+    private void ShowFinance(GlassStoredProject? saved)
+    {
+        if(saved!=null)GlassOperationsStore.EnsureReady();
+        string sql=saved==null?CashFlow.HistorySql:GlassOperationsStore.HistorySql(saved.Id);
+        using var f=GridForm(saved==null?"FLUXO DE CAIXA":"FLUXO DE CAIXA — VIDRAÇARIA",sql,out var grid);
+        Label? overview=null;
+        void RefreshOverview(){if(overview!=null)overview.Text=$"PROJETO: {saved!.Data.Description} • CLIENTE: {saved.Data.Quote.CustomerName}\r\n"+GlassOperationsStore.Read(saved).Display+"\r\nOrçamento não é pagamento. NOVO registra uma operação real, após confirmação.";}
+        if(saved!=null){overview=new Label{Name="GlassFinanceOverview",Dock=DockStyle.Top,Height=105,Padding=new Padding(12)};f.Controls.Add(overview);overview.BringToFront();RefreshOverview();}
         var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};
-        p.Controls.Add(ActionButton("NOVO",()=>{RegisterCashMovement();ReloadGrid(grid,CashFlow.HistorySql);}));
-        p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue&&Confirm("Excluir este lançamento?")){Exec("DELETE FROM cash_movements WHERE id=$id",("$id",id.Value));ReloadGrid(grid,CashFlow.HistorySql);}}));
+        p.Controls.Add(ActionButton("NOVO",()=>{ShowCashMovement(saved);ReloadGrid(grid,sql);RefreshOverview();}));
+        p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue&&Confirm("Excluir este lançamento?")){Exec("DELETE FROM cash_movements WHERE id=$id",("$id",id.Value));ReloadGrid(grid,sql);RefreshOverview();}}));
         p.Controls.Add(ActionButton("RESUMO DO CAIXA",()=>MessageBox.Show(f,CashFlow.ReadSummary(DateTime.Today,DateTime.Today.AddDays(1)).Display,"Resumo do caixa de hoje",MessageBoxButtons.OK,MessageBoxIcon.Information)));
-        p.Controls.Add(ActionButton("FECHAR",f.Close));f.Controls.Add(p);ApplyFloatingTheme(f);f.ShowDialog(this);
+        p.Controls.Add(ActionButton("FECHAR",f.Close));f.Controls.Add(p);
+        // Dock processes siblings back-to-front: fill must follow header, summary and actions.
+        // Otherwise the summary covers the first history rows despite all records being loaded.
+        if(saved!=null)grid.BringToFront();
+        ApplyFloatingTheme(f);f.ShowDialog(this);
     }
 
-    private void RegisterCashMovement()
+    private void RegisterCashMovement()=>ShowCashMovement(null);
+    private void ShowCashMovement(GlassStoredProject? saved)
     {
+        GlassCashOrigin? origin=saved==null?null:new(saved.Id,saved.Revision,saved.Data.Quote.CustomerId,Guid.NewGuid().ToString("N"));
         using var f=Editor("Nova movimentação manual",new[]{"Tipo","Descrição/Motivo","Valor"});
         var fields=(List<TextBox>)f.Tag!;
+        if(saved!=null)fields[1].Text=$"VIDRAÇARIA — {saved.Data.Description} (projeto {saved.Id}; cliente ID {saved.Data.Quote.CustomerId})";
+        GlassMoneyInput? glassAmount=null;
+        if(saved!=null)
+        {
+            var oldAmount=fields[2];
+            glassAmount=new GlassMoneyInput{Name="GlassCashAmount",Left=oldAmount.Left,Top=oldAmount.Top,Width=oldAmount.Width,Maximum=999999999m};
+            f.Controls.Remove(oldAmount);oldAmount.Dispose();f.Controls.Add(glassAmount);
+        }
         var oldType=fields[0];
         var type=new ComboBox{Left=oldType.Left,Top=oldType.Top,Width=oldType.Width,DropDownStyle=ComboBoxStyle.DropDownList};
         type.Items.AddRange(new[]{"ENTRADA","SAÍDA"});type.SelectedIndex=0;f.Controls.Remove(oldType);oldType.Dispose();f.Controls.Add(type);
@@ -2638,12 +2674,13 @@ private void ApplyFloatingTheme(Form f)
         {
             try
             {
-                var amount=CashFlow.ParseAmount(fields[2].Text);
+                var amount=glassAmount==null?CashFlow.ParseAmount(fields[2].Text):CashFlow.ParseAmount(glassAmount.Text);
                 if(string.IsNullOrWhiteSpace(fields[1].Text))throw new ArgumentException("Informe a descrição/motivo.");
                 var selected=type.SelectedItem!.ToString()!;
                 if(MessageBox.Show(f,$"Confirmar {selected} de {amount.ToString("C2",CashFlow.Brazilian)}?","Confirmar movimentação",MessageBoxButtons.YesNo,MessageBoxIcon.Question,MessageBoxDefaultButton.Button2)!=DialogResult.Yes)return;
                 save.Enabled=false;
-                CashFlow.Register(selected,fields[1].Text,amount);
+                if(origin==null)CashFlow.Register(selected,fields[1].Text,amount);
+                else CashFlow.RegisterForGlass(selected,fields[1].Text,amount,origin);
                 f.DialogResult=DialogResult.OK;f.Close();
             }
             catch(Exception ex){save.Enabled=true;MessageBox.Show(f,ex.Message,"Movimentação não registrada",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
@@ -6991,7 +7028,7 @@ private void ApplyFloatingTheme(Form f)
         c.Controls.Add(new Label{Text=text,Left=x,Top=y,AutoSize=true,ForeColor=Color.White,Font=new Font("Segoe UI",18,FontStyle.Bold)});
     }
 
-    private void ShowCrud(string title,string sql,Action add,Action<long>? edit,Action<long>? delete)
+    private void ShowCrud(string title,string sql,Action add,Action<long>? edit,Action<long>? delete,Action<long>? select=null)
     {
         var f=GridForm(title,sql,out var grid);
         var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};
@@ -6999,6 +7036,16 @@ private void ApplyFloatingTheme(Form f)
         p.Controls.Add(b1);
         if(edit!=null)p.Controls.Add(ActionButton("EDITAR",()=>{var id=SelectedId(grid);if(id.HasValue){edit(id.Value);ReloadGrid(grid,sql);}}));
         if(delete!=null)p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue){delete(id.Value);ReloadGrid(grid,sql);}}));
+        if(select!=null)
+        {
+            var choose=ActionButton("SELECIONAR CLIENTE",()=>
+            {
+                var id=SelectedId(grid);
+                if(!id.HasValue){Info("Escolha um cliente na lista.");return;}
+                select(id.Value);f.DialogResult=DialogResult.OK;f.Close();
+            });
+            choose.Name="SelectCustomerForGlass";p.Controls.Add(choose);
+        }
         p.Controls.Add(ActionButton("FECHAR",f.Close));
         f.Controls.Add(p);
         ApplyFloatingTheme(f);

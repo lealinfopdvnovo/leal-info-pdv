@@ -11,12 +11,16 @@ public sealed class GlassProjectForm : Form
     private readonly Button visualize = Button("Visualize", "VISUALIZAR");
     private readonly Button print = Button("Preview", "PRÉVIA / IMPRIMIR A4");
     private readonly Panel surface = new() { Name = "DrawingSurface", Dock = DockStyle.Fill };
-    private readonly Button mode2D = new() { Name = "Mode2D", Text = "2D", Width = 54, Height = 30 };
-    private readonly Button mode3D = new() { Name = "Mode3D", Text = "3D", Width = 54, Height = 30, Enabled = false };
-    private readonly Button reset3D = new() { Name = "Reset3D", Text = "RESETAR VISÃO", Width = 160, Height = 30, Visible = false };
+    private readonly Button mode2D = new SalesVisualButton() { Name = "Mode2D", Text = "2D", Width = 54, Height = 30 };
+    private readonly Button mode3D = new SalesVisualButton() { Name = "Mode3D", Text = "3D", Width = 54, Height = 30, Enabled = false };
+    private readonly Button reset3D = new SalesVisualButton() { Name = "Reset3D", Text = "RESETAR VISÃO", Width = 160, Height = 30, Visible = false };
+    private readonly Button measurements3D = new SalesVisualButton { Name = "Toggle3DMeasurements", Text = "MOSTRAR MEDIDAS", Width = 210, Height = 30, Visible = false };
     private readonly Label viewHint = new() { Name = "ViewHint", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(174, 201, 220) };
     private GlassBox3DView? drawing3D;
     private bool unavailable3D;
+    private bool restored3DMeasurements;
+    private GlassQuoteForm? quote;
+    private IWin32Window? printOwner;
     private readonly Font heading = new("Segoe UI", 13, FontStyle.Bold);
     private readonly Font body = new("Segoe UI", 10);
 
@@ -47,10 +51,21 @@ public sealed class GlassProjectForm : Form
         Add(thumbnail);
         Add(new Label { Text = GlassProject.ModelName, AutoSize = true, MaximumSize = new Size(255, 0) });
         Add(new Label { Text = "DESCRIÇÃO DO PROJETO", AutoSize = true }); Add(description);
-        Add(new Label { Text = "LARGURA DO VÃO (mm)", AutoSize = true }); Add(widthMm);
-        Add(new Label { Text = "ALTURA DO VÃO (mm)", AutoSize = true }); Add(heightMm);
+        Add(new Label { Text = "LARGURA DO VÃO", AutoSize = true }); Add(new GlassDimensionField(widthMm));
+        Add(new Label { Text = "ALTURA DO VÃO", AutoSize = true }); Add(new GlassDimensionField(heightMm));
         Add(new Label { Text = "QUANTIDADE", AutoSize = true }); Add(quantity);
         Add(visualize); Add(print);
+        var commercial = Button("GlassQuote", "ORÇAMENTO DA VIDRAÇARIA");
+        Add(commercial);
+        commercial.Click += (_, _) =>
+        {
+            if (quote == null || quote.IsDisposed)
+            {
+                quote = new GlassQuoteForm(CurrentProject());
+                quote.Show(this);
+            }
+            else { quote.UpdateProject(CurrentProject()); quote.Activate(); }
+        };
         Add(new Button { Name = "SaveProject", Text = "SALVAR — PRÓXIMA ETAPA", Enabled = false, Dock = DockStyle.Top, Height = 36 });
         Add(message);
         scroll.Controls.Add(fields);
@@ -67,6 +82,12 @@ public sealed class GlassProjectForm : Form
         mode2D.Click += (_, _) => Show2D();
         mode3D.Click += (_, _) => Show3D();
         reset3D.Click += (_, _) => drawing3D?.ResetView();
+        measurements3D.Click += (_, _) =>
+        {
+            if (drawing3D == null || drawing3D.IsUnavailable || !drawing3D.CanShowTechnicalDimensions) return;
+            drawing3D.ShowTechnicalDimensions = !drawing3D.ShowTechnicalDimensions;
+            measurements3D.Text = drawing3D.ShowTechnicalDimensions ? "OCULTAR MEDIDAS" : "MOSTRAR MEDIDAS";
+        };
         graph.Controls.Add(modes, 0, 1);
         surface.Controls.Add(drawing);
         graph.Controls.Add(surface, 0, 2);
@@ -80,23 +101,93 @@ public sealed class GlassProjectForm : Form
         Controls.Add(layout); CancelButton = close;
         print.Enabled = false;
         visualize.Click += (_, _) => UpdateDrawing();
-        print.Click += (_, _) => { if (print.Enabled && drawing.Project != null) GlassProjectPrint.Preview(this, drawing.Project); };
-        void Changed(object? sender, EventArgs e) { print.Enabled = false; if (drawing.Project != null) message.Text = "Medidas/dados alterados. Clique em ATUALIZAR DESENHO."; }
+        print.Click += (_, _) => { if (print.Enabled && drawing.Project != null) GlassProjectPrint.Preview(printOwner ?? this, drawing.Project); };
+        void Changed(object? sender, EventArgs e) { quote?.UpdateProject(CurrentProject()); print.Enabled = false; if (drawing.Project != null) message.Text = "Medidas/dados alterados. Clique em ATUALIZAR DESENHO."; }
         widthMm.ValueChanged += Changed; heightMm.ValueChanged += Changed; quantity.ValueChanged += Changed; description.TextChanged += Changed;
         Shown += (_, _) => { var area = Screen.FromControl(Owner ?? this).WorkingArea; Size = new Size(Math.Min(Width, area.Width), Math.Min(Height, area.Height)); };
     }
+    // A Central hospeda os controles já existentes; esta instância não abre janela.
+    internal void Mount(TabControl tabs, TableLayoutPanel projects, TableLayoutPanel measures,
+        TableLayoutPanel calculations, TabPage design, TabPage visualization, TableLayoutPanel printing,
+        Form owner, Control status)
+    {
+        GlassWorkshopForm.AddField(projects, "MODELO", new Label { Text = GlassProject.ModelName, AutoSize = true });
+        GlassWorkshopForm.AddField(projects, "DESCRIÇÃO DO PROJETO", description);
+        GlassWorkshopForm.AddField(projects, "QUANTIDADE", quantity);
+        quote = new GlassQuoteForm(CurrentProject());
+        quote.Mount(projects, calculations);
+        GlassWorkshopForm.AddField(measures, "LARGURA DO VÃO", widthMm.Parent!);
+        GlassWorkshopForm.AddField(measures, "ALTURA DO VÃO", heightMm.Parent!);
+        GlassWorkshopForm.AddField(measures, "", visualize);
+        GlassWorkshopForm.AddField(measures, "", message);
+        GlassWorkshopForm.AddField(printing, "IMPRESSÃO TÉCNICA A4", print);
+        printOwner = owner;
+        status.Controls.Add(viewHint); viewHint.Dock = DockStyle.Fill;
+        // Reintegra o seletor original, antes retido na janela de projeto não exibida.
+        var modes = mode2D.Parent!;
+        modes.Dock = DockStyle.Top; modes.Height = 42;
+        void MoveSurface(bool three)
+        {
+            var page = three ? visualization : design;
+            page.Controls.Add(modes); page.Controls.Add(surface);
+            surface.Dock = DockStyle.Fill; surface.BringToFront();
+            if (three) Show3D(); else Show2D();
+        }
+        var viewFooter = new Panel { Dock = DockStyle.Bottom, Height = 44 };
+        visualization.Controls.Add(viewFooter);
+        reset3D.Dock = DockStyle.Left; viewFooter.Controls.Add(reset3D);
+        measurements3D.Dock = DockStyle.Right; viewFooter.Controls.Add(measurements3D);
+        mode2D.Click += (_, _) => tabs.SelectedTab = design;
+        mode3D.Click += (_, _) => tabs.SelectedTab = visualization;
+        tabs.SelectedIndexChanged += (_, _) =>
+        {
+            if (tabs.SelectedTab == visualization) MoveSurface(true);
+            else { Show2D(); if (tabs.SelectedTab == design) MoveSurface(false); }
+        };
+        MoveSurface(false);
+        void DataChanged(object? sender, EventArgs args)
+        {
+            UpdateDrawing();
+            if (tabs.SelectedTab == visualization) Show3D();
+        }
+        widthMm.ValueChanged += DataChanged; heightMm.ValueChanged += DataChanged;
+        quantity.ValueChanged += DataChanged; description.TextChanged += DataChanged;
+        UpdateDrawing();
+    }
+    internal GlassCommercialSnapshot CommercialSnapshot(IReadOnlyList<GlassMaterialLink> materials)
+        => (quote ?? throw new InvalidOperationException("Projeto não disponível.")).CommercialSnapshot(materials);
+    internal GlassSavedProject CaptureSaved(GlassMaterialLink[] materials, GlassSavedCut? cut)
+        => new(1, GlassProject.ModelName, description.Text, widthMm.Value, heightMm.Value,
+            GlassSavedControls.Unit(widthMm), GlassSavedControls.Unit(heightMm), (int)quantity.Value,
+            (quote ?? throw new InvalidOperationException("Orçamento indisponível.")).CaptureSaved(),
+            materials, cut, drawing3D?.ShowTechnicalDimensions ?? restored3DMeasurements);
+    internal void RestoreSaved(GlassSavedProject saved)
+    {
+        description.Text=saved.Description;
+        GlassSavedControls.Set(widthMm,saved.WidthMm,saved.WidthUnit);
+        GlassSavedControls.Set(heightMm,saved.HeightMm,saved.HeightUnit);
+        quantity.Value=saved.Quantity;
+        quote!.RestoreSaved(saved.Quote);
+        restored3DMeasurements=saved.Show3DMeasurements;
+        if(drawing3D != null) drawing3D.ShowTechnicalDimensions=saved.Show3DMeasurements;
+        measurements3D.Text=saved.Show3DMeasurements ? "OCULTAR MEDIDAS" : "MOSTRAR MEDIDAS";
+        UpdateDrawing();
+    }
+    internal GlassProject CutReferenceProject => CurrentProject();
+    private GlassProject CurrentProject() => new(description.Text.Trim(), widthMm.Value, heightMm.Value, (int)quantity.Value);
     public void UpdateDrawing()
     {
         // ValidateEditText é executado pelo NumericUpDown quando perde foco antes do clique.
         var project = new GlassProject(description.Text.Trim(), widthMm.Value, heightMm.Value, (int)quantity.Value);
         if (project.ValidationError != null) { message.Text = project.ValidationError; print.Enabled = false; drawing.Project = null; drawing.Invalidate(); if (drawing3D != null) drawing3D.Project = null; mode3D.Enabled = false; Show2D(); return; }
         drawing.Project = project; drawing.Invalidate(); if (drawing3D != null) drawing3D.Project = project; mode3D.Enabled = !unavailable3D; print.Enabled = true; visualize.Text = "ATUALIZAR DESENHO";
-        message.Text = "Desenho atualizado. SALVAR pendente da definição da persistência de projetos.";
+        message.Text = "Desenho atualizado. Use SALVAR PROJETO na aba Projetos.";
     }
     private void Show2D()
     {
         if (drawing3D != null) drawing3D.Visible = false;
         drawing.Visible = true; drawing.BringToFront(); reset3D.Visible = false;
+        measurements3D.Visible = false;
         mode2D.BackColor = Color.FromArgb(20, 149, 194); mode3D.BackColor = Color.FromArgb(11, 113, 161);
         viewHint.Text = unavailable3D ? "3D indisponível neste equipamento. O desenho 2D continua disponível."
             : "Esquema do vão • medidas em mm • sem regras de fabricação/corte";
@@ -109,14 +200,19 @@ public sealed class GlassProjectForm : Form
             if (drawing3D == null)
             {
                 drawing3D = new GlassBox3DView();
+                drawing3D.ShowTechnicalDimensions = restored3DMeasurements;
                 drawing3D.RenderingUnavailable += (_, _) => Disable3D();
+                drawing3D.SizeChanged += (_, _) => UpdateMeasurementAccess();
+                drawing3D.FontChanged += (_, _) => UpdateMeasurementAccess();
                 surface.Controls.Add(drawing3D);
             }
             drawing3D.Project = drawing.Project;
             drawing.Visible = false; drawing3D.Visible = true; drawing3D.BringToFront(); drawing3D.Focus();
             reset3D.Visible = true;
+            measurements3D.Visible = true;
             mode3D.BackColor = Color.FromArgb(20, 149, 194); mode2D.BackColor = Color.FromArgb(11, 113, 161);
             viewHint.Text = "3D técnico • arraste para girar • rodinha: zoom • profundidade apenas ilustrativa";
+            UpdateMeasurementAccess();
         }
         catch (Exception) { Disable3D(); }
     }
@@ -124,9 +220,18 @@ public sealed class GlassProjectForm : Form
     {
         unavailable3D = true; mode3D.Enabled = false; Show2D();
     }
+    private void UpdateMeasurementAccess()
+    {
+        if (drawing3D == null || !drawing3D.Visible || !measurements3D.Visible) return;
+        measurements3D.Enabled = drawing3D.CanShowTechnicalDimensions && !drawing3D.IsUnavailable;
+        viewHint.Text = drawing3D.CanShowTechnicalDimensions
+            ? "3D técnico • arraste para girar • rodinha: zoom • profundidade apenas ilustrativa"
+            : "Amplie o visor para cotas. As dimensões fixas continuam disponíveis.";
+    }
     private static NumericUpDown Number(string name, decimal value, decimal min, decimal max, int decimals) => new()
     { Name = name, Minimum = min, Maximum = max, DecimalPlaces = decimals, Value = value, Dock = DockStyle.Fill, ThousandsSeparator = false };
-    private static Button Button(string name, string text) => new() { Name = name, Text = text, Dock = DockStyle.Top,
+    private static Button Button(string name, string text) => new SalesVisualButton() { Name = name, Text = text, Dock = DockStyle.Top,
         Height = 42, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(11, 113, 161), ForeColor = Color.White };
-    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (disposing) { heading.Dispose(); body.Dispose(); } }
+    protected override void Dispose(bool disposing) { base.Dispose(disposing); if (disposing) { quote?.Dispose(); heading.Dispose(); body.Dispose(); } }
 }
+
