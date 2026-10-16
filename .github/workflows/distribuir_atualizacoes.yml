@@ -1,0 +1,123 @@
+name: Distribuir PDV - canais independentes
+on:
+  push:
+    branches: [release/channel-isolation-407]
+    paths: [RELEASE_CHANNEL_ISOLATION_407.trigger]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Canal de destino (GLOBAL preserva as bases individuais)
+        type: choice
+        options: [GLOBAL, '001', '002', '003', '004']
+        required: true
+      source:
+        description: Commit ou branch do proprio canal (vazio usa a branch do canal)
+        type: string
+        required: false
+  workflow_call:
+    inputs:
+      channel: {type: string, required: true}
+      source: {type: string, required: false}
+    secrets:
+      UPDATE_REPO_TOKEN: {required: true}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: distribuicao-pdv-canais-independentes
+  cancel-in-progress: false
+jobs:
+  planejar:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main}
+      - id: plan
+        name: Resolver fontes independentes e versoes compativeis
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ inputs.channel || 'ALL' }}
+          SOURCE_REF: ${{ inputs.source }}
+        run: python scripts/distribute_channels.py plan
+      - uses: actions/upload-artifact@v4
+        with: {name: release-plan, path: release-plan.json}
+  validar:
+    needs: planejar
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.planejar.outputs.matrix) }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: ${{ matrix.channel }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main}
+      - uses: actions/download-artifact@v4
+        with: {name: release-plan}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Preservar fonte e dependencias do proprio cliente
+        run: python scripts/distribute_channels.py prepare $env:CHANNEL
+      - name: Aplicar somente pre-requisitos existentes de compilacao
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar programa Windows com dependencias instaladas
+        shell: pwsh
+        run: |
+          $sdk=Get-Content sdk-version.txt
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
+          if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
+      - name: Conferir pacote incremental e dependencias
+        run: python scripts/distribute_channels.py package $env:CHANNEL
+      - name: Testar selecao real e copia real preservando dados em Windows isolado
+        shell: pwsh
+        run: |
+          $e=Get-Content build-entry.json -Raw|ConvertFrom-Json
+          $package=Join-Path (Get-Location) ('release-output/'+$e.Package)
+          $source=Join-Path (Get-Location) 'candidate/UpdateManager.cs'
+          dotnet run --project candidate/qa/channel-isolation/LealInfoPDV.ChannelTests.csproj -c Release -- $package $source 2>&1|Tee-Object release-output/windows-tests.log
+          if($LASTEXITCODE -ne 0){throw 'Real Windows channel/preservation tests failed'}
+      - name: Validar pacote na politica real do atualizador
+        shell: pwsh
+        run: |
+          $e=Get-Content build-entry.json -Raw|ConvertFrom-Json
+          $package=Join-Path (Get-Location) ('release-output/'+$e.Package)
+          dotnet run --project candidate/qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package $package
+          if($LASTEXITCODE -ne 0){throw 'Installed payload validation failed'}
+          python scripts/distribute_channels.py passed
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: candidate-${{ matrix.channel }}
+          path: release-output/
+  publicar:
+    needs: [planejar, validar]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main}
+      - uses: actions/download-artifact@v4
+        with: {name: release-plan}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: candidate-*
+          path: artifacts
+      - name: Publicar bytes testados e verificar URLs reais sem alterar outros canais
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python scripts/distribute_channels.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: publication-evidence, path: publication-evidence/}

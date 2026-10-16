@@ -1,0 +1,90 @@
+{
+  "GLOBAL": {
+    "SourceCommit": "36d28a8f0ac4f34bd65a666f026b4780f8bc732d",
+    "BaselineSource": "602110dce785a3eff933c8d82b97f99736516f51",
+    "Tree": "a3a2c4705b75e1f42b96c3a158dbf92d4faaa0a1",
+    "BaselineManifest": {
+      "Mandatory": false,
+      "Sha256": "502dc78ae6143a794ce1f823dacd53bd10a880fab3ef219b1157ffd98bc27f44",
+      "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.385/LEAL_INFO_PDV_V10_385_UPDATE.zip",
+      "SourceCommit": "602110dce785a3eff933c8d82b97f99736516f51",
+      "Notes": "V10.385 GLOBAL: logo do cliente automaticamente no topo e na vitrine do PDV, usando logo cadastrado ou imagem personalizada existente da tela principal. Mantem proporcao e fotos dos produtos. CEP e pacotes personalizados 001/002/003 preservados. Sem dados, licencas, imagens ou configuracoes no pacote.",
+      "Editions": [
+        "STANDARD",
+        "PLUS",
+        "PRO"
+      ],
+      "Version": "10.385"
+    },
+    "ExpectedFeedSha": "d9710ad4ce172b24f30f8d9583e9baa1fd3c89c6",
+    "FeedPath": "version.json"
+  },
+  "001": {
+    "SourceCommit": "42897d3f89b0d054bc442d3d304dbd739d2b3e52",
+    "BaselineSource": "6cca62be4682660691590da8d9ab20da54330144",
+    "Tree": "1a43ac5d4a5453c75b6608aeb050f3f21b68f99a",
+    "BaselineManifest": {
+      "Version": "10.406",
+      "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.406/LEAL_INFO_PDV_001_V10_406_UPDATE.zip",
+      "Sha256": "76251d67f10a69e6f8e217868039786b4bfb31c74fee32a0f4d89631d07e6818",
+      "SourceCommit": "6cca62be4682660691590da8d9ab20da54330144",
+      "TargetClientCode": "001",
+      "Mandatory": false,
+      "Notes": "V10.406: estrutura reutilizável para cadastros e consultas, busca integrada, resumo da lista, formulários com rolagem e ações adaptáveis ao tamanho da janela. Ajustes de espaçamento e limites da área útil nas telas internas. Preserva tela principal, módulos aprovados, dados, licença e o atualizador existente."
+    },
+    "ExpectedFeedSha": "a8b3863d2c465efa5b8dd24c308534468bff827b",
+    "FeedPath": "clients/001/version.json"
+  },
+  "002": {
+    "SourceCommit": "735f3f6b0f933f25585c0c9e7e50551dae9a056d",
+    "BaselineSource": "d4c0d47b2d63545988204ec93ae2b1a263ae9dd0",
+    "Tree": "eb2970719775488ce7ab8f94f136eb29ae12d0b5",
+    "BaselineManifest": {
+      "SourceCommit": "d4c0d47b2d63545988204ec93ae2b1a263ae9dd0",
+      "Version": "10.385",
+      "TargetClientCode": "002",
+      "Mandatory": false,
+      "Sha256": "ee7b1a0ed0d7dd8dc90832eb5e63c2d624cd12973031d92cc9fa358439dc7063",
+      "Notes": "V10.385: logo do cliente automaticamente no topo e na vitrine do PDV. Usa o logo cadastrado ou a imagem personalizada existente da tela principal. Preserva proporcao, foto do produto, aviso sem foto, CEP, dados, licenca e particularidades deste cliente.",
+      "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.385/LEAL_INFO_PDV_002_V10_385_UPDATE.zip"
+    },
+    "ExpectedFeedSha": "f03b86eb92e8e0b92211f0564d0f686329322668",
+    "FeedPath": "clients/002/version.json"
+  },
+  "003": {
+    "SourceCommit": "b39c4fdb84fba4ae9ac3774368c0f1bea3a2c8ff",
+    "BaselineSource": "49529cbaf21a56c4744a7cedf229b728c021f7d9",
+    "Tree": "0016b3ce6dd52dd95ef7a0043c6360400ee7bb65",
+    "BaselineManifest": {
+      "Version": "10.406",
+      "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-003-v10.406/LEAL_INFO_PDV_003_V10_406_UPDATE.zip",
+      "Sha256": "59f1a6194bb45c76eb7ee67892c50075b7e55e2eece378577680142c3240f649",
+      "SourceCommit": "49529cbaf21a56c4744a7cedf229b728c021f7d9",
+      "TargetClientCode": "003",
+      "Mandatory": false,
+      "Notes": "V10.406: estrutura reutilizável para cadastros e consultas, busca integrada, resumo da lista, formulários com rolagem e ações adaptáveis ao tamanho da janela. Ajustes de espaçamento e limites da área útil nas telas internas. Preserva tela principal, módulos aprovados, dados, licença e o atualizador existente."
+    },
+    "ExpectedFeedSha": "abc958c45db19925d1ca3c9e9cb4b19220ba1c10",
+    "FeedPath": "clients/003/version.json"
+  },
+  "004": {
+    "SourceCommit": "2787ea2541261bd68cf1e931ceaa6ed537ddc832",
+    "BaselineSource": "602110dce785a3eff933c8d82b97f99736516f51",
+    "Tree": "c2234682dde15c42e302b7ad38825fc3e4772e9b",
+    "BaselineManifest": {
+      "Mandatory": false,
+      "Sha256": "502dc78ae6143a794ce1f823dacd53bd10a880fab3ef219b1157ffd98bc27f44",
+      "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.385/LEAL_INFO_PDV_V10_385_UPDATE.zip",
+      "SourceCommit": "602110dce785a3eff933c8d82b97f99736516f51",
+      "Notes": "V10.385 GLOBAL: logo do cliente automaticamente no topo e na vitrine do PDV, usando logo cadastrado ou imagem personalizada existente da tela principal. Mantem proporcao e fotos dos produtos. CEP e pacotes personalizados 001/002/003 preservados. Sem dados, licencas, imagens ou configuracoes no pacote.",
+      "Editions": [
+        "STANDARD",
+        "PLUS",
+        "PRO"
+      ],
+      "Version": "10.385"
+    },
+    "ExpectedFeedSha": null,
+    "FeedPath": "clients/004/version.json"
+  }
+}
