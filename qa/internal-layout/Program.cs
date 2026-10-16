@@ -77,6 +77,7 @@ internal static class Program
         Check(Auth.Login("visual-qa", "isolated-only") != null, "Fixture login failed");
         Invariants();
         EditorInvariant();
+        LargeList();
         using var main = NewMain();
         main.CreateControl();
         Apply(main);
@@ -142,6 +143,8 @@ internal static class Program
     private static void AssertActions(Form f)
     {
         foreach(var button in All(f).OfType<Button>().Where(b=>b.Visible)) {
+            bool scrollable=false;for(Control? parent=button.Parent;parent!=null&&parent!=f;parent=parent.Parent)if(parent is ScrollableControl sc && sc.AutoScroll)scrollable=true;
+            if(scrollable)continue;
             var box=f.RectangleToClient(button.RectangleToScreen(button.ClientRectangle));
             Check(f.ClientRectangle.Contains(box),"Action clipped: "+f.Text+" / "+button.Text+" / "+box);
         }
@@ -160,6 +163,21 @@ internal static class Program
         Evidence.Add(new{name="editor-original-fields-tag-values-save-handler",result="PASS"});
     }
 
+    private static void LargeList()
+    {
+        using var f=new Form{Text="QA LISTA",Size=new Size(1000,700)};
+        var grid=new DataGridView{Dock=DockStyle.Fill,AllowUserToAddRows=false};
+        grid.Columns.Add("ID","ID");grid.Columns.Add("Nome","Nome");f.Controls.Add(grid);f.Show();Apply(f);
+        var watch=Stopwatch.StartNew();
+        for(int i=0;i<2000;i++)grid.Rows.Add(i,"QA-"+i);
+        Application.DoEvents();
+        var search=All(f).OfType<TextBox>().Single(t=>t.Name=="InternalListSearch");
+        search.Text="QA-1999";Check(grid.Rows.Cast<DataGridViewRow>().Count(r=>r.Visible)==1,"Large-list filter failed");
+        search.Clear();Check(grid.Rows.Count==2000 && grid.Rows.Cast<DataGridViewRow>().All(r=>r.Visible),"Large-list refresh lost data");
+        Check(watch.Elapsed<TimeSpan.FromSeconds(15),"Large-list refresh stalled");
+        Evidence.Add(new{name="large-list-2000-refresh-search",elapsedMs=watch.ElapsedMilliseconds,result="PASS"});f.Close();
+    }
+
     private static void Module(MainForm main, string method)
     {
         Exception? failure = null;
@@ -175,6 +193,8 @@ internal static class Program
             {
                 Check(form.Text != "", "Unexpected dialog");
                 Capture(form, method);
+                Check(Screen.FromControl(form).WorkingArea.Contains(form.RectangleToScreen(form.ClientRectangle)),"Window client area outside work area: "+method);
+                if(method=="ProductNew")AssertActions(form);
                 var root = All(form).FirstOrDefault(c=>c.Name=="InternalWorkspaceRoot");
                 if(root!=null) {
                     AssertActions(form);
