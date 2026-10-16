@@ -29,7 +29,7 @@ jobs:
         shell: pwsh
         run: |
           $runtime=Get-Content runtime-version.txt
-          dotnet publish qa/channel-launcher/LealInfoPDV.ChannelLauncher.csproj -c Release -r win-x64 --self-contained true -p:RuntimeFrameworkVersion=$runtime -p:WindowsSdkPackageVersion=10.0.19041.57 -o launcher-publish
+          dotnet publish qa/channel-launcher/LealInfoPDV.ChannelLauncher.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=10.0.19041.57 -o launcher-publish
           if($LASTEXITCODE -ne 0){throw 'Launcher build failed'}
       - name: Conferir dependencias e pacote que preserva o DLL original
         run: python scripts/global_bridge.py package

@@ -1,1 +1,1 @@
-Validate native launcher preserving business DLL, exit codes and all client modules before publishing GLOBAL.
+Preserve native application exit codes and match installed SDK/runtime dependency bags before publishing.
