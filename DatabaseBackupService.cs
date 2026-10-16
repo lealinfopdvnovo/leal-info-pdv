@@ -59,137 +59,25 @@ public static class DatabaseBackupService
         finally { OperationGate.Release(); }
     }
 
-    // Stage and validate while the ordinary PDV is still running. Never replace its live DB here.
+    // Preparation never changes the operational database.
     public static async Task<string> PrepareAutomaticRestoreAsync(string selectedPath, CancellationToken cancellationToken = default)
     {
         if (Network.NetworkConfiguration.Current.Mode == "terminal")
-            throw new InvalidOperationException("A restauração só pode ser iniciada no servidor.");
-        if (!File.Exists(selectedPath))
-            throw new FileNotFoundException("Backup não encontrado.", selectedPath);
+            throw new InvalidOperationException("Faça a restauração no servidor.");
         await OperationGate.WaitAsync(cancellationToken);
-        var stage = Path.Combine(Database.AppFolder, $"restore_pending_{Guid.NewGuid():N}.db");
-        try
-        {
-            Directory.CreateDirectory(Database.AppFolder);
-            if (Path.GetExtension(selectedPath).Equals(".zip", StringComparison.OrdinalIgnoreCase))
-                await ExtractDatabaseAsync(selectedPath, stage, cancellationToken);
-            else
-                await CopyCheckedAsync(selectedPath, stage, cancellationToken);
-            await ValidateDatabaseAsync(stage, cancellationToken);
-            return stage;
-        }
-        catch
-        {
-            if (File.Exists(stage)) File.Delete(stage);
-            throw;
-        }
+        try { return await Task.Run(() => new RestoreEngine(Database.AppFolder).Prepare(selectedPath, cancellationToken), cancellationToken); }
         finally { OperationGate.Release(); }
     }
 
     public static async Task RestoreAsync(string selectedPath, CancellationToken cancellationToken = default)
     {
-        if (Network.NetworkConfiguration.Current.Mode == "terminal")
-            throw new InvalidOperationException("Restaure o backup no computador servidor.");
-        if (Network.NetworkDatabaseServer.Current != null)
-            throw new InvalidOperationException("Para restaurar com segurança, feche o PDV do servidor e dos terminais. Abra o servidor com o argumento --manutencao, restaure o backup e reinicie normalmente.");
-        if (!File.Exists(selectedPath)) throw new FileNotFoundException("Arquivo de backup não encontrado.", selectedPath);
-
+        if (Network.NetworkConfiguration.Current.Mode == "terminal" || Network.NetworkDatabaseServer.Current != null)
+            throw new InvalidOperationException("O servidor e os terminais precisam estar fechados para restaurar.");
         await OperationGate.WaitAsync(cancellationToken);
-        Directory.CreateDirectory(Database.BackupFolder);
-        var stagePath = Path.Combine(Database.AppFolder, $"restore_{Guid.NewGuid():N}.db");
         try
         {
-            if (Path.GetExtension(selectedPath).Equals(".zip", StringComparison.OrdinalIgnoreCase))
-                await ExtractDatabaseAsync(selectedPath, stagePath, cancellationToken);
-            else
-                await CopyCheckedAsync(selectedPath, stagePath, cancellationToken);
-
-            await ValidateDatabaseAsync(stagePath, cancellationToken);
-
-            await CheckpointCurrentDatabaseAsync(cancellationToken);
-            SqliteConnection.ClearAllPools();
-            GC.Collect();
-            GC.WaitForPendingFinalizers();
-            DeleteWalSidecars();
-
-            var safetyCopy = Path.Combine(Database.BackupFolder, $"ANTES_RESTAURACAO_{DateTime.Now:yyyyMMdd_HHmmss}.db");
-            if (File.Exists(Database.DbPath))
-                File.Replace(stagePath, Database.DbPath, safetyCopy, true);
-            else
-                File.Move(stagePath, Database.DbPath);
+            await Task.Run(() => new RestoreEngine(Database.AppFolder).RestorePrepared(selectedPath, cancellationToken), cancellationToken);
         }
-        finally
-        {
-            if (File.Exists(stagePath)) File.Delete(stagePath);
-            OperationGate.Release();
-        }
-    }
-
-    private static async Task CheckpointCurrentDatabaseAsync(CancellationToken cancellationToken)
-    {
-        if (!File.Exists(Database.DbPath)) return;
-        await using var connection = Database.Open();
-        await using var command = connection.CreateCommand();
-        command.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-    private static async Task ExtractDatabaseAsync(string zipPath, string destination, CancellationToken cancellationToken)
-    {
-        using var archive = ZipFile.OpenRead(zipPath);
-        var candidates = archive.Entries
-            .Where(e => !string.IsNullOrEmpty(e.Name) &&
-                (Path.GetExtension(e.Name).Equals(".db", StringComparison.OrdinalIgnoreCase) ||
-                 Path.GetExtension(e.Name).Equals(".sqlite", StringComparison.OrdinalIgnoreCase)))
-            .ToList();
-        if (candidates.Count != 1)
-            throw new InvalidDataException("O ZIP deve conter exatamente um arquivo de banco de dados.");
-        if (candidates[0].Length <= 0 || candidates[0].Length > MaxRestoreBytes)
-            throw new InvalidDataException("O tamanho do banco de dados é inválido para restauração.");
-
-        await using var source = candidates[0].Open();
-        await using var target = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true);
-        await source.CopyToAsync(target, cancellationToken);
-        await target.FlushAsync(cancellationToken);
-    }
-
-    private static async Task CopyCheckedAsync(string source, string destination, CancellationToken cancellationToken)
-    {
-        var info = new FileInfo(source);
-        if (info.Length <= 0 || info.Length > MaxRestoreBytes)
-            throw new InvalidDataException("O tamanho do banco de dados é inválido para restauração.");
-        await using var input = new FileStream(source, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true);
-        await using var output = new FileStream(destination, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true);
-        await input.CopyToAsync(output, cancellationToken);
-        await output.FlushAsync(cancellationToken);
-    }
-
-    private static async Task ValidateDatabaseAsync(string path, CancellationToken cancellationToken)
-    {
-        var builder = new SqliteConnectionStringBuilder { DataSource = path, Mode = SqliteOpenMode.ReadOnly, Pooling = false };
-        await using var connection = new SqliteConnection(builder.ToString());
-        await connection.OpenAsync(cancellationToken);
-
-        await using (var integrity = connection.CreateCommand())
-        {
-            integrity.CommandText = "PRAGMA integrity_check;";
-            var result = Convert.ToString(await integrity.ExecuteScalarAsync(cancellationToken));
-            if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("O banco selecionado está corrompido: " + result);
-        }
-
-        await using var schema = connection.CreateCommand();
-        schema.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('settings','products','sales','sale_items','users')";
-        if (Convert.ToInt32(await schema.ExecuteScalarAsync(cancellationToken)) != 5)
-            throw new InvalidDataException("O arquivo não pertence ao LEAL INFO PDV ou está incompleto.");
-    }
-
-    private static void DeleteWalSidecars()
-    {
-        foreach (var suffix in new[] { "-wal", "-shm" })
-        {
-            var path = Database.DbPath + suffix;
-            if (File.Exists(path)) File.Delete(path);
-        }
+        finally { OperationGate.Release(); }
     }
 }

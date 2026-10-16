@@ -15,6 +15,22 @@ public sealed class NetworkDatabaseServer : IDisposable
 {
     private readonly TcpListener listener;
     private readonly ConcurrentDictionary<TcpClient, byte> clients = new();
+    private readonly object admission = new();
+    private bool restorePending;
+    public IDisposable BlockForRestore()
+    {
+        lock (admission)
+        {
+            if (restorePending || !clients.IsEmpty)
+                throw new InvalidOperationException("Existem terminais conectados. Feche o PDV em todos os terminais antes de restaurar.");
+            restorePending = true;
+            return new RestoreAdmission(this);
+        }
+    }
+    private sealed class RestoreAdmission(NetworkDatabaseServer server) : IDisposable
+    {
+        public void Dispose() { lock (server.admission) server.restorePending = false; }
+    }
     private readonly CancellationTokenSource stopping = new();
     private readonly X509Certificate2 certificate;
     private readonly NetworkConfiguration configuration;
@@ -58,8 +74,11 @@ public sealed class NetworkDatabaseServer : IDisposable
             try
             {
                 var client = await listener.AcceptTcpClientAsync(stopping.Token);
-                if (clients.Count >= 64) { client.Dispose(); continue; }
-                clients.TryAdd(client, 0);
+                lock (admission)
+                {
+                    if (restorePending || clients.Count >= 64) { client.Dispose(); continue; }
+                    clients.TryAdd(client, 0);
+                }
                 _ = Task.Run(() => Handle(client));
             }
             catch (OperationCanceledException) { break; }
