@@ -3644,7 +3644,7 @@ private void ApplyFloatingTheme(Form f)
     private async Task RestoreBackupAsync()
     {
         if (restoreInProgress) return;
-        if (Application.OpenForms.Cast<Form>().Any(f => f.Name == "SalesForm" || f.Text.Contains("TELA DE VENDAS")))
+        if (Application.OpenForms.Cast<Form>().Any(f => f.Name == "SalesForm" || f.Text.Contains("TELA DE VENDA")))
         { MessageBox.Show("Feche a tela de vendas antes de restaurar o backup.", "Restauração bloqueada"); return; }
         if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode restaurar backups.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         using var dialog = new OpenFileDialog

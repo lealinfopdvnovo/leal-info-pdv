@@ -23,9 +23,7 @@ internal static class Entry
             ClientIdentity.Validate(data, ClientIdentity.LocalSerial());
             if (Process.GetProcessesByName("LealInfoPDV").Any())
                 throw new InvalidOperationException("Feche o PDV no servidor e nos terminais antes de ativar a proteção.");
-            using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("LealInfoProtecao001.plan.json")
-                ?? throw new InvalidDataException("Plano de atualização ausente. Esta compilação não pode proteger o cliente.");
-            var plan = JsonSerializer.Deserialize<BridgePlan>(stream) ?? throw new InvalidDataException("Plano inválido.");
+            var plan = EmbeddedPlan.Load();
             var root = RecoveryCore.DefaultRoot;
             Directory.CreateDirectory(root);
             var security = new DirectorySecurity(); security.SetAccessRuleProtection(true, false);

@@ -94,13 +94,17 @@ internal static class WindowsFlow
                 var salesOpened = false;
                 timer.Tick += (_, _) =>
                 {
-                    var sales = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f.Text.Contains("TELA DE VENDAS"));
+                    var sales = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f.Text.Contains("TELA DE VENDA"));
                     if (sales == null) return;
                     salesOpened = true;
-                    using var bitmap = new System.Drawing.Bitmap(sales.Width, sales.Height);
-                    sales.DrawToBitmap(bitmap, new System.Drawing.Rectangle(0, 0, sales.Width, sales.Height));
-                    Directory.CreateDirectory("restore-evidence"); bitmap.Save("restore-evidence/pdv-sales-after-restore.png");
-                    timer.Stop(); sales.Close();
+                    try
+                    {
+                        using var bitmap = new System.Drawing.Bitmap(sales.Width, sales.Height);
+                        sales.DrawToBitmap(bitmap, new System.Drawing.Rectangle(0, 0, sales.Width, sales.Height));
+                        Directory.CreateDirectory("restore-evidence"); bitmap.Save("restore-evidence/pdv-sales-after-restore.png");
+                    }
+                    catch (Exception ex) { failure = ex; }
+                    finally { timer.Stop(); sales.Close(); }
                 };
                 timer.Start();
                 typeof(MainForm).GetMethod("OpenSales", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(main, null);

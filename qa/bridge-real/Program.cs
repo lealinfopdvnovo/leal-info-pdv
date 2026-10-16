@@ -46,6 +46,12 @@ void CheckOld(string app, BridgePlan plan)
 void Run(string name, Action test) { test(); results.Add(new { name, result = "PASS" }); Console.WriteLine("PASS " + name); }
 try
 {
+    if (args.Length == 2 && args[0] == "--service-binary")
+        Run("embedded-plan-present-and-pinned", () =>
+        {
+            var plan = EmbeddedPlan.Load();
+            Assert(plan.Version == "10.404" && plan.Previous.Count == 3 && plan.Target.Count == 3, "Embedded plan differs from approved candidate");
+        });
     Run("signed-client-001-identity-readonly", () =>
     {
         var data = Path.Combine(root, "identity"); Directory.CreateDirectory(data);
