@@ -35,6 +35,7 @@ internal static class InternalWorkspace
                 List(f, grid);
             else if (f.Tag is List<TextBox> fields && fields.Count > 0)
                 Editor(f, fields);
+            if (f.GetType().Name == "ProductRegistrationForm") ProductFields(f);
             Fit(f);
             foreach (var bar in Descendants(f).OfType<FlowLayoutPanel>().ToArray()) AdaptActions(bar);
             // Branded drawings, photos, document previews and the operational sales
@@ -60,6 +61,22 @@ internal static class InternalWorkspace
     }
 
     private static IEnumerable<Control> Descendants(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(Descendants(x)));
+    private static void ProductFields(Form f)
+    {
+        var options = Descendants(f).OfType<FlowLayoutPanel>().FirstOrDefault(p => p.Controls.OfType<CheckBox>().Any(c => c.Text == "Controlar estoque"));
+        if (options?.Parent is not TableLayoutPanel fields) return;
+        var profit = fields.Controls.OfType<Label>().FirstOrDefault(c => c.Text.Contains("LUCRO:", StringComparison.Ordinal));
+        if (profit == null) return;
+        // Labels/fields use two rows per group. Keep the approved controls but
+        // place options after the last field instead of on top of its inputs.
+        int last = fields.Controls.Cast<Control>().Where(c => c != options && c != profit).Max(c => fields.GetRow(c) + fields.GetRowSpan(c) - 1);
+        fields.RowCount = Math.Max(fields.RowCount, last + 3);
+        while (fields.RowStyles.Count < fields.RowCount) fields.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        fields.SetCellPosition(options, new TableLayoutPanelCellPosition(0, last + 1)); fields.SetColumnSpan(options, fields.ColumnCount);
+        fields.SetCellPosition(profit, new TableLayoutPanelCellPosition(0, last + 2)); fields.SetColumnSpan(profit, fields.ColumnCount);
+        fields.RowStyles[last + 1].SizeType = SizeType.AutoSize;
+        fields.RowStyles[last + 2].SizeType = SizeType.Absolute; fields.RowStyles[last + 2].Height = 48;
+    }
     private static bool CanReframe(Form f, DataGridView grid)
     {
         if (!grid.ReadOnly || grid.AllowUserToAddRows || grid.DataSource != null && grid.DataSource is not DataTable) return false;
