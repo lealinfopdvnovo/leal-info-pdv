@@ -56,7 +56,7 @@ internal static class Entry
 internal sealed class ProtectionService : ServiceBase
 {
     private readonly CancellationTokenSource stopping = new();
-    public ProtectionService() { ServiceName = RecoveryCore.ServiceName; }
+    public ProtectionService() { ServiceName = RecoveryCore.ServiceName; CanStop = true; }
     protected override void OnStart(string[] args)
     {
         _ = Task.Run(async () =>
@@ -64,7 +64,7 @@ internal sealed class ProtectionService : ServiceBase
             var core = new RecoveryCore(RecoveryCore.DefaultRoot);
             while (!stopping.IsCancellationRequested)
             {
-                try { core.Tick(StopWriters); }
+                try { core.Tick(StopWriters); core.RecoverInterruptedRestore(); }
                 catch (Exception ex)
                 {
                     File.AppendAllText(Path.Combine(RecoveryCore.DefaultRoot, "recovery-errors.log"), DateTimeOffset.UtcNow + " " + ex + Environment.NewLine);

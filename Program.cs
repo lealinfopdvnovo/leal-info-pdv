@@ -81,6 +81,12 @@ internal static class Program
             processOwnership = new RestoreEngine(Database.AppFolder).AcquireOwnership();
             if (new RestoreEngine(Database.AppFolder).Recover())
                 MessageBox.Show("Uma restauração foi interrompida. O banco anterior foi recuperado e verificado. Tente a restauração novamente quando desejar.", "Recuperação do PDV", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            var recoveredNotice = Path.Combine(Database.AppFolder, "restore-recovered.notice");
+            if (File.Exists(recoveredNotice))
+            {
+                MessageBox.Show("Uma restauração foi interrompida. A proteção recuperou e verificou o banco anterior automaticamente.", "Recuperação do PDV", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                File.Delete(recoveredNotice);
+            }
             if (Network.NetworkConfiguration.Current.Mode != "terminal" && !Licensing.InstallationLicense.EnsureActivated()) return;
             if (Network.NetworkConfiguration.Current.Mode == "server" && !Licensing.InstallationLicense.HasNetwork)
                 throw new InvalidOperationException("Ative a licença do servidor antes de abrir o PDV em rede.");

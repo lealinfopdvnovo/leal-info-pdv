@@ -17,6 +17,11 @@ if (args.Length == 3 && args[0] == "--ready")
     File.WriteAllText(Path.Combine(args[1], "update-ready-" + args[2] + ".json"), JsonSerializer.Serialize(new StartupReceipt(args[2], Environment.ProcessId, self.StartTime.ToUniversalTime().Ticks, "10.404")));
     Thread.Sleep(20000); return;
 }
+if (args.Length == 3 && args[0] == "--crash-db")
+{
+    var engine = new LealInfoPDV.RestoreEngine(args[1], point => { if (point == "after-replace") { Process.GetCurrentProcess().Kill(); Environment.Exit(92); } });
+    using var owner = engine.AcquireOwnership(); engine.RestorePrepared(args[2]); throw new Exception("Database crash injection missed");
+}
 var root = Path.Combine(Path.GetTempPath(), "bridge-real-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(root);
 var results = new List<object>();
 (string app, RecoveryCore core, BridgePlan plan) Fixture(string name)
@@ -148,6 +153,7 @@ try
             ServiceProvisioner.Install(binary);
             using var service = new ServiceController(RecoveryCore.ServiceName);
             Assert(service.Status == ServiceControllerStatus.Running, "SCM did not start protection");
+            Console.WriteLine("PASS service-installed-and-running");
             using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\" + RecoveryCore.ServiceName))
                 Assert(Convert.ToInt32(key!.GetValue("Start")) == 2, "Service not configured for Windows startup");
             // Keep a real matching legacy writer alive; recovery must stop it first.
@@ -160,6 +166,7 @@ try
             var timer = Stopwatch.StartNew();
             while (timer.Elapsed < TimeSpan.FromSeconds(35) && core.Read().Phase != "Recovered") Thread.Sleep(250);
             Assert(core.Read().Phase == "Recovered", "Real service did not recover"); Assert(writer.WaitForExit(5000), "Legacy writer still running"); CheckOld(app, plan);
+            Console.WriteLine("PASS service-stopped-legacy-writer-and-restored-three-files");
             // Abrupt service termination: SCM recovery must start a new worker.
             using var worker = Process.GetProcessesByName("LealInfoProtecao001").Single(x => x.MainModule!.FileName == binary);
             var oldPid = worker.Id; worker.Kill(); worker.WaitForExit();
@@ -172,17 +179,42 @@ try
                 if (restarted) break; Thread.Sleep(250);
             }
             Assert(restarted, "SCM failed to recover the worker");
+            service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(20));
+            Console.WriteLine("PASS scm-restarted-killed-protection-worker");
             service.Refresh(); service.Stop(); service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(20));
             File.WriteAllText(Path.Combine(app, "LealInfoPDV.dll"), "PARTIAL-AFTER-RESTART");
             core.Save(core.Read() with { Phase = "Applying", ChangedUtc = DateTimeOffset.UtcNow.AddMinutes(-4) });
             service.Start(); service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(20));
             timer.Restart(); while (timer.Elapsed < TimeSpan.FromSeconds(25) && core.Read().Phase != "Recovered") Thread.Sleep(250);
             Assert(core.Read().Phase == "Recovered", "Pending update not recovered after service restart"); CheckOld(app, plan);
+            Console.WriteLine("PASS service-recovered-pending-transition-after-restart");
+            var data = core.Read().Data; Directory.CreateDirectory(data);
+            void Sql(string path, string sql)
+            {
+                using var c = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"); c.Open();
+                using var cmd = c.CreateCommand(); cmd.CommandText = sql; cmd.ExecuteNonQuery();
+            }
+            var live = Path.Combine(data, "lealinfo.db");
+            Sql(live, "CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT); CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT); CREATE TABLE users(id INTEGER PRIMARY KEY); CREATE TABLE sales(id INTEGER PRIMARY KEY); CREATE TABLE sale_items(id INTEGER PRIMARY KEY); INSERT INTO products VALUES(1,'ORIGINAL'); INSERT INTO settings VALUES('client_update_id','001');");
+            var source = Path.Combine(data, "source.db"); File.Copy(live, source);
+            Sql(source, "UPDATE products SET name='RESTORED'");
+            var engine = new LealInfoPDV.RestoreEngine(data); var stage = engine.Prepare(source);
+            var crash = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
+            foreach (var a in new[] { "--crash-db", data, stage }) crash.ArgumentList.Add(a);
+            using var dbChild = Process.Start(crash)!; Assert(dbChild.WaitForExit(15000) && dbChild.ExitCode != 0, "Maintenance crash did not occur");
+            timer.Restart(); while (timer.Elapsed < TimeSpan.FromSeconds(20) && !File.Exists(Path.Combine(data, "restore-recovered.notice"))) Thread.Sleep(250);
+            Assert(File.Exists(Path.Combine(data, "restore-recovered.notice")), "Service did not automatically recover interrupted database");
+            using (var c = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={live};Mode=ReadOnly;Pooling=False"))
+            { c.Open(); using var cmd = c.CreateCommand(); cmd.CommandText = "SELECT name FROM products WHERE id=1"; Assert(Convert.ToString(cmd.ExecuteScalar()) == "ORIGINAL", "Automatic database recovery lost original"); }
+            Console.WriteLine("PASS service-automatically-recovered-killed-restore-process");
         }
         finally
         {
             using var service = new ServiceController(RecoveryCore.ServiceName);
-            service.Refresh(); if (service.Status != ServiceControllerStatus.Stopped) { service.Stop(); service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(20)); }
+            service.Refresh();
+            if (service.Status == ServiceControllerStatus.StartPending) service.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(20));
+            service.Refresh();
+            if (service.Status != ServiceControllerStatus.Stopped) { service.Stop(); service.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(20)); }
             ServiceProvisioner.Command("sc.exe", "delete", RecoveryCore.ServiceName);
         }
     });

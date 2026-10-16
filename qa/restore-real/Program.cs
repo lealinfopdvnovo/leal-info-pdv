@@ -137,6 +137,8 @@ try
         Assert(Value(Path.Combine(p, "lealinfo.db"), "SELECT value FROM settings WHERE key='smtp_host'") == "CURRENT", "SMTP settings replaced");
         Assert(license == Hash(Path.Combine(p, "network.license")) && config == Hash(Path.Combine(p, "network.config")), "External protected files changed");
     });
+    Run("real-process-handoff-and-automatic-restart", WindowsFlow.AutomaticRestart);
+    Run("real-pdv-ui-after-restoration", WindowsFlow.MainFormAfterRestore);
 }
 finally
 {

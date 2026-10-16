@@ -61,6 +61,21 @@ public sealed class RecoveryCore(string root, Action<string>? checkpoint = null)
     }
     public bool TargetMatches(BridgeState state) => Matches(state.App, state.Plan.Target);
     public string ReceiptPath(BridgeState state) => Path.Combine(state.Data, "update-ready-" + state.Nonce + ".json");
+    public bool RecoverInterruptedRestore()
+    {
+        var state = Read();
+        if (!File.Exists(Path.Combine(state.Data, "restore-journal.json"))) return false;
+        var engine = new LealInfoPDV.RestoreEngine(state.Data);
+        IDisposable ownership;
+        try { ownership = engine.AcquireOwnership(); }
+        catch (InvalidOperationException) { return false; } // Operational/maintenance process is still alive.
+        using (ownership)
+        {
+            if (!engine.Recover()) return false;
+            File.WriteAllText(Path.Combine(state.Data, "restore-recovered.notice"), DateTimeOffset.UtcNow.ToString("O"));
+            return true;
+        }
+    }
     public bool HasRealStartup(BridgeState state)
     {
         if (!TargetMatches(state)) return false;
