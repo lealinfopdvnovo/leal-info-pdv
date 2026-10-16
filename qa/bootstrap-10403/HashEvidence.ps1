@@ -11,10 +11,10 @@ $type=Add-Type -TypeDefinition $code -PassThru
 $file=Join-Path $env:RUNNER_TEMP ('hash-fixture-'+$Client+'.zip')
 [IO.File]::WriteAllBytes($file,[byte[]](1,2,3,4))
 $expected=(Get-FileHash $file).Hash
-$type.GetMethod('Check').Invoke($null,@($file,$expected))
+$type.GetMethod('Check').Invoke($null,[object[]]@([string]$file,[string]$expected))
 [IO.File]::WriteAllBytes($file,[byte[]](1,2,3,5))
 $rejected=$false
-try{$type.GetMethod('Check').Invoke($null,@($file,$expected))}catch{if($_.Exception.InnerException -is [IO.InvalidDataException] -or $_.Exception.ToString().Contains('InvalidDataException')){$rejected=$true}else{throw}}
+try{$type.GetMethod('Check').Invoke($null,[object[]]@([string]$file,[string]$expected))}catch{if($_.Exception.InnerException -is [IO.InvalidDataException] -or $_.Exception.ToString().Contains('InvalidDataException')){$rejected=$true}else{throw}}
 if(!$rejected){throw 'Corruption not rejected'}
 @{client=$Client;source=$source;classification='unit: exact C# hash guard, local corrupted download fixture, no network';validAccepted=$true;corruptedRejected=$true} | ConvertTo-Json | Set-Content "qa/bootstrap-10403/evidence/hash-$Client.json"
 Write-Host "PASS exact hash guard $Client; corrupted bytes rejected before application"
