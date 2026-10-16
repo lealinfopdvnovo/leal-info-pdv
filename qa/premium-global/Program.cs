@@ -2,6 +2,7 @@ using LealInfoPDV;
 using System.Diagnostics;
 using System.Reflection;
 using System.Text.Json;
+using System.ComponentModel;
 
 internal static class Program
 {
@@ -19,6 +20,25 @@ internal static class Program
         image.Save(Path.Combine("premium-evidence", name + ".png"));
     }
 
+    private static void Preview(Form form, string name)
+    {
+        // Only suppress startup side effects in this disposable presentation fixture:
+        // company onboarding, speech and automatic network update checks are not visual tests.
+        var events = (EventHandlerList)typeof(Component).GetProperty("Events", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
+        var key = typeof(Form).GetFields(BindingFlags.Static | BindingFlags.NonPublic)
+            .Single(f => f.Name.Contains("Shown", StringComparison.OrdinalIgnoreCase)).GetValue(null)!;
+        var shown = events[key];
+        events.RemoveHandler(key, shown);
+        try
+        {
+            form.Show(); Application.DoEvents();
+            Check(form.Visible && All(form).Any(c => c.Visible && c != form), "Preview has no visible content: " + name);
+            Capture(form, name);
+            form.Hide();
+        }
+        finally { events.AddHandler(key, shown); }
+    }
+
     [STAThread]
     private static void Main()
     {
@@ -28,18 +48,24 @@ internal static class Program
         Theme.GetMethod("Install", Hidden)!.Invoke(null, null);
         Directory.CreateDirectory("premium-evidence");
         Database.Initialize();
+        using (var connection = Database.Open())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "INSERT INTO products(name,price,stock) VALUES('PRODUTO QA VISUAL',17.25,12); INSERT INTO customers(name) VALUES('CLIENTE QA'); INSERT INTO suppliers(name) VALUES('FORNECEDOR QA');";
+            command.ExecuteNonQuery();
+        }
         Auth.CreateUser("QA VISUAL", "visual-qa", "isolated-only", "ADMINISTRADOR", "", "");
         Check(Auth.Login("visual-qa", "isolated-only") != null, "Fixture login failed");
         Invariants();
         using var main = new MainForm();
         main.CreateControl();
         Apply(main);
-        Capture(main, "principal");
+        Preview(main, "principal");
         foreach (var method in new[] { "OpenSales", "OpenProducts", "OpenCustomers", "OpenSuppliers", "OpenFinance", "OpenReports", "OpenHistory", "OpenSettings", "OpenUsers", "OpenServices", "OpenOrders", "OpenQuotes", "OpenKitchen", "OpenDeliveries", "OpenGlassWorkshop" })
             Module(main, method);
-        using (var login = new LoginForm()) { login.CreateControl(); Capture(login, "login"); }
-        using (var equipment = new EquipmentSettingsForm()) { equipment.CreateControl(); Capture(equipment, "equipamentos"); }
-        using (var network = new LealInfoPDV.Network.NetworkSettingsForm()) { network.CreateControl(); Capture(network, "rede"); }
+        using (var login = new LoginForm()) { Preview(login, "login"); }
+        using (var equipment = new EquipmentSettingsForm()) { Preview(equipment, "equipamentos"); }
+        using (var network = new LealInfoPDV.Network.NetworkSettingsForm()) { Preview(network, "rede"); }
         File.WriteAllText("premium-evidence/results.json", JsonSerializer.Serialize(Evidence, new JsonSerializerOptions { WriteIndented = true }));
         Console.WriteLine("PASS global-premium-ui Windows; screenshots and invariant evidence saved");
     }
