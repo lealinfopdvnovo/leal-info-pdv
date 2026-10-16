@@ -28,3 +28,15 @@ jobs:
           $project=Get-ChildItem qa/${{ matrix.suite }}/*.csproj | Select-Object -First 1
           dotnet run --project $project.FullName -c Release
           if($LASTEXITCODE -ne 0){throw '003 regression failed'}
+
+  identity:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - shell: pwsh
+        run: |
+          dotnet run --project qa/angra-identity/IdentityTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'identity/configuration restart failed'}
