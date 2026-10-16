@@ -16,7 +16,8 @@ public class MeasureFlowInstrumentation extends Instrumentation {
  @Override public void onStart(){Bundle report=new Bundle();try{
   a=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));waitForIdleSync();
   String phase=args==null?"create":args.getString("phase","create");
-  if(phase.startsWith("sync")){SyncFlow.run(this,phase);
+  if(phase.startsWith("cep")){CepFlow.run(this,phase);
+  }else if(phase.startsWith("sync")){SyncFlow.run(this,phase);
   }else if("interiors".equals(phase)){InteriorFlow.run(this);
   }else if("verify".equals(phase)){
    check(a.store.list("projects").length()>=1,"new process restored project list");JSONObject p=a.store.list("projects").getJSONObject(a.store.list("projects").length()-1);ui(()->a.setCurrent(p));check("Dona Maria".equals(p.optString("title")),"project title persisted");check("Dona Maria Cliente".equals(a.requireClient(p).optString("name")),"selected real local client UUID persisted");check(a.measure(p,"Largura").compareTo(new BigDecimal("1200"))==0,"canonical width preserved");check(a.total(p).toPlainString().equals("132.00"),"same budget total after new process");check(p.getJSONObject("contract").getJSONArray("revisions").length()==1,"contract revision preserved");check(a.calculateCut(p).rejectedQuantity()==0&&a.calculateCut(p).used().compareTo(new BigDecimal("1.2"))==0,"cut pieces and canonical geometry restored in new process");check(p.getJSONObject("contract").getString("text").contains("Prazo informado"),"edited contract persisted");check(a.store.list("materials").length()==1&&a.store.list("suppliers").length()==1,"local catalog drafts persisted");check(!a.store.data.has("cash_movements")&&!a.store.data.has("stock_movements"),"no parallel finance or stock created");
