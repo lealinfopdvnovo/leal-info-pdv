@@ -22,6 +22,14 @@ internal static class Program
 
     private static void Preview(Form form, string name)
     {
+        if (form is LoginForm)
+        {
+            form.Show();
+            var animation = Stopwatch.StartNew();
+            while (animation.Elapsed < TimeSpan.FromSeconds(3)) { Application.DoEvents(); Thread.Sleep(10); }
+            Check(form.Opacity == 1, "Login animation did not finish");
+            Capture(form, name); form.Hide(); return;
+        }
         // Only suppress startup side effects in this disposable presentation fixture:
         // company onboarding, speech and automatic network update checks are not visual tests.
         var events = (EventHandlerList)typeof(Component).GetProperty("Events", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(form)!;
@@ -91,6 +99,16 @@ internal static class Program
         Check(ReferenceEquals(picture.Image, qr) && ReferenceEquals(form.AcceptButton, button), "Image or keyboard action changed");
         typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(button, [EventArgs.Empty]);
         Check(clicks == 1 && button.DialogResult == DialogResult.OK, "Click action changed");
+        using (var dynamicForm = new Form())
+        {
+            dynamicForm.Show(); Apply(dynamicForm);
+            var added = new TextBox { Text = "DYNAMIC VALUE", TabIndex = 7 };
+            dynamicForm.Controls.Add(added);
+            Application.DoEvents();
+            Check(added.BackColor.R < 50 && added.ForeColor.GetBrightness() > .6 && added.Text == "DYNAMIC VALUE" && added.TabIndex == 7,
+                "Dynamically added fields lost theme or behavior");
+            dynamicForm.Hide();
+        }
         foreach (float scale in new[] { 1f, 1.25f, 1.5f })
         {
             using var scaled = new Form { Size = new Size(800, 500) };
