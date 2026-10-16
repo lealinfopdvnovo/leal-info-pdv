@@ -28,7 +28,16 @@ internal static class Program
             var animation = Stopwatch.StartNew();
             while (animation.Elapsed < TimeSpan.FromSeconds(3)) { Application.DoEvents(); Thread.Sleep(10); }
             Check(form.Opacity == 1, "Login animation did not finish");
-            Capture(form, name); form.Hide(); return;
+            Capture(form, name);
+            // DrawToBitmap reverses sibling composition for the translucent login
+            // layers. Preserve a real desktop capture as the visual reference too.
+            using (var desktop = new Bitmap(form.Width, form.Height))
+            using (var graphics = Graphics.FromImage(desktop))
+            {
+                graphics.CopyFromScreen(form.Location, Point.Empty, desktop.Size);
+                desktop.Save(Path.Combine("premium-evidence", name + "-desktop.png"));
+            }
+            form.Hide(); return;
         }
         // Only suppress startup side effects in this disposable presentation fixture:
         // company onboarding, speech and automatic network update checks are not visual tests.
