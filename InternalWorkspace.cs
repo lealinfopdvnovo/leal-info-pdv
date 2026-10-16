@@ -41,6 +41,15 @@ internal static class InternalWorkspace
             PremiumGlobalTheme.Apply(f);
         }
         finally { f.ResumeLayout(true); }
+        // The initial dock layout may still be using the footer's pre-layout
+        // width. A queued pass applies its final measured height before use.
+        var root = f.Controls.OfType<TableLayoutPanel>().FirstOrDefault(c => c.Name == "InternalWorkspaceRoot");
+        if (root != null)
+        {
+            void Finish() { if (!f.IsDisposed && !root.IsDisposed) root.PerformLayout(); }
+            if (f.IsHandleCreated) f.BeginInvoke((Action)Finish);
+            else f.Shown += (_, _) => Finish();
+        }
     }
 
     private static IEnumerable<Control> Descendants(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(Descendants(x)));
@@ -116,7 +125,7 @@ internal static class InternalWorkspace
         searchRow.Controls.Add(MakeLabel("BUSCAR", 9, true), 0, 0);
         var inputBox = new Panel { Dock = DockStyle.Fill, Padding = new Padding(10, 9, 10, 5), Margin = new Padding(0, 0, 8, 0), BackColor = Navy };
         var search = new TextBox { Name = "InternalListSearch", AccessibleName = "Buscar nesta lista", PlaceholderText = "Digite nome, código ou outro dado da lista…", Dock = DockStyle.Fill,
-            BorderStyle = BorderStyle.None, Font = new Font("Segoe UI", 11), TabIndex = 0 };
+            BorderStyle = BorderStyle.FixedSingle, Font = new Font("Segoe UI", 11), TabIndex = 0 };
         inputBox.Controls.Add(search); searchRow.Controls.Add(inputBox, 1, 0);
         var clear = new Button { Text = "LIMPAR", Dock = DockStyle.Fill, Margin = new Padding(0), AccessibleName = "Limpar busca" };
         clear.Click += (_, _) => { search.Clear(); search.Focus(); }; searchRow.Controls.Add(clear, 2, 0); root.Controls.Add(searchRow, 0, 2);

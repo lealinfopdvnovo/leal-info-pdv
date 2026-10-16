@@ -142,6 +142,10 @@ internal static class Program
     }
     private static void AssertActions(Form f)
     {
+        foreach(var bar in All(f).OfType<FlowLayoutPanel>().Where(b=>b.Parent?.Name=="InternalWorkspaceRoot")) {
+            var buttons=bar.Controls.OfType<Button>().ToArray();
+            if(buttons.Length>0)Check(bar.ClientSize.Height-buttons.Max(b=>b.Bottom)<=bar.Padding.Bottom+12,"Footer reserved unused space: "+f.Text);
+        }
         foreach(var button in All(f).OfType<Button>().Where(b=>b.Visible)) {
             bool scrollable=false;for(Control? parent=button.Parent;parent!=null&&parent!=f;parent=parent.Parent)if(parent is ScrollableControl sc && sc.AutoScroll)scrollable=true;
             if(scrollable)continue;
@@ -208,7 +212,7 @@ internal static class Program
                         input.Clear();Check(listing.Rows.Count==original.Length && listing.Rows.Cast<DataGridViewRow>().All(r=>r.Visible),"Clearing search lost rows");
                         Check(original.SelectMany(x=>x).SequenceEqual(listing.Rows.Cast<DataGridViewRow>().SelectMany(r=>r.Cells.Cast<DataGridViewCell>().Select(c=>Convert.ToString(c.Value)))),"Search changed data");
                         foreach(var size in new[]{new Size(1024,640),new Size(1366,768),new Size(1600,900),new Size(1920,1080)}) {
-                            form.Size=size;form.PerformLayout();Application.DoEvents();AssertActions(form);
+                            form.MaximumSize=new Size(4096,2304);form.Size=size;form.PerformLayout();Application.DoEvents();Check(form.Size==size,"Requested test size not applied");AssertActions(form);
                             Capture(form,method+"-"+size.Width);
                         }
                     }
