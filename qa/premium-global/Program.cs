@@ -99,6 +99,9 @@ internal static class Program
         };
         timer.Start();
         typeof(MainForm).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(main, null);
+        // Settings is intentionally modeless; run its real message loop too.
+        while (!seen && failure == null && watch.Elapsed < TimeSpan.FromSeconds(20))
+        { Application.DoEvents(); Thread.Sleep(10); }
         Check(seen, "Module did not open: " + method);
         if (failure != null) throw failure;
         Console.WriteLine("PASS " + method);
