@@ -3671,10 +3671,10 @@ private void ApplyFloatingTheme(Form f)
                 psi.ArgumentList.Add("--restaurar-automatico");
                 psi.ArgumentList.Add(stage);
                 psi.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                MessageBox.Show("O backup foi validado. O PDV será fechado para a restauração segura e reiniciado automaticamente.\n\nMantenha todos os terminais fechados.", "Restauração automática", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 if (System.Diagnostics.Process.Start(psi) == null)
                     throw new InvalidOperationException("Não foi possível iniciar o processo de recuperação.");
                 automaticBackupCompleted = true;
-                MessageBox.Show("O backup foi validado. O PDV será fechado para a restauração segura e reiniciado automaticamente.\n\nMantenha todos os terminais fechados.", "Restauração automática", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 Application.Exit();
             }
             catch
