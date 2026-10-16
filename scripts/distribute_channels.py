@@ -72,7 +72,7 @@ def plan():
   e['Package']=('LEAL_INFO_PDV_' if ch=='GLOBAL' else f'LEAL_INFO_PDV_{ch}_')+'V'+v.replace('.','_')+'_UPDATE.zip'
   e['Url']=f"https://github.com/{UPDATES}/releases/download/{e['Tag']}/{e['Package']}"
   check(ver(v)>ver(e['Baseline']['Version']),'Version did not advance '+ch)
- result={'Entries':entries,'Before':feeds,'RunId':os.environ['GITHUB_RUN_ID']}
+ result={'Entries':entries,'Before':feeds,'RunId':os.environ['GITHUB_RUN_ID'],'ControllerCommit':run('git','rev-parse','HEAD').strip()}
  write('release-plan.json',result)
  with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:f.write('matrix='+json.dumps({'include':[{'channel':e['Channel']} for e in entries]})+'\n')
  print('PASS independent source plan: '+','.join(e['Channel'] for e in entries))
@@ -94,6 +94,7 @@ def normalize_deps(path):
    if k.startswith('LealInfoPDV/'):del bag[k]
  return obj
 def prepare(ch):
+ check(run('git','rev-parse','HEAD').strip()==json.loads(Path('release-plan.json').read_text())['ControllerCommit'],'Controller changed after planning')
  e=entry(ch);run('git','clone','--no-checkout','https://github.com/'+SOURCE+'.git','candidate');run('git','checkout',e['SourceCommit'],cwd='candidate')
  src=Path('candidate');run('git','fetch','origin',e['BaselineSource'],cwd=src)
  changed=run('git','diff','--name-only',e['BaselineSource'],e['SourceCommit'],cwd=src).splitlines()
@@ -106,7 +107,7 @@ def prepare(ch):
   marker=' private static async Task DownloadAndApplyAsync('
   check(old[old.index(marker):].replace('\r\n','\n')==new[new.index(marker):].replace('\r\n','\n'),'Installer/apply path changed')
   oldproj=run('git','show',e['BaselineSource']+':LealInfoPDV.csproj',cwd=src)
-  strip=lambda s:re.sub(r'10\.\d+(?=\.)','10.VERSION',s).replace('\r\n','\n')
+  strip=lambda s:re.sub(r'(<(?:Version|AssemblyVersion|FileVersion)>)10\.\d+',r'\g<1>10.VERSION',s).replace('\r\n','\n')
   check(strip(oldproj)==strip((src/'LealInfoPDV.csproj').read_text()),'Dependencies/build settings changed')
   print('PASS all business/database/license/UI files byte-identical to channel baseline '+ch)
  else:
@@ -115,7 +116,7 @@ def prepare(ch):
  manager=src/'UpdateManager.cs';s=manager.read_text(encoding='utf-8-sig')
  check(f'DistributionChannel="{ch}"' in s,'Wrong compiled distribution identity')
  s=re.sub(r'CurrentVersion\s*=\s*"[\d.]+"',f'CurrentVersion="{e["Version"]}"',s);manager.write_text(s,encoding='utf-8')
- project=src/'LealInfoPDV.csproj';s=project.read_text(encoding='utf-8-sig');s=re.sub(r'10\.\d+(?=\.)',e['Version'],s);project.write_text(s,encoding='utf-8')
+ project=src/'LealInfoPDV.csproj';s=project.read_text(encoding='utf-8-sig');s=re.sub(r'(<(?:Version|AssemblyVersion|FileVersion)>)10\.\d+',lambda m:m[1]+e['Version'],s);project.write_text(s,encoding='utf-8')
  # Tests come from the reviewed controller; no store or activated profile is used.
  import shutil
  target=src/'qa/channel-isolation';target.mkdir(parents=True,exist_ok=True)
@@ -138,6 +139,7 @@ def package(ch):
  print('PASS tested three-file incremental package '+ch)
 def publish():
  plan=json.loads(Path('release-plan.json').read_text());check(str(plan['RunId'])==os.environ['GITHUB_RUN_ID'],'Wrong workflow plan')
+ check(run('git','rev-parse','HEAD').strip()==plan['ControllerCommit'],'Controller differs from Windows validation')
  before={ch:readfeed(ch) for ch in CHANNELS};check(all(before[ch]['sha']==plan['Before'][ch]['sha'] for ch in CHANNELS),'A channel changed during build; no feed written')
  entries=[];manifests={}
  for e in plan['Entries']:
@@ -149,7 +151,7 @@ def publish():
   with zipfile.ZipFile(package) as z:
    check(set(z.namelist())==FILES and len(z.namelist())==3,'Unexpected payload')
    for name in FILES:check(hashlib.sha256(z.read(name)).hexdigest()==evidence['TargetFiles'][name],'Package member changed')
-  m={'Version':e['Version'],'PackageUrl':e['Url'],'Sha256':evidence['PackageSha256'],'SourceCommit':e['SourceCommit'],'Mandatory':False,'Notes':'Correção da distribuição: canais independentes, sem substituição de personalizações pelo GLOBAL. Banco, licença, configurações e funções preservados. Atualização pelo próprio PDV.','DistributionRevision':os.environ['GITHUB_SHA'],'BuildRunId':os.environ['GITHUB_RUN_ID']}
+  m={'Version':e['Version'],'PackageUrl':e['Url'],'Sha256':evidence['PackageSha256'],'SourceCommit':e['SourceCommit'],'Mandatory':False,'Notes':'Correção da distribuição: canais independentes, sem substituição de personalizações pelo GLOBAL. Banco, licença, configurações e funções preservados. Atualização pelo próprio PDV.','DistributionRevision':plan['ControllerCommit'],'BuildRunId':os.environ['GITHUB_RUN_ID']}
   if ch!='GLOBAL':m['TargetClientCode']=ch
   else:m['Editions']=['STANDARD','PLUS','PRO']
   manifests[ch]=m;entries.append((e,package,m))

@@ -1,1 +1,1 @@
-Run Windows validation and publish distribution correction 10.407 to independent GLOBAL/001/002/003/004.
+Execute reviewed Windows 10.407 channel isolation with pinned publisher revision and version-preserving Windows target framework.
