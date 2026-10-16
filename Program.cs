@@ -21,6 +21,7 @@ internal static class Program
         Environment.SetEnvironmentVariable("WEBVIEW2_USER_DATA_FOLDER", webViewUserData);
 
         ApplicationConfiguration.Initialize();
+        InternalWorkspace.Install();
         Application.AddMessageFilter(new GlobalEscapeCloseFilter());
 
         try
