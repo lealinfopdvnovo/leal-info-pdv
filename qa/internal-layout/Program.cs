@@ -28,7 +28,7 @@ internal static class Program
         {
             form.Show();
             var animation = Stopwatch.StartNew();
-            while (animation.Elapsed < TimeSpan.FromSeconds(3)) { Application.DoEvents(); Thread.Sleep(10); }
+            while (animation.Elapsed < TimeSpan.FromSeconds(3) || form.Opacity < 1 && animation.Elapsed < TimeSpan.FromSeconds(10)) { Application.DoEvents(); Thread.Sleep(10); }
             Check(form.Opacity == 1, "Login animation did not finish");
             Capture(form, name);
             // DrawToBitmap reverses sibling composition for the translucent login
@@ -146,6 +146,7 @@ internal static class Program
             bool scrollable=false;for(Control? parent=button.Parent;parent!=null&&parent!=f;parent=parent.Parent)if(parent is ScrollableControl sc && sc.AutoScroll)scrollable=true;
             if(scrollable)continue;
             var box=f.RectangleToClient(button.RectangleToScreen(button.ClientRectangle));
+            Check(button.Parent!.ClientRectangle.Contains(button.Bounds),"Action clipped by its container: "+button.Text);
             Check(f.ClientRectangle.Contains(box),"Action clipped: "+f.Text+" / "+button.Text+" / "+box);
         }
     }
