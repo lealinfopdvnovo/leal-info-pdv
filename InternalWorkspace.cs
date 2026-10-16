@@ -30,7 +30,7 @@ internal static class InternalWorkspace
         {
             var grids = f.Controls.OfType<DataGridView>().Where(g => g.Dock == DockStyle.Fill).ToArray();
             var grid = grids.Length == 1 ? grids[0] : null;
-            if (grid != null && (grid.DataSource == null || grid.DataSource is DataTable) && f.Controls.Cast<Control>().All(c => c == grid || c.Dock is DockStyle.Top or DockStyle.Bottom))
+            if (grid != null && CanReframe(f, grid))
                 List(f, grid);
             else if (f.Tag is List<TextBox> fields && fields.Count > 0)
                 Editor(f, fields);
@@ -44,6 +44,17 @@ internal static class InternalWorkspace
     }
 
     private static IEnumerable<Control> Descendants(Control c) => c.Controls.Cast<Control>().SelectMany(x => new[] { x }.Concat(Descendants(x)));
+    private static bool CanReframe(Form f, DataGridView grid)
+    {
+        if (!grid.ReadOnly || grid.AllowUserToAddRows || grid.DataSource != null && grid.DataSource is not DataTable) return false;
+        if (f.Controls.OfType<FlowLayoutPanel>().Count(c => c.Dock == DockStyle.Bottom) > 1) return false;
+        // Specialized catalog filters, toolbars, images and editable grids stay in
+        // place; only the original simple list heading is replaced by the shell.
+        return f.Controls.Cast<Control>().All(c => c == grid ||
+            c is Label && c.Dock == DockStyle.Top ||
+            c is FlowLayoutPanel && c.Dock == DockStyle.Bottom && c.Controls.Cast<Control>().All(x => x is Button) ||
+            c.GetType() == typeof(Panel) && c.Dock == DockStyle.Top && c.Controls.Count > 0 && Descendants(c).All(x => x is Label));
+    }
     private static Color Navy => Color.FromArgb(5, 38, 72);
     private static Color Light => Color.FromArgb(226, 240, 250);
     private static Label MakeLabel(string text, float size = 10, bool bold = false) => new()

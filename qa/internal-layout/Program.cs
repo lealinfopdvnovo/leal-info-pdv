@@ -82,7 +82,7 @@ internal static class Program
         main.CreateControl();
         Apply(main);
         Preview(main, "principal");
-        foreach (var method in new[] { "ProductNew", "OpenSales", "OpenProducts", "OpenCustomers", "OpenSuppliers", "OpenFinance", "OpenReports", "OpenHistory", "OpenSettings", "OpenUsers", "OpenServices", "OpenOrders", "OpenQuotes", "OpenKitchen", "OpenDeliveries", "OpenGlassWorkshop" })
+        foreach (var method in new[] { "ProductNew", "SelectProductFromCatalog", "OpenSales", "OpenProducts", "OpenCustomers", "OpenSuppliers", "OpenFinance", "OpenReports", "OpenHistory", "OpenSettings", "OpenUsers", "OpenServices", "OpenOrders", "OpenQuotes", "OpenKitchen", "OpenDeliveries", "OpenGlassWorkshop" })
             Module(main, method);
         using (var login = new LoginForm()) { Preview(login, "login"); }
         using (var equipment = new EquipmentSettingsForm()) { Preview(equipment, "equipamentos"); }
@@ -196,6 +196,7 @@ internal static class Program
                 Capture(form, method);
                 Check(Screen.FromControl(form).WorkingArea.Contains(form.RectangleToScreen(form.ClientRectangle)),"Window client area outside work area: "+method);
                 if(method=="ProductNew")AssertActions(form);
+                if(method=="SelectProductFromCatalog")Check(All(form).OfType<TextBox>().Any(t=>t.Name!="InternalListSearch") && !All(form).Any(c=>c.Name=="InternalWorkspaceRoot"),"Original F5 catalog filters were replaced");
                 var root = All(form).FirstOrDefault(c=>c.Name=="InternalWorkspaceRoot");
                 if(root!=null) {
                     AssertActions(form);
