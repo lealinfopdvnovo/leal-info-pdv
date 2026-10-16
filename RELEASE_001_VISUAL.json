@@ -1,0 +1,10 @@
+{
+  "ClientCode": "001",
+  "Version": "10.405",
+  "SourceCommit": "febcbde2a682fe7020b3060bcf2da70c02aa4954",
+  "QaRunId": 38946867594,
+  "PackageSha256": "d40cdbefb66f932d44c851dd2b2159fcf02a14b26b322e91f391ab74c25f5321",
+  "Delivery": "existing-installed-updater",
+  "OwnerInstruction": "so quero atualizar no pdv ,resolva",
+  "ExternalRollbackRearmed": false
+}

@@ -1,10 +1,10 @@
-name: Publicar 001 10.404 - pacote Windows verificado
+name: Publicar 001 10.405 - pacote Windows verificado
 on:
   push:
     branches: ['client/001']
     paths-ignore: ['README.md']
 concurrency:
-  group: publicacao-segura-001-10404
+  group: publicacao-segura-001-10405
   cancel-in-progress: false
 permissions:
   contents: read
@@ -17,16 +17,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Conferir protecao local, QA aprovado e pacote exato sem recompilar
+      - name: Conferir QA visual Windows e pacote incremental exato sem recompilar
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python scripts/publicar_restauracao_001.py verify
+        run: python scripts/publicar_visual_001.py verify
       - name: Publicar pacote e manifesto exclusivo 001 com verificacao real
         env:
           GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
-        run: python scripts/publicar_restauracao_001.py publish
+        run: python scripts/publicar_visual_001.py publish
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: publicacao-001-10404-evidencias
+          name: publicacao-001-10405-evidencias
           path: publication-evidence/
