@@ -1,4 +1,4 @@
-name: ANGRA code pairing Windows and Android
+name: ANGRA workshop real Windows Android data exchange
 on:
   pull_request:
     branches: ['feature/app-vidraceiro-android-foundation']
@@ -8,6 +8,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: {channel: ['001', '003']}
+    env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -35,21 +36,22 @@ jobs:
         working-directory: candidate
         shell: pwsh
         run: |
-          dotnet run --project qa/angra-pairing/AngraPairingTests.csproj -c Release -- prepare '${{ matrix.channel }}' 2>&1 | Tee-Object windows-pairing.log
+          dotnet run --project qa/angra-sync/AngraSyncTests.csproj -c Release -- prepare '${{ matrix.channel }}' 2>&1 | Tee-Object windows-pairing.log
           if($LASTEXITCODE -ne 0){throw 'Windows pairing failed'}
       - uses: actions/upload-artifact@v4
-        with: {name: 'pair-${{ matrix.channel }}', path: candidate/pair-evidence/, retention-days: 1}
+        with: {name: 'sync-${{ matrix.channel }}', path: candidate/qa/angra-sync/evidence/, retention-days: 1}
   android:
     needs: windows
     strategy:
       fail-fast: false
       matrix: {channel: ['001', '003']}
+    env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-        with: {name: 'pair-${{ matrix.channel }}', path: pair-evidence}
+        with: {name: 'sync-${{ matrix.channel }}', path: qa/angra-sync/evidence}
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: android-actions/setup-android@v3
@@ -78,19 +80,20 @@ jobs:
           profile: pixel_2
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: python3 mobile/vidraceiro/tests/pairing_live.py
+          script: python3 mobile/vidraceiro/tests/sync_emulator.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: 'android-pairing-${{ matrix.channel }}'
+          name: 'android-sync-${{ matrix.channel }}'
           path: |
-            pair-evidence/proof-*
-            pair-evidence/android-results.txt
+            mobile/vidraceiro/sync-evidence/*
+            mobile/vidraceiro/sync-evidence/*.txt
             mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
   windows-verify:
     needs: android
     strategy:
       matrix: {channel: ['001', '003']}
+    env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -103,7 +106,7 @@ jobs:
       - uses: actions/checkout@v4
         with: {ref: '${{ env.SOURCE }}', path: candidate}
       - uses: actions/download-artifact@v4
-        with: {name: 'pair-${{ matrix.channel }}', path: candidate/pair-evidence}
+        with: {name: 'sync-${{ matrix.channel }}', path: candidate/qa/angra-sync/evidence}
       - uses: actions/setup-dotnet@v4
         with: {dotnet-version: '8.0.x'}
       - name: Existing prerequisites and real Windows revocation
@@ -116,5 +119,5 @@ jobs:
           ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
-          dotnet run --project qa/angra-pairing/AngraPairingTests.csproj -c Release -- verify 2>&1 | Tee-Object final-pairing.log
+          dotnet run --project qa/angra-sync/AngraSyncTests.csproj -c Release -- verify 2>&1 | Tee-Object final-pairing.log
           if($LASTEXITCODE -ne 0){throw 'Windows verification failed'}

@@ -10,10 +10,12 @@ identity=json.loads(shell('shell','run-as',pkg,'cat','files/sync-identity.json')
 aud='angra-sync-ci:'+identity['deviceId']
 req=urllib.request.Request(os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']+'&audience='+aud,headers={'Authorization':'Bearer '+os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
 with urllib.request.urlopen(req) as r:token=json.load(r)['value']
-req=urllib.request.Request('https://angra-vidros-gateway.classyglobe9.chatgpt.site/sync/ci-grant',data=json.dumps({'deviceId':identity['deviceId'],'publicKey':identity['publicKey'],'role':'app'}).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','User-Agent':'ANGRA-Sync-QA/1.0'})
+req=urllib.request.Request('https://angra-vidros-gateway.classyglobe9.chatgpt.site/sync/ci-grant',data=json.dumps({'deviceId':identity['deviceId'],'publicKey':identity['publicKey'],'role':'app','otherTenant':os.environ.get('ANGRA_QA_CHANNEL')=='003'}).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','User-Agent':'ANGRA-Sync-QA/1.0'})
 with urllib.request.urlopen(req) as r:
  grant=json.load(r)
- assert grant['tenant']=='test-'+os.environ['GITHUB_RUN_ID']
+ assert grant['tenant']=='test-'+os.environ['GITHUB_RUN_ID']+('-other' if os.environ.get('ANGRA_QA_CHANNEL')=='003' else '')
+shell('push','qa/angra-sync/evidence/sync-seed.json','/data/local/tmp/sync-seed.json')
+shell('shell','run-as',pkg,'cp','/data/local/tmp/sync-seed.json','files/sync-seed.json')
 phase('syncLive')
 shell('shell','am','force-stop',pkg)
 state=json.loads(shell('shell','run-as',pkg,'cat','files/pdv-sync-state.json'))
