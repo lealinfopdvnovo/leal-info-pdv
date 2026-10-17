@@ -7020,6 +7020,7 @@ private void ApplyFloatingTheme(Form f)
         };
 
         f.Shown += (_, _) => search.Focus();
+        using var angraSalesAlert = AngraSyncService.Current is { } sync && Network.NetworkConfiguration.Current.Mode!="terminal" ? new AngraProjectAlert(f,sync) : null;
         f.ShowDialog(this);
     }
 
