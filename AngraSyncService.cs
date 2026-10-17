@@ -9,6 +9,8 @@ internal sealed class AngraSyncService : IDisposable
  internal static AngraSyncService? Current{get;private set;}
  internal AngraSyncTransport Transport{get;}
  internal AngraSyncStore? Store{get;private set;}
+ internal AngraProjectNotifications? Notifications{get;private set;}
+ internal const int PollMilliseconds=5000;
  private readonly System.Threading.Timer timer;
  private readonly SemaphoreSlim gate=new(1,1);
  private bool enabled,disposed,authorized;
@@ -21,7 +23,8 @@ internal sealed class AngraSyncService : IDisposable
  internal AngraSyncService(AngraSyncTransport? transport=null,bool startTimer=true)
  {
   Transport=transport??new();Current=this;if(File.Exists(ConfigPath)){try{var config=JsonNode.Parse(ProtectedData.Unprotect(File.ReadAllBytes(ConfigPath),null,DataProtectionScope.CurrentUser))!;tenant=AngraProjectData.Text(config["tenant"]);enabled=config["enabled"]?.GetValue<bool>()==true;if(enabled&&tenant!=""&&NetworkConfiguration.Current.Mode!="terminal")Store=new AngraSyncStore(tenant);}catch{Status="Configuração protegida indisponível. Nenhum vínculo foi recriado.";}}
-  timer=new System.Threading.Timer(async _=>await Tick(),null,startTimer?TimeSpan.FromSeconds(2):Timeout.InfiniteTimeSpan,TimeSpan.FromSeconds(30));
+  if(Store!=null)Notify(()=>Notifications=new(Store));
+  timer=new System.Threading.Timer(async _=>await Tick(),null,startTimer?TimeSpan.FromSeconds(2):Timeout.InfiniteTimeSpan,TimeSpan.FromMilliseconds(PollMilliseconds));
  }
  private void SaveConfig(){Directory.CreateDirectory(Database.AppFolder);byte[] bytes=ProtectedData.Protect(Encoding.UTF8.GetBytes(new JsonObject{["tenant"]=tenant,["enabled"]=enabled}.ToJsonString()),null,DataProtectionScope.CurrentUser);string temporary=ConfigPath+".tmp";using(var file=new FileStream(temporary,FileMode.Create,FileAccess.Write,FileShare.None)){file.Write(bytes);file.Flush(true);}File.Move(temporary,ConfigPath,true);}
  internal async Task Connect()
@@ -32,13 +35,15 @@ internal sealed class AngraSyncService : IDisposable
  {
   if(disposed||!enabled||NetworkConfiguration.Current.Mode=="terminal"||!await gate.WaitAsync(0))return;
   try{
-   {var result=await Transport.Call("/sync/request-pdv",new(){["name"]=CompanyName()});AuthorizationUrl=AngraProjectData.Text(result["authorizationUrl"]);if(result["approved"]?.GetValue<bool>()!=true){Status="AGUARDANDO AUTORIZAÇÃO DO PROPRIETÁRIO";return;}string granted=AngraProjectData.Text(result["tenant"]);if(tenant!=""&&tenant!=granted)throw new InvalidOperationException("Vínculo de outra empresa recusado.");tenant=granted;SaveConfig();}
-   await Transport.Call("/sync/enable-workshop",new());authorized=true;Store??=new AngraSyncStore(tenant);string? cursor=null;JsonArray changes=ReadyChanges(Store.Prepare());do{var response=await Transport.Call("/sync/exchange",new(){["changes"]=changes,["cursor"]=cursor});var permission=await Transport.Call("/sync/status",new());if(permission["tenant"]?.ToString()!=tenant||permission["bindingOnly"]?.GetValue<bool>()==true)throw new InvalidOperationException("Sincronização ainda não autorizada.");Store.Apply(response);changes=new();cursor=AngraProjectData.Text(response["cursor"]);if(cursor=="null")cursor="";}while(cursor!=""&&!disposed);
-   await Photos();var links=Store.Links();int pending=links.Count(x=>x.Pending!=null),conflicts=links.Count(x=>x.Conflict!=null||x.Error!="");Status="PDV CONECTADO • "+CompanyName()+"\nÚltima sincronização: "+DateTime.Now.ToString("g")+"\nPendentes: "+pending+" • Revisões necessárias: "+conflicts+(photosPending>0?"\nFotos pendentes: "+photosPending:"");
-  }catch(Exception e){Status="OFFLINE / SINCRONIZAÇÃO PENDENTE\n"+e.Message+"\nDados e alterações pendentes preservados.";}finally{gate.Release();}
+   if(!authorized){var result=await Transport.Call("/sync/request-pdv",new(){["name"]=CompanyName()});AuthorizationUrl=AngraProjectData.Text(result["authorizationUrl"]);if(result["approved"]?.GetValue<bool>()!=true){Status="AGUARDANDO AUTORIZAÇÃO DO PROPRIETÁRIO";return;}string granted=AngraProjectData.Text(result["tenant"]);if(tenant!=""&&tenant!=granted)throw new InvalidOperationException("Vínculo de outra empresa recusado.");tenant=granted;SaveConfig();
+   await Transport.Call("/sync/enable-workshop",new());authorized=true;}Store??=new AngraSyncStore(tenant);Notify(()=>Notifications??=new(Store));var changes=ReadyChanges(Store.Prepare());Notify(()=>Notifications?.TrackNative(Store));await Exchange(changes);
+   await Photos();var receipts=ReadyChanges(Store.Prepare());Notify(()=>Notifications?.TrackNative(Store));if(receipts.Count>0)await Exchange(receipts);Notify(()=>Notifications?.Observe(Store));var links=Store.Links();int pending=links.Count(x=>x.Pending!=null),conflicts=links.Count(x=>x.Conflict!=null||x.Error!="");Status="PDV CONECTADO • "+CompanyName()+"\nÚltima sincronização: "+DateTime.Now.ToString("g")+"\nPendentes: "+pending+" • Revisões necessárias: "+conflicts+(photosPending>0?"\nFotos pendentes: "+photosPending:"");
+  }catch(Exception e){authorized=false;Status="OFFLINE / SINCRONIZAÇÃO PENDENTE\n"+e.Message+"\nDados e alterações pendentes preservados.";}finally{gate.Release();}
  }
+ private void Notify(Action action){try{action();}catch(Exception e)when(e is IOException or UnauthorizedAccessException or System.Text.Json.JsonException){System.Diagnostics.Trace.TraceError("Aviso Angra indisponível: "+e.Message);Notifications=null;}}
+ private async Task Exchange(JsonArray changes){string? cursor=null;do{var response=await Transport.Call("/sync/exchange",new(){["changes"]=changes,["cursor"]=cursor});var permission=await Transport.Call("/sync/status",new(){["includeLinkedDevices"]=false});if(permission["tenant"]?.ToString()!=tenant||permission["bindingOnly"]?.GetValue<bool>()==true)throw new InvalidOperationException("Sincronização ainda não autorizada.");Store!.Apply(response);changes=new();cursor=AngraProjectData.Text(response["cursor"]);if(cursor=="null")cursor="";}while(cursor!=""&&!disposed);}
  internal async Task<string> Ticket(){if(Store==null)throw new InvalidOperationException("Autorize primeiro este PDV no navegador.");var result=await Transport.Call("/sync/ticket",new(){["shortCode"]=true});return AngraProjectData.Text(result["code"]);}
- internal void UseTestTenant(string value){tenant=value;enabled=true;Store=new(value);}
+ internal void UseTestTenant(string value){tenant=value;enabled=true;Store=new(value);Notifications=new(Store);}
  private static string CompanyName(){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText="SELECT value FROM settings WHERE key='company_name'";string name=Convert.ToString(q.ExecuteScalar())??"";return (string.IsNullOrWhiteSpace(name)?"PDV":name)+" • "+Environment.MachineName;}
  internal static string PhotoPath(string projectId,string sha){if(!Guid.TryParse(projectId,out _)||!System.Text.RegularExpressions.Regex.IsMatch(sha,@"^[a-f0-9]{64}$"))throw new InvalidDataException("Identificação de anexo inválida.");string folder=Path.Combine(Database.AppFolder,"AngraAttachments",projectId);Directory.CreateDirectory(folder);return Path.Combine(folder,sha+".jpg");}
  // A project receipt is emitted only after its current photo is available and verified locally.
