@@ -1,0 +1,18 @@
+package br.com.lealinfo.vidraceiro;
+import android.util.Base64;import java.io.*;import java.net.*;import java.nio.charset.StandardCharsets;import java.security.*;import java.util.*;import org.json.*;
+/** Only structured integration. Reuses the existing device key; never calls image-generation routes. */
+final class SyncTransport {
+ static final String ORIGIN=SecureGateway.ENDPOINT;
+ interface Exchange {JSONObject call(String path,JSONObject body)throws Exception;byte[] download(String url)throws Exception;void upload(String url,byte[] bytes)throws Exception;}
+ static final Exchange HTTPS=new Exchange(){public JSONObject call(String p,JSONObject b)throws Exception{return request(p,b);}public byte[] download(String url)throws Exception{return binary(url,null);}public void upload(String url,byte[] bytes)throws Exception{binary(url,bytes);}};
+ static JSONObject register()throws Exception{return request("/device/register",new JSONObject().put("publicKey",SecureGateway.identity().getString("publicKey")),false);}
+ static JSONObject request(String path,JSONObject body)throws Exception{return request(path,body,true);}
+ static JSONObject request(String path,JSONObject body,boolean signed)throws Exception{
+  if(!path.startsWith("/sync/")&&!path.equals("/device/register"))throw new IOException("Rota de integração inválida.");
+  byte[] bytes=body.toString().getBytes(StandardCharsets.UTF_8);HttpURLConnection c=(HttpURLConnection)new URL(ORIGIN+path).openConnection();c.setInstanceFollowRedirects(false);c.setConnectTimeout(12000);c.setReadTimeout(30000);c.setRequestMethod("POST");c.setDoOutput(true);c.setFixedLengthStreamingMode(bytes.length);c.setRequestProperty("Content-Type","application/json");
+  if(signed){String stamp=String.valueOf(System.currentTimeMillis()),nonce=UUID.randomUUID().toString();c.setRequestProperty("X-Angra-Device",SecureGateway.identity().getString("deviceId"));c.setRequestProperty("X-Angra-Time",stamp);c.setRequestProperty("X-Angra-Nonce",nonce);c.setRequestProperty("X-Angra-Signature",SecureGateway.integrationSignature(path,stamp,nonce,bytes));}
+  try{try(OutputStream out=c.getOutputStream()){out.write(bytes);}int code=c.getResponseCode();InputStream stream=code==200?c.getInputStream():c.getErrorStream();if(stream==null)throw new IOException("Integração indisponível ("+code+").");byte[] response=read(stream,20000000);JSONObject result=new JSONObject(new String(response,StandardCharsets.UTF_8));if(code!=200)throw new IOException(result.optString("error","Integração indisponível ("+code+")."));return result;}finally{c.disconnect();}
+ }
+ static byte[] read(InputStream input,int max)throws Exception{try(InputStream in=input;ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buf=new byte[16384];int n;while((n=in.read(buf))!=-1){if(out.size()+n>max)throw new IOException("Resposta excede o limite seguro.");out.write(buf,0,n);}return out.toByteArray();}}
+ static byte[] binary(String raw,byte[] upload)throws Exception{URL url=new URL(raw),base=new URL(ORIGIN);if(!url.getProtocol().equals("https")||!url.getHost().equals(base.getHost())||!url.getPath().matches("/sync-file/[a-f0-9]{64}")||url.getQuery()!=null)throw new IOException("Endereço de anexo inválido.");HttpURLConnection c=(HttpURLConnection)url.openConnection();c.setInstanceFollowRedirects(false);c.setConnectTimeout(12000);c.setReadTimeout(30000);try{if(upload!=null){c.setRequestMethod("PUT");c.setDoOutput(true);c.setRequestProperty("Content-Type","image/jpeg");c.setFixedLengthStreamingMode(upload.length);try(OutputStream out=c.getOutputStream()){out.write(upload);}}if(c.getResponseCode()!=200)throw new IOException("Anexo pendente de transferência.");return read(c.getInputStream(),8000000);}finally{c.disconnect();}}
+}

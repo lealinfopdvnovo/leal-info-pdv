@@ -1,0 +1,152 @@
+name: ANGRA 0.3.6 explicit-send regression Android to PDV 10.415
+on:
+  pull_request:
+    branches: ['feature/app-vidraceiro-android-foundation']
+permissions: {contents: read, actions: read, id-token: write}
+jobs:
+  windows:
+    strategy:
+      fail-fast: false
+      matrix: {channel: ['001', '003']}
+    env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact candidate
+        shell: pwsh
+        run: |
+          $s=Get-Content qa/pairing-sources.json -Raw|ConvertFrom-Json
+          "SOURCE=$($s.'${{ matrix.channel }}')" >> $env:GITHUB_ENV
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.SOURCE }}', path: candidate}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Existing compilation prerequisites
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compile exact Windows candidate and generate real expiring code
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          dotnet run --project qa/angra-sync/AngraSyncTests.csproj -c Release -- prepare '${{ matrix.channel }}' 2>&1 | Tee-Object windows-pairing.log
+          if($LASTEXITCODE -ne 0){throw 'Windows pairing failed'}
+      - uses: actions/upload-artifact@v4
+        with: {name: 'sync-${{ matrix.channel }}', path: candidate/qa/angra-sync/evidence/, retention-days: 1}
+  android:
+    needs: windows
+    strategy:
+      fail-fast: false
+      matrix: {channel: ['001', '003']}
+    env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve approved Home, gateway and Windows source
+        shell: python
+        run: |
+          import subprocess
+          from pathlib import Path
+          base='49bbd78a396714143de56e2a8f044575f07893c9'
+          subprocess.run(['git','fetch','origin',base],check=True)
+          allowed={'mobile/vidraceiro/app/build.gradle','mobile/vidraceiro/app/src/main/java/br/com/lealinfo/vidraceiro/SyncCoordinator.java','mobile/vidraceiro/app/src/main/java/br/com/lealinfo/vidraceiro/MainActivity.java','mobile/vidraceiro/app/src/androidTest/java/br/com/lealinfo/vidraceiro/SyncFlow.java','.github/workflows/angra_sync_test.yml'}
+          changed=set(subprocess.check_output(['git','diff','--name-only',base,'HEAD']).decode().splitlines())
+          assert changed<=allowed,changed-allowed
+          p='mobile/vidraceiro/app/src/main/java/br/com/lealinfo/vidraceiro/MainActivity.java'
+          old=subprocess.check_output(['git','show',base+':'+p]).decode();new=Path(p).read_text()
+          assert old[old.index(' void home(){'):old.index(' void projects(')]==new[new.index(' void home(){'):new.index(' void projects(')]
+          print('PASS only explicit-send fix; Home, Windows, gateway, license and other modules unchanged')
+      - uses: actions/download-artifact@v4
+        with: {name: 'sync-${{ matrix.channel }}', path: qa/angra-sync/evidence}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+        with: {packages: 'platform-tools platforms;android-35 build-tools;35.0.0'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.9'}
+      - uses: actions/cache@v4
+        with: {path: ~/.android/debug.keystore, key: angra-professional-explicit-debug-signing-v2}
+      - name: Build preserving approved assets and home
+        working-directory: mobile/vidraceiro
+        run: |
+          test -f "$HOME/.android/debug.keystore"
+          gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee signature.txt
+          grep -q 2ee54920efe7042320f90814e45fd10997f9deb28e213ee92a8955b3e00ffac7 signature.txt
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+      - name: Existing approved Android 0.3.5 for direct update test
+        uses: actions/download-artifact@v4
+        with:
+          repository: lealinfopdvnovo/leal-info-pdv
+          run-id: 39044818612
+          name: android-sync-001
+          github-token: ${{ github.token }}
+          path: old-035
+      - name: Enable emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            python3 -c "from pathlib import Path;import hashlib,subprocess;f=next(Path('old-035').rglob('app-debug.apk'));assert hashlib.sha256(f.read_bytes()).hexdigest()=='60c0b2887836e8ecf6edc86b67c076f43a9e9930fcdc8dc7a77e88423826bb03';subprocess.run(['adb','install',str(f)],check=True)"
+            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 mkdir -p files
+            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 touch files/approved-035-marker
+            python3 mobile/vidraceiro/tests/sync_emulator.py
+            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 ls files/approved-035-marker
+            adb shell dumpsys package br.com.lealinfo.vidraceiro.profissional022 | grep versionName=0.3.6
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 'android-sync-${{ matrix.channel }}'
+          path: |
+            mobile/vidraceiro/sync-evidence/*
+            mobile/vidraceiro/sync-evidence/*.txt
+            mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
+  windows-verify:
+    needs: windows
+    strategy:
+      fail-fast: false
+      matrix: {channel: ['001', '003']}
+    env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read source
+        shell: pwsh
+        run: |
+          $s=Get-Content qa/pairing-sources.json -Raw|ConvertFrom-Json
+          "SOURCE=$($s.'${{ matrix.channel }}')" >> $env:GITHUB_ENV
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.SOURCE }}', path: candidate}
+      - uses: actions/download-artifact@v4
+        with: {name: 'sync-${{ matrix.channel }}', path: candidate/qa/angra-sync/evidence}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Existing prerequisites and real Windows revocation
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet run --project qa/angra-sync/AngraSyncTests.csproj -c Release -- verify 2>&1 | Tee-Object final-pairing.log
+          if($LASTEXITCODE -ne 0){throw 'Windows verification failed'}
