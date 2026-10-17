@@ -3,7 +3,7 @@ pkg='br.com.lealinfo.vidraceiro.profissional022'
 origin='https://angra-vidros-gateway.classyglobe9.chatgpt.site'
 def adb(*args):return subprocess.check_output(['adb',*args],stderr=subprocess.STDOUT).decode()
 def post(path,body,headers={}):
- req=urllib.request.Request(origin+path,data=json.dumps(body,separators=(',',':')).encode(),headers={'Content-Type':'application/json',**headers})
+ req=urllib.request.Request(origin+path,data=json.dumps(body,separators=(',',':')).encode(),headers={'Content-Type':'application/json','User-Agent':'ANGRA-Sync-QA/1.0',**headers})
  with urllib.request.urlopen(req,timeout=45) as r:return json.load(r)
 def identity(other):
  with tempfile.TemporaryDirectory() as directory:
@@ -12,7 +12,6 @@ def identity(other):
   public=subprocess.check_output(['openssl','pkey','-in',str(key),'-pubout','-outform','DER'])
   private=subprocess.check_output(['openssl','pkcs8','-topk8','-nocrypt','-in',str(key),'-outform','DER'])
   device=hashlib.sha256(public).hexdigest();pub=base64.b64encode(public).decode()
-  post('/device/register',{'publicKey':pub})
   req=urllib.request.Request(os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']+'&audience=angra-sync-ci:'+device,headers={'Authorization':'Bearer '+os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
   with urllib.request.urlopen(req) as r:token=json.load(r)['value']
   grant=post('/sync/ci-grant',{'deviceId':device,'publicKey':pub,'role':'pdv','otherTenant':other},{'Authorization':'Bearer '+token})
