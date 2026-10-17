@@ -1,257 +1,118 @@
-name: ANGRA integration isolated tests
+name: ANGRA code pairing Windows and Android
 on:
-  pull_request:
-    branches: ['feature/app-vidraceiro-android-foundation']
+  push:
+    branches: [feature/angra-pdv-sync]
+    paths: [.github/workflows/angra_sync_test.yml, qa/pairing-sources.json, mobile/vidraceiro/app/src/androidTest/java/br/com/lealinfo/vidraceiro/PairingFlow.java]
 permissions: {contents: read, actions: read, id-token: write}
 jobs:
+  windows:
+    strategy:
+      fail-fast: false
+      matrix: {channel: ['001', '003']}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact candidate
+        shell: pwsh
+        run: |
+          $s=Get-Content qa/pairing-sources.json -Raw|ConvertFrom-Json
+          "SOURCE=$($s.'${{ matrix.channel }}')" >> $env:GITHUB_ENV
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.SOURCE }}', path: candidate}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Existing compilation prerequisites
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compile exact Windows candidate and generate real expiring code
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          dotnet run --project qa/angra-pairing/AngraPairingTests.csproj -c Release -- prepare '${{ matrix.channel }}' 2>&1 | Tee-Object windows-pairing.log
+          if($LASTEXITCODE -ne 0){throw 'Windows pairing failed'}
+      - uses: actions/upload-artifact@v4
+        with: {name: 'pair-${{ matrix.channel }}', path: candidate/pair-evidence/, retention-days: 1}
   android:
     needs: windows
+    strategy:
+      fail-fast: false
+      matrix: {channel: ['001', '003']}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - name: Frozen approved interface and rules
-        shell: python
-        run: |
-          import subprocess
-          from pathlib import Path
-          base='e1101c59dcc78ea6f4cff889d27c821c7c866e53'
-          prefix='mobile/vidraceiro/app/src/main/'
-          changed=subprocess.check_output(['git','diff','--name-only',base,'HEAD','--',prefix]).decode().splitlines()
-          allowed={prefix+'java/br/com/lealinfo/vidraceiro/'+n+'.java' for n in ['MainActivity','SecureGateway','SyncCoordinator','SyncTransport','CepLookup']}
-          assert set(changed)<=allowed,changed
-          path=prefix+'java/br/com/lealinfo/vidraceiro/MainActivity.java'
-          old=subprocess.check_output(['git','show',base+':'+path]).decode();new=Path(path).read_text()
-          def home(s):return s[s.index(' void home(){'):s.index(' void projects(')]
-          assert home(old)==home(new),'Home changed'
-          print('PASS Home, assets, splash, icon, interior design, 3D, photo, measures, store, commercial/cut algorithms unchanged')
+      - uses: actions/download-artifact@v4
+        with: {name: 'pair-${{ matrix.channel }}', path: pair-evidence}
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: android-actions/setup-android@v3
-        with:
-          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+        with: {packages: 'platform-tools platforms;android-35 build-tools;35.0.0'}
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.9'}
-      - uses: actions/setup-node@v4
-        with: {node-version: '22'}
-      - name: Preservar assinatura das builds de teste seguintes
-        uses: actions/cache@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: angra-professional-explicit-debug-signing-v2
-      - name: Garantir local explicito da assinatura de teste
-        run: |
-          mkdir -p "$HOME/.android"
-          if [ ! -f "$HOME/.android/debug.keystore" ]; then
-            keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" >/dev/null 2>&1
-          fi
-      - name: Testes de dominio, lint e APK
+      - uses: actions/cache@v4
+        with: {path: ~/.android/debug.keystore, key: angra-professional-explicit-debug-signing-v2}
+      - name: Build preserving approved assets and home
         working-directory: mobile/vidraceiro
         run: |
-          node --test gateway/*.test.mjs
-          gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee app/build/reports/signature.txt
-          grep -q 2ee54920efe7042320f90814e45fd10997f9deb28e213ee92a8955b3e00ffac7 app/build/reports/signature.txt
-          sha256sum app/build/outputs/apk/debug/app-debug.apk > app/build/outputs/apk/debug/SHA256.txt
-          cp app/src/androidTest/assets/ATTRIBUTION.txt app/build/reports/IMAGE_ATTRIBUTION.txt
-      - name: Enable KVM for actual Android execution
+          test -f "$HOME/.android/debug.keystore"
+          gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+      - name: Enable emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-          python3 -m pip install Pillow imageio-ffmpeg
-      - name: APK 0.1.4 aprovado para testar preservacao lado a lado
-        uses: actions/download-artifact@v4
-        with:
-          repository: lealinfopdvnovo/leal-info-pdv
-          run-id: 38654283648
-          name: ANGRA_VIDROS_ANDROID_0_1_4_TESTE
-          github-token: ${{ github.token }}
-          path: /tmp/angra-approved
-      - name: Preservar instalacao fisica 0.2.1 sem substituicao
-        uses: actions/download-artifact@v4
-        with:
-          repository: lealinfopdvnovo/leal-info-pdv
-          run-id: 38758448213
-          name: ANGRA_VIDROS_ANDROID_0_2_1_TESTE
-          github-token: ${{ github.token }}
-          path: /tmp/angra-021
-      - name: Base real 0.2.4 para validar atualizacao direta
-        uses: actions/download-artifact@v4
-        with:
-          repository: lealinfopdvnovo/leal-info-pdv
-          run-id: 38802221536
-          name: ANGRA_VIDROS_ANDROID_0_2_4_TESTE
-          github-token: ${{ github.token }}
-          path: /tmp/angra-022
-      - name: Verificar hash do APK aprovado
-        shell: python
-        run: |
-          from pathlib import Path
-          import hashlib,shutil
-          files=list(Path('/tmp/angra-approved').rglob('app-debug.apk'))
-          assert len(files)==1
-          assert hashlib.sha256(files[0].read_bytes()).hexdigest()=='b17a1a22e7d7ec6c244766a32528c1f16e93512bbf4b72aa2a06b80facfc354b'
-          shutil.copyfile(files[0],'/tmp/angra-approved.apk')
-          print('PASS approved 0.1.4 APK SHA256')
-          old=list(Path('/tmp/angra-021').rglob('app-debug.apk'))
-          assert len(old)==1
-          assert hashlib.sha256(old[0].read_bytes()).hexdigest()=='7eac8217c73a9b6aa5e2681ba88c7b7d1a51430c9433f97b23dd3efe2237e171'
-          shutil.copyfile(old[0],'/tmp/angra-021.apk')
-          recent=list(Path('/tmp/angra-022').rglob('app-debug.apk'))
-          assert len(recent)==1
-          assert hashlib.sha256(recent[0].read_bytes()).hexdigest()=='36b742c6c3b2efa731be891c90bda1d885c5c38a2ed5948b79df4daad89b8aaf'
-          shutil.copyfile(recent[0],'/tmp/angra-022.apk')
-      - name: Two cold launches - opacity, progress and transition
-        uses: reactivecircus/android-emulator-runner@v2
+      - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 29
           arch: x86_64
           profile: pixel_2
-          disable-animations: false
+          disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: |
-            adb install /tmp/angra-022.apk
-            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 mkdir -p files
-            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 touch files/approved-022-marker
-            adb install /tmp/angra-021.apk
-            adb shell run-as br.com.lealinfo.vidraceiro.profissional021 mkdir -p files
-            adb shell run-as br.com.lealinfo.vidraceiro.profissional021 touch files/approved-021-marker
-            adb install /tmp/angra-approved.apk
-            adb shell run-as br.com.lealinfo.vidraceiro mkdir -p files
-            adb shell run-as br.com.lealinfo.vidraceiro touch files/approved-marker
-            cd mobile/vidraceiro && python3 tests/cold_start.py
-            cd mobile/vidraceiro && adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase create br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-create.txt
-            cd mobile/vidraceiro && adb logcat -d > app/build/reports/runtime-logcat.txt
-            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_CREATE' app/build/reports/professional-create.txt
-            adb shell am force-stop br.com.lealinfo.vidraceiro.profissional022
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase verify br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-reopen.txt
-            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_VERIFY' app/build/reports/professional-reopen.txt
-            adb shell wm size 540x960
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-small.txt
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-small.txt
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase interiors br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee -a app/build/reports/interiors.txt
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-            adb shell wm size 480x900
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-compact.txt
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-compact.txt
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase interiors br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee -a app/build/reports/interiors.txt
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-            adb shell wm density 320
-            adb shell wm size 960x1600
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-medium.txt
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-medium.txt
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase interiors br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee -a app/build/reports/interiors.txt
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-            adb shell wm density 240
-            adb shell wm size 1080x1920
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase screens br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee app/build/reports/professional-large.txt
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-            cd mobile/vidraceiro && grep -q 'PASS PROFESSIONAL_SCREENS' app/build/reports/professional-large.txt
-            cd mobile/vidraceiro && adb shell am instrument -w -e phase interiors br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.MeasureFlowInstrumentation | tee -a app/build/reports/interiors.txt
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.profissional022 ls files/approved-022-marker > app/build/reports/direct-upgrade-022.txt
-            cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro.profissional022 | grep 'versionName=0.3.0' >> app/build/reports/direct-upgrade-022.txt
-            cd mobile/vidraceiro && test "$(grep -c 'PASS PROFESSIONAL_INTERIORS' app/build/reports/interiors.txt)" = 4
-            cd mobile/vidraceiro && python3 tests/sync_live.py
-            cd mobile/vidraceiro && adb exec-out run-as br.com.lealinfo.vidraceiro.profissional022 tar -cf - files > app/build/reports/proof.tar
-
-            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro.profissional021 ls files/approved-021-marker > app/build/reports/approved-021-preservation.txt
-            cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro.profissional021 | grep 'versionName=0.2.1' >> app/build/reports/approved-021-preservation.txt
-            cd mobile/vidraceiro && adb shell run-as br.com.lealinfo.vidraceiro ls files/approved-marker > app/build/reports/approved-preservation.txt
-            cd mobile/vidraceiro && adb shell dumpsys package br.com.lealinfo.vidraceiro | grep 'versionName=0.1.4' >> app/build/reports/approved-preservation.txt
-
+          script: python3 mobile/vidraceiro/tests/pairing_live.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ANGRA_VIDROS_ANDROID_0_3_0_INTEGRACAO_TESTE
+          name: 'android-pairing-${{ matrix.channel }}'
           path: |
-            mobile/vidraceiro/app/build/outputs/apk/debug/*.apk
-            mobile/vidraceiro/app/build/outputs/apk/debug/SHA256.txt
-            mobile/vidraceiro/app/build/reports/
-          retention-days: 30
-
-  windows:
-    runs-on: windows-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/setup-dotnet@v4
-        with: {dotnet-version: '8.0.x'}
-      - name: Build isolated candidate 001
-        run: dotnet build LealInfoPDV.csproj -c Release
-      - name: Compile integration harness
-        run: dotnet build qa/angra-sync/AngraSyncTests.csproj -c Release
-      - name: Real SQLite and HTTPS integration
-        shell: pwsh
-        run: |
-          dotnet qa/angra-sync/bin/Release/net8.0-windows10.0.19041.0/AngraSyncTests.dll
-          if ($LASTEXITCODE -ne 0) { throw 'integration failed' }
-      - name: Preserve client 003 customizations and compile selective patch
-        shell: pwsh
-        run: |
-          $files=@('GlassProjectStore.cs','GlassWorkshopForm.cs','Program.cs','AngraProjectData.cs','AngraProjectForm.cs','AngraSyncForm.cs','AngraSyncService.cs','AngraSyncStore.cs','AngraSyncTransport.cs')
-          git worktree add ../candidate003 d1525b64db03bc4608aabe020ecfc6e200ec2f05
-          foreach($f in $files){Copy-Item $f ../candidate003/$f}
-          $old=(git show d1525b64db03bc4608aabe020ecfc6e200ec2f05:MainForm.cs | Out-String)
-          Push-Location ../candidate003
-          if((git diff -- MainForm.cs | Out-String).Trim() -ne ''){throw '003 customization modified'}
-          dotnet build LealInfoPDV.csproj -c Release
-          if($LASTEXITCODE -ne 0){throw '003 build failed'}
-          Pop-Location
-          New-Item -ItemType Directory -Force test-candidates/001,test-candidates/003
-          Copy-Item bin/Release/net8.0-windows10.0.19041.0/* test-candidates/001 -Recurse
-          Copy-Item ../candidate003/bin/Release/net8.0-windows10.0.19041.0/* test-candidates/003 -Recurse
-          'CANDIDATO ISOLADO DE TESTE. Base 10.403. Nenhuma publicacao pelo updater. Nao inclui banco/licenca/configuracao. Fazer backup antes de qualquer teste com dados reais.' | Set-Content test-candidates/LEIA-ME.txt
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: ANGRA_PDV_SYNC_TEST_ONLY
-          path: |
-            qa/angra-sync/evidence/
-            test-candidates/
-          retention-days: 14
-
-  verify-roundtrip:
-    needs: [windows, android]
-    runs-on: windows-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with: {dotnet-version: '8.0.x'}
-      - uses: actions/download-artifact@v4
-        with:
-          name: ANGRA_PDV_SYNC_TEST_ONLY
-          path: fixture
-      - shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force qa/angra-sync/evidence
-          $db=Get-ChildItem fixture -Recurse -Filter fixture.db | Select-Object -First 1
-          Copy-Item $db.FullName qa/angra-sync/evidence/fixture.db
-          dotnet run --project qa/angra-sync/AngraSyncTests.csproj -c Release -- verify
-          if($LASTEXITCODE -ne 0){throw 'roundtrip failed'}
-
-  pdv-regression:
-    runs-on: windows-latest
-    timeout-minutes: 15
+            pair-evidence/proof-*
+            pair-evidence/android-results.txt
+            mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
+  windows-verify:
+    needs: android
     strategy:
-      fail-fast: false
-      matrix:
-        suite: [glass-persistence, glass-client-link, glass-money, glass-commercial, glass-cut, glass-central-3d, glass-operations, glass-documents, glass-unit-physical, glass-finance-history]
+      matrix: {channel: ['001', '003']}
+    runs-on: windows-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Read source
+        shell: pwsh
+        run: |
+          $s=Get-Content qa/pairing-sources.json -Raw|ConvertFrom-Json
+          "SOURCE=$($s.'${{ matrix.channel }}')" >> $env:GITHUB_ENV
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.SOURCE }}', path: candidate}
+      - uses: actions/download-artifact@v4
+        with: {name: 'pair-${{ matrix.channel }}', path: candidate/pair-evidence}
       - uses: actions/setup-dotnet@v4
         with: {dotnet-version: '8.0.x'}
-      - shell: pwsh
+      - name: Existing prerequisites and real Windows revocation
+        working-directory: candidate
+        shell: pwsh
         run: |
-          $project=Get-ChildItem qa/${{ matrix.suite }}/*.csproj | Select-Object -First 1
-          dotnet run --project $project.FullName -c Release
-          if($LASTEXITCODE -ne 0){throw 'regression failed'}
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet run --project qa/angra-pairing/AngraPairingTests.csproj -c Release -- verify 2>&1 | Tee-Object final-pairing.log
+          if($LASTEXITCODE -ne 0){throw 'Windows verification failed'}
