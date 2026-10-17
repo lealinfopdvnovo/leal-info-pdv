@@ -4,6 +4,7 @@ import org.json.*;import java.io.*;import java.nio.file.Files;import java.util.*
 final class SyncFlow {
  static void run(MeasureFlowInstrumentation t,String phase)throws Exception{
   MainActivity a=t.a;
+  if(phase.startsWith("syncUnlink")){UnlinkFlow.run(t,phase);return;}
   if(phase.equals("syncPairing")){PairingFlow.run(t);return;}
 
   if(phase.equals("syncIdentity")){JSONObject identity=SecureGateway.identity();Files.write(new File(a.getFilesDir(),"sync-identity.json").toPath(),identity.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));return;}
