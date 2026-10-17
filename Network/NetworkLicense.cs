@@ -29,7 +29,7 @@ public sealed class NetworkLicense
     public NetworkLicense(string path, string serial, string? verificationKey = null)
     {
         this.path = path; this.serial = serial; publicKey = verificationKey ?? SellerPublicKey.Pem;
-        state = File.Exists(path) ? ProtectedFile.Read<LicenseState>(path) : new();
+        state = File.Exists(path) ? LicenseProtectedFile.Read(path) : new();
         if (!File.Exists(path)) Save();
     }
     public static string LimitNotice(int limit, string contact = "") =>
@@ -108,7 +108,7 @@ public sealed class NetworkLicense
                 (string.IsNullOrWhiteSpace(terms.SellerContact) ? "" : "\nContato: " + terms.SellerContact));
         }
     }
-    internal void Reload() { lock(gate) state=ProtectedFile.Read<LicenseState>(path); }
+    internal void Reload() { lock(gate) state=LicenseProtectedFile.Read(path); }
     internal string SignedText { get { lock(gate) return state.SignedLicense; } }
     internal void Register(string deviceSerial, string key, string name)
     {
@@ -129,7 +129,7 @@ public sealed class NetworkLicense
             state.Devices.Add(new(deviceSerial, key, name)); Save();
         }
     }
-    private void Save() => ProtectedFile.Write(path, state);
+    private void Save() => LicenseProtectedFile.Write(path, state);
 }
 
 internal static class ProtectedFile
@@ -144,6 +144,56 @@ internal static class ProtectedFile
         try
         {
             File.WriteAllBytes(temp, ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(value), null, DataProtectionScope.CurrentUser));
+            File.Move(temp, path, true);
+        }
+        finally { if (File.Exists(temp)) File.Delete(temp); }
+    }
+}
+
+// New licenses use machine protection; readable user-bound legacy states migrate
+// on save. Never restore older revisions or silently reset unreadable state.
+internal static class LicenseProtectedFile
+{
+    private static readonly byte[] Magic = Encoding.ASCII.GetBytes("LEALLIC2\n");
+    private sealed record Envelope(int Version, string User, string Machine);
+    internal static LicenseState Read(string path)
+    {
+        try
+        {
+            var bytes = File.ReadAllBytes(path);
+            if (!bytes.AsSpan().StartsWith(Magic)) return ProtectedFile.Read<LicenseState>(path);
+            var envelope = JsonSerializer.Deserialize<Envelope>(bytes.AsSpan(Magic.Length))
+                ?? throw new InvalidDataException("Envelope de licença ausente.");
+            if (envelope.Version is not (2 or 3)) throw new InvalidDataException("Versão de licença desconhecida.");
+            byte[] plain;
+            try { plain = envelope.Version == 3
+                ? ProtectedData.Unprotect(Convert.FromBase64String(envelope.Machine), null, DataProtectionScope.LocalMachine)
+                : ProtectedData.Unprotect(Convert.FromBase64String(envelope.User), null, DataProtectionScope.CurrentUser); }
+            catch (Exception ex) when (ex is CryptographicException or FormatException)
+            { plain = ProtectedData.Unprotect(Convert.FromBase64String(envelope.Machine), null, DataProtectionScope.LocalMachine); }
+            return JsonSerializer.Deserialize<LicenseState>(plain) ?? throw new InvalidDataException("Estado da licença ausente.");
+        }
+        catch (Exception ex) when (ex is CryptographicException or JsonException or FormatException or InvalidDataException)
+        {
+            throw new InvalidDataException("Não foi possível ler a licença salva (" + Path.GetFileName(path) + "). O arquivo foi preservado. A proteção do Windows ou o arquivo precisa de recuperação; gerar outra chave não corrige esta leitura.", ex);
+        }
+    }
+    internal static void Write(string path, LicenseState state)
+    {
+        var plain = JsonSerializer.SerializeToUtf8Bytes(state);
+        var envelope = new Envelope(3, "",
+            Convert.ToBase64String(ProtectedData.Protect(plain, null, DataProtectionScope.LocalMachine)));
+        var encoded = JsonSerializer.SerializeToUtf8Bytes(envelope);
+        var bytes = new byte[Magic.Length + encoded.Length];
+        Magic.CopyTo(bytes, 0); encoded.CopyTo(bytes, Magic.Length);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            { stream.Write(bytes); stream.Flush(true); }
+            // Verify the newly written state before replacing the current file.
+            _ = Read(temp);
             File.Move(temp, path, true);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }

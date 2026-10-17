@@ -42,6 +42,28 @@ internal static class ActivationChecks
                 Assert(seats.RegisteredCount==4,"Atualização perdeu computadores "+plan);
                 Console.WriteLine("PASS: "+plan+" base=2, terceiro bloqueado, adicional1=3, adicional2=4, reconexão e anti-clone.");
             }
+            var recoveryPath=Path.Combine(folder,"recovery");
+            var recovery=new NetworkLicense(recoveryPath,serial,pub);
+            var recoveryTerms=new LicenseTerms(serial,2,"unico",null,"QA",3,"recovery","pro","001",true,0);
+            recovery.Activate(Sign(recoveryTerms));recovery.Register("SECOND","KEY-2","Caixa");
+            var blob=File.ReadAllBytes(recoveryPath);
+            var envelope=JsonSerializer.Deserialize<Dictionary<string,JsonElement>>(blob.AsSpan(9))!;
+            Assert(envelope["Version"].GetInt32()==3 && envelope["User"].GetString()=="","Nova licença depende do usuário");
+            var damaged=new {Version=2,User="invalid",Machine=envelope["Machine"].GetString()};
+            File.WriteAllBytes(recoveryPath,System.Text.Encoding.UTF8.GetBytes("LEALLIC2\n"+JsonSerializer.Serialize(damaged)));
+            recovery=new NetworkLicense(recoveryPath,serial,pub);
+            Assert(recovery.Terms==recoveryTerms && recovery.RegisteredCount==2,"Recuperação perdeu revisão ou pontos");
+            Reject(()=>recovery.Activate(Sign(recoveryTerms with {Revision=2})));
+            Reject(()=>recovery.Register("THIRD","KEY-3","Caixa"));
+            recovery.CheckAccess();
+            var legacyPath=Path.Combine(folder,"legacy-protected");
+            ProtectedFile.Write(legacyPath,new LicenseState {SignedLicense=Sign(recoveryTerms)});
+            var migration=new NetworkLicense(legacyPath,serial,pub);migration.CheckAccess();
+            Assert(System.Text.Encoding.ASCII.GetString(File.ReadAllBytes(legacyPath),0,9)=="LEALLIC2\n","Legado não migrou");
+            File.WriteAllText(recoveryPath,"broken");var preserved=File.ReadAllBytes(recoveryPath);
+            Reject(()=>new NetworkLicense(recoveryPath,serial,pub));
+            Assert(File.ReadAllBytes(recoveryPath).SequenceEqual(preserved),"Arquivo ilegível foi sobrescrito");
+            Console.WriteLine("PASS: recuperação da proteção do usuário preserva revisão/pontos; migração legada; corrupção preservada.");
             var terms=new LicenseTerms(serial,1,"unico",null,"QA",1,"qa","standard","001",true);
             store.Import(Sign(terms));store.CheckAccess();store.Activate(Sign(terms));
             Assert(InstallationLicense.IsActivated(store.Terms),"Ativação Standard antiga falhou");
