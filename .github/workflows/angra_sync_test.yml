@@ -1,8 +1,7 @@
 name: ANGRA code pairing Windows and Android
 on:
-  push:
-    branches: [feature/angra-pdv-sync]
-    paths: [.github/workflows/angra_sync_test.yml, qa/pairing-sources.json, mobile/vidraceiro/app/src/androidTest/java/br/com/lealinfo/vidraceiro/PairingFlow.java]
+  pull_request:
+    branches: ['feature/app-vidraceiro-android-foundation']
 permissions: {contents: read, actions: read, id-token: write}
 jobs:
   windows:
