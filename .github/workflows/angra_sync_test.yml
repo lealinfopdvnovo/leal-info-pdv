@@ -32,7 +32,126 @@ jobs:
           ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
-      - name: Baseline timing using unchanged installed implementation
+      - name: Compile exact Windows candidate and generate real expiring code
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          dotnet run --project qa/angra-sync/AngraSyncTests.csproj -c Release -- prepare '${{ matrix.channel }}' 2>&1 | Tee-Object windows-pairing.log
+          if($LASTEXITCODE -ne 0){throw 'Windows pairing failed'}
+      - uses: actions/upload-artifact@v4
+        with: {name: 'sync-${{ matrix.channel }}', path: candidate/qa/angra-sync/evidence/, retention-days: 1}
+  android:
+    needs: windows
+    strategy:
+      fail-fast: false
+      matrix: {channel: ['001', '003']}
+    env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: 'sync-${{ matrix.channel }}', path: qa/angra-sync/evidence}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+        with: {packages: 'platform-tools platforms;android-35 build-tools;35.0.0'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.9'}
+      - uses: actions/cache@v4
+        with: {path: ~/.android/debug.keystore, key: angra-professional-explicit-debug-signing-v2}
+      - name: Build preserving approved assets and home
+        working-directory: mobile/vidraceiro
+        run: |
+          test -f "$HOME/.android/debug.keystore"
+          gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk | tee signature.txt
+          grep -q 2ee54920efe7042320f90814e45fd10997f9deb28e213ee92a8955b3e00ffac7 signature.txt
+          sha256sum app/build/outputs/apk/debug/app-debug.apk
+      - name: Enable emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python3 mobile/vidraceiro/tests/sync_emulator.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: 'android-sync-${{ matrix.channel }}'
+          path: |
+            mobile/vidraceiro/sync-evidence/*
+            mobile/vidraceiro/sync-evidence/*.txt
+            mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
+  windows-verify:
+    needs: windows
+    strategy:
+      fail-fast: false
+      matrix: {channel: ['001', '003']}
+    env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read source
+        shell: pwsh
+        run: |
+          $s=Get-Content qa/pairing-sources.json -Raw|ConvertFrom-Json
+          "SOURCE=$($s.'${{ matrix.channel }}')" >> $env:GITHUB_ENV
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.SOURCE }}', path: candidate}
+      - uses: actions/download-artifact@v4
+        with: {name: 'sync-${{ matrix.channel }}', path: candidate/qa/angra-sync/evidence}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Existing prerequisites and real Windows revocation
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          dotnet run --project qa/angra-sync/AngraSyncTests.csproj -c Release -- verify 2>&1 | Tee-Object final-pairing.log
+          if($LASTEXITCODE -ne 0){throw 'Windows verification failed'}
+
+  timing:
+    strategy:
+      fail-fast: false
+      matrix: {channel: ['001', '003']}
+    env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact candidate
+        shell: pwsh
+        run: |
+          $s=Get-Content qa/pairing-sources.json -Raw|ConvertFrom-Json
+          "SOURCE=$($s.'${{ matrix.channel }}')" >> $env:GITHUB_ENV
+      - uses: actions/checkout@v4
+        with: {ref: '${{ env.SOURCE }}', path: candidate}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Existing compilation prerequisites
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Optimized timing using exact candidate
         working-directory: candidate
         shell: pwsh
         run: |
@@ -40,4 +159,4 @@ jobs:
           dotnet run --project qa/angra-sync/AngraSyncTests.csproj -c Release -- benchmark
           if($LASTEXITCODE -ne 0){throw 'Timing failed'}
       - uses: actions/upload-artifact@v4
-        with: {name: 'before-${{ matrix.channel }}', path: candidate/perf-evidence/, retention-days: 1}
+        with: {name: 'after-${{ matrix.channel }}', path: candidate/perf-evidence/, retention-days: 1}
