@@ -92,6 +92,7 @@ jobs:
   windows-verify:
     needs: windows
     strategy:
+      fail-fast: false
       matrix: {channel: ['001', '003']}
     env: {ANGRA_QA_CHANNEL: '${{ matrix.channel }}'}
     runs-on: windows-latest
