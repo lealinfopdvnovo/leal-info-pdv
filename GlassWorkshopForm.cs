@@ -43,6 +43,8 @@ public sealed class GlassWorkshopForm : Form
         close.Click += (_, _) => Close(); CancelButton = close;
         footer.Controls.Add(status, 0, 0); footer.Controls.Add(close, 1, 0); layout.Controls.Add(footer, 0, 2);
         Controls.Add(layout);
+        var integrationPage=new TabPage("Integração Angra Vidros"){Padding=new Padding(16)};tabs.TabPages.Add(integrationPage);
+        var integrationButton=new SalesVisualButton{Name="OpenAngraPairing",Text="INTEGRAÇÃO ANGRA VIDROS",Width=400,Height=52};integrationButton.Click+=(_,_)=>{try{using var form=new AngraPairingForm();form.ShowDialog(this);}catch(Exception e){MessageBox.Show(this,e.Message,"Integração Angra Vidros");}};integrationPage.Controls.Add(integrationButton);
         var general = Fields(pages["Projetos"]);
         var measures = Fields(pages["Medidas"]);
         var calculations = Fields(pages["Cálculos"]);
