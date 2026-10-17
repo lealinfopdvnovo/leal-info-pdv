@@ -8,6 +8,7 @@ internal sealed class AngraProjectForm : Form
 {
  internal AngraProjectForm(GlassStoredProject saved)
  {
+  Shown+=(_,_)=>AngraSyncService.Current?.Notifications?.MarkViewed(saved.Id);
   Text="PROJETO DO APP — "+saved.Data.Description;StartPosition=FormStartPosition.CenterParent;ClientSize=new Size(820,680);MinimumSize=new Size(560,420);AutoScaleMode=AutoScaleMode.Dpi;AutoScaleDimensions=new SizeF(96,96);
   var p=JsonNode.Parse(saved.Data.AppProject!.Value.GetRawText())!.AsObject();var layout=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false,Padding=new Padding(18)};Controls.Add(layout);
   void Info(string text){layout.Controls.Add(new Label{Text=text,AutoSize=true,MaximumSize=new Size(740,0),Margin=new Padding(0,7,0,7)});}

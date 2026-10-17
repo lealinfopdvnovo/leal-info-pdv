@@ -62,6 +62,7 @@ public sealed class GlassWorkshopForm : Form
         var save = new SalesVisualButton { Name="SaveGlassProject", Text="SALVAR PROJETO" };
         save.Click += (_,_) => RunProjectAction(() => { SaveCurrentProject(); saveStatus.Text="Projeto salvo. " + DateTime.Now.ToString("g"); });
         var open = new SalesVisualButton { Name="OpenGlassProject", Text="ABRIR PROJETO" };
+        var appNoticesTimer=new System.Windows.Forms.Timer{Interval=2000};appNoticesTimer.Tick+=(_,_)=>{int n=AngraSyncService.Current?.Notifications?.Unread().Count??0;open.Text=n==0?"ABRIR PROJETO":"ABRIR PROJETO • "+n+" NOVO(S) DO APP";};Shown+=(_,_)=>appNoticesTimer.Start();FormClosed+=(_,_)=>appNoticesTimer.Dispose();
         open.Click += (_,_) => RunProjectAction(() =>
         {
             using var chooser=new GlassSavedProjectBrowser(projectTheme);
@@ -129,7 +130,7 @@ public sealed class GlassWorkshopForm : Form
         if(loaded.Data.AppProject!=null&&!AngraProjectData.LegacyCompatible(loaded.Data)){using var appProject=new AngraProjectForm(loaded);appProject.ShowDialog(this);return;}
         // Valida antes de alterar os controles. O registro não é modificado ao abrir.
         var prior=CaptureSavedProject();
-        try { ApplySavedProject(loaded.Data); stored=loaded; saveStatus.Text="Aberto: " + loaded.Data.Description;RefreshOperations(); }
+        try { ApplySavedProject(loaded.Data); stored=loaded; AngraSyncService.Current?.Notifications?.MarkViewed(id); saveStatus.Text="Aberto: " + loaded.Data.Description;RefreshOperations(); }
         catch { ApplySavedProject(prior); throw; }
     }
     private void ApplySavedProject(GlassSavedProject saved)

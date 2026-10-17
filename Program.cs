@@ -193,6 +193,7 @@ internal static class Program
 
                 using var main = new MainForm();
                 using var angraSync = Network.NetworkConfiguration.Current.Mode=="terminal" ? null : AngraSyncService.TryStart();
+                using var angraAlert = angraSync==null ? null : new AngraProjectAlert(main,angraSync);
                 main.Shown += (_,_) => { if(!main.IsDisposed && angraSync!=null) _=angraSync.Connect(); };
                 main.Text = $"LEAL INFO CONECTADO - SISTEMA PDV - V{UpdateManager.CurrentVersion}";
                 using var clockSync = new SystemClockSync(main);
