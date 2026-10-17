@@ -32,13 +32,13 @@ jobs:
           ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
-      - name: Reproduce real 10.413 desktop and sales alert
+      - name: Validate corrected real main and sales alerts
         working-directory: candidate
         shell: pwsh
         run: |
           New-Item qa/angra-alert -ItemType Directory -Force | Out-Null
           Copy-Item ../qa/angra-alert/* qa/angra-alert/ -Force
-          dotnet run --project qa/angra-alert/AngraAlertTests.csproj -c Release -- before
+          dotnet run --project qa/angra-alert/AngraAlertTests.csproj -c Release -- after
           if($LASTEXITCODE -ne 0){throw 'Real alert diagnostic failed'}
       - uses: actions/upload-artifact@v4
         if: always()
