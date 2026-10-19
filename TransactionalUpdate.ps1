@@ -55,11 +55,15 @@ function Recover($s){
  if($s.App -ne $App -or $s.Channel -notin @('001','003')){throw 'Wrong transaction identity'}
  if(!(Matches (Join-Path $root 'previous') $s.Previous)){throw 'Backup hash mismatch; no recovery file overwritten'}
  AssertNoProcess
+ $launchGate=[IO.File]::Open((Join-Path $root 'startup.guard'),'Open','ReadWrite','None')
+ try{
+ AssertNoProcess
  $s.Phase='Recovering';SaveState $s
  HideHost;Point 'recover-hidden'
  foreach($n in $names){ReplaceFile (Join-Path $root ('previous/'+$n)) (Join-Path $App $n) $s.Previous.$n;Point ('recover-'+$n)}
  if(!(Matches $App $s.Previous)){throw 'Incomplete recovery'}
  $s.Phase='Recovered';SaveState $s
+ }finally{$launchGate.Dispose()}
 }
 function Healthy($s){
  try{
@@ -106,6 +110,8 @@ function Prepare{
  }finally{$z.Dispose()}
  $s=[pscustomobject]@{App=$App;Channel=$Channel;Version=$Version;Phase='Prepared';Previous=[pscustomobject]$previous;Target=[pscustomobject]$targets;PackageSha256=$Sha256;Nonce=[Guid]::NewGuid().ToString('N');CreatedUtc=[DateTime]::UtcNow.ToString('o')}
  if(!(Matches $App $s.Previous)){throw 'Installed files changed during backup'}
+ $guard=Join-Path $root 'startup.guard'
+ if(!(Test-Path $guard)){$f=[IO.File]::Open($guard,'CreateNew','Write','None');try{$f.Flush($true)}finally{$f.Dispose()}}
  SaveState $s
  # Persist a dependency-free worker under the protected installation, before any replacement.
  CopyDurable $PSCommandPath (Join-Path $root 'worker.ps1')
@@ -123,14 +129,16 @@ function Apply($s,[bool]$health=$false){
  if($s.Phase -ne 'Prepared' -or $s.App -ne $App -or $s.Channel -ne $Channel){throw 'Transaction not prepared for this installation'}
  if(!(Matches $App $s.Previous) -or !(Matches (Join-Path $root 'previous') $s.Previous) -or !(Matches (Join-Path $root 'stage') $s.Target)){throw 'Pre-apply verification failed'}
  AssertNoProcess
- $s.Phase='Applying';SaveState $s
+ $launchGate=[IO.File]::Open((Join-Path $root 'startup.guard'),'Open','ReadWrite','None')
  try{
+  AssertNoProcess
+  $s.Phase='Applying';SaveState $s
   HideHost;Point 'hidden'
   foreach($n in $names){ReplaceFile (Join-Path $root ('stage/'+$n)) (Join-Path $App $n) $s.Target.$n;Point ('copy-'+$n)}
   if(!(Matches $App $s.Target)){throw 'Target verification failed'}
   Point 'published'
   $s.Phase=$(if($health){'AwaitingHealth'}else{'Committed'});SaveState $s
- }catch{Recover $s;throw}
+ }catch{$launchGate.Dispose();$launchGate=$null;Recover $s;throw}finally{if($launchGate){$launchGate.Dispose()}}
 }
 New-Item -ItemType Directory $root -Force|Out-Null
 # The worker is elevated by the ordinary update UI; the task runs independently as SYSTEM.
@@ -152,8 +160,7 @@ try{
    Apply $s $true
    $launch=New-Object Diagnostics.ProcessStartInfo
    $launch.FileName=Join-Path $App 'LealInfoPDV.exe';$launch.WorkingDirectory=$App
-   $launch.UseShellExecute=$false;$launch.Arguments='--update-transaction '+$s.Nonce
-   $launch.EnvironmentVariables['LEAL_UPDATE_NONCE']=$s.Nonce
+   $launch.UseShellExecute=$true;$launch.Arguments='--update-transaction '+$s.Nonce
    $started=[Diagnostics.Process]::Start($launch)
    $deadline=(Get-Date).AddSeconds($HealthTimeoutSeconds)
    try{
