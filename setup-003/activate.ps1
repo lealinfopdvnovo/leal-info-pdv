@@ -1,6 +1,9 @@
 param([Parameter(Mandatory=$true)][string]$App,[string]$Fault='')
 $ErrorActionPreference='Stop'
 try {
+ $env:PSModulePath=(Join-Path $PSHOME 'Modules')+';'+(Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Modules')
+ Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Management/Microsoft.PowerShell.Management.psd1') -ErrorAction Stop
+ Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
  $App=[IO.Path]::GetFullPath($App).TrimEnd('\')
  $allowed=[IO.Path]::GetFullPath($env:ProgramFiles).TrimEnd('\')+'\'
  if(!$App.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase)){throw 'Selecione a instalacao existente em Program Files.'}
