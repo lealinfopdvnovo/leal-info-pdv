@@ -9,19 +9,27 @@ namespace LealInfoPDV;
 // Executable recovery never loads the business DLL or opens an operational database.
 internal static class TransactionalUpdate
 {
+    private static FileStream? applicationLease;
+    private static string? StartupNonce()
+    {
+        var args=Environment.GetCommandLineArgs();
+        return args.Length==3 && args[1]=="--update-transaction" ? args[2] : null;
+    }
     internal static void BeforeStartup()
     {
+        var guard=Path.Combine(AppContext.BaseDirectory,".pdv-update","startup.guard");
+        if(File.Exists(guard))applicationLease=new FileStream(guard,FileMode.Open,FileAccess.Read,FileShare.Read);
         var journal=Path.Combine(AppContext.BaseDirectory,".pdv-update","journal.json");
         if(!File.Exists(journal))return;
         using var state=JsonDocument.Parse(File.ReadAllText(journal));
         var phase=state.RootElement.GetProperty("Phase").GetString();
-        bool controlled=phase=="AwaitingHealth" && Environment.GetEnvironmentVariable("LEAL_UPDATE_NONCE")==state.RootElement.GetProperty("Nonce").GetString();
+        bool controlled=phase=="AwaitingHealth" && StartupNonce()==state.RootElement.GetProperty("Nonce").GetString();
         if(!controlled && phase is not ("Committed" or "Recovered" or "Prepared" or "Aborted"))
             throw new InvalidOperationException("A atualização está em recuperação automática. Aguarde a proteção externa concluir e abra o PDV novamente.");
     }
     internal static void ReportReady()
     {
-        var nonce=Environment.GetEnvironmentVariable("LEAL_UPDATE_NONCE");
+        var nonce=StartupNonce();
         if(string.IsNullOrEmpty(nonce))return;
         var root=Path.Combine(AppContext.BaseDirectory,".pdv-update");
         using var state=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"journal.json")));

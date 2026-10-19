@@ -79,6 +79,14 @@ try{
    AssertOriginal $app;CheckSentinels $app;$results.Add(@{scenario='interrupted-'+$point;pass=$true})
   }finally{Cleanup $app}
  }
+
+ $app=Fixture
+ try{
+  Check ((InvokeWorker $app Prepare) -eq 0) 'prepare launch-race guard'
+  $lease=[IO.File]::Open((Join-Path $app '.pdv-update/startup.guard'),'Open','Read','Read')
+  try{Check ((InvokeWorker $app Apply) -ne 0) 'shared application lease blocks replacement before any mutation'}finally{$lease.Dispose()}
+  AssertOriginal $app;$results.Add(@{scenario='concurrent-startup-lease';pass=$true})
+ }finally{Cleanup $app}
  $app=Fixture
  try{
   Check ((InvokeWorker $app Prepare) -eq 0) 'prepare staging-tamper test'
