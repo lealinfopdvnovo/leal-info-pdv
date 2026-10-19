@@ -12,6 +12,8 @@ function Fixture{
  foreach($n in $names){Copy-Item (Join-Path previous $n) (Join-Path $app $n) -Force}
  Set-Content "$app/QA-ISOLATED" 'QA'
  foreach($n in @('license.dat','cash.dat','stock.dat','lealinfo.db')){Set-Content (Join-Path $app $n) 'UNCHANGED'}
+ New-Item -ItemType Directory (Join-Path $app '.pdv-update')|Out-Null
+ @{App=$app;Channel='003';Version='10.415';Phase='Armed';Activation='Protection003-NoUpdate';Previous=$meta.PreviousFiles}|ConvertTo-Json -Depth 20|Set-Content (Join-Path $app '.pdv-update/journal.json') -Encoding UTF8
  return $app
 }
 function Original($app){foreach($n in $names){Check ((Get-FileHash (Join-Path $app $n)).Hash -eq (Get-FileHash (Join-Path previous $n)).Hash) "restored $n"}}
