@@ -121,3 +121,5 @@ jobs:
 # Validate setup launcher native argument compatibility.
 
 # Include takeover of the existing Armed 10.415 protection journal.
+
+# Validate native Program Files under installer environment.
