@@ -29,7 +29,7 @@ try {
  # Reuse the validated worker unchanged, including health receipt and independent recovery.
  $handoff=Start-Process "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -ArgumentList '-NoProfile -Command Start-Sleep -Seconds 2' -WindowStyle Hidden -PassThru
  $ticks=$handoff.StartTime.ToUniversalTime().Ticks
- & "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/worker.ps1" -Mode PrepareApply -App $App -Package "$PSScriptRoot/payload.zip" -Sha256 $meta.PackageSha256 -Version 10.416 -Channel 003 -PreviousPid $handoff.Id -PreviousStarted $ticks -Nonce SETUP003 -Fault $Fault
+ & "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/worker.ps1" -Mode PrepareApply -App $App -Package "$PSScriptRoot/payload.zip" -Sha256 $meta.PackageSha256 -Version 10.416 -Channel 003 -PreviousPid $handoff.Id -PreviousStarted $ticks -Nonce SETUP003
  if($LASTEXITCODE -ne 0){throw 'Aplicacao nao confirmada. Consulte .pdv-update/recovery-error.log; a recuperacao externa permanece responsavel por uma transacao pendente.'}
  $s=Get-Content "$root/journal.json" -Raw|ConvertFrom-Json
  if($s.Phase -ne 'Committed'){throw 'Atualizacao nao confirmada'}
