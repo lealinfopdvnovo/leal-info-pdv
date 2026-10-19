@@ -11,18 +11,24 @@ $protected=@('lealinfo.db','network.license','network.config','cash.dat','stock.
 foreach($n in $protected){Set-Content (Join-Path $app $n) ('SYNTHETIC_'+$n)}
 $names=@('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')
 $before=@{};foreach($n in ($names+$protected)){$before[$n]=(Get-FileHash (Join-Path $app $n)).Hash}
-function AssertUnchanged{foreach($n in ($names+$protected)){if((Get-FileHash (Join-Path $app $n)).Hash -ne $before[$n]){throw 'Changed protected file '+$n}}}
+function AssertUnchanged;AssertBackupUnchanged{foreach($n in ($names+$protected)){if((Get-FileHash (Join-Path $app $n)).Hash -ne $before[$n]){throw 'Changed protected file '+$n}}}
+# Reproduce the existing approved backup: no production backup creation by activator.
+$backup=Join-Path $env:ProgramData 'LEAL_INFO_PDV_PROTECAO_003/backup-10415-20261019-190735'
+New-Item -ItemType Directory $backup -Force|Out-Null
+foreach($n in $names){Copy-Item (Join-Path $app $n) (Join-Path $backup $n)}
+$backupTimes=@{};foreach($n in $names){$backupTimes[$n]=(Get-Item (Join-Path $backup $n)).LastWriteTimeUtc.Ticks}
+function AssertBackupUnchanged{foreach($n in $names){$f=Get-Item (Join-Path $backup $n);if($f.LastWriteTimeUtc.Ticks -ne $backupTimes[$n] -or (Get-FileHash $f.FullName).Hash -ne $before[$n]){throw 'Existing backup modified'}};if(Test-Path (Join-Path $app '.pdv-update/previous')){throw 'Backup duplicated'}}
 $ps=Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/powershell.exe'
 try{
- & $ps -NoProfile -ExecutionPolicy Bypass -File tools/Protection003/Ativar_Protecao_003.ps1 -App $app 2>&1|Tee-Object evidence/activation.log
+ & $ps -NoProfile -ExecutionPolicy Bypass -File tools/Protection003/Ativar_Protecao_003_CORRIGIDO.ps1 -App $app 2>&1|Tee-Object evidence/activation.log
  if($LASTEXITCODE -ne 0){throw 'Activation failed'}
- AssertUnchanged
+ AssertUnchanged;AssertBackupUnchanged
  Write-Output 'PASS activation preserved every installed executable and protected sentinel'
- & $ps -NoProfile -ExecutionPolicy Bypass -File tools/Protection003/Ativar_Protecao_003.ps1 -App $app -Mode Verify
+ & $ps -NoProfile -ExecutionPolicy Bypass -File tools/Protection003/Ativar_Protecao_003_CORRIGIDO.ps1 -App $app -Mode Verify
  if($LASTEXITCODE -ne 0){throw 'Verification failed'}
- & $ps -NoProfile -ExecutionPolicy Bypass -File tools/Protection003/Ativar_Protecao_003.ps1 -App $app
+ & $ps -NoProfile -ExecutionPolicy Bypass -File tools/Protection003/Ativar_Protecao_003_CORRIGIDO.ps1 -App $app
  if($LASTEXITCODE -ne 0){throw 'Idempotent activation failed'}
- AssertUnchanged
+ AssertUnchanged;AssertBackupUnchanged
  $task=Get-ScheduledTask LealInfoPDV-Protection003
  if($task.Principal.UserId -notin @('SYSTEM','S-1-5-18')){throw 'Not SYSTEM'}
  if(!@($task.Triggers|Where-Object{$_.CimClass.CimClassName -eq 'MSFT_TaskBootTrigger'}).Count){throw 'No boot trigger'}
@@ -33,11 +39,11 @@ try{
  $deadline=(Get-Date).AddSeconds(45)
  do{Start-Sleep -Milliseconds 250;$done=Test-Path (Join-Path $control 'last-recovery.json')}while(!$done -and (Get-Date) -lt $deadline)
  if(!$done){throw 'External recovery timeout'}
- AssertUnchanged
- Write-Output 'PASS real SYSTEM task recovered full approved 10.415 set using unchanged validated worker'
+ AssertUnchanged;AssertBackupUnchanged
+ Write-Output 'PASS real SYSTEM task recovered full approved 10.415 set using existing backup directly'
  $activated=Get-Content (Join-Path $control 'protection.json') -Raw|ConvertFrom-Json
- @{Channel='003';ActivationPassed=$true;InstalledExeDllDepsUnchanged=$true;Idempotent=$true;ScheduledSystemRecoveryPassed=$true;BootTriggerPresent=$true;UpdateAuthorized=$activated.UpdateAuthorized;RealStorePcTested=$false;PdVLaunched=$false;WorkerSource=$activated.WorkerSource}|ConvertTo-Json|Set-Content evidence/result.json
- Copy-Item tools/Protection003/Ativar_Protecao_003.ps1 evidence/
+ @{Channel='003';ActivationPassed=$true;ExistingBackupReusedWithoutCopy=$true;BackupFilesUnchanged=$true;InstalledExeDllDepsUnchanged=$true;Idempotent=$true;ScheduledSystemRecoveryPassed=$true;BootTriggerPresent=$true;UpdateAuthorized=$activated.UpdateAuthorized;RealStorePcTested=$false;PdVLaunched=$false;WorkerSource=$activated.WorkerSource}|ConvertTo-Json|Set-Content evidence/result.json
+ Copy-Item tools/Protection003/Ativar_Protecao_003_CORRIGIDO.ps1 evidence/
 }finally{
  Stop-ScheduledTask LealInfoPDV-Protection003 -ErrorAction SilentlyContinue
  Unregister-ScheduledTask LealInfoPDV-Protection003 -Confirm:$false -ErrorAction SilentlyContinue
