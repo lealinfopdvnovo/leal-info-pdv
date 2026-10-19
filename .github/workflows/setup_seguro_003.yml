@@ -117,3 +117,5 @@ jobs:
             controller/setup*.log
             controller/source/setup-003/output/
             controller/release-output/
+
+# Validate setup launcher native argument compatibility.
