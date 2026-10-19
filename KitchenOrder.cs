@@ -9,11 +9,11 @@ internal sealed record KitchenDraft(Guid Id, string Reference, string Notes, str
 {
     internal KitchenDraft Validate()
     {
-        if (Id == Guid.Empty || string.IsNullOrWhiteSpace(Operator) || Operator.Length > 160 || Reference.Length > 160 || Notes.Length > 2000 ||
+        if (Id == Guid.Empty || string.IsNullOrWhiteSpace(Operator) || Operator.Length > 160 || Reference is null || Notes is null || Reference.Length > 160 || Notes.Length > 2000 ||
             CreatedUtc.Offset != TimeSpan.Zero || CreatedUtc.Year < 2020 || Items is null || Items.Length is < 1 or > 200)
             throw new InvalidDataException("Identificação, operador ou itens do pedido inválidos.");
         foreach (var item in Items)
-            if (item is null || string.IsNullOrWhiteSpace(item.Description) || item.Description.Length > 240 || item.Notes.Length > 1000 ||
+            if (item is null || string.IsNullOrWhiteSpace(item.Description) || item.Description.Length > 240 || item.Notes is null || item.Notes.Length > 1000 ||
                 item.Quantity <= 0 || item.Quantity > 100000 || decimal.Round(item.Quantity, 3) != item.Quantity || item.ProductId is <= 0)
                 throw new InvalidDataException("Informe descrição e quantidade positiva, com até três casas decimais, em cada item.");
         return this;
