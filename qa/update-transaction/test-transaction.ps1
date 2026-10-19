@@ -7,8 +7,9 @@ $hash=(Get-FileHash $package).Hash
 $results=[Collections.Generic.List[object]]::new()
 $names=@('LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe')
 function TaskName($app){$sha=[Security.Cryptography.SHA256]::Create();try{'LealInfoPDV-Recovery-'+([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($app.ToUpperInvariant()))).Replace('-','').Substring(0,16))}finally{$sha.Dispose()}}
-function Fixture{
- $app=Join-Path $env:RUNNER_TEMP ('transaction-qa-'+[Guid]::NewGuid().ToString('N'))
+function Fixture([bool]$programFiles=$false){
+ $base=$(if($programFiles){$env:ProgramFiles}else{$env:RUNNER_TEMP})
+ $app=Join-Path $base ('transaction-qa-'+[Guid]::NewGuid().ToString('N'))
  New-Item -ItemType Directory $app|Out-Null;Copy-Item previous/* $app -Recurse
  Set-Content (Join-Path $app 'QA-ISOLATED') 'Synthetic executable-only fixture'
  foreach($f in @('lealinfo.db','network.license','network.config','cash.dat','stock.dat','settings.json')){[IO.File]::WriteAllText((Join-Path $app $f),'UNCHANGED-SYNTHETIC-'+$f)}
@@ -22,7 +23,7 @@ function Check($ok,$why){if(!$ok){throw $why};Write-Output ('PASS '+$why)}
 function State($app){Get-Content (Join-Path $app '.pdv-update/journal.json') -Raw|ConvertFrom-Json}
 function AssertOriginal($app){foreach($n in $names){if((Get-FileHash (Join-Path $app $n)).Hash -ne (Get-FileHash (Join-Path (Resolve-Path previous).Path $n)).Hash){throw 'Mixed or incomplete rollback: '+$n}}}
 function CheckSentinels($app){foreach($f in @('lealinfo.db','network.license','network.config','cash.dat','stock.dat','settings.json')){if([IO.File]::ReadAllText((Join-Path $app $f)) -ne ('UNCHANGED-SYNTHETIC-'+$f)){throw 'Protected fixture changed '+$f}}}
-function Cleanup($app){Unregister-ScheduledTask -TaskName (TaskName $app) -Confirm:$false -ErrorAction SilentlyContinue;Remove-Item $app -Recurse -Force}
+function Cleanup($app){if(Test-Path (Join-Path $app 'QA-ISOLATED')){Get-Process LealInfoPDV -ErrorAction SilentlyContinue|Where-Object{$_.Path -eq (Join-Path $app 'LealInfoPDV.exe')}|ForEach-Object{$_.Kill();$_.WaitForExit()}};Stop-ScheduledTask -TaskName (TaskName $app) -ErrorAction SilentlyContinue;Unregister-ScheduledTask -TaskName (TaskName $app) -Confirm:$false -ErrorAction SilentlyContinue;Remove-Item $app -Recurse -Force}
 try{
  $app=Fixture
  try{
@@ -126,6 +127,22 @@ try{
   Check ($healthy.Path -eq (Join-Path $app 'LealInfoPDV.exe')) 'health belongs to the launched process at the expected installation'
   $healthy.Kill();$healthy.WaitForExit()
   CheckSentinels $app;$results.Add(@{scenario='controlled-startup-production-receipt-synthetic-host';pass=$true;fullPdvHomologation=$false})
+ }finally{$package=$originalPackage;$hash=$originalHash;Cleanup $app}
+
+ $app=Fixture $true
+ try{
+  Copy-Item startup-fixture-publish/* $app -Recurse -Force
+  $fixtureStage=Join-Path $env:RUNNER_TEMP ('bootstrap-host-'+[Guid]::NewGuid().ToString('N'));New-Item -ItemType Directory $fixtureStage|Out-Null
+  foreach($n in $names){Copy-Item (Join-Path (Resolve-Path startup-fixture-publish).Path $n) $fixtureStage}
+  $package=$fixtureStage+'.zip';Compress-Archive ($fixtureStage+'/*') $package;$hash=(Get-FileHash $package).Hash
+  $boot=Start-Process (Join-Path $app 'LealInfoPDV.exe') -ArgumentList @('--begin-qa',('"'+$package+'"'),$hash,$entry.Channel) -PassThru
+  Check ($boot.WaitForExit(90000) -and $boot.ExitCode -eq 0) 'production C# BeginAsync, elevated SHA-verified bootstrap and graceful handoff'
+  $deadline=(Get-Date).AddSeconds(130)
+  do{Start-Sleep -Milliseconds 250;$s=State $app}while($s.Phase -notin @('Committed','Recovered') -and (Get-Date) -lt $deadline)
+  Check ($s.Phase -eq 'Committed') 'full protected Program Files bootstrap commits a healthy synthetic host'
+  $acl=Get-Acl (Join-Path $app '.pdv-update')
+  Check $acl.AreAccessRulesProtected 'recovery directory ACL does not inherit writable application permissions'
+  $results.Add(@{scenario='production-ui-bootstrap-under-protected-program-files';pass=$true;fullPdvHomologation=$false})
  }finally{$package=$originalPackage;$hash=$originalHash;Cleanup $app}
  $results|ConvertTo-Json -Depth 8|Set-Content release-output/transaction-results.json -Encoding UTF8
  # Successful tests of the new worker do not imply that the installed 10.415 can safely bootstrap it.

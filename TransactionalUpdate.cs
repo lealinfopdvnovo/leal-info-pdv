@@ -58,6 +58,18 @@ if(!$app.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase)){throw 'Inst
 if(([IO.File]::GetAttributes($app) -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw 'Reparse installation refused'}
 $root=Join-Path $app '.pdv-update';New-Item -ItemType Directory $root -Force|Out-Null
 if(([IO.File]::GetAttributes($root) -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw 'Reparse recovery folder refused'}
+if(@(Get-ChildItem -LiteralPath $root -Force -Recurse|Where-Object{($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0}).Count -ne 0){throw 'Reparse transaction member refused'}
+$acl=New-Object Security.AccessControl.DirectorySecurity
+$acl.SetAccessRuleProtection($true,$false)
+foreach($sid in @('S-1-5-18','S-1-5-32-544')){
+ $identity=New-Object Security.Principal.SecurityIdentifier $sid
+ $rule=New-Object Security.AccessControl.FileSystemAccessRule($identity,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
+ $acl.AddAccessRule($rule)
+}
+$users=New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-545'
+$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($users,'ReadAndExecute','ContainerInherit,ObjectInherit','None','Allow')))
+$acl.SetOwner((New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544'))
+(Get-Item -LiteralPath $root).SetAccessControl($acl)
 $dest=Join-Path $root ('entry-{{nonce}}.ps1')
 $f=[IO.File]::Open($dest,'CreateNew','Write','None');try{$f.Write($bytes,0,$bytes.Length);$f.Flush($true)}finally{$f.Dispose()}
 & $dest -Mode PrepareApply -App $app -Package {{Q(package)}} -Sha256 {{Q(sha256)}} -Version {{Q(version)}} -Channel {{Q(channel)}} -PreviousPid {{Environment.ProcessId}} -PreviousStarted {{current.StartTime.ToUniversalTime().Ticks}} -Nonce '{{nonce}}'
