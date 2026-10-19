@@ -11,7 +11,7 @@ $protected=@('lealinfo.db','network.license','network.config','cash.dat','stock.
 foreach($n in $protected){Set-Content (Join-Path $app $n) ('SYNTHETIC_'+$n)}
 $names=@('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')
 $before=@{};foreach($n in ($names+$protected)){$before[$n]=(Get-FileHash (Join-Path $app $n)).Hash}
-function AssertUnchanged;AssertBackupUnchanged{foreach($n in ($names+$protected)){if((Get-FileHash (Join-Path $app $n)).Hash -ne $before[$n]){throw 'Changed protected file '+$n}}}
+function AssertUnchanged{foreach($n in ($names+$protected)){if((Get-FileHash (Join-Path $app $n)).Hash -ne $before[$n]){throw 'Changed protected file '+$n}}}
 # Reproduce the existing approved backup: no production backup creation by activator.
 $backup=Join-Path $env:ProgramData 'LEAL_INFO_PDV_PROTECAO_003/backup-10415-20261019-190735'
 New-Item -ItemType Directory $backup -Force|Out-Null
