@@ -45,6 +45,10 @@ internal static class TransactionalUpdate
         if(channel is not ("001" or "003"))throw new InvalidOperationException("Atualização não autorizada para este canal.");
         if(Application.OpenForms.Cast<Form>().Any(f=>f.Visible && f is not MainForm))
             throw new InvalidOperationException("Feche as telas de vendas e demais janelas antes de atualizar.");
+        var windows=Application.OpenForms.OfType<MainForm>().Where(f=>f.Visible && f.Enabled).ToArray();
+        foreach(var window in windows)window.Enabled=false;
+        try
+        {
         var app=AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         var nonce=Guid.NewGuid().ToString("N");
         var temp=Path.Combine(Path.GetTempPath(),"LealInfoPDV_Transaction_"+nonce);Directory.CreateDirectory(temp);
@@ -101,5 +105,7 @@ exit $LASTEXITCODE
             await Task.Delay(200);
         }
         throw new TimeoutException("A proteção não confirmou backup e recuperação externa. O PDV permanece aberto e nenhum arquivo deve ser substituído enquanto estiver em execução.");
+        }
+        finally { foreach(var window in windows)if(!window.IsDisposed)window.Enabled=true; }
     }
 }
