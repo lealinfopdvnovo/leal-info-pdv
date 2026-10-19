@@ -57,6 +57,7 @@ internal static class TransactionalUpdate
         // The elevated bootstrap checks immutable bytes before placing the worker in Program Files.
         var bootstrap=$$"""
 $ErrorActionPreference='Stop'
+trap { $_ | Out-String | Set-Content -LiteralPath {{Q(Path.Combine(temp,"bootstrap-error.log"))}}; exit 1 }
 $src={{Q(source)}};$app={{Q(app)}}
 $bytes=[IO.File]::ReadAllBytes($src);$sha=[Security.Cryptography.SHA256]::Create()
 try{$h=[BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-','')}finally{$sha.Dispose()}
@@ -89,7 +90,13 @@ exit $LASTEXITCODE
         var deadline=DateTime.UtcNow.AddSeconds(60);
         while(DateTime.UtcNow<deadline)
         {
-            if(worker.HasExited)throw new IOException("Atualização recusada antes da substituição. Consulte .pdv-update/recovery-error.log.");
+            if(worker.HasExited)
+            {
+                var error=Path.Combine(temp,"bootstrap-error.log");
+                if(!File.Exists(error))error=Path.Combine(app,".pdv-update","recovery-error.log");
+                var detail=File.Exists(error)?File.ReadAllText(error):"Aplicador encerrou sem confirmar a preparação.";
+                throw new IOException("Atualização recusada antes da substituição: "+detail);
+            }
             try{if(File.Exists(ready)&&File.ReadAllText(ready)==nonce){Application.Exit();return;}}catch(IOException){}
             await Task.Delay(200);
         }
