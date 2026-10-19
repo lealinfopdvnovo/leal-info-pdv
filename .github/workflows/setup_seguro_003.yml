@@ -112,3 +112,5 @@ jobs:
 # Include takeover of the existing Armed 10.415 protection journal.
 
 # Validate native Program Files under installer environment.
+
+# Preserve selected installation directory in Inno app constant.
