@@ -120,4 +120,4 @@ jobs:
 
 # Validate setup launcher native argument compatibility.
 
-# Reset Windows PowerShell module environment in Inno launcher.
+# Include takeover of the existing Armed 10.415 protection journal.
