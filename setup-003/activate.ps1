@@ -29,6 +29,33 @@ try {
  $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($users,'ReadAndExecute','ContainerInherit,ObjectInherit','None','Allow')))
  $acl.SetOwner((New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544'))
  (Get-Item $root).SetAccessControl($acl)
+ # Transfer the one-time 10.415 protection without deleting its approved backup.
+ $journal=Join-Path $root 'journal.json'
+ if(Test-Path $journal){
+  $old=Get-Content $journal -Raw|ConvertFrom-Json
+  if($old.Phase -eq 'Armed'){
+   if($old.Activation -ne 'Protection003-NoUpdate' -or $old.App -ne $App -or $old.Channel -ne '003' -or $old.Version -ne '10.415'){throw 'Protecao anterior desconhecida'}
+   foreach($n in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){if($old.Previous.$n -ne $meta.PreviousFiles.$n){throw 'Backup anterior desconhecido'}}
+   Import-Module (Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Modules/ScheduledTasks/ScheduledTasks.psd1') -ErrorAction Stop
+   $lease=[IO.File]::Open((Join-Path $root 'transaction.lock'),'OpenOrCreate','ReadWrite','None')
+   try {
+    $legacy=Get-ScheduledTask -TaskName 'LealInfoPDV-Protection003' -ErrorAction SilentlyContinue
+    if($legacy){
+     $control=Join-Path $env:ProgramData 'LealInfoPDVProtection003'
+     $cfg=Get-Content (Join-Path $control 'protection.json') -Raw|ConvertFrom-Json
+     if($cfg.App -ne $App -or $cfg.Channel -ne '003' -or $legacy.Actions.Arguments -ne $cfg.TaskArguments){throw 'Tarefa anterior desconhecida'}
+     Disable-ScheduledTask -TaskName 'LealInfoPDV-Protection003'|Out-Null
+     Stop-ScheduledTask -TaskName 'LealInfoPDV-Protection003'
+    }
+    $old.Phase='Aborted'
+    $bytes=[Text.Encoding]::UTF8.GetBytes(($old|ConvertTo-Json -Depth 20))
+    $f=[IO.File]::Open(($journal+'.setup-tmp'),'Create','Write','None')
+    try{$f.Write($bytes,0,$bytes.Length);$f.Flush($true)}finally{$f.Dispose()}
+    [IO.File]::Replace(($journal+'.setup-tmp'),$journal,[NullString]::Value)
+   }finally{$lease.Dispose()}
+  }
+ }
+
  # Reuse the validated worker unchanged, including health receipt and independent recovery.
  $handoff=Start-Process "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -ArgumentList '-NoProfile -Command Start-Sleep -Seconds 2' -WindowStyle Hidden -PassThru
  $ticks=$handoff.StartTime.ToUniversalTime().Ticks
