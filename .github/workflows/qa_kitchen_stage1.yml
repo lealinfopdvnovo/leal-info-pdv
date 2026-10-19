@@ -18,18 +18,18 @@ jobs:
         run: |
           import json,subprocess
           from pathlib import Path
-          baseline=json.loads(Path('qa/kitchen-stage1/baseline.json').read_text())
+          baseline=json.loads(Path('qa/kitchen-stage1/baseline.json').read_text(encoding='utf-8'))
           assert baseline['channel'] in ('001','003')
           subprocess.run(['git','merge-base','--is-ancestor',baseline['commit'],'HEAD'],check=True)
           changed=set(subprocess.check_output(['git','diff','--name-only',baseline['commit'],'HEAD']).decode().splitlines())
           allowed={'MainForm.cs','KitchenOrder.cs','KitchenStore.cs','KitchenOutbox.cs','KitchenForm.cs','.github/workflows/qa_kitchen_stage1.yml','qa/kitchen-stage1/Program.cs','qa/kitchen-stage1/LealInfoPDV.KitchenStage1Tests.csproj','qa/kitchen-stage1/baseline.json'}
           assert changed<=allowed,changed-allowed
           old=subprocess.check_output(['git','show',baseline['commit']+':MainForm.cs']).decode()
-          new=Path('MainForm.cs').read_text()
+          new=Path('MainForm.cs').read_text(encoding='utf-8')
           a=old.index('    private void OpenKitchen()');b=old.index('    private void OpenDeliveries()',a)
           x=new.index('    private KitchenForm? kitchenWindow;');y=new.index('    private void OpenDeliveries()',x)
           assert old[:a]+old[b:]==new[:x]+new[y:],'Existing sales/business methods changed'
-          assert '10.415' in Path('UpdateManager.cs').read_text()
+          assert '10.415' in Path('UpdateManager.cs').read_text(encoding='utf-8')
           print('PASS own client baseline; existing sales, cash, stock, database initialization, license, updater, Glass and Angra source unchanged')
       - uses: actions/setup-dotnet@v4
         with: {dotnet-version: '8.0.x'}

@@ -44,7 +44,8 @@ internal sealed class KitchenForm : Form
                 if (!Auth.HasPermission("sales")) throw new InvalidOperationException("Sem permissão de operação.");
                 if (orders.CurrentRow?.DataBoundItem is not OrderRow selected) throw new InvalidOperationException("Selecione um pedido.");
                 if (status == "CANCELADO" && MessageBox.Show(this, "Cancelar somente este pedido da cozinha? Isso não cancela vendas nem estorna pagamentos.", "Cozinha", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
-                await Task.Run(() => store.ChangeStatus(selected.Id, selected.Revision, status, Auth.OperatorName, Guid.NewGuid()));
+                string actor = Auth.OperatorName;
+                await Task.Run(() => store.ChangeStatus(selected.Id, selected.Revision, status, actor, Guid.NewGuid()));
                 await RefreshOrders();
             });
         }
