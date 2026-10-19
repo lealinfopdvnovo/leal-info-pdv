@@ -1,0 +1,57 @@
+name: Cozinha Etapa 1 - Windows isolado sem publicacao
+on:
+  pull_request:
+    branches: ['client/001', 'client/003']
+    paths: ['Kitchen*.cs', 'MainForm.cs', 'qa/kitchen-stage1/**', '.github/workflows/qa_kitchen_stage1.yml']
+permissions: {contents: read}
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    env:
+      KITCHEN_CHANNEL: ${{ github.base_ref == 'client/001' && '001' || '003' }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.event.pull_request.head.sha }}', fetch-depth: 0}
+      - name: Verificar escopo, base propria, canais e modulos congelados
+        shell: python
+        run: |
+          import json,subprocess
+          from pathlib import Path
+          baseline=json.loads(Path('qa/kitchen-stage1/baseline.json').read_text(encoding='utf-8'))
+          assert baseline['channel'] in ('001','003')
+          subprocess.run(['git','merge-base','--is-ancestor',baseline['commit'],'HEAD'],check=True)
+          changed=set(subprocess.check_output(['git','diff','--name-only',baseline['commit'],'HEAD']).decode().splitlines())
+          allowed={'MainForm.cs','KitchenOrder.cs','KitchenStore.cs','KitchenOutbox.cs','KitchenForm.cs','.github/workflows/qa_kitchen_stage1.yml','qa/kitchen-stage1/Program.cs','qa/kitchen-stage1/LealInfoPDV.KitchenStage1Tests.csproj','qa/kitchen-stage1/baseline.json'}
+          assert changed<=allowed,changed-allowed
+          old=subprocess.check_output(['git','show',baseline['commit']+':MainForm.cs']).decode()
+          new=Path('MainForm.cs').read_text(encoding='utf-8')
+          a=old.index('    private void OpenKitchen()');b=old.index('    private void OpenDeliveries()',a)
+          x=new.index('    private KitchenForm? kitchenWindow;');y=new.index('    private void OpenDeliveries()',x)
+          assert old[:a]+old[b:]==new[:x]+new[y:],'Existing sales/business methods changed'
+          assert '10.415' in Path('UpdateManager.cs').read_text(encoding='utf-8')
+          print('PASS own client baseline; existing sales, cash, stock, database initialization, license, updater, Glass and Angra source unchanged')
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Aplicar somente pre-requisitos de compilacao existentes
+        shell: pwsh
+        run: |
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar PDV e testar SQLite WAL, backup, reinicio, TLS, concorrencia e interface reais
+        shell: pwsh
+        run: |
+          dotnet run --project qa/kitchen-stage1/LealInfoPDV.KitchenStage1Tests.csproj -c Release 2>&1 | Tee-Object kitchen-stage1-tests.log
+          if($LASTEXITCODE -ne 0){throw 'Kitchen Stage 1 real Windows validation failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cozinha-etapa1-${{ env.KITCHEN_CHANNEL }}
+          path: |
+            kitchen-stage1-evidence/
+            kitchen-stage1-tests.log
+          retention-days: 14

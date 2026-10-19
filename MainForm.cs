@@ -967,47 +967,27 @@ public sealed class MainForm : Form
         form.ShowDialog(this);
     }
 
+    private KitchenForm? kitchenWindow;
     private void OpenKitchen()
     {
-        using var form = new Form
+        try
         {
-            Text = "COZINHA",
-            StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size(460, 240),
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            ShowInTaskbar = false,
-            AutoScaleMode = AutoScaleMode.Dpi,
-            AutoScaleDimensions = new SizeF(96, 96),
-            KeyPreview = true
-        };
-        var layout = new TableLayoutPanel
+            RunAllowed("sales", () =>
+            {
+                if (kitchenWindow == null || kitchenWindow.IsDisposed)
+                {
+                    kitchenWindow = new KitchenForm();
+                    ApplyFloatingTheme(kitchenWindow);
+                }
+                kitchenWindow.Show(this);
+                kitchenWindow.BringToFront();
+            });
+        }
+        catch (Exception ex)
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
-            Padding = new Padding(24)
-        };
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 30));
-        layout.Controls.Add(new Label
-        {
-            Text = "COZINHA", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Segoe UI", 18, FontStyle.Bold)
-        }, 0, 0);
-        layout.Controls.Add(new Label
-        {
-            Text = "Em desenvolvimento para próxima atualização.",
-            Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter
-        }, 0, 1);
-        var close = ActionButton("FECHAR", form.Close);
-        close.Anchor = AnchorStyles.None;
-        close.DialogResult = DialogResult.Cancel;
-        layout.Controls.Add(close, 0, 2);
-        form.Controls.Add(layout);
-        form.CancelButton = close;
-        ApplyFloatingTheme(form);
-        form.ShowDialog(this);
+            MessageBox.Show(this, "Cozinha indisponível. Nenhum pedido foi descartado.\n\n" + ex.Message,
+                "COZINHA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
     }
 
     private void OpenDeliveries()
