@@ -54,6 +54,7 @@ try{
  $app=Fixture
  try{
   $p=Start-Process source/setup-003/output/Setup_Correcao_PDV_003_10_416.exe -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="'+$app+'"'),('/LOG="'+(Join-Path (Get-Location) 'setup-ui.log')+'"')) -Wait -PassThru
+  if($p.ExitCode -ne 0){Get-Content (Join-Path $env:TEMP 'LEAL_SETUP_003_ERRO.txt') -ErrorAction SilentlyContinue;Get-Content setup-ui.log}
   Check ($p.ExitCode -eq 0) 'real setup executable completes protected first transition'
   $state=Get-Content "$app/.pdv-update/journal.json" -Raw|ConvertFrom-Json
   Check ($state.Phase -eq 'Committed') 'real setup waits for healthy startup confirmation'
