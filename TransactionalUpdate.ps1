@@ -7,13 +7,18 @@ param(
  [string]$Nonce='', [string]$Fault='', [int]$HealthTimeoutSeconds=120
 )
 $ErrorActionPreference='Stop'
+# Resolve only Windows' own modules, including when launched from PowerShell 7/.NET 8.
+$env:PSModulePath=(Join-Path $PSHOME 'Modules')+';'+(Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Modules')
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Management/Microsoft.PowerShell.Management.psd1') -ErrorAction Stop
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
+Import-Module (Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Modules/ScheduledTasks/ScheduledTasks.psd1') -ErrorAction Stop
 $App=[IO.Path]::GetFullPath($App).TrimEnd('\')
 $root=Join-Path $App '.pdv-update'
 $names=@('LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe')
 $journal=Join-Path $root 'journal.json'
 $sha=[Security.Cryptography.SHA256]::Create()
 try{$task='LealInfoPDV-Recovery-'+([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($App.ToUpperInvariant()))).Replace('-','').Substring(0,16))}finally{$sha.Dispose()}
-function HashFile([string]$p){(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}
+function HashFile([string]$p){$f=[IO.File]::OpenRead($p);$sha=[Security.Cryptography.SHA256]::Create();try{return [BitConverter]::ToString($sha.ComputeHash($f)).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose();$f.Dispose()}}
 function FlushFile([string]$p){$f=[IO.File]::Open($p,'Open','ReadWrite','None');try{$f.Flush($true)}finally{$f.Dispose()}}
 function SaveState($s){
  $bytes=[Text.Encoding]::UTF8.GetBytes(($s|ConvertTo-Json -Depth 12))

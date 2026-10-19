@@ -61,7 +61,10 @@ internal static class TransactionalUpdate
         // The elevated bootstrap checks immutable bytes before placing the worker in Program Files.
         var bootstrap=$$"""
 $ErrorActionPreference='Stop'
-trap { $_ | Out-String | Set-Content -LiteralPath {{Q(Path.Combine(temp,"bootstrap-error.log"))}}; exit 1 }
+trap { [IO.File]::WriteAllText({{Q(Path.Combine(temp,"bootstrap-error.log"))}},$_.Exception.ToString()); exit 1 }
+$env:PSModulePath=(Join-Path $PSHOME 'Modules')+';'+(Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Modules')
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Management/Microsoft.PowerShell.Management.psd1') -ErrorAction Stop
+Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
 $src={{Q(source)}};$app={{Q(app)}}
 $bytes=[IO.File]::ReadAllBytes($src);$sha=[Security.Cryptography.SHA256]::Create()
 try{$h=[BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-','')}finally{$sha.Dispose()}
@@ -89,7 +92,7 @@ $f=[IO.File]::Open($dest,'CreateNew','Write','None');try{$f.Write($bytes,0,$byte
 exit $LASTEXITCODE
 """;
         var encoded=Convert.ToBase64String(Encoding.Unicode.GetBytes(bootstrap));
-        using var worker=Process.Start(new ProcessStartInfo("powershell.exe","-NoProfile -ExecutionPolicy Bypass -EncodedCommand "+encoded){UseShellExecute=true,Verb="runas",WindowStyle=ProcessWindowStyle.Hidden}) ?? throw new IOException("Proteção externa não iniciou.");
+        using var worker=Process.Start(new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"WindowsPowerShell","v1.0","powershell.exe"),"-NoProfile -ExecutionPolicy Bypass -EncodedCommand "+encoded){UseShellExecute=true,Verb="runas",WindowStyle=ProcessWindowStyle.Hidden}) ?? throw new IOException("Proteção externa não iniciou.");
         var ready=Path.Combine(app,".pdv-update","prepared.ready");
         var deadline=DateTime.UtcNow.AddSeconds(60);
         while(DateTime.UtcNow<deadline)
