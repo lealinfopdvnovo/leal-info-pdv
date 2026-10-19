@@ -36,8 +36,11 @@ try{
  }finally{Cleanup $app}
  $app=Fixture
  try{
-  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File bundle/activate.ps1 -App $app -Fault 'copy-LealInfoPDV.dll'
-  Check ($LASTEXITCODE -ne 0) 'actual interrupted setup worker refuses success'
+  $locked=[IO.File]::Open((Join-Path $app 'LealInfoPDV.dll'),'Open','Read','Read')
+  try {
+   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File bundle/activate.ps1 -App $app
+   Check ($LASTEXITCODE -ne 0) 'actual locked DLL setup failure refuses success'
+  }finally{$locked.Dispose()}
   Start-ScheduledTask -TaskName (TaskName $app)
   $limit=(Get-Date).AddSeconds(40)
   do{Start-Sleep -Milliseconds 300;$state=Get-Content "$app/.pdv-update/journal.json" -Raw|ConvertFrom-Json}while($state.Phase -ne 'Recovered' -and (Get-Date) -lt $limit)
