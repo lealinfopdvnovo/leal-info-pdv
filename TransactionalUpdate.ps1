@@ -19,7 +19,7 @@ function SaveState($s){
  $bytes=[Text.Encoding]::UTF8.GetBytes(($s|ConvertTo-Json -Depth 12))
  $tmp=$journal+'.tmp';$f=[IO.File]::Open($tmp,'Create','Write','None')
  try{$f.Write($bytes,0,$bytes.Length);$f.Flush($true)}finally{$f.Dispose()}
- if(Test-Path $journal){[IO.File]::Replace($tmp,$journal,$null)}else{[IO.File]::Move($tmp,$journal)}
+ if(Test-Path $journal){[IO.File]::Replace($tmp,$journal,[NullString]::Value)}else{[IO.File]::Move($tmp,$journal)}
 }
 function Point([string]$name){
  if($Fault -eq ''){return}
@@ -41,7 +41,7 @@ function CopyDurable([string]$from,[string]$to){[IO.File]::Copy($from,$to,$true)
 function ReplaceFile([string]$from,[string]$to,[string]$hash){
  $temp=$to+'.pdv-new';CopyDurable $from $temp
  if((HashFile $temp) -ne $hash){throw 'Replacement hash mismatch'}
- if(Test-Path $to){[IO.File]::Replace($temp,$to,$null)}else{[IO.File]::Move($temp,$to)}
+ if(Test-Path $to){[IO.File]::Replace($temp,$to,[NullString]::Value)}else{[IO.File]::Move($temp,$to)}
 }
 function HideHost{
  $hostPath=Join-Path $App 'LealInfoPDV.exe'
