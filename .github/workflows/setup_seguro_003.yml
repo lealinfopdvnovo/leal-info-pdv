@@ -1,4 +1,5 @@
 name: Setup seguro exclusivo 003
+# Targeted first-transition validation; tested worker remains unchanged.
 on:
   push:
     branches: ['feature/setup-seguro-003']
