@@ -34,7 +34,7 @@ jobs:
           assert old[:old.index(marker)]==new[:new.index(marker)],'Channel selection or identity modified'
           old=git('show',base+':Program.cs').replace('\r\n','\n')
           new=Path('source/Program.cs').read_text(encoding='utf-8')
-          guard='        try { TransactionalUpdate.BeforeStartup(); }\n        catch(Exception ex) { MessageBox.Show(ex.Message,"Recuperação da atualização",MessageBoxButtons.OK,MessageBoxIcon.Warning); return; }\n'
+          guard='        try { TransactionalUpdate.BeforeStartup(); }\n        catch(Exception ex) { System.Diagnostics.Trace.WriteLine(ex); return; }\n'
           assert new.replace(guard,'').replace('            TransactionalUpdate.ReportReady();\n\n','')==old,'Unrelated startup changes'
           old=git('show',base+':LealInfoPDV.csproj').replace('\r\n','\n')
           new=Path('source/LealInfoPDV.csproj').read_text(encoding='utf-8')
