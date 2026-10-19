@@ -7,7 +7,7 @@ try {
  $App=[IO.Path]::GetFullPath($App).TrimEnd('\')
  $programFiles64=if($env:ProgramW6432){$env:ProgramW6432}else{$env:ProgramFiles}
  $allowed=[IO.Path]::GetFullPath($programFiles64).TrimEnd('\')+'\'
- if(!$App.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase)){throw 'Selecione a instalacao existente em Program Files.'}
+ if(!$App.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase)){throw ("Pasta recusada: App=["+$App+"]; Permitida=["+$allowed+"]; 64bit="+[Environment]::Is64BitProcess)}
  if($Fault -and ($env:GITHUB_ACTIONS -ne 'true' -or !(Test-Path (Join-Path $App 'QA-ISOLATED')))){throw 'Teste recusado'}
  $meta=Get-Content "$PSScriptRoot/candidate.json" -Raw|ConvertFrom-Json
  if($meta.Channel -ne '003' -or $meta.Version -ne '10.416'){throw 'Pacote de canal incorreto'}
