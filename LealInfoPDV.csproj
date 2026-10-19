@@ -29,4 +29,5 @@
     <Content Include="Assets\*.jpg"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
     <Content Include="Assets\*.mp4"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
   </ItemGroup>
+  <ItemGroup><EmbeddedResource Include="TransactionalUpdate.ps1" LogicalName="TransactionalUpdateWorker" /></ItemGroup>
 </Project>
