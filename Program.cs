@@ -12,7 +12,7 @@ internal static class Program
     static void Main()
     {
         try { TransactionalUpdate.BeforeStartup(); }
-        catch(Exception ex) { MessageBox.Show(ex.Message,"Recuperação da atualização",MessageBoxButtons.OK,MessageBoxIcon.Warning); return; }
+        catch(Exception ex) { System.Diagnostics.Trace.WriteLine(ex); return; }
         // V10.198: WebView2 precisa de uma pasta gravavel pelo usuario.
         // Evita E_ACCESSDENIED quando o PDV esta instalado em Program Files.
         var webViewUserData = Path.Combine(
