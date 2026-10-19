@@ -45,6 +45,7 @@ try{
   Original $app
  }finally{Cleanup $app}
  # Build and execute the actual Inno UI wrapper using a synthetic healthy host.
+ Copy-Item bundle source/setup-003/bundle -Recurse -Force
  & $env:ISCC source/setup-003/setup.iss
  if($LASTEXITCODE -ne 0){throw 'QA setup compilation failed'}
  $app=Fixture
