@@ -119,3 +119,5 @@ jobs:
             controller/release-output/
 
 # Validate setup launcher native argument compatibility.
+
+# Reset Windows PowerShell module environment in Inno launcher.
