@@ -5,7 +5,8 @@ try {
  Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Management/Microsoft.PowerShell.Management.psd1') -ErrorAction Stop
  Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Utility/Microsoft.PowerShell.Utility.psd1') -ErrorAction Stop
  $App=[IO.Path]::GetFullPath($App).TrimEnd('\')
- $allowed=[IO.Path]::GetFullPath($env:ProgramFiles).TrimEnd('\')+'\'
+ $programFiles64=if($env:ProgramW6432){$env:ProgramW6432}else{$env:ProgramFiles}
+ $allowed=[IO.Path]::GetFullPath($programFiles64).TrimEnd('\')+'\'
  if(!$App.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase)){throw 'Selecione a instalacao existente em Program Files.'}
  if($Fault -and ($env:GITHUB_ACTIONS -ne 'true' -or !(Test-Path (Join-Path $App 'QA-ISOLATED')))){throw 'Teste recusado'}
  $meta=Get-Content "$PSScriptRoot/candidate.json" -Raw|ConvertFrom-Json
