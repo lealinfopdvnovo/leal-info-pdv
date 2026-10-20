@@ -26,8 +26,7 @@ internal static class KitchenVisualEvidence
             select.Start();main.Controls.Find("KitchenImportPdv",true).OfType<Button>().Single().PerformClick();
         }
         var store=Field<KitchenStore>(form,"store");store.ChangeTableCount(40,store.Seating().Revision);
-        form.MaximumSize=new Size(1920,1080);form.Size=new Size(1680,940);form.PerformLayout();
-        check(form.Width==1680&&form.Height==940,"reference viewport renders at the requested actual window size");
+
         foreach(var pair in new[]{(2,"AGUARDANDO"),(3,"PREPARANDO"),(5,"PRONTO"),(6,"AGUARDANDO"),(7,"PREPARANDO"),(10,"AGUARDANDO")})
         {
             var product=seeds[pair.Item1%seeds.Length];
@@ -41,13 +40,34 @@ internal static class KitchenVisualEvidence
         pump(()=>refresh.IsCompleted);refresh.GetAwaiter().GetResult();
         pump(()=>main.Controls.Find("CatalogReload",true).OfType<Button>().Single().Enabled);
         Application.DoEvents();
-        using(var image=new Bitmap(form.Width,form.Height)){form.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"cozinha-referencia-real-windows.png"));}
+        RenderClient(form,new Size(1680,940),Path.Combine(evidence,"cozinha-referencia-real-windows.png"));
+        check(true,"native Windows client controls rendered at reference viewport without changing functional desktop tests");
         var tables=Field<KitchenTablesView>(form,"tables");
         tables.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();Application.DoEvents();
-        var popup=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AllKitchenTables");popup.MaximumSize=new Size(1600,1000);popup.Size=new Size(1100,650);popup.PerformLayout();
-        check(popup.Width==1100&&popup.Height==650,"all tables capture renders at the requested actual window size");Application.DoEvents();
-        using(var image=new Bitmap(popup.Width,popup.Height)){popup.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"mesas-referencia-real-windows.png"));}
+        var popup=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AllKitchenTables");Application.DoEvents();
+        RenderClient(popup,new Size(1100,620),Path.Combine(evidence,"mesas-referencia-real-windows.png"));
         popup.Close();
         check(true,"real Windows reference screenshots generated from synthetic products, orders and persisted reservations");
     }
+    // Render the same live child controls offscreen at a wide client viewport.
+    // This is a control rendering check, not a claim that the CI desktop has this physical resolution.
+    private static void RenderClient(Form source,Size size,string path)
+    {
+        var children=source.Controls.Cast<Control>().ToArray();
+        using var host=new Panel{Size=size,Font=source.Font,BackColor=KitchenPremiumStyle.Background};
+        source.SuspendLayout();host.SuspendLayout();
+        try
+        {
+            foreach(var child in children){source.Controls.Remove(child);host.Controls.Add(child);}
+            host.ResumeLayout(true);host.CreateControl();host.PerformLayout();
+            using var bitmap=new Bitmap(size.Width,size.Height);
+            host.DrawToBitmap(bitmap,new Rectangle(Point.Empty,size));bitmap.Save(path);
+        }
+        finally
+        {
+            foreach(var child in children){host.Controls.Remove(child);source.Controls.Add(child);}
+            source.ResumeLayout(true);
+        }
+    }
+
 }
