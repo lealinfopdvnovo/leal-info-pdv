@@ -32,14 +32,12 @@ if($copyExit -eq 0){throw 'Failure injection did not block the real copy'}
 $changed=@($names|Where-Object{(Get-FileHash (Join-Path $app $_)).Hash -ne $before[$_]})
 $unchanged=@($names|Where-Object{(Get-FileHash (Join-Path $app $_)).Hash -eq $before[$_]})
 if($changed.Count -eq 0 -or $unchanged.Count -eq 0){throw 'Failure did not exercise a partially applied update'}
-$oldOnly=$true
 $result=[ordered]@{
   Channel=$entry.Channel; Version=$entry.Version; InstalledVersion=$entry.Baseline.Version
   InstalledSource=$entry.BaselineSource; CandidateSource=$entry.SourceCommit
   RealInstalledCopyBlock=$true; FailedCopyExit=$copyExit
   ChangedAfterFailure=$changed; StillPreviousAfterFailure=$unchanged
   AutomaticExecutableRollbackPassed=$false
-  ExistingExternalProtectionRestrictedTo001Version10404=$oldOnly
   SafeForPublication=$false; ProductionAccess=$false
   Reason='Installed updater leaves mixed executable versions after a real copy failure; existing bridge does not cover this release/channels.'
 }

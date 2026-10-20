@@ -1,0 +1,73 @@
+{
+  "Channel": "003",
+  "CandidateVersion": "10.422",
+  "PublishedVersion": "10.415",
+  "Published": false,
+  "CandidateSourceCommit": "be3d36780eec0bf90aef7666ac5df158115a8e99",
+  "BaselineSourceCommit": "137612d259a0fcecdbc2c2165893ba73988eb847",
+  "PackageSha256": "546c776f7b9f48a3462f30ba257c8120c1f7bc144d957698565efe98f246e646",
+  "WindowsUiAndBuildRunId": "39504222643",
+  "RollbackRunId": "39504754135",
+  "RollbackArtifactId": 12303270366,
+  "Checks": {
+    "KitchenUiPassed": true,
+    "BuildPassed": true,
+    "ChannelIsolationPassed": true,
+    "PayloadPolicyPassed": true,
+    "ProtectedWorkerScenariosPassed": 19,
+    "LegacyFirstTransitionRollbackPassed": false,
+    "AllFeedsUnchangedVerified": true
+  },
+  "LegacyFailure": {
+    "Changed": [
+      "LealInfoPDV.deps.json"
+    ],
+    "StillPrevious": [
+      "LealInfoPDV.exe",
+      "LealInfoPDV.dll"
+    ],
+    "RealCopyBlock": true,
+    "InjectedLockedFile": true,
+    "AutomaticRollback": false
+  },
+  "Feeds": [
+    {
+      "channel": "GLOBAL",
+      "sha": "20d54fff0fa22e863deb9f769cadd12bb746fd60",
+      "unchanged": true,
+      "version": "10.408"
+    },
+    {
+      "channel": "001",
+      "sha": "dc595ffe8ac57c081ff1adb6d12eb56d16f3a6b4",
+      "unchanged": true,
+      "version": "10.422"
+    },
+    {
+      "channel": "002",
+      "sha": "6914b20a5cb54f8f3262ba99f4501d2fecbb8dea",
+      "unchanged": true,
+      "version": "10.408"
+    },
+    {
+      "channel": "003",
+      "sha": "231e9bcd39cd93d595fbaa037c42aac95fcc1ab0",
+      "unchanged": true,
+      "version": "10.415"
+    },
+    {
+      "channel": "004",
+      "sha": "aef5fd9fa837d39a690637b730d9329fd0eeb003",
+      "unchanged": true,
+      "version": "10.408"
+    }
+  ],
+  "SafeForPublication": false,
+  "RealCustomerInstallationClaimed": false,
+  "ActualCustomerProfileTouched": false,
+  "Limitations": [
+    "Windows CI isolated fixtures; no customer desktop access or physical power-cut test.",
+    "Second run feed-verification step had Python import-path error; all five feed hashes were independently verified through GitHub API against release-plan artifact afterward.",
+    "The new worker cannot protect the installed legacy updater's initial copy before it is installed."
+  ]
+}
