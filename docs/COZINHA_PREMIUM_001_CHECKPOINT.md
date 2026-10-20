@@ -1,43 +1,37 @@
-# Cozinha Premium 001 — preparação, sem publicação
+# Cozinha Premium 001 — candidata 10.422
 
-Repositório: lealinfopdvnovo/leal-info-pdv  
-Branch: feature/setup-seguro-001  
-Código validado: 76799e9550229975ba70a2b0396a0b81cf26b452  
-Windows CI: https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/39495601269  
-Resultado: testes de interface e compilação win-x64 self-contained aprovados.
+Código da candidata: b156dc46d8b7e2d71e533f23449545c65f4e99ab  
+Windows e rollback: https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/39501475840
 
-## Implementado nesta preparação
+A imagem aprovada foi aberta neste Work. Seu SHA-256 é 3dd5b0fc43faf18c40e2b26a06ad7954f7866277d6f801f0e1bbd3af3909e254. A referência foi adaptada a controles nativos WinForms: preto/dourado, catálogo com fotos à esquerda, dez mesas coloridas com desenho em perspectiva, botão vertical VER MAIS MESAS e janela flutuante com filtros e reserva roxa.
 
-- Catálogo de produtos com fotos à esquerda da central; apresentação escura e botões com gradiente e borda iluminada restritos à cozinha.
-- Dez mesas na central. VER MAIS MESAS abre formulário flutuante não modal; quantidade de 10 a 1000, testada com 20, 30, 40 e 80.
-- Ocupação operacional derivada dos pedidos ativos: AGUARDANDO = ocupada, PREPARANDO, PRONTO = pronta; sem pedidos ativos = livre. Referências explicitamente no formato Mesa NN; referências livres antigas preservadas.
-- Consulta de todos os pedidos ativos para mesas, sem o limite de 500 aplicado à consulta de histórico.
-- Clique na mesa abre pedido flutuante com a referência. Rascunho existente não é substituído silenciosamente.
-- NOVO PEDIDO preserva sua janela flutuante e fila durável; envio real, reabertura, edição e prevenção de duplicação testados.
-- + ADICIONAR PRODUTO abre ProductRegistrationForm existente. Teste Windows salva por sua ação real, com preço/foto, e confirma atualização dos dois catálogos após fechar o cadastro.
-- IMPORTAR PRODUTOS DO PDV seleciona IDs existentes para o cardápio sem copiar ou modificar produtos. Preferências locais protegidas em KitchenMenu, separadas por identidade da base/endpoint.
-- Importador de catálogo pronto existente preservado.
-- Proteção contra criação de novos controles em thread de trabalho e dimensionamento após o ajuste automático de fonte do Windows.
+## Implementação
 
-## Evidências e limites
+- Reservas e capacidade persistentes nas novas kitchen_tables_v2 e kitchen_table_settings_v2, compartilhadas por servidor e terminal TLS.
+- Migração aditiva precedida de backup SQLite e quick_check. Tabelas anteriores de pedidos e dados comerciais preservados.
+- Controle de revisão impede sobrescrever uma reserva/configuração atualizada em outro terminal.
+- Mesa com pedido ativo não pode ser reservada; redução da capacidade não oculta mesa ativa ou reservada.
+- Pedido novo em mesa reservada fica bloqueado com pendência preservada, até liberação. Repetição idempotente de pedido já confirmado continua funcionando.
+- Pedidos ativos aparecem nos cartões mesmo com mais de 500 registros recentes de histórico.
+- Cadastro padrão, seleção do cardápio, imagens e vínculo por ID dos produtos preservados.
+- Quantidade aceita: 10 a 1000; dez mesas permanecem na central. A janela foi testada com 20/30/40/80 e com reserva/liberação.
+- Nenhuma venda, pagamento ou baixa de estoque é criada ao enviar ou mudar o estado de um pedido de cozinha.
 
-O artefato cozinha-premium-001-preparacao no run acima contém log, fixed.json e screenshots. A base Windows é descartável e protegida pelo guard GITHUB_ACTIONS; não é homologação no computador operacional do cliente.
+## Evidências e autorização de publicação
 
-Os testes aprovados verificam fotos, preços, busca, TLS de terminal, mesas, transições, pedidos gravados, rascunhos, pendências protegidas, seleção do menu e cadastro real. Conferem preservação das tabelas de negócio antes da inclusão intencional do novo produto e preservação de preços/estoques dos produtos anteriores após o cadastro.
+Testes de interface, cadastro real, seleção do menu, servidor/terminal, preservação e pacote executam no Windows isolado do GitHub. O teste de histórico cria 501 registros sintéticos após as verificações de preservação. As capturas amplas usam os mesmos controles nativos em renderização fora da tela, com tamanho real do PNG registrado; não representam uma homologação física de resolução/DPI.
 
-Não houve alteração do worker do atualizador, nem execução de nova validação transacional de pacote nesta etapa. Não foi produzido ou publicado pacote de atualização desta preparação.
+A revisão das capturas exatas está em distribution/premium-001-visual-approval.json, vinculada a SourceCommit, BuildRunId, hash da referência e hashes dos dois PNGs.
 
-## Pendências antes de liberar
+O workflow só publica após:
+1. Compilação e testes Windows.
+2. Pacote com somente EXE, DLL e deps.json e dependências iguais à baseline protegida do 001.
+3. Política de payload e identidade do canal.
+4. Os 19 cenários reais de worker/rollback no Windows, incluindo interrupção, DLL bloqueada, hash inválido, adulteração e falha nativa de inicialização.
+5. Comparação do atualizador com a baseline protegida: worker e código de aplicação do update não mudaram.
+6. Revisão visual vinculada aos bytes das capturas.
+7. Verificação dos feeds preservados, dos bytes publicados e do manifesto remoto.
 
-- Abertura da imagem aprovada e comparação visual: bloqueadas neste Work por ausência de ambiente local; view_image e exec_command retornam No usable execution environment is available. A descrição textual não substitui homologação visual.
-- Estado de reserva de mesas, solicitado no escopo inicial, ainda não implementado. A projeção atual não representa reserva ou fechamento financeiro de mesa.
-- Quantidade configurada na janela de mesas é mantida durante a sessão, não é uma nova configuração persistente.
-- Validar pacote incremental com dependências aprovadas, preservação, segurança e rollback antes de qualquer publicação. Incrementar versão apenas na preparação da futura liberação.
+Nesta revisão o pacote final ainda aguardava concluir o rollback/publicação; consultar o run acima e o feed 001 para o estado final. O worker não foi alterado e o teste de primeira transição legada 10.415 não é autorização para instalações desprotegidas.
 
-## Publicação bloqueada
-
-O workflow novo_pedido_001.yml agora faz apenas testes/compilação e upload de evidências: sem job publicar, sem UPDATE_REPO_TOKEN e sem escrita em feeds. Não reativar publicação automática sem concluir as validações pendentes.
-
-O feed 001 permanece na 10.421, SourceCommit 41c8d6c7c0df5ce5778431344445599558a07848, SHA-256 cc244e005ef8bf9b86f8ab19ca5bf8641dab2f3275962463ea933e540162f56f. Esta preparação mantém a versão de código em 10.421; não deve ser distribuída como pacote dessa versão.
-
-002, 003, 004 e GLOBAL não foram publicados ou alterados. Entrega futura exclusivamente pelo atualizador interno do 001; sem setup e sem comandos ao usuário.
+Nenhum setup e nenhum comando ao usuário. Publicação exclusivamente pelo atualizador interno 001. 002, 003, 004 e GLOBAL não integram esta liberação. Não houve teste de queda física de energia ou homologação no computador operacional do cliente.

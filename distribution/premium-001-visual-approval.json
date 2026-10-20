@@ -1,0 +1,24 @@
+{
+  "SourceCommit": "b156dc46d8b7e2d71e533f23449545c65f4e99ab",
+  "BuildRunId": "39501475840",
+  "ReferenceSha256": "3dd5b0fc43faf18c40e2b26a06ad7954f7866277d6f801f0e1bbd3af3909e254",
+  "Reviewed": true,
+  "Hashes": {
+    "cozinha-referencia-real-windows.png": "d6fc00973018e82208090d3911c6626cd8156be20c5a03148ee8d4f258715e64",
+    "mesas-referencia-real-windows.png": "fc395fae2022d6a4de7e99ea17c6f9d6dc75ab17ef4636f93663109fde80478b"
+  },
+  "Reviewer": "Codex — inspected the actual Windows-generated captures against the user reference",
+  "ReviewedAtUtc": "2026-10-20T21:38:24.634Z",
+  "Scope": [
+    "Black and gold kitchen with registered product photos on the left",
+    "Ten state-colored perspective table buttons and vertical more-tables action",
+    "Forty-table floating layout with purple persisted reservation and status filters",
+    "Existing product registration and functional order-card controls"
+  ],
+  "Limitations": [
+    "Native WinForms rendering adapts the illustration; no claim of pixel-identical raster artwork",
+    "Wide captures render the same live Windows controls offscreen; functional tests run on the real runner desktop",
+    "No claim of physical customer installation, physical power-cut testing or all-DPI certification"
+  ],
+  "PublicationCondition": "Visual review only. The separate 001 release gate must also pass every Windows package and rollback check before publication."
+}
