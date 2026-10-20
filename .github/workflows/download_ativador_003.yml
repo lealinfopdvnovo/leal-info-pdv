@@ -1,0 +1,53 @@
+name: Download publico do ativador validado 003 sem alterar feeds
+on:
+  push:
+    branches: ['feature/cozinha-premium-003']
+    paths: ['.github/workflows/download_ativador_003.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  disponibilizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: lealinfopdvnovo/leal-info-pdv
+    steps:
+      - name: Disponibilizar bytes exatos ja validados e verificar download sem autenticacao
+        shell: python
+        run: |
+          import subprocess,json,hashlib,urllib.request,time
+          from pathlib import Path
+          repo='lealinfopdvnovo/leal-info-pdv'
+          expected='ab61672b37010c00714ff708aa72e57b511b35fdd2cf6a5821c0e57e4b95f6a3'
+          name='LEAL_INFO_PROTECAO_003.zip'
+          tag='protecao-003-10.415-para-10.422'
+          def api(p):return json.loads(subprocess.check_output(['gh','api',p]))
+          def feeds():
+              return {ch:api('repos/lealinfopdvnovo/leal-info-pdv-updates/contents/'+('version.json' if ch=='GLOBAL' else f'clients/{ch}/version.json')+'?ref=main')['sha'] for ch in ('GLOBAL','001','002','003','004')}
+          before=feeds()
+          artifact=api(f'repos/{repo}/actions/artifacts/12304772379')
+          assert artifact['workflow_run']['id']==39508898075 and not artifact['expired']
+          assert api(f'repos/{repo}/actions/runs/39508898075')['conclusion']=='success'
+          with open(name,'wb') as f:subprocess.run(['gh','api',f'repos/{repo}/actions/artifacts/12304772379/zip'],stdout=f,check=True)
+          assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected
+          Path('notes.txt').write_text('Ativador portatil exclusivo do 003, sem setup. Arquivo identico ao artefato Windows validado. Extrair toda a pasta e abrir LealInfoProtecao003.exe. Nenhum feed do PDV e alterado por esta disponibilizacao. A primeira troca exige verificacao local de identidade, backup e recuperacao SYSTEM. Fonte e provas: run 39508898075. SHA256 ZIP: '+expected)
+          existing=subprocess.run(['gh','release','view',tag,'--repo',repo],capture_output=True)
+          if existing.returncode!=0:
+              subprocess.run(['gh','release','create',tag,name,'--repo',repo,'--target','10de726adb0e3638befb3f9929176e91ed9564fa','--title','Protecao externa exclusiva 003 - ativador validado','--notes-file','notes.txt','--latest=false'],check=True)
+          url=f'https://github.com/{repo}/releases/download/{tag}/{name}'
+          remote=None
+          for i in range(5):
+              try:
+                  with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'LEAL-INFO-003-Delivery'}),timeout=60) as r:remote=hashlib.file_digest(r,'sha256').hexdigest()
+                  break
+              except Exception:
+                  if i==4:raise
+                  time.sleep(2)
+          assert remote==expected,'Public download hash differs'
+          assert feeds()==before,'A feed changed during delivery'
+          Path('download-verificado.json').write_text(json.dumps(dict(Url=url,Sha256=remote,AnonymousDownloadVerified=True,FeedsUnchanged=True,ApplicationFeedPublished=False,Setup=False),indent=2))
+          print('PASS anonymous public download verified; exact validated bytes; all five feeds unchanged')
+      - uses: actions/upload-artifact@v4
+        with: {name: comprovante-download-publico-003, path: download-verificado.json}
