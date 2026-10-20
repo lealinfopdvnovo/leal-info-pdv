@@ -1,0 +1,103 @@
+name: Verificar ativador portatil 003 sem repetir testes aprovados
+on:
+  push:
+    branches: ['feature/cozinha-premium-003']
+    paths: ['.github/workflows/verificar_ativador_003.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verificar:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: ativador-protecao-003-validado, path: portable, run-id: 39508203139, github-token: '${{ github.token }}'}
+      - uses: actions/download-artifact@v4
+        with: {name: provas-ativacao-externa-003, path: proof-new, run-id: 39508203139, github-token: '${{ github.token }}'}
+      - uses: actions/download-artifact@v4
+        with: {name: provas-ativacao-externa-003, path: proof-prior, run-id: 39506906458, github-token: '${{ github.token }}'}
+      - name: Consolidar 20 cenarios aprovados e quatro cenarios finais sem repeti-los
+        shell: python
+        run: |
+          import json,hashlib,subprocess,base64
+          from pathlib import Path
+          read=lambda p:json.loads(Path(p).read_text(encoding='utf-8-sig'))
+          old=read(next(Path('proof-prior').rglob('failure.json')))
+          new=read(next(Path('proof-new').rglob('results.json')))
+          assert len(old['Scenarios'])==20 and all(x['pass'] for x in old['Scenarios'])
+          assert new['success'] is True and len(new['Scenarios'])==4 and all(x['pass'] for x in new['Scenarios'])
+          assert new['SourceCommit']=='e18798bb47f34c42b73007804fda176dfcbb812e'
+          path='qa/protection003/Activator/Core.cs'
+          prior=json.loads(subprocess.check_output(['gh','api',f'repos/lealinfopdvnovo/leal-info-pdv/contents/{path}?ref=d6eaf98fbe770e763cf38f0c98a01ea9cbf36504']))
+          original=base64.b64decode(prior['content']).decode('utf-8-sig').replace('\r\n','\n')
+          current=Path(path).read_text(encoding='utf-8-sig').replace('\r\n','\n').replace('    internal int LaunchedWorkerId { get; private set; }\n','').replace('LaunchedWorkerId=p.Id;','')
+          assert original==current,'Protected activation logic changed; old test evidence no longer applies'
+          manifest=read('portable/activation-manifest.json')
+          assert manifest['SourceCommit']==new['SourceCommit'] and str(manifest['BuildRunId'])=='39508203139' and manifest['WindowsActivationTestsPassed'] is True
+          assert hashlib.sha256(Path('portable/LealInfoProtecao003.exe').read_bytes()).hexdigest()==manifest['Sha256']
+          assert not Path('C:/Program Files/LEAL INFO PDV').exists(),'Isolated UI refusal test only'
+          hashes={str(p.relative_to('portable')):hashlib.sha256(p.read_bytes()).hexdigest() for p in Path('portable').rglob('*') if p.is_file()}
+          Path('verification-evidence').mkdir(exist_ok=True)
+          Path('verification-evidence/combined-gate.json').write_text(json.dumps(dict(Channel='003',ActivationScenariosPassed=24,PriorRunId='39506906458',FinalRunId='39508203139',ProtectedLogicUnchanged=True,AllScenarios=old['Scenarios']+new['Scenarios'],Files=hashes,CustomerActivated=False,FeedPublicationAuthorized=False),indent=2))
+          Path('feeds-before.json').write_bytes(next(Path('proof-new').rglob('feeds-unchanged.json')).read_bytes())
+          print('PASS consolidated 24 real Windows activation scenarios with immutable portable bytes')
+      - name: Abrir executavel real e testar recusa segura sem instalacao de cliente
+        shell: pwsh
+        run: |
+          Add-Type @'
+          using System;using System.Text;using System.Runtime.InteropServices;
+          public static class W003 {
+            public delegate bool Callback(IntPtr h,IntPtr p);
+            [DllImport("user32.dll")]public static extern bool EnumChildWindows(IntPtr h,Callback c,IntPtr p);
+            [DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr h,StringBuilder t,int n);
+            [DllImport("user32.dll")]public static extern bool IsWindowEnabled(IntPtr h);
+            [DllImport("user32.dll")]public static extern IntPtr SendMessage(IntPtr h,int m,IntPtr w,IntPtr l);
+            public static string Text(IntPtr h){var s=new StringBuilder(4096);GetWindowText(h,s,s.Capacity);return s.ToString();}
+          }
+          '@
+          $exe=Join-Path $PWD 'portable/LealInfoProtecao003.exe'
+          $process=Start-Process $exe -PassThru
+          try {
+            $limit=(Get-Date).AddSeconds(30)
+            do{Start-Sleep -Milliseconds 200;$process.Refresh();if($process.HasExited){throw 'Portable executable failed to open'}}while($process.MainWindowHandle -eq 0 -and (Get-Date) -lt $limit)
+            if($process.MainWindowHandle -eq 0){throw 'Portable GUI did not open'}
+            $script:rows=[Collections.Generic.List[object]]::new()
+            $cb=[W003+Callback]{param($h,$p)$script:rows.Add(@{Handle=$h;Text=[W003]::Text($h)});return $true}
+            [W003]::EnumChildWindows($process.MainWindowHandle,$cb,[IntPtr]::Zero)|Out-Null
+            $prepare=@($rows|Where-Object{$_.Text -like '1 *'})[0]
+            $apply=@($rows|Where-Object{$_.Text -like '2 *'})[0]
+            if(!$prepare -or !$apply -or [W003]::IsWindowEnabled($apply.Handle)){throw 'Unsafe initial activation buttons'}
+            [W003]::SendMessage($prepare.Handle,0x00F5,[IntPtr]::Zero,[IntPtr]::Zero)|Out-Null
+            Start-Sleep -Milliseconds 1200
+            $script:rows.Clear();[W003]::EnumChildWindows($process.MainWindowHandle,$cb,[IntPtr]::Zero)|Out-Null
+            if(!@($rows|Where-Object{$_.Text -like '*NÃO APLICADO*'}).Count -or [W003]::IsWindowEnabled($apply.Handle)){throw 'Missing installation was not refused safely'}
+            if(Test-Path 'C:/Program Files/LEAL INFO PDV'){throw 'Portable UI created operational installation'}
+            @{RealPortableGuiOpened=$true;ActualPrepareButtonClicked=$true;MissingInstallationRejected=$true;ApplyRemainsDisabled=$true;CustomerPdvStarted=$false}|ConvertTo-Json|Set-Content verification-evidence/portable-ui.json -Encoding UTF8
+            $process.CloseMainWindow()|Out-Null
+            if(!$process.WaitForExit(10000)){throw 'Portable GUI did not close'}
+            Write-Output 'PASS actual portable executable opens and refuses missing installation without enabling apply'
+          }finally{if(!$process.HasExited){$process.Kill();$process.WaitForExit()}}
+      - name: Confirmar feeds inalterados e vincular prova final ao ativador
+        shell: python
+        run: |
+          import json,subprocess,hashlib,os
+          from pathlib import Path
+          read=lambda p:json.loads(Path(p).read_text(encoding='utf-8-sig'))
+          before=read('feeds-before.json');after={}
+          for ch in before:
+              path='version.json' if ch=='GLOBAL' else f'clients/{ch}/version.json'
+              after[ch]=json.loads(subprocess.check_output(['gh','api',f'repos/lealinfopdvnovo/leal-info-pdv-updates/contents/{path}?ref=main']))['sha']
+          assert before==after,'Feed changed; no release authorized'
+          gate=read('verification-evidence/combined-gate.json');gate.update(PortableUiVerified=read('verification-evidence/portable-ui.json'),Feeds=after,FinalVerificationRunId=os.environ['GITHUB_RUN_ID'],ReadyForLocalActivation=True)
+          Path('portable/activation-validation.json').write_text(json.dumps(gate,indent=2))
+          print('PASS ready for local activation only; no PDV feed publication')
+      - uses: actions/upload-artifact@v4
+        with: {name: ATIVADOR_003_PRONTO_PARA_ATIVACAO_LOCAL, path: portable/}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: comprovantes-ativador-003, path: verification-evidence/}
