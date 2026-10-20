@@ -2,7 +2,7 @@ name: Protecao externa 003 - primeira transicao Windows
 on:
   push:
     branches: ['feature/cozinha-premium-003']
-    paths: ['qa/protection003/**', '.github/workflows/protecao_externa_003.yml']
+    paths: ['qa/003-full-activation-revalidate.txt']
 permissions:
   contents: read
   actions: read

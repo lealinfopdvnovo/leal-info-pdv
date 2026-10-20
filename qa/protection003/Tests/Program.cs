@@ -3,6 +3,7 @@ using LealInfoPDV.Network;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.IO.Compression;
 static class Tests
 {
@@ -30,11 +31,61 @@ static class Tests
     static void Cleanup(string app){var e=Engine(app);Core.RunPs("Stop-ScheduledTask -TaskName "+Quote(e.TaskName)+" -ErrorAction SilentlyContinue;Unregister-ScheduledTask -TaskName "+Quote(e.TaskName)+" -Confirm:$false -ErrorAction SilentlyContinue;exit 0").GetAwaiter().GetResult();foreach(var p in Process.GetProcessesByName("LealInfoPDV"))using(p){if(p.MainModule?.FileName==Path.Combine(app,"LealInfoPDV.exe")){p.Kill();p.WaitForExit();}}Directory.Delete(app,true);}
     static async Task<string> Phase(string app,string[] expected,int seconds=45){var until=DateTime.UtcNow.AddSeconds(seconds);string phase="";while(DateTime.UtcNow<until){try{using var j=JsonDocument.Parse(File.ReadAllText(Path.Combine(app,".pdv-update/journal.json")));phase=j.RootElement.GetProperty("Phase").GetString()!;if(expected.Contains(phase))return phase;}catch(IOException){}await Task.Delay(200);}Console.Error.WriteLine(await Core.RunPs("Get-ScheduledTask -TaskName "+Quote(Engine(app).TaskName)+"|Format-List *;Get-ScheduledTaskInfo -TaskName "+Quote(Engine(app).TaskName)+"|Format-List *;Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\"|Select-Object ProcessId,CommandLine|Format-List"));foreach(var f in Directory.GetFiles(Path.Combine(app,".pdv-update"),"*.log"))Console.Error.WriteLine(f+"\n"+File.ReadAllText(f));throw new Exception("State timeout "+phase);}
     static Process Delay(){return Core.StartPs("Start-Sleep -Seconds 45",false);}
+    static async Task<byte[]> SeedLegacy(string app)
+    {
+        var e=Engine(app);await e.Prepare();
+        var file=Path.Combine(e.Root,"journal.json");var j=JsonNode.Parse(File.ReadAllBytes(file))!;
+        j["Phase"]="Armed";j["Version"]="10.415";j["Activation"]="Protection003-NoUpdate";j["Target"]=j["Previous"]!.DeepClone();
+        byte[] bytes=JsonSerializer.SerializeToUtf8Bytes(j);File.WriteAllBytes(file,bytes);return bytes;
+    }
+    static async Task LegacyCases(RSA rsa)
+    {
+        foreach(var fault in new[]{"none","wrong-client","wrong-app","wrong-version","wrong-marker","different-target","different-previous","unknown-phase"}){
+            var app=NewFixture(rsa);try{
+                byte[] original=await SeedLegacy(app);string journal=Path.Combine(app,".pdv-update/journal.json");
+                var j=JsonNode.Parse(original)!;
+                if(fault=="wrong-client")j["Channel"]="001";
+                if(fault=="wrong-app")j["App"]="C:/OTHER";
+                if(fault=="wrong-version")j["Version"]="10.414";
+                if(fault=="wrong-marker")j["Activation"]="Unknown";
+                if(fault=="different-target")j["Target"]!["LealInfoPDV.dll"]=new string('0',64);
+                if(fault=="different-previous")j["Previous"]!["LealInfoPDV.dll"]=new string('0',64);
+                if(fault=="unknown-phase")j["Phase"]="Applying";
+                byte[] armed=JsonSerializer.SerializeToUtf8Bytes(j);File.WriteAllBytes(journal,armed);var before=DataHashes(app);
+                var e=Engine(app);
+                if(fault!="none"){
+                    await Reject(()=>e.Prepare(),"legacy-armed-reject-"+fault);
+                    Check(File.ReadAllBytes(journal).SequenceEqual(armed),"unrecognized legacy journal is byte-identical after refusal");
+                }else{
+                    await e.Prepare();await e.VerifyProtection();
+                    Check(File.ReadAllBytes(Path.Combine(e.Bundle,"legacy-armed-preserved/journal-original.json")).SequenceEqual(armed),"original Armed no-update journal preserved verbatim");
+                    foreach(var n in Core.Names)Check(Core.HashFile(Path.Combine(e.Bundle,"legacy-armed-preserved",n))==Production.Previous[n],"legacy snapshot verified "+n);
+                    Check(await Phase(app,new[]{"Prepared"})=="Prepared","Armed legacy adopted into fresh protected 10.422 preparation");
+                    using var predecessor=Delay();await e.Handoff(predecessor.Id,predecessor.StartTime.ToUniversalTime().Ticks,"copy-LealInfoPDV.dll");predecessor.Kill();predecessor.WaitForExit();
+                    try{using var process=Process.GetProcessById(e.LaunchedWorkerId);Check(process.WaitForExit(15000),"interrupted adopted transition worker exited");}catch(ArgumentException){}
+                    await Core.RunPs("Start-ScheduledTask -TaskName "+Quote(e.TaskName));
+                    Check(await Phase(app,new[]{"Recovered"},60)=="Recovered","adopted legacy transaction recovers automatically through SYSTEM task");
+                    results.Add(new{scenario="legacy-armed-adoption-and-first-transition-rollback",pass=true});
+                }
+                Original(app);Preserve(app,before);
+            }finally{Cleanup(app);}
+        }
+        foreach(var checkpoint in new[]{"legacy-snapshot","legacy-retired"}){
+            var app=NewFixture(rsa);try{byte[] original=await SeedLegacy(app);var before=DataHashes(app);
+                var start=new ProcessStartInfo(Environment.ProcessPath!){UseShellExecute=false};start.ArgumentList.Add("--fault");start.ArgumentList.Add(app);start.ArgumentList.Add(checkpoint);
+                using var child=Process.Start(start)!;using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(100));await child.WaitForExitAsync(timeout.Token);Check(child.ExitCode==73,"real process interruption at "+checkpoint);Original(app);Preserve(app,before);
+                var e=Engine(app);await e.Prepare();await e.VerifyProtection();Original(app);Preserve(app,before);
+                Check(Directory.EnumerateFiles(e.Root,"journal-original.json",SearchOption.AllDirectories).Any(f=>File.ReadAllBytes(f).SequenceEqual(original)),"old journal survives interrupted compatibility activation");
+                results.Add(new{scenario="legacy-armed-resume-after-"+checkpoint,pass=true});
+            }finally{Cleanup(app);}
+        }
+    }
     [STAThread] static async Task<int> Main(string[] args){
         if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true"||!OperatingSystem.IsWindows())throw new Exception("Windows disposable CI only");
         if(args.Length==3&&args[0]=="--fault"){await Engine(args[1],point:p=>{if(p==args[2])Environment.Exit(73);}).Prepare();return 0;}
         try{
             using var rsa=RSA.Create(2048);
+            if(args.Contains("--legacy-armed-only")){await LegacyCases(rsa);goto completed;}
             if(args.Contains("--transition-only"))goto transitions;
             foreach(var channel in new[]{"001","002","004","GLOBAL"}){var app=NewFixture(rsa);try{License(Path.Combine(app,"data"),rsa,channel);var before=DataHashes(app);await Reject(()=>Engine(app).Prepare(),"reject-client-"+channel);Original(app);Preserve(app,before);Check(!Directory.Exists(Path.Combine(app,".pdv-update")),"rejected client creates no recovery files");}finally{Cleanup(app);}}
             foreach(var reason in new[]{"inactive","expired","wrong-serial","terminal","bad-signature","bad-package","bad-worker","bad-installed-file"}){var app=NewFixture(rsa);try{
@@ -53,7 +104,9 @@ static class Tests
                 byte[] pkg=File.ReadAllBytes(zip);Dictionary<string,string> target;using(var z=ZipFile.OpenRead(zip))target=z.Entries.ToDictionary(x=>x.FullName,x=>{using var s=x.Open();return Convert.ToHexString(SHA256.HashData(s)).ToLowerInvariant();});
                 var plan=Production with{PackageSha256=Core.Hash(pkg),Target=target};var before=DataHashes(app);var e=Engine(app,plan,pkg);await e.Prepare();Original(app);Preserve(app,before);using var predecessor=Delay();await e.Handoff(predecessor.Id,predecessor.StartTime.ToUniversalTime().Ticks);Original(app);predecessor.Kill();predecessor.WaitForExit();string expected=badHost?"Recovered":"Committed";Check(await Phase(app,new[]{expected})==expected,"protected Program Files first activation "+expected);if(badHost)Original(app);else foreach(var n in Core.Names)Check(Core.HashFile(Path.Combine(app,n))==target[n],"complete healthy synthetic target "+n);Preserve(app,before);results.Add(new{scenario=badHost?"first-transition-startup-failure-automatic-rollback":"first-transition-protected-program-files-synthetic-health",pass=true,fullPdvHomologation=false});
             }finally{Cleanup(app);}}
+            completed:
             Directory.CreateDirectory("activation-evidence");File.WriteAllText("activation-evidence/results.json",JsonSerializer.Serialize(new{success=true,SourceCommit=Environment.GetEnvironmentVariable("GITHUB_SHA"),PreservedCustomerProfiles=true,Scenarios=results,RealCustomerActivation=false,PhysicalPowerCutTested=false},new JsonSerializerOptions{WriteIndented=true}));return 0;
         }catch(Exception ex){Console.Error.WriteLine(ex);Directory.CreateDirectory("activation-evidence");File.WriteAllText("activation-evidence/failure.json",JsonSerializer.Serialize(new{error=ex.ToString(),Scenarios=results}));return 1;}
     }
 }
+

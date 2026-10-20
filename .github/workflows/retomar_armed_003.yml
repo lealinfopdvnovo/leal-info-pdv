@@ -1,0 +1,190 @@
+name: Retomar protecao Armed antiga 003 - Windows e ativador R2
+on:
+  push:
+    branches: ['feature/cozinha-premium-003']
+    paths: ['.github/workflows/retomar_armed_003.yml', 'qa/protection003/Activator/Core.cs', 'qa/protection003/Tests/Program.cs']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: retomar-armed-003
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 16
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.401'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: premium-003-validation-NOT-AUTHORIZED
+          path: existing-evidence/
+          run-id: 39504754135
+          github-token: ${{ github.token }}
+      - name: Reaproveitar pacote e provas existentes sem repetir cozinha nem 19 cenarios
+        shell: python
+        run: |
+          import hashlib,json,zipfile,urllib.request,subprocess,base64
+          from pathlib import Path
+          read=lambda p:json.loads(Path(p).read_text(encoding='utf-8-sig'))
+          root=next(Path('existing-evidence').rglob('candidate.json')).parent
+          e=read(root/'candidate.json')
+          assert e['Channel']=='003' and e['Version']=='10.422' and e['SourceCommit']=='be3d36780eec0bf90aef7666ac5df158115a8e99'
+          assert e['PackageSha256']=='546c776f7b9f48a3462f30ba257c8120c1f7bc144d957698565efe98f246e646'
+          package=(root/e['Package']).read_bytes();assert hashlib.sha256(package).hexdigest()==e['PackageSha256']
+          results=read(root/'transaction-results.json');assert len(results)==19 and all(x['pass'] for x in results)
+          assert read(root/'reused-ui-and-package.json')['UiChecksPassed'] is True
+          with urllib.request.urlopen(e['Baseline']['PackageUrl'],timeout=60) as r:previous=r.read()
+          assert hashlib.sha256(previous).hexdigest()==e['Baseline']['Sha256']
+          Path('previous.zip').write_bytes(previous)
+          with zipfile.ZipFile('previous.zip') as z:z.extractall('previous')
+          for name,digest in e['PreviousFiles'].items():assert hashlib.sha256((Path('previous')/name).read_bytes()).hexdigest()==digest
+          deps=read('previous/LealInfoPDV.deps.json');sdk=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.Windows.SDK.NET.Ref/'));Path('sdk-version.txt').write_text(sdk)
+          bundle=Path('qa/protection003/Activator/bundle');bundle.mkdir(parents=True,exist_ok=True)
+          (bundle/'package.zip').write_bytes(package)
+          plan=dict(Channel='003',Version='10.422',SourceCommit=e['SourceCommit'],PackageSha256=e['PackageSha256'],WorkerSha256=hashlib.sha256(Path('TransactionalUpdate.ps1').read_bytes()).hexdigest(),Previous=e['PreviousFiles'],Target=e['TargetFiles'])
+          (bundle/'plan.json').write_text(json.dumps(plan,indent=2))
+          before={}
+          for ch in ('GLOBAL','001','002','003','004'):
+              path='version.json' if ch=='GLOBAL' else f'clients/{ch}/version.json'
+              d=json.loads(subprocess.check_output(['gh','api',f'repos/lealinfopdvnovo/leal-info-pdv-updates/contents/{path}?ref=main']))
+              before[ch]=d['sha']
+          Path('feeds-before.json').write_text(json.dumps(before))
+          print('PASS immutable prepared package, prior Windows UI/19 worker checks and exact baseline reused')
+      - name: Compilar ativador independente e host sintetico
+        shell: pwsh
+        run: |
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+          dotnet build qa/protection003/Tests/Tests.csproj -c Release 2>&1|Tee-Object activation-build.log
+          if($LASTEXITCODE -ne 0){throw 'Activator compilation failed'}
+      - name: Testar somente compatibilidade Armed e interrupcoes da retomada
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          dotnet run --no-build --project qa/protection003/Tests/Tests.csproj -c Release -- --legacy-armed-only 2>&1|Tee-Object activation-tests.log
+          if($LASTEXITCODE -ne 0){throw 'New external activation tests failed; no release'}
+      - name: Gerar ativador portatil somente apos testes aprovados
+        shell: pwsh
+        run: |
+          dotnet publish qa/protection003/Activator/Activator.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o activation-output 2>&1|Tee-Object activation-publish.log
+          if($LASTEXITCODE -ne 0){throw 'Portable activator compilation failed'}
+          Get-ChildItem activation-output -Filter *.pdb|Remove-Item
+          $exe=Join-Path $PWD 'activation-output/LealInfoProtecao003.exe'
+          $hash=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          @{File='LealInfoProtecao003.exe';Sha256=$hash;Channel='003';BuildRunId=$env:GITHUB_RUN_ID;SourceCommit=$env:GITHUB_SHA;WindowsActivationTestsPassed=$true;RealCustomerActivation=$false;PdvFeedPublished=$false}|ConvertTo-Json|Set-Content activation-output/activation-manifest.json -Encoding UTF8
+          Write-Output ('PASS portable activator SHA256 '+$hash)
+      - name: Verificar dez cenarios novos aprovados
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          r=json.loads(Path('activation-evidence/results.json').read_text())
+          assert r['success'] is True and len(r['Scenarios'])==10 and all(s['pass'] for s in r['Scenarios'])
+          print('PASS 10 new Armed compatibility cases; previous 24 not repeated')
+      - name: Abrir executavel real e testar recusa segura sem instalacao de cliente
+        shell: pwsh
+        run: |
+          Add-Type @'
+          using System;using System.Text;using System.Runtime.InteropServices;
+          public static class W003 {
+            public delegate bool Callback(IntPtr h,IntPtr p);
+            [DllImport("user32.dll")]public static extern bool EnumChildWindows(IntPtr h,Callback c,IntPtr p);
+            [DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern int GetWindowText(IntPtr h,StringBuilder t,int n);
+            [DllImport("user32.dll")]public static extern bool IsWindowEnabled(IntPtr h);
+            [DllImport("user32.dll")]public static extern IntPtr SendMessage(IntPtr h,int m,IntPtr w,IntPtr l);
+            public static string Text(IntPtr h){var s=new StringBuilder(4096);GetWindowText(h,s,s.Capacity);return s.ToString();}
+          }
+          '@
+          $exe=Join-Path $PWD 'activation-output/LealInfoProtecao003.exe'
+          $process=Start-Process $exe -PassThru
+          try {
+            $limit=(Get-Date).AddSeconds(30)
+            do{Start-Sleep -Milliseconds 200;$process.Refresh();if($process.HasExited){throw 'Portable executable failed to open'}}while($process.MainWindowHandle -eq 0 -and (Get-Date) -lt $limit)
+            if($process.MainWindowHandle -eq 0){throw 'Portable GUI did not open'}
+            $script:rows=[Collections.Generic.List[object]]::new()
+            $cb=[W003+Callback]{param($h,$p)$script:rows.Add(@{Handle=$h;Text=[W003]::Text($h)});return $true}
+            [W003]::EnumChildWindows($process.MainWindowHandle,$cb,[IntPtr]::Zero)|Out-Null
+            $prepare=@($rows|Where-Object{$_.Text -like '1 *'})[0]
+            $apply=@($rows|Where-Object{$_.Text -like '2 *'})[0]
+            if(!$prepare -or !$apply -or [W003]::IsWindowEnabled($apply.Handle)){throw 'Unsafe initial activation buttons'}
+            [W003]::SendMessage($prepare.Handle,0x00F5,[IntPtr]::Zero,[IntPtr]::Zero)|Out-Null
+            Start-Sleep -Milliseconds 1200
+            $script:rows.Clear();[W003]::EnumChildWindows($process.MainWindowHandle,$cb,[IntPtr]::Zero)|Out-Null
+            if(!@($rows|Where-Object{$_.Text -like '*NÃO APLICADO*'}).Count -or [W003]::IsWindowEnabled($apply.Handle)){throw 'Missing installation was not refused safely'}
+            if(Test-Path 'C:/Program Files/LEAL INFO PDV'){throw 'Portable UI created operational installation'}
+            @{RealPortableGuiOpened=$true;ActualPrepareButtonClicked=$true;MissingInstallationRejected=$true;ApplyRemainsDisabled=$true;CustomerPdvStarted=$false}|ConvertTo-Json|Set-Content activation-evidence/portable-ui.json -Encoding UTF8
+            $process.CloseMainWindow()|Out-Null
+            if(!$process.WaitForExit(10000)){throw 'Portable GUI did not close'}
+            Write-Output 'PASS actual portable executable opens and refuses missing installation without enabling apply'
+          }finally{if(!$process.HasExited){$process.Kill();$process.WaitForExit()}}
+      - name: Conferir todos os canais preservados
+        if: always()
+        shell: python
+        run: |
+          import json,subprocess
+          from pathlib import Path
+          before=json.loads(Path('feeds-before.json').read_text())
+          after={}
+          for ch in before:
+              path='version.json' if ch=='GLOBAL' else f'clients/{ch}/version.json'
+              d=json.loads(subprocess.check_output(['gh','api',f'repos/lealinfopdvnovo/leal-info-pdv-updates/contents/{path}?ref=main']))
+              after[ch]=d['sha']
+          assert before==after,'A channel changed; no publication authorized'
+          Path('activation-evidence').mkdir(exist_ok=True)
+          Path('activation-evidence/feeds-unchanged.json').write_text(json.dumps(after,indent=2))
+          print('PASS 001 002 003 004 GLOBAL feeds unchanged')
+      - uses: actions/upload-artifact@v4
+        with: {name: ATIVADOR_003_R2_VALIDADO, path: activation-output/}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: provas-retomada-armed-003-r2
+          path: |
+            activation-*.log
+            activation-evidence/
+            feeds-before.json
+            qa/protection003/Activator/bundle/plan.json
+
+  download_publico:
+    needs: validar
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Disponibilizar somente ativador R2 validado sem alterar atualizacoes do PDV
+        shell: python
+        run: |
+          import json,subprocess,hashlib,urllib.request,os,time
+          from pathlib import Path
+          repo='lealinfopdvnovo/leal-info-pdv'
+          def api(p):return json.loads(subprocess.check_output(['gh','api',p]))
+          def feeds():
+              return {ch:api('repos/lealinfopdvnovo/leal-info-pdv-updates/contents/'+('version.json' if ch=='GLOBAL' else f'clients/{ch}/version.json')+'?ref=main')['sha'] for ch in ('GLOBAL','001','002','003','004')}
+          before=feeds()
+          artifacts=api(f'repos/{repo}/actions/runs/'+os.environ['GITHUB_RUN_ID']+'/artifacts')['artifacts']
+          items=[a for a in artifacts if a['name']=='ATIVADOR_003_R2_VALIDADO' and not a['expired']]
+          assert len(items)==1
+          artifact=items[0];expected=artifact['digest'].removeprefix('sha256:')
+          name='LEAL_INFO_PROTECAO_003_R2.zip'
+          with open(name,'wb') as f:subprocess.run(['gh','api',f'repos/{repo}/actions/artifacts/'+str(artifact['id'])+'/zip'],stdout=f,check=True)
+          assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected
+          tag='protecao-003-r2-armed-10.415'
+          Path('notes.txt').write_text('Ativador exclusivo do 003. Compatibilidade com protecao antiga Armed / Protection003-NoUpdate. Preserva journal e backups; valida e prepara novamente a recuperacao SYSTEM antes da troca. Sem setup e sem comandos. Nenhum feed do PDV alterado. Dez cenarios novos Windows aprovados; cenarios anteriores reaproveitados. SHA256 ZIP: '+expected)
+          existing=subprocess.run(['gh','release','view',tag,'--repo',repo],capture_output=True)
+          if existing.returncode!=0:subprocess.run(['gh','release','create',tag,name,'--repo',repo,'--target',os.environ['GITHUB_SHA'],'--title','Protecao 003 R2 - compatibilidade Armed 10.415','--notes-file','notes.txt','--latest=false'],check=True)
+          url=f'https://github.com/{repo}/releases/download/{tag}/{name}'
+          with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'LEAL-INFO-003-R2'}),timeout=90) as response:remote=hashlib.file_digest(response,'sha256').hexdigest()
+          assert remote==expected and feeds()==before
+          Path('download-r2.json').write_text(json.dumps(dict(Url=url,Sha256=expected,AnonymousDownloadVerified=True,FeedsUnchanged=True,CustomerInstallation=False),indent=2))
+          print('PASS anonymous download of R2 exact validated bytes; all feeds preserved')
+      - uses: actions/upload-artifact@v4
+        with: {name: download-publico-r2-verificado, path: download-r2.json}

@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using LealInfoPDV.Network;
 using Microsoft.Win32;
 [assembly:System.Runtime.CompilerServices.InternalsVisibleTo("Protection003.Tests")]
@@ -55,7 +56,7 @@ internal sealed class Core
         if(File.Exists(config))Need(ProtectedFile.Read<JsonElement>(config).GetProperty("Mode").GetString()!="terminal","Ative somente no servidor 003, com os terminais fechados.");
         foreach(var n in Names){NoReparse(Path.Combine(App,n));Need(HashFile(Path.Combine(App,n))==plan.Previous[n],"Arquivo instalado difere da 10.415 aprovada: "+n);}
         foreach(var p in Process.GetProcessesByName("LealInfoPDV"))using(p)Need(p.MainModule?.FileName is string f&&!string.Equals(Path.GetFullPath(f),Path.Combine(App,"LealInfoPDV.exe"),StringComparison.OrdinalIgnoreCase),"Feche o PDV e os terminais antes da ativação.");
-        string journal=Path.Combine(Root,"journal.json");if(File.Exists(journal)){using var j=JsonDocument.Parse(File.ReadAllText(journal));Need(new[]{"Prepared","Aborted","Recovered","Committed"}.Contains(j.RootElement.GetProperty("Phase").GetString()),"Há uma recuperação pendente. Nenhuma cópia anterior será substituída.");}
+        string journal=Path.Combine(Root,"journal.json");if(File.Exists(journal)){using var j=JsonDocument.Parse(File.ReadAllText(journal));Need(new[]{"Prepared","Aborted","Recovered","Committed"}.Contains(j.RootElement.GetProperty("Phase").GetString())||LegacyArmed(j.RootElement),"Há uma recuperação pendente. Nenhuma cópia anterior será substituída.");}
     }
     static void Durable(string file,byte[] data){using var s=new FileStream(file,FileMode.Create,FileAccess.Write,FileShare.None);s.Write(data);s.Flush(true);}
     internal string Bundle=>Path.Combine(Root,"activation003-"+bundleId);
@@ -79,8 +80,53 @@ internal sealed class Core
         acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid,null),FileSystemRights.ReadAndExecute,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));
         new DirectoryInfo(Root).SetAccessControl(acl);
         Directory.CreateDirectory(Bundle);Durable(WorkerPath,worker);point?.Invoke("worker");Durable(PackagePath,package);point?.Invoke("package");
+        await RetireLegacyArmed();
         await RunPs(Args("Prepare")+"\nexit $LASTEXITCODE");point?.Invoke("prepared");
         await VerifyProtection();point?.Invoke("proof");
+    }
+    bool LegacyArmed(JsonElement s)
+    {
+        try{
+            if(s.GetProperty("Phase").GetString()!="Armed"||s.GetProperty("Activation").GetString()!="Protection003-NoUpdate"||s.GetProperty("Channel").GetString()!="003"||s.GetProperty("Version").GetString()!="10.415"||!string.Equals(s.GetProperty("App").GetString(),App,StringComparison.OrdinalIgnoreCase))return false;
+            foreach(string bag in new[]{"Previous","Target"}){
+                var hashes=s.GetProperty(bag);
+                if(!Names.Order().SequenceEqual(hashes.EnumerateObject().Select(p=>p.Name).Order()))return false;
+                foreach(var n in Names)if(hashes.GetProperty(n).GetString()!=plan.Previous[n])return false;
+            }
+            return true;
+        }catch(Exception ex) when(ex is KeyNotFoundException or InvalidOperationException){return false;}
+    }
+    // A supported no-update Armed record is not an incomplete application. Preserve it,
+    // snapshot the pinned installed bytes, quiesce its task, and retire it atomically.
+    async Task RetireLegacyArmed()
+    {
+        string journal=Path.Combine(Root,"journal.json");if(!File.Exists(journal))return;
+        using(var initial=JsonDocument.Parse(File.ReadAllBytes(journal))){if(!LegacyArmed(initial.RootElement))return;}
+        using var gate=new FileStream(Path.Combine(Root,"transaction.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
+        byte[] original=File.ReadAllBytes(journal);using var state=JsonDocument.Parse(original);
+        Need(LegacyArmed(state.RootElement),"A proteção antiga mudou durante a conferência. Tente novamente.");
+        var handles=new List<FileStream>();bool taskQuiesced=false,retired=false;
+        string snapshot=Path.Combine(Bundle,"legacy-armed-preserved");
+        try{
+            Directory.CreateDirectory(snapshot);
+            foreach(var n in Names){
+                var input=new FileStream(Path.Combine(App,n),FileMode.Open,FileAccess.Read,FileShare.Read);handles.Add(input);
+                Need(Convert.ToHexString(SHA256.HashData(input)).ToLowerInvariant()==plan.Previous[n],"A instalação mudou durante a proteção antiga: "+n);input.Position=0;
+                using(var output=new FileStream(Path.Combine(snapshot,n),FileMode.CreateNew,FileAccess.Write,FileShare.None)){input.CopyTo(output);output.Flush(true);}
+                Need(HashFile(Path.Combine(snapshot,n))==plan.Previous[n],"Backup da proteção antiga não confere.");
+            }
+            Durable(Path.Combine(snapshot,"journal-original.json"),original);point?.Invoke("legacy-snapshot");
+            await RunPs("$ErrorActionPreference='Stop';$t=Get-ScheduledTask -TaskName "+Q(TaskName)+" -ErrorAction SilentlyContinue;if($t){if($t.Actions.Count -ne 1 -or $t.Actions[0].Arguments -notlike "+Q("*"+Path.Combine(Root,"worker.ps1")+"*")+"){throw 'Tarefa antiga nao pertence ao worker esperado'};Disable-ScheduledTask -TaskName "+Q(TaskName)+"|Out-Null;if((Get-ScheduledTask -TaskName "+Q(TaskName)+").State -eq 'Running'){Stop-ScheduledTask -TaskName "+Q(TaskName)+"};for($i=0;$i -lt 40;$i++){if((Get-ScheduledTask -TaskName "+Q(TaskName)+").State -ne 'Running'){break};Start-Sleep -Milliseconds 250};if((Get-ScheduledTask -TaskName "+Q(TaskName)+").State -eq 'Running'){throw 'Tarefa antiga ainda executando'}};exit 0");
+            taskQuiesced=true;
+            Need(File.ReadAllBytes(journal).SequenceEqual(original),"O journal antigo mudou. Nenhum registro será descartado.");
+            foreach(var n in Names)Need(HashFile(Path.Combine(App,n))==plan.Previous[n],"Arquivo instalado mudou durante a retomada.");
+            var replacement=JsonNode.Parse(original)!;replacement["Phase"]="Aborted";replacement["RetiredBy"]="Protection003-ArmedCompatibility";
+            string temp=Path.Combine(Bundle,"legacy-retired.tmp");Durable(temp,JsonSerializer.SerializeToUtf8Bytes(replacement));
+            File.Replace(temp,journal,null);retired=true;point?.Invoke("legacy-retired");
+        }finally{
+            foreach(var h in handles)h.Dispose();
+            if(taskQuiesced&&!retired)await RunPs("Enable-ScheduledTask -TaskName "+Q(TaskName)+" -ErrorAction SilentlyContinue|Out-Null;exit 0");
+        }
     }
     internal async Task VerifyProtection()
     {
@@ -104,3 +150,4 @@ internal sealed class Core
         throw new TimeoutException("A proteção não confirmou a preparação. Nenhuma troca foi autorizada.");
     }
 }
+
