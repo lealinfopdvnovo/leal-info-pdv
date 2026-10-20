@@ -17,6 +17,19 @@ static class Program
     {
         var watch = Stopwatch.StartNew();
         while (!ready() && watch.ElapsedMilliseconds < 15000) { Application.DoEvents(); Thread.Sleep(10); }
+        if (!ready())
+        {
+            foreach (var form in Application.OpenForms.Cast<Form>())
+            {
+                Console.Error.WriteLine($"DIAGNOSTIC FORM {form.Name} Visible={form.Visible} Enabled={form.Enabled}");
+                if (form is KitchenForm kitchen)
+                {
+                    Console.Error.WriteLine("DIAGNOSTIC MESSAGE " + Field<Label>(kitchen, "message").Text);
+                    Console.Error.WriteLine($"DIAGNOSTIC fresh={Field<Button>(kitchen, "fresh").Enabled} send={Field<Button>(kitchen, "send").Enabled} gate={Field<SemaphoreSlim>(kitchen, "gate").CurrentCount}");
+                    Console.Error.WriteLine("DIAGNOSTIC PENDING " + Field<KitchenOutbox>(kitchen, "outbox").Pending().Count);
+                }
+            }
+        }
         Check(ready(), "UI operation completed within timeout");
     }
     static string Snapshot()

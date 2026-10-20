@@ -8,6 +8,7 @@ internal sealed class KitchenTablesView : UserControl
     private Form? floating;
     private FlowLayoutPanel? all;
     private int count = 40;
+    private bool receivedOrders;
     internal event Action<int>? TableChosen;
     internal KitchenTablesView()
     {
@@ -37,7 +38,9 @@ internal sealed class KitchenTablesView : UserControl
     }
     internal void UpdateOrders(IEnumerable<KitchenOrder> orders)
     {
-        active = orders.ToArray();
+        var next = orders.ToArray();
+        if (receivedOrders && active.Select(o => (o.Id, o.Reference, o.Status)).SequenceEqual(next.Select(o => (o.Id, o.Reference, o.Status)))) return;
+        receivedOrders = true; active = next;
         count = Math.Max(count, active.Select(o => TableNumber(o.Reference) ?? 0).DefaultIfEmpty().Max());
         Render();
     }
@@ -60,9 +63,10 @@ internal sealed class KitchenTablesView : UserControl
         main.ResumeLayout(true);
         if (all is { IsDisposed: false })
         {
+            var scroll = all.AutoScrollPosition;
             all.SuspendLayout(); Clear(all);
             for (int n = 1; n <= count; n++) { var b = Table(n); b.Dock = DockStyle.None; b.Size = new Size(142, 76); all.Controls.Add(b); }
-            all.ResumeLayout(true);
+            all.ResumeLayout(true); all.AutoScrollPosition = new Point(-scroll.X, -scroll.Y);
         }
     }
     private void OpenAll()
