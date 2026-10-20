@@ -125,6 +125,7 @@ function Prepare{
  $retry=New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
  $settings=New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
  Register-ScheduledTask -TaskName $task -Action $action -Trigger @($boot,$retry) -Settings $settings -User 'S-1-5-18' -RunLevel Highest -Force|Out-Null
+ Enable-ScheduledTask -TaskName $task -ErrorAction Stop|Out-Null
  $registered=Get-ScheduledTask -TaskName $task
  $principal=[string]$registered.Principal.UserId
  try{

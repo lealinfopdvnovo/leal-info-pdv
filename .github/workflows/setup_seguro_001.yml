@@ -3,6 +3,9 @@ on:
   push:
     branches: ['feature/setup-seguro-001']
     paths: ['TransactionalUpdate.ps1', 'setup-001/**', '.github/workflows/setup_seguro_001.yml']
+concurrency:
+  group: first-transition-001
+  cancel-in-progress: true
 permissions:
   contents: read
   actions: read
