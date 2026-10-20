@@ -67,7 +67,8 @@ static class Program
                 {
                     fresh.PerformClick(); Application.DoEvents();
                     Check(DataRows()==1 && Convert.ToString(grid.Rows[0].Cells[1].Value)=="1","new order has exactly one editable item with quantity 1");
-                    Check(grid.CurrentCell?.ColumnIndex==0 && grid.IsCurrentCellInEditMode && grid.ContainsFocus,"cursor is editing the item field");
+                    Pump(() => grid.CurrentCell?.ColumnIndex==0 && grid.IsCurrentCellInEditMode && grid.ContainsFocus);
+                    Check(true,"cursor is editing the item field");
                     Check(hint.Text.StartsWith("Novo pedido iniciado") && hint.Visible,"persistent visible acknowledgement");
                     Check(send.Enabled && !grid.ReadOnly && !reference.ReadOnly && !notes.ReadOnly,"entry enabled");
                 }

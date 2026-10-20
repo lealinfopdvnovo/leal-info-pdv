@@ -67,7 +67,13 @@ internal sealed class KitchenForm : Form
             SetEntryEnabled(true);
             int row = items.Rows.Add("", "1", "");
             items.CurrentCell = items.Rows[row].Cells[0];
-            items.Focus(); items.BeginEdit(true);
+            BeginInvoke((Action)(() =>
+            {
+                if (!IsDisposed && !items.ReadOnly)
+                {
+                    items.Focus(); items.BeginEdit(true);
+                }
+            }));
             entryHint.Text = "Novo pedido iniciado. Digite o item e a quantidade; depois clique em ENVIAR PEDIDO À COZINHA.";
             return Task.CompletedTask;
         });
