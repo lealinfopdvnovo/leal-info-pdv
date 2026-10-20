@@ -117,9 +117,16 @@ internal sealed class KitchenForm : Form
             await FlushAndRefresh();
             if (!outbox.Pending().Any(p => p.Draft.Id == draft.Id)) entryWindow?.Hide();
         });
-        Shown += async (_, _) => { await RefreshAndRetry(); await mainCatalog.ReloadAsync(); if (!IsDisposed) retry.Start(); };
+        Shown += async (_, _) => { FitToDesktop(); await RefreshAndRetry(); await mainCatalog.ReloadAsync(); if (!IsDisposed) retry.Start(); };
         retry.Tick += async (_, _) => await RefreshAndRetry();
         KitchenPremiumStyle.Apply(this);
+    }
+    private void FitToDesktop()
+    {
+        var area = Screen.FromControl(this).WorkingArea;
+        MinimumSize = new Size(Math.Min(1080, area.Width), Math.Min(720, area.Height));
+        Size = new Size(Math.Clamp(Width, MinimumSize.Width, area.Width), Math.Clamp(Height, MinimumSize.Height, area.Height));
+        Location = new Point(Math.Clamp(Left, area.Left, area.Right - Width), Math.Clamp(Top, area.Top, area.Bottom - Height));
     }
     private void ChooseProduct(KitchenCatalogProduct product)
     {

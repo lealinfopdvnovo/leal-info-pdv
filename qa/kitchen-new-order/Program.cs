@@ -192,6 +192,7 @@ static class Program
             Check(Snapshot()==before,"business data, users and settings preserved");Check(UpdateManager.CurrentVersion=="10.421","version 10.421");
             Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(photo)))==photoHash,"catalog photo remains unchanged and unlocked");// Verify the new menu selector against the real modal dialog.
             catalogSearch.Clear(); catalogCategory.SelectedIndex = 0;
+            Pump(() => catalog.Controls.Find("CatalogReload", true).OfType<Button>().Single().Enabled && mainMenu.Controls.Find("CatalogReload", true).OfType<Button>().Single().Enabled);
             Exception? modalError = null;
             using (var chooseMenu = new System.Windows.Forms.Timer { Interval = 100 })
             {
