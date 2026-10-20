@@ -8,6 +8,33 @@ internal static class KitchenPremiumStyle
     internal static readonly Color Surface = Color.FromArgb(13, 22, 30);
     internal static readonly Color Gold = Color.FromArgb(246, 197, 69);
     private static readonly ConditionalWeakTable<Button, object> styled = new();
+    // Kitchen owns its presentation; the shared idle-time shell must not repaint it.
+    internal static bool Owns(Control control)
+    {
+        var form = control as Form ?? control.FindForm();
+        return form is KitchenForm || form?.Name is "KitchenOrderEntry" or "AllKitchenTables" or "KitchenPdvSelection";
+    }
+    internal static void DrawFittedText(Graphics g, string text, Rectangle bounds, Color color, float preferredPixels, bool wrap = false)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+        using var format = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center,
+            FormatFlags = wrap ? 0 : StringFormatFlags.NoWrap
+        };
+        float size = preferredPixels;
+        using var ink = new SolidBrush(color);
+        while (true)
+        {
+            using var font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
+            var measured = g.MeasureString(text, font, new SizeF(bounds.Width, 10000), format);
+            if ((measured.Width <= bounds.Width + .5f && measured.Height <= bounds.Height + .5f) || size <= 6)
+            {
+                g.DrawString(text, font, ink, bounds, format); return;
+            }
+            size -= .5f;
+        }
+    }
     internal static GraphicsPath Round(Rectangle box, int radius)
     {
         var path = new GraphicsPath(); int d = Math.Min(radius * 2, Math.Min(box.Width, box.Height));
@@ -50,8 +77,9 @@ internal static class KitchenPremiumStyle
                     e.Graphics.Clear(Background); e.Graphics.FillPath(fill, shape);
                     using var edge = new Pen(b.Enabled ? Gold : Color.DimGray, b.Focused ? 2 : 1); e.Graphics.DrawPath(edge, shape);
                     if (b.Focused) { using var light = new Pen(Color.FromArgb(70, Gold), 5); e.Graphics.DrawPath(light, shape); }
-                    TextRenderer.DrawText(e.Graphics, b.Text, b.Font, new Rectangle(5, 3, b.Width - 10, b.Height - 6),
-                        b.Enabled ? selected?Color.FromArgb(20,17,4):b.ForeColor : Color.Gray, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
+                    DrawFittedText(e.Graphics, b.Text, new Rectangle(7, 4, b.Width - 14, b.Height - 8),
+                        b.Enabled ? selected ? Color.FromArgb(20,17,4) : b.ForeColor : Color.Gray,
+                        b.Font.SizeInPoints * e.Graphics.DpiY / 72f, true);
                 };
                 b.MouseEnter += (_, _) => b.Invalidate(); b.MouseLeave += (_, _) => b.Invalidate();
             }
@@ -67,3 +95,4 @@ internal static class KitchenPremiumStyle
         foreach (Control child in root.Controls) Apply(child);
     }
 }
+

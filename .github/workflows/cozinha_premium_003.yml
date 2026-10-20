@@ -2,7 +2,7 @@ name: Cozinha Premium 003 - preparar e validar transicao 10.415
 on:
   push:
     branches: ['feature/cozinha-premium-003']
-    paths: ['Kitchen*.cs', 'ReadyKitchen*.cs', 'UpdateManager.cs', 'LealInfoPDV.csproj', 'ready-kitchen/**', 'scripts/prepare_ready_kitchen.py', 'qa/kitchen-new-order/**', 'qa/update-transaction/StartupFixture.cs', '.github/workflows/cozinha_premium_003.yml']
+    paths: ['qa/003-full-kitchen-revalidate.txt']
 permissions:
   contents: read
   actions: read
@@ -108,3 +108,4 @@ jobs:
           path: |
             controller/*.log
             controller/release-output/
+

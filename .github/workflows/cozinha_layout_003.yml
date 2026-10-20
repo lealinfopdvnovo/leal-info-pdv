@@ -1,0 +1,88 @@
+name: Cozinha 003 - corrigir escala e preservar tema premium
+on:
+  push:
+    branches: ['feature/cozinha-premium-003']
+    paths: ['Kitchen*.cs', 'InternalWorkspace.cs', 'PremiumGlobalTheme.cs', 'qa/kitchen-layout/**', '.github/workflows/cozinha_layout_003.yml']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: cozinha-layout-003
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: '003'
+      SOURCE_REF: ${{ github.sha }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: source}
+      - uses: actions/checkout@v4
+        with: {ref: b95da478624312a5070e9ee512e156b3a9dcb858, path: controller}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.401'}
+      - name: Preparar exclusivamente 003 e dependencias da baseline
+        working-directory: controller
+        shell: pwsh
+        run: |
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+          python scripts/distribute_channels.py plan
+          if($LASTEXITCODE -ne 0){throw 'Plan failed'}
+          $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
+          if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '003' -or $p.Entries[0].Version -ne '10.423'){throw 'Wrong scope'}
+          python scripts/distribute_channels.py prepare 003
+          if($LASTEXITCODE -ne 0){throw 'Baseline preparation failed'}
+          $env:BASELINE_SOURCE=$p.Entries[0].BaselineSource
+          "BASELINE_SOURCE=$env:BASELINE_SOURCE" | Out-File $env:GITHUB_ENV -Append -Encoding UTF8
+          Push-Location candidate
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          Pop-Location
+
+      - name: Compilar e conferir layout com o shell real do PDV
+        working-directory: controller
+        shell: pwsh
+        run: |
+          dotnet run --project candidate/qa/kitchen-layout/LayoutTests.csproj -c Release 2>&1|Tee-Object layout-windows.log
+          if($LASTEXITCODE -ne 0){throw 'Layout Windows failed'}
+          $r=Get-Content layout-evidence/results.json -Raw|ConvertFrom-Json
+          if($r.success -ne $true){throw 'No layout evidence'}
+      - name: Compilar candidata exclusiva 003 sem publicar
+        working-directory: controller
+        shell: pwsh
+        run: |
+          $sdk=Get-Content sdk-version.txt
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
+          if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
+          python scripts/distribute_channels.py package 003
+          if($LASTEXITCODE -ne 0){throw 'Dependency compatibility failed'}
+          python -c "import json;from pathlib import Path;p=Path('release-output/candidate.json');d=json.loads(p.read_text(encoding='utf-8-sig'));d.update(PublicationAuthorized=False,RequiredInstalledVersion='10.422',RequiredProtectedUpdater=True,RealComputerVersionConfirmed=False);p.write_text(json.dumps(d,indent=2),encoding='utf-8')"
+      - name: Conferir todos os canais preservados
+        working-directory: controller
+        shell: python
+        run: |
+          import json,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts')
+          import distribute_channels as d
+          before=json.loads(Path('release-plan.json').read_text(encoding='utf-8-sig'))['Before']
+          after={c:d.readfeed(c) for c in d.CHANNELS}
+          assert all(after[c]['sha']==before[c]['sha'] for c in d.CHANNELS)
+          Path('layout-evidence/feeds-unchanged.json').write_text(json.dumps({c:after[c]['sha'] for c in d.CHANNELS},indent=2))
+          print('PASS all five feeds unchanged; no PDV publication')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cozinha-layout-003-windows
+          path: |
+            controller/layout-windows.log
+            controller/layout-evidence/
+            controller/release-output/

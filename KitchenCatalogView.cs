@@ -34,7 +34,7 @@ internal sealed class KitchenCatalogView : UserControl
         searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,70));searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,30));
         searchRow.Controls.Add(search,0,0);searchRow.Controls.Add(category,1,0);root.Controls.Add(searchRow,0,1);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, Padding = Padding.Empty };
-        var ready=new Button{Name="ReadyKitchenOpen",Text="CATÁLOGO PRONTO",Width=155,Height=32,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(9,29,49),ForeColor=Color.White};
+        var ready=new Button{Name="ReadyKitchenOpen",Text="CATÁLOGO PRONTO",Width=155,Height=40,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(9,29,49),ForeColor=Color.White};
         ready.Click+=async(_,_)=>
         {
             if(!Auth.IsAdmin){status.Text="Importação disponível para ADMINISTRADOR.";return;}
@@ -42,7 +42,7 @@ internal sealed class KitchenCatalogView : UserControl
             using var dialog=new ReadyKitchenImportForm();
             if(dialog.ShowDialog(FindForm())==DialogResult.OK) { await ReloadAsync(); CatalogChanged?.Invoke(); }
         };
-        var register = new Button { Name = "KitchenAddProduct", Text = "+ ADICIONAR PRODUTO", Width = 155, Height = 32 };
+        var register = new Button { Name = "KitchenAddProduct", Text = "+ ADICIONAR PRODUTO", Width = 155, Height = 40 };
         register.Click += async (_, _) =>
         {
             if (!Auth.CanManageCatalog) { status.Text = "Sem permissão para cadastrar produtos."; return; }
@@ -61,10 +61,10 @@ internal sealed class KitchenCatalogView : UserControl
             catch (Exception e) { status.Text = e.Message; }
             finally { if (!register.IsDisposed) register.Enabled = true; }
         };
-        var select = new Button { Name = "KitchenImportPdv", Text = "IMPORTAR PRODUTOS DO PDV", Width = 175, Height = 32 };
+        var select = new Button { Name = "KitchenImportPdv", Text = "IMPORTAR PRODUTOS DO PDV", Width = 175, Height = 40 };
         select.Click += (_, _) => SelectMenu();
 
-        reload.Width = 155; reload.Height = 32; reload.Dock = DockStyle.None; reload.Text = "ATUALIZAR CARDÁPIO";
+        reload.Width = 155; reload.Height = 40; reload.Dock = DockStyle.None; reload.Text = "ATUALIZAR CARDÁPIO";
         actions.Controls.Add(register);actions.Controls.Add(select);actions.Controls.Add(ready);actions.Controls.Add(reload);
         root.Controls.Add(actions,0,2);root.Controls.Add(status,0,3);
         var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -72,7 +72,20 @@ internal sealed class KitchenCatalogView : UserControl
         body.Controls.Add(categoryRail,0,0);body.Controls.Add(cards,1,0);root.Controls.Add(body,0,4);Controls.Add(root);
         KitchenPremiumStyle.Apply(this); KitchenPremiumStyle.Frame(this); title.ForeColor = KitchenPremiumStyle.Gold;
         cards.Resize += (_,_) => SizeCards();
-        SizeChanged+=(_,_)=>{root.RowStyles[2].Height=Width>=670?38:76;};
+        void LayoutActions()
+        {
+            int available=Math.Max(1,actions.ClientSize.Width-actions.Padding.Horizontal),used=0,rowHeight=0,total=0;
+            foreach(Control action in actions.Controls)
+            {
+                int width=action.Width+action.Margin.Horizontal,height=action.Height+action.Margin.Vertical;
+                if(used>0 && used+width>available){total+=rowHeight;used=0;rowHeight=0;}
+                used+=width;rowHeight=Math.Max(rowHeight,height);
+            }
+            float needed=total+rowHeight+actions.Margin.Vertical+actions.Padding.Vertical;
+            if(Math.Abs(root.RowStyles[2].Height-needed)>1)root.RowStyles[2].Height=needed;
+        }
+        actions.SizeChanged+=(_,_)=>LayoutActions();
+        SizeChanged+=(_,_)=>LayoutActions();
         category.DrawMode=DrawMode.OwnerDrawFixed;
         category.DrawItem+=(_,e)=>{using var fill=new SolidBrush(KitchenPremiumStyle.Surface);e.Graphics.FillRectangle(fill,e.Bounds);if(e.Index>=0)TextRenderer.DrawText(e.Graphics,Convert.ToString(category.Items[e.Index]),category.Font,e.Bounds,Color.White,TextFormatFlags.VerticalCenter);};
         category.Items.Add("Todas as categorias");category.SelectedIndex=0;
@@ -181,7 +194,7 @@ internal sealed class KitchenCatalogView : UserControl
     }
     private Control Card(KitchenCatalogProduct product)
     {
-        var card=new TableLayoutPanel{Width=126,Height=178,ColumnCount=1,RowCount=3,Padding=new Padding(6),Margin=new Padding(4)};
+        var card=new TableLayoutPanel{Width=126,Height=190,ColumnCount=1,RowCount=3,Padding=new Padding(6),Margin=new Padding(4)};
         card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         foreach(int h in new[]{92,36,34})card.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
         Image? photo=null;
@@ -208,3 +221,4 @@ internal sealed class KitchenCatalogView : UserControl
         return card;
     }
 }
+

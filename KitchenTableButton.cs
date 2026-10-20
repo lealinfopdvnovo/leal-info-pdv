@@ -59,17 +59,17 @@ internal sealed class KitchenTableButton : Button
             g.DrawLine(legs, -25, 24, -22, 44); g.DrawLine(legs, 26, 25, 23, 45); g.DrawLine(legs, 1, 33, 1, 51);
         }
         g.Restore(saved);
-        int titleY = Math.Max(35, (int)(Height * (Height >= 110 ? .46 : .50)));
-        int numberHeight = Height >= 110 ? 28 : 22;
-        using var numberFont = new Font("Segoe UI", Height >= 100 ? 21 : 14, FontStyle.Bold);
-        using var labelFont = new Font("Segoe UI", Height >= 100 ? 9 : 7.5f, FontStyle.Bold);
-        TextRenderer.DrawText(g, number.ToString("00"), numberFont, new Rectangle(2, titleY, Width - 4, numberHeight), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-        int stateY = titleY + numberHeight;
-        TextRenderer.DrawText(g, state, labelFont, new Rectangle(2, stateY, Width - 4, 16), accent, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
-        if (since.HasValue && Height > 115)
+        bool showAge=since.HasValue && Height>150;
+        int titleY = (int)(Height * (showAge ? .43f : .49f));
+        int numberHeight = Math.Max(1,(int)(Height*(showAge ? .22f : .27f)));
+        int stateHeight = Math.Max(1,(int)(Height*(showAge ? .14f : .18f)));
+        KitchenPremiumStyle.DrawFittedText(g,number.ToString("00"),new Rectangle(6,titleY,Width-12,numberHeight),Color.White,numberHeight*.86f);
+        KitchenPremiumStyle.DrawFittedText(g,state,new Rectangle(6,titleY+numberHeight,Width-12,stateHeight),accent,stateHeight*.82f);
+        if (showAge)
         {
             var age = DateTimeOffset.UtcNow - since.Value; string elapsed = age.TotalHours >= 1 ? $"{(int)age.TotalHours:00}:{age.Minutes:00}" : $"{Math.Max(0, (int)age.TotalMinutes):00}:{age.Seconds:00}";
-            TextRenderer.DrawText(g, elapsed, labelFont, new Rectangle(2, Height - 22, Width - 4, 16), accent, TextFormatFlags.HorizontalCenter);
+            KitchenPremiumStyle.DrawFittedText(g,elapsed,new Rectangle(6,Height-stateHeight-3,Width-12,stateHeight),accent,stateHeight*.75f);
         }
     }
 }
+

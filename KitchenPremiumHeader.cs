@@ -14,30 +14,35 @@ internal sealed class KitchenPremiumHeader : UserControl
     internal event Action? ExitRequested;
     internal KitchenPremiumHeader()
     {
-        Dock=DockStyle.Top;Height=86;
+        Dock=DockStyle.Top;Height=104;
         var root=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Padding=new Padding(8)};
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,38));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,34));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,28));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,34));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,38));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,28));
         var brand=new Panel{Dock=DockStyle.Fill};
         brand.Paint+=(_,e)=>{
             var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
             int middle=brand.Width/2;
-            using var title=new Font("Segoe UI",brand.Width>450?20:15,FontStyle.Bold);
-            using var small=new Font("Segoe UI",9,FontStyle.Bold);
-            TextRenderer.DrawText(g,"LEAL INFO",title,new Rectangle(4,5,middle-8,35),KitchenPremiumStyle.Gold,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
-            TextRenderer.DrawText(g,"PDV PRO",small,new Rectangle(4,42,middle-8,22),Color.White,TextFormatFlags.HorizontalCenter);
-            using var edge=new Pen(Color.FromArgb(90,KitchenPremiumStyle.Gold));g.DrawLine(edge,middle,8,middle,brand.Height-8);
-            TextRenderer.DrawText(g,"COZINHA",title,new Rectangle(middle+4,5,brand.Width-middle-8,35),KitchenPremiumStyle.Gold,TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter);
-            TextRenderer.DrawText(g,"PEDIDOS EM TEMPO REAL",small,new Rectangle(middle+4,42,brand.Width-middle-8,22),Color.White,TextFormatFlags.HorizontalCenter);
+            int h=brand.ClientSize.Height;
+            var upper=new Rectangle(4,4,Math.Max(1,middle-8),Math.Max(1,h*55/100-4));
+            var lower=new Rectangle(4,h*55/100,Math.Max(1,middle-8),Math.Max(1,h*40/100));
+            float pixels=Math.Min(h*.34f,brand.Width*.048f);
+            KitchenPremiumStyle.DrawFittedText(g,"LEAL INFO",upper,KitchenPremiumStyle.Gold,pixels);
+            KitchenPremiumStyle.DrawFittedText(g,"PDV PRO",lower,Color.White,h*.17f);
+            using var edge=new Pen(Color.FromArgb(90,KitchenPremiumStyle.Gold));g.DrawLine(edge,middle,8,middle,h-8);
+            upper.Offset(middle,0);lower.Offset(middle,0);
+            KitchenPremiumStyle.DrawFittedText(g,"COZINHA",upper,KitchenPremiumStyle.Gold,pixels);
+            KitchenPremiumStyle.DrawFittedText(g,"PEDIDOS EM TEMPO REAL",lower,Color.White,h*.15f);
         };
         var stats=new TableLayoutPanel{Name="KitchenLiveCounters",Dock=DockStyle.Fill,ColumnCount=4,RowCount=1};
         for(int i=0;i<4;i++)stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,25));
         Label Badge()=>new(){Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,Font=new Font("Segoe UI",11,FontStyle.Bold),Margin=new Padding(3),BorderStyle=BorderStyle.FixedSingle};
         clock=Badge();pending=Badge();preparing=Badge();ready=Badge();
         stats.Controls.Add(clock,0,0);stats.Controls.Add(pending,1,0);stats.Controls.Add(preparing,2,0);stats.Controls.Add(ready,3,0);
-        var actions=new FlowLayoutPanel{Dock=DockStyle.Fill,WrapContents=false,Padding=new Padding(0,4,0,0)};
+        var actions=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,Padding=new Padding(0,4,0,0)};
+        for(int i=0;i<4;i++)actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,25));
+        actions.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         foreach(var action in new[]{"IMPORTAR\nPDV","ATUALIZAR","MESAS /\nCONFIG.","SAIR"})
         {
-            var b=new Button{Text=action,Width=64,Height=56,Margin=new Padding(2)};
+            var b=new Button{Text=action,Dock=DockStyle.Fill,Margin=new Padding(2)};
             b.Click+=(_,_)=>{if(action.StartsWith("IMPORTAR"))ImportRequested?.Invoke();else if(action=="ATUALIZAR")RefreshRequested?.Invoke();else if(action=="SAIR")ExitRequested?.Invoke();else SettingsRequested?.Invoke();};
             actions.Controls.Add(b);
         }
@@ -77,6 +82,7 @@ internal sealed class KitchenMoreTablesButton : Button
         using var gold=new SolidBrush(KitchenPremiumStyle.Gold);
         foreach(int dx in new[]{0,21})foreach(int dy in new[]{0,21})g.FillRectangle(gold,x+dx,y+dy,15,15);
         using var font=new Font("Segoe UI",11,FontStyle.Bold);
-        TextRenderer.DrawText(g,Text,font,new Rectangle(4,y+53,Width-8,62),Color.FromArgb(255,235,153),TextFormatFlags.HorizontalCenter|TextFormatFlags.VerticalCenter|TextFormatFlags.WordBreak);
+        KitchenPremiumStyle.DrawFittedText(g,Text,new Rectangle(8,y+53,Width-16,Math.Max(1,Height-y-65)),Color.FromArgb(255,235,153),Math.Min(18,Width*.20f),true);
     }
 }
+

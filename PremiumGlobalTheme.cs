@@ -27,6 +27,7 @@ internal static class PremiumGlobalTheme
 
     internal static void Apply(Control control)
     {
+        if (KitchenPremiumStyle.Owns(control)) return;
         if (control.IsDisposed || control is PictureBox or RichTextBox or PrintPreviewControl ||
             control is Form && control.GetType().Name.Contains("Splash", StringComparison.Ordinal) ||
             control.GetType().Namespace?.StartsWith("Microsoft.Web.WebView2", StringComparison.Ordinal) == true) return;
@@ -172,3 +173,4 @@ internal static class PremiumGlobalTheme
         public override Color MenuBorder => Color.FromArgb(34, 63, 86);
     }
 }
+
