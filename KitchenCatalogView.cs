@@ -18,12 +18,21 @@ internal sealed class KitchenCatalogView : UserControl
     internal KitchenCatalogView()
     {
         Name = "KitchenCatalog"; Dock = DockStyle.Fill; Font = new Font("Segoe UI",10); Padding = new Padding(10,0,4,10);
-        var root = new TableLayoutPanel { Dock=DockStyle.Fill, ColumnCount=1, RowCount=6 };
+        var root = new TableLayoutPanel { Dock=DockStyle.Fill, ColumnCount=1, RowCount=7 };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        foreach(int h in new[]{76,40,40,42,40})root.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
+        foreach(int h in new[]{76,40,40,42,40,46})root.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
         root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         root.Controls.Add(new Label { Text="CARDÁPIO\nProdutos cadastrados no PDV", Dock=DockStyle.Fill, BackColor=Color.FromArgb(9,29,49), ForeColor=Color.White, Padding=new Padding(12), Font=new Font("Segoe UI",12,FontStyle.Bold), TextAlign=ContentAlignment.MiddleLeft },0,0);
-        root.Controls.Add(search,0,1);root.Controls.Add(category,0,2);root.Controls.Add(reload,0,3);root.Controls.Add(status,0,4);root.Controls.Add(cards,0,5);Controls.Add(root);
+        root.Controls.Add(search,0,1);root.Controls.Add(category,0,2);root.Controls.Add(reload,0,3);root.Controls.Add(status,0,4);
+        var ready=new Button{Name="ReadyKitchenOpen",Text="IMPORTAR CATÁLOGO PRONTO",Dock=DockStyle.Fill,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(9,29,49),ForeColor=Color.White};
+        ready.Click+=async(_,_)=>
+        {
+            if(!Auth.IsAdmin){status.Text="Importação disponível para ADMINISTRADOR.";return;}
+            if(LealInfoPDV.Network.NetworkConfiguration.Current.Mode=="terminal"){status.Text="Importe o catálogo no computador servidor.";return;}
+            using var dialog=new ReadyKitchenImportForm();
+            if(dialog.ShowDialog(FindForm())==DialogResult.OK)await ReloadAsync();
+        };
+        root.Controls.Add(ready,0,5);root.Controls.Add(cards,0,6);Controls.Add(root);
         category.Items.Add("Todas as categorias");category.SelectedIndex=0;
         search.TextChanged+=(_,_)=>{limit=60;Render();};
         category.SelectedIndexChanged+=(_,_)=>{if(!loading){limit=60;Render();}};

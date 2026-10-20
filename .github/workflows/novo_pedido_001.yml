@@ -2,7 +2,7 @@ name: Corrigir NOVO PEDIDO 001 - Windows e atualizador interno
 on:
   push:
     branches: ['feature/setup-seguro-001']
-    paths: ['KitchenForm.cs', 'KitchenCatalogView.cs', 'qa/kitchen-new-order/**', '.github/workflows/novo_pedido_001.yml']
+    paths: ['KitchenForm.cs', 'KitchenCatalogView.cs', 'ReadyKitchen*.cs', 'ready-kitchen/**', 'scripts/prepare_ready_kitchen.py', 'qa/kitchen-new-order/**', '.github/workflows/novo_pedido_001.yml']
 permissions:
   contents: read
   actions: read
@@ -35,7 +35,7 @@ jobs:
           python scripts/distribute_channels.py plan
           if($LASTEXITCODE -ne 0){throw 'Plan failed'}
           $plan=Get-Content release-plan.json -Raw|ConvertFrom-Json
-          if($plan.Entries.Count -ne 1 -or $plan.Entries[0].Channel -ne '001' -or $plan.Entries[0].Version -ne '10.420'){throw 'Wrong scope'}
+          if($plan.Entries.Count -ne 1 -or $plan.Entries[0].Channel -ne '001' -or $plan.Entries[0].Version -ne '10.421'){throw 'Wrong scope'}
           python scripts/distribute_channels.py prepare 001
           if($LASTEXITCODE -ne 0){throw 'Prepare failed'}
           Push-Location candidate
@@ -46,6 +46,13 @@ jobs:
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
           Pop-Location
+      - name: Preparar catalogo misto com fotos e licencas verificadas
+        timeout-minutes: 5
+        working-directory: controller
+        shell: pwsh
+        run: |
+          python candidate/scripts/prepare_ready_kitchen.py
+          if($LASTEXITCODE -ne 0){throw 'Ready catalog photos or licenses failed'}
       - name: Testar janela flutuante real e envio para cozinha no Windows
         timeout-minutes: 3
         working-directory: controller
@@ -53,6 +60,8 @@ jobs:
         run: |
           dotnet run --project candidate/qa/kitchen-new-order/NewOrderTests.csproj -c Release 2>&1|Tee-Object fixed.log
           if($LASTEXITCODE -ne 0){throw 'Floating new order regression failed'}
+          dotnet run --project candidate/qa/ready-kitchen/ReadyKitchenTests.csproj -c Release 2>&1|Tee-Object ready-import.log
+          if($LASTEXITCODE -ne 0){throw 'Ready catalog import regression failed'}
       - name: Compilar e conferir pacote incremental sem setup
         working-directory: controller
         shell: pwsh
@@ -80,6 +89,7 @@ jobs:
           path: |
             controller/*.log
             controller/new-order-evidence/
+            controller/candidate/ready-kitchen/generated/
   publicar:
     needs: validar
     runs-on: ubuntu-latest
