@@ -1,0 +1,17 @@
+{
+  "Channel": "003",
+  "ReadyForLocalActivation": true,
+  "CustomerActivated": false,
+  "FeedPublished": false,
+  "SourceCommit": "e18798bb47f34c42b73007804fda176dfcbb812e",
+  "WindowsRunId": "39508203139",
+  "VerificationRunId": "39508898075",
+  "ArtifactId": 12304772379,
+  "ExecutableSha256": "379ddf94876a545f2b8559154565206d9f6e813b710b851c7940e464a38958f5",
+  "ArtifactSha256": "ab61672b37010c00714ff708aa72e57b511b35fdd2cf6a5821c0e57e4b95f6a3",
+  "ActivationScenarios": 24,
+  "PriorWorkerScenariosReused": 19,
+  "AllFeedsUnchanged": true,
+  "ActualCustomerInstallation": false,
+  "PhysicalPowerCutTested": false
+}
