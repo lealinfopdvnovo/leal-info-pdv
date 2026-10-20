@@ -17,6 +17,8 @@ static class Program
     static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     static extern IntPtr GetLastActivePopup(IntPtr window);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern IntPtr GetDlgItem(IntPtr window, int id);
     static IEnumerable<Control> Descendants(Control root) => root.Controls.Cast<Control>().SelectMany(c => new[] { c }.Concat(Descendants(c)));
     const BindingFlags P = BindingFlags.Instance | BindingFlags.NonPublic;
     static readonly List<string> checks = new();
@@ -226,8 +228,17 @@ static class Program
                     var box = FindWindow("#32770", "LEAL INFO PDV");
                     var owner = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f is ProductRegistrationForm);
                     if (box == IntPtr.Zero && owner != null) { var popup = GetLastActivePopup(owner.Handle); if (popup != owner.Handle) box = popup; }
-                    if (box != IntPtr.Zero) Console.WriteLine("REGISTRATION native save confirmation found");
-                    if (box != IntPtr.Zero) { GetWindowThreadProcessId(box, out uint pid); if (pid == (uint)Environment.ProcessId) PostMessage(box, 0x0111, new IntPtr(1), IntPtr.Zero); }
+                    if (box != IntPtr.Zero)
+                    {
+                        GetWindowThreadProcessId(box, out uint pid);
+                        Console.WriteLine($"REGISTRATION confirmation pid={pid} current={Environment.ProcessId}");
+                        if (pid == (uint)Environment.ProcessId)
+                        {
+                            var ok = GetDlgItem(box, 1);
+                            if (ok != IntPtr.Zero) PostMessage(ok, 0x00F5, IntPtr.Zero, IntPtr.Zero);
+                            PostMessage(box, 0x0010, IntPtr.Zero, IntPtr.Zero);
+                        }
+                    }
                 };
                 populate.Tick += (_, _) =>
                 {
