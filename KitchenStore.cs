@@ -5,8 +5,8 @@ using System.Text.Json;
 
 namespace LealInfoPDV;
 
-// Only kitchen_*_v1 tables are written. Production sales, payments and stock are never modified here.
-internal sealed class KitchenStore
+// Only kitchen_* tables are written. Production sales, payments and stock are never modified here.
+internal sealed partial class KitchenStore
 {
     private static readonly object schemaGate = new();
     private readonly Func<PdvConnection> open;
@@ -89,6 +89,18 @@ internal sealed class KitchenStore
             {
                 if (hash != draft.Hash) throw new InvalidOperationException("Identificador já usado com conteúdo diferente. Pedido anterior preservado.");
                 var existing = Read(db, tx, draft.Id); tx.Commit(); return existing;
+            }
+        }
+        if (KitchenTablesView.TableNumber(draft.Reference) is int tableNumber)
+        {
+            using var schema = Command(db, tx, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('kitchen_tables_v2','kitchen_table_settings_v2')");
+            if (Convert.ToInt32(schema.ExecuteScalar()) == 2)
+            {
+                using var reservation = Command(db, tx, "SELECT reserved FROM kitchen_tables_v2 WHERE number=$n", ("$n", tableNumber));
+                if (Convert.ToInt32(reservation.ExecuteScalar() ?? 0) == 1)
+                    throw new InvalidOperationException("Mesa reservada. Libere a reserva antes de enviar; a pendência permanece guardada.");
+                using var capacity = Command(db, tx, "UPDATE kitchen_table_settings_v2 SET table_count=$n,revision=revision+1 WHERE id=1 AND table_count<$n", ("$n", tableNumber));
+                capacity.ExecuteNonQuery();
             }
         }
         string now = Stamp(DateTimeOffset.UtcNow);

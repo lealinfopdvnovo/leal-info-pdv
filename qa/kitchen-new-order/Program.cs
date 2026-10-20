@@ -60,7 +60,7 @@ static class Program
     [STAThread] static int Main()
     {
         if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true" || !OperatingSystem.IsWindows())throw new Exception("Disposable Windows runner only");
-        using var watchdog=new System.Threading.Timer(_=>{Console.Error.WriteLine("FAIL UI timeout");Environment.Exit(93);},null,60000,Timeout.Infinite);
+        using var watchdog=new System.Threading.Timer(_=>{Console.Error.WriteLine("FAIL UI timeout");Environment.Exit(93);},null,90000,Timeout.Infinite);
         string evidence=Path.GetFullPath("new-order-evidence");Directory.CreateDirectory(evidence);
         try
         {
@@ -79,6 +79,8 @@ static class Program
             Pump(()=>message.Text.Contains("Cozinha conectada")&&fresh.Enabled&&Field<SemaphoreSlim>(central,"gate").CurrentCount==1);
             Field<System.Windows.Forms.Timer>(central,"retry").Stop();
             var tables = Field<KitchenTablesView>(central, "tables");
+            SeatingTests.Run(Field<KitchenStore>(central,"store"),Check);tables.UpdateSeating(new KitchenStore().Seating());
+            Check(Snapshot()==before,"seating migration and reservation lifecycle preserve all business data");
             var mainMenu = Field<KitchenCatalogView>(central, "mainCatalog");
             Check(Screen.FromControl(central).WorkingArea.Contains(central.Bounds), "premium dashboard initially fits available Windows desktop");
             Check(tables.Controls.Find("MainTables", true).Single().Controls.Count == 10, "premium main dashboard shows exactly ten tables");
@@ -91,8 +93,8 @@ static class Program
             var allCards = allTables.Controls.Find("AllKitchenTableCards", true).Single();
             foreach (int total in new[] { 20, 30, 40, 80 })
             {
-                amount.Value = total; Application.DoEvents();
-                Check(allCards.Controls.Count == total, "floating table capacity " + total);
+                amount.Value = total; Pump(()=>allCards.Controls.Count==total&&fresh.Enabled&&Field<SemaphoreSlim>(central,"gate").CurrentCount==1);
+                Check(allCards.Controls.Count == total && new KitchenStore().Seating().Count==total, "floating table capacity persists " + total);
             }
             var tableStore = new KitchenStore();
             string kitchenId = Field<string>(central, "storeId");
@@ -110,6 +112,16 @@ static class Program
             Application.DoEvents();
             Check(Field<TextBox>(central, "reference").Text == "Mesa 40", "table click opens floating order bound to selected table");
             Field<TextBox>(central, "reference").Clear();
+            allCards.Controls.Find("KitchenTable_10",true).OfType<Button>().Single().ContextMenuStrip!.Items[0].PerformClick();
+            Pump(()=>new KitchenStore().Seating().Reservations.Any(r=>r.Number==10&&r.Reserved)&&fresh.Enabled);
+            Check(allCards.Controls.Find("KitchenTable_10",true).OfType<Button>().Single().Text.Contains("RESERVADA"),"reserved table appears with its actual reservation state");
+            allTables.Controls.Find("KitchenTableFilter_RESERVADA",true).OfType<Button>().Single().PerformClick();
+            Check(allCards.Controls.Count==1,"reservation filter uses persisted table state");
+            allCards.Controls.Find("KitchenTable_10",true).OfType<Button>().Single().ContextMenuStrip!.Items[1].PerformClick();
+            Pump(()=>allCards.Controls.Count==0&&fresh.Enabled);
+            allTables.Controls.Find("KitchenTableFilter_TODAS",true).OfType<Button>().Single().PerformClick();
+            Check(allCards.Controls.Count==80,"all table filter restores full capacity");
+            using(var popupImage=new Bitmap(allTables.Width,allTables.Height)){allTables.DrawToBitmap(popupImage,new Rectangle(Point.Empty,popupImage.Size));popupImage.Save(Path.Combine(evidence,"mesas-premium.png"));}
             allTables.Close(); Application.DoEvents();
             Check(Snapshot() == before, "table UI and status transitions preserve business data");
             using (var screen = new Bitmap(central.Width, central.Height)) { central.DrawToBitmap(screen, new Rectangle(Point.Empty, screen.Size)); screen.Save(Path.Combine(evidence, "cozinha-premium-preparacao.png")); }
@@ -139,6 +151,11 @@ static class Program
                 var terminal=new NetworkConfiguration{Mode="terminal",Host="127.0.0.1",Port=port,PairingSecret=config.PairingSecret,CertificateHash=server.CertificateHash};
                 var remote=KitchenCatalogView.ReadProducts(()=>new PdvConnection(new NetworkDatabaseClient(terminal,"CATALOG-QA-TERMINAL",device)));
                 Check(remote.Length==3&&remote.Single(p=>p.Id==1).Price==12.5m,"real authenticated TLS terminal reads same active catalog and prices");
+                var remoteStore=new KitchenStore(()=>new PdvConnection(new NetworkDatabaseClient(terminal,"CATALOG-QA-TERMINAL",device)),false);
+                remoteStore.EnsureSeatingReady();
+                var remoteReservation=remoteStore.ReserveTable(28,0,true,"TERMINAL QA","QA");
+                Check(new KitchenStore().Seating().Reservations.Single(r=>r.Number==28).Reserved,"real TLS terminal shares reservation with server");
+                remoteStore.ReserveTable(28,remoteReservation.Reservations.Single(r=>r.Number==28).Revision,false,"","QA");
             }
             var catalog=Field<KitchenCatalogView>(central,"catalog");
             var catalogSearch=catalog.Controls.Find("CatalogSearch",true).OfType<TextBox>().Single();
@@ -146,7 +163,7 @@ static class Program
             var catalogCards=catalog.Controls.Find("CatalogCards",true).OfType<FlowLayoutPanel>().Single();
             Pump(()=>catalog.Controls.Find("CatalogReload",true).OfType<Button>().Single().Enabled&&catalog.Controls.Find("CatalogProduct_1",true).Length==1);
             Check(catalog.Controls.Find("CatalogProduct_3",true).Length==0&&catalog.Controls.Find("CatalogProduct_0",true).Length==0,"only active registered products appear in menu");
-            Check(catalogCards.Controls.Count==3&&catalogCards.Controls.Cast<Control>().SelectMany(x=>x.Controls.OfType<Label>()).Any(l=>l.Text.Contains("R$")&&l.Text.EndsWith("12,50")),"cards display registered prices in BRL and distinguish same-name products");
+            Check(catalogCards.Controls.Count==3&&Descendants(catalogCards).OfType<Label>().Any(l=>l.Text.Contains("R$")&&l.Text.EndsWith("12,50")),"cards display registered prices in BRL and distinguish same-name products");
             Check(catalogCards.Controls.Cast<Control>().SelectMany(x=>x.Controls.OfType<PictureBox>()).Any(p=>p.Image!=null),"registered product photo displayed");
             catalogCategory.SelectedItem="BEBIDAS";Application.DoEvents();
             Check(catalog.Controls.Find("CatalogProduct_2",true).Length==1&&catalog.Controls.Find("CatalogProduct_1",true).Length==0,"category filter follows existing product categories");

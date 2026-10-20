@@ -12,6 +12,7 @@ internal sealed class KitchenCatalogView : UserControl
     private readonly FlowLayoutPanel cards = new() { Name = "CatalogCards", Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, BackColor = Color.FromArgb(241,246,250) };
     private readonly Label status = new() { Dock = DockStyle.Fill, AutoEllipsis = true, ForeColor = Color.FromArgb(65,90,110) };
     private readonly Button reload = new() { Name = "CatalogReload", Text = "ATUALIZAR CARDÁPIO", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat };
+    private readonly FlowLayoutPanel categoryRail = new() { Name = "KitchenCategoryRail", Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
     private KitchenCatalogProduct[] products = Array.Empty<KitchenCatalogProduct>();
     private bool loading;
     private int limit = 60;
@@ -23,13 +24,17 @@ internal sealed class KitchenCatalogView : UserControl
     internal KitchenCatalogView()
     {
         Name = "KitchenCatalog"; Dock = DockStyle.Fill; Font = new Font("Segoe UI",10); Padding = new Padding(10,0,4,10);
-        var root = new TableLayoutPanel { Dock=DockStyle.Fill, ColumnCount=1, RowCount=9 };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, Padding = new Padding(6) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        foreach(int h in new[]{76,40,40,42,40,46,46,46})root.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
+        foreach (int h in new[] { 42, 36, 76, 24 }) root.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
         root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        root.Controls.Add(new Label { Text="CARDÁPIO\nProdutos cadastrados no PDV", Dock=DockStyle.Fill, BackColor=Color.FromArgb(9,29,49), ForeColor=Color.White, Padding=new Padding(12), Font=new Font("Segoe UI",12,FontStyle.Bold), TextAlign=ContentAlignment.MiddleLeft },0,0);
-        root.Controls.Add(search,0,1);root.Controls.Add(category,0,2);root.Controls.Add(reload,0,3);root.Controls.Add(status,0,4);
-        var ready=new Button{Name="ReadyKitchenOpen",Text="IMPORTAR CATÁLOGO PRONTO",Dock=DockStyle.Fill,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(9,29,49),ForeColor=Color.White};
+        var title = new Label { Text = "PRODUTOS", Dock = DockStyle.Fill, Font = new Font("Segoe UI",18,FontStyle.Bold), Padding = new Padding(8,0,0,0), TextAlign = ContentAlignment.MiddleLeft };
+        root.Controls.Add(title,0,0);
+        var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,70));searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,30));
+        searchRow.Controls.Add(search,0,0);searchRow.Controls.Add(category,1,0);root.Controls.Add(searchRow,0,1);
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, Padding = Padding.Empty };
+        var ready=new Button{Name="ReadyKitchenOpen",Text="CATÁLOGO PRONTO",Width=155,Height=32,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(9,29,49),ForeColor=Color.White};
         ready.Click+=async(_,_)=>
         {
             if(!Auth.IsAdmin){status.Text="Importação disponível para ADMINISTRADOR.";return;}
@@ -37,7 +42,7 @@ internal sealed class KitchenCatalogView : UserControl
             using var dialog=new ReadyKitchenImportForm();
             if(dialog.ShowDialog(FindForm())==DialogResult.OK) { await ReloadAsync(); CatalogChanged?.Invoke(); }
         };
-        var register = new Button { Name = "KitchenAddProduct", Text = "+ ADICIONAR PRODUTO", Dock = DockStyle.Fill };
+        var register = new Button { Name = "KitchenAddProduct", Text = "+ ADICIONAR PRODUTO", Width = 155, Height = 32 };
         register.Click += async (_, _) =>
         {
             if (!Auth.CanManageCatalog) { status.Text = "Sem permissão para cadastrar produtos."; return; }
@@ -56,10 +61,17 @@ internal sealed class KitchenCatalogView : UserControl
             catch (Exception e) { status.Text = e.Message; }
             finally { if (!register.IsDisposed) register.Enabled = true; }
         };
-        var select = new Button { Name = "KitchenImportPdv", Text = "IMPORTAR PRODUTOS DO PDV", Dock = DockStyle.Fill };
+        var select = new Button { Name = "KitchenImportPdv", Text = "IMPORTAR PRODUTOS DO PDV", Width = 175, Height = 32 };
         select.Click += (_, _) => SelectMenu();
-        root.Controls.Add(ready,0,5);root.Controls.Add(register,0,6);root.Controls.Add(select,0,7);root.Controls.Add(cards,0,8);Controls.Add(root);
-        KitchenPremiumStyle.Apply(this);
+
+        reload.Width = 155; reload.Height = 32; reload.Dock = DockStyle.None; reload.Text = "ATUALIZAR CARDÁPIO";
+        actions.Controls.Add(register);actions.Controls.Add(select);actions.Controls.Add(ready);actions.Controls.Add(reload);
+        root.Controls.Add(actions,0,2);root.Controls.Add(status,0,3);
+        var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,100));body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        body.Controls.Add(categoryRail,0,0);body.Controls.Add(cards,1,0);root.Controls.Add(body,0,4);Controls.Add(root);
+        KitchenPremiumStyle.Apply(this); KitchenPremiumStyle.Frame(this); title.ForeColor = KitchenPremiumStyle.Gold;
+        cards.Resize += (_,_) => SizeCards();
         category.Items.Add("Todas as categorias");category.SelectedIndex=0;
         search.TextChanged+=(_,_)=>{limit=60;Render();};
         category.SelectedIndexChanged+=(_,_)=>{if(!loading){limit=60;Render();}};
@@ -97,7 +109,7 @@ internal sealed class KitchenCatalogView : UserControl
             category.Items.Clear();category.Items.Add("Todas as categorias");
             foreach(var item in products.Select(p=>p.Category).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c=>c))category.Items.Add(item);
             category.SelectedItem=category.Items.Cast<string>().FirstOrDefault(c=>c==previous)??"Todas as categorias";limit=60;
-            Render();
+            BuildCategoryRail(); Render();
         }
         catch(Exception e){if(!IsDisposed)status.Text="Cardápio indisponível. Tente atualizar.";System.Diagnostics.Debug.WriteLine(e.GetType().Name);}
         finally{loading=false;if(!IsDisposed)reload.Enabled=true;}
@@ -119,7 +131,7 @@ internal sealed class KitchenCatalogView : UserControl
             more.Click+=(_,_)=>{limit+=60;Render();};cards.Controls.Add(more);
         }
         status.Text=products.Length==0?"Nenhum produto ativo cadastrado.":found.Length==0?"Nenhum produto encontrado.":$"{Math.Min(limit,found.Length)} de {found.Length} produto(s)";
-        cards.ResumeLayout(true);
+        cards.ResumeLayout(true); SizeCards();
     }
     private void SelectMenu()
     {
@@ -145,11 +157,29 @@ internal sealed class KitchenCatalogView : UserControl
         KitchenPremiumStyle.Apply(dialog);
         if (dialog.ShowDialog(FindForm()) == DialogResult.OK) { Render(); CatalogChanged?.Invoke(); }
     }
+    private void SizeCards()
+    {
+        int available = cards.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 8;
+        int columns = Math.Max(1, available / 128);
+        int width = Math.Clamp(available / columns - 8, 116, 174);
+        foreach (var card in cards.Controls.OfType<TableLayoutPanel>()) card.Width = width;
+    }
+    private void BuildCategoryRail()
+    {
+        if(IsDisposed)return;
+        if(InvokeRequired){Invoke((Action)BuildCategoryRail);return;}
+        foreach (Control child in categoryRail.Controls.Cast<Control>().ToArray()) { categoryRail.Controls.Remove(child); child.Dispose(); }
+        foreach (string value in category.Items.Cast<string>())
+        {
+            var button = new Button { Text = value == "Todas as categorias" ? "TODOS" : value.ToUpperInvariant(), Width = 90, Height = 64, Margin = new Padding(2,4,2,4) };
+            KitchenPremiumStyle.Apply(button); button.Click += (_,_) => category.SelectedItem = value; categoryRail.Controls.Add(button);
+        }
+    }
     private Control Card(KitchenCatalogProduct product)
     {
-        var card=new TableLayoutPanel{Width=156,Height=214,ColumnCount=1,RowCount=4,Padding=new Padding(8),BackColor=Color.White,Margin=new Padding(4)};
+        var card=new TableLayoutPanel{Width=126,Height=178,ColumnCount=1,RowCount=3,Padding=new Padding(6),Margin=new Padding(4)};
         card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        foreach(int h in new[]{82,44,26,40})card.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
+        foreach(int h in new[]{92,36,34})card.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
         Image? photo=null;
         try{if(File.Exists(product.PhotoPath)){using var original=Image.FromFile(product.PhotoPath);double scale=Math.Min(120d/original.Width,78d/original.Height);photo=new Bitmap(original,new Size(Math.Max(1,(int)(original.Width*scale)),Math.Max(1,(int)(original.Height*scale))));}}
         catch(Exception e)when(e is IOException or ArgumentException or System.Runtime.InteropServices.ExternalException or OutOfMemoryException){ }
@@ -162,12 +192,15 @@ internal sealed class KitchenCatalogView : UserControl
         else visual=new Label{Text="SEM FOTO",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,BackColor=Color.FromArgb(230,239,246),ForeColor=Color.FromArgb(65,90,110)};
         var title=new Label{Text=product.Name,Dock=DockStyle.Fill,AutoEllipsis=true,Font=new Font("Segoe UI",10,FontStyle.Bold),ForeColor=Color.FromArgb(28,48,68)};
         var price=new Label{Text=product.Price.ToString("C2",CultureInfo.GetCultureInfo("pt-BR")),Dock=DockStyle.Fill,Font=new Font("Segoe UI",11,FontStyle.Bold),ForeColor=Color.FromArgb(0,114,162)};
-        var choose=new Button{Name="CatalogProduct_"+product.Id,Text="ADICIONAR",Dock=DockStyle.Fill,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(0,133,190),ForeColor=Color.White,Cursor=Cursors.Hand,AccessibleName=product.Name+" "+price.Text,Tag=product};
+        var choose=new Button{Name="CatalogProduct_"+product.Id,Text="+",Dock=DockStyle.Fill,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(0,133,190),ForeColor=Color.White,Cursor=Cursors.Hand,AccessibleName=product.Name+" "+price.Text,Tag=product};
         choose.FlatAppearance.BorderSize=0;
         void Pick(){ProductChosen?.Invoke(product);}
         choose.Click+=(_,_)=>Pick();visual.Click+=(_,_)=>Pick();title.Click+=(_,_)=>Pick();price.Click+=(_,_)=>Pick();
-        card.Controls.Add(visual,0,0);card.Controls.Add(title,0,1);card.Controls.Add(price,0,2);card.Controls.Add(choose,0,3);
-        KitchenPremiumStyle.Apply(card);
+        var info = new TableLayoutPanel { Dock=DockStyle.Fill, ColumnCount=2, RowCount=1, Margin=Padding.Empty };
+        info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,70));info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,30));
+        info.Controls.Add(price,0,0);info.Controls.Add(choose,1,0);
+        card.Controls.Add(visual,0,0);card.Controls.Add(title,0,1);card.Controls.Add(info,0,2);
+        KitchenPremiumStyle.Apply(card); KitchenPremiumStyle.Frame(card); price.ForeColor=KitchenPremiumStyle.Gold; choose.Font=new Font("Segoe UI",18,FontStyle.Bold);
         return card;
     }
 }
