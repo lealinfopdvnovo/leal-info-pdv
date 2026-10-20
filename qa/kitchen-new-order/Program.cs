@@ -65,7 +65,10 @@ static class Program
                 var hint=Field<Label>(form,"entryHint");
                 void Fresh()
                 {
-                    fresh.PerformClick(); Application.DoEvents();
+                    int clicks=0; EventHandler clicked=(_,_)=>clicks++; fresh.Click+=clicked;
+                    Console.WriteLine($"BEFORE NEW enabled={fresh.Enabled} canSelect={fresh.CanSelect} gate={Field<SemaphoreSlim>(form,"gate").CurrentCount} validate={form.Validate()}");
+                    fresh.PerformClick(); Application.DoEvents(); fresh.Click-=clicked;
+                    Console.WriteLine($"AFTER NEW clicks={clicks} enabled={fresh.Enabled} gate={Field<SemaphoreSlim>(form,"gate").CurrentCount}");
                     Check(DataRows()==1 && Convert.ToString(grid.Rows[0].Cells[1].Value)=="1","new order has exactly one editable item with quantity 1");
                     Console.WriteLine($"FOCUS cell={grid.CurrentCell?.ColumnIndex}/{grid.CurrentCell?.RowIndex} editing={grid.IsCurrentCellInEditMode} focus={grid.ContainsFocus} enabled={grid.Enabled} readonly={grid.ReadOnly} active={form.ActiveControl?.GetType().Name} editEnabled={grid.EditingControl?.Enabled}");
                     try { Pump(() => grid.CurrentCell?.ColumnIndex==0 && grid.IsCurrentCellInEditMode && grid.ContainsFocus); }
