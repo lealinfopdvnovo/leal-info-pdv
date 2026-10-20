@@ -76,6 +76,7 @@ static class Program
             Field<System.Windows.Forms.Timer>(central,"retry").Stop();
             var tables = Field<KitchenTablesView>(central, "tables");
             var mainMenu = Field<KitchenCatalogView>(central, "mainCatalog");
+            Check(Screen.FromControl(central).WorkingArea.Contains(central.Bounds), "premium dashboard initially fits available Windows desktop");
             Check(tables.Controls.Find("MainTables", true).Single().Controls.Count == 10, "premium main dashboard shows exactly ten tables");
             Check(mainMenu.Parent != null && mainMenu.Left < tables.Parent!.Left + tables.Left + mainMenu.Width, "product catalog is attached to left dashboard");
             tables.Controls.Find("MoreKitchenTables", true).OfType<Button>().Single().PerformClick();

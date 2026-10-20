@@ -40,7 +40,10 @@ internal sealed class KitchenForm : Form
     internal KitchenForm()
     {
         Text = "COZINHA PREMIUM — LEAL INFO PDV PRO"; Name = "KitchenForm";
-        StartPosition = FormStartPosition.CenterParent; Size = new Size(1360, 800); MinimumSize = new Size(1080, 720);
+        StartPosition = FormStartPosition.CenterParent;
+        var desktop = Screen.FromControl(this).WorkingArea;
+        MinimumSize = new Size(Math.Min(1080, desktop.Width), Math.Min(720, desktop.Height));
+        Size = new Size(Math.Max(MinimumSize.Width, Math.Min(1360, desktop.Width - 24)), Math.Max(MinimumSize.Height, Math.Min(800, desktop.Height - 24)));
         var config = NetworkConfiguration.Current;
         string endpoint = config.Mode == "terminal" ? "network:" + config.CertificateHash + ":" + config.PairingSecret : "local:" + Database.DbPath;
         string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(endpoint)));
