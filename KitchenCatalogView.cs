@@ -105,6 +105,7 @@ internal sealed class KitchenCatalogView : UserControl
     private void Render()
     {
         if(IsDisposed)return;
+        if (InvokeRequired) { Invoke((Action)Render); return; }
         string term=search.Text.Trim();string selected=category.SelectedIndex>0?Convert.ToString(category.SelectedItem)??"":"";
         var compare=CultureInfo.GetCultureInfo("pt-BR").CompareInfo;
         bool Match(string value)=>compare.IndexOf(value,term,CompareOptions.IgnoreCase|CompareOptions.IgnoreNonSpace)>=0;

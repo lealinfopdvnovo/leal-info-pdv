@@ -38,6 +38,8 @@ internal sealed class KitchenTablesView : UserControl
     }
     internal void UpdateOrders(IEnumerable<KitchenOrder> orders)
     {
+        if (IsDisposed) return;
+        if (InvokeRequired) { var snapshot = orders.ToArray(); Invoke((Action)(() => UpdateOrders(snapshot))); return; }
         var next = orders.ToArray();
         if (receivedOrders && active.Select(o => (o.Id, o.Reference, o.Status)).SequenceEqual(next.Select(o => (o.Id, o.Reference, o.Status)))) return;
         receivedOrders = true; active = next;
