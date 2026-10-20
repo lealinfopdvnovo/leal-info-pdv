@@ -8,6 +8,15 @@ namespace LealInfoPDV;
 internal sealed class KitchenForm : Form
 {
     private Form? entryWindow;
+    private readonly TextBox itemDescription = new() { Name = "ItemDescription", Dock = DockStyle.Fill, PlaceholderText = "Nome do produto ou prato" };
+    private readonly NumericUpDown itemQuantity = new() { Name = "ItemQuantity", Dock = DockStyle.Fill, DecimalPlaces = 3, Minimum = 0.001m, Maximum = 999999m, Value = 1 };
+    private readonly TextBox itemNotes = new() { Name = "ItemNotes", Dock = DockStyle.Fill, PlaceholderText = "Ex.: sem cebola, bem passado" };
+    private readonly Button addItem = new() { Name = "AddItem", Text = "ADICIONAR AO PEDIDO" };
+    private readonly Label itemSummary = new() { Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft };
+    private int editingRow = -1;
+    private static readonly Color Navy = Color.FromArgb(9, 29, 49);
+    private static readonly Color Blue = Color.FromArgb(0, 133, 190);
+    private static readonly Color Ink = Color.FromArgb(28, 48, 68);
     private readonly KitchenStore store = new();
     private readonly KitchenOutbox outbox;
     private readonly string bindingPath;
@@ -33,6 +42,12 @@ internal sealed class KitchenForm : Form
         string folder = Path.Combine(Database.AppFolder, "KitchenOutbox", key); outbox = new(folder); bindingPath = Path.Combine(folder, "binding");
         if (File.Exists(bindingPath)) storeId = ProtectedFile.Read<string>(bindingPath);
         items.Columns.Add("Description", "Item"); items.Columns.Add("Quantity", "Quantidade"); items.Columns.Add("Notes", "Observações do item");
+        Font = new Font("Segoe UI", 10); BackColor = Color.FromArgb(241, 246, 250); ForeColor = Ink;
+        StyleGrid(orders); StyleGrid(items);
+        items.ReadOnly = true; items.AllowUserToAddRows = false;
+        items.Columns[0].FillWeight = 44; items.Columns[1].FillWeight = 16; items.Columns[2].FillWeight = 40;
+        items.Columns[1].DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
+        items.RowsAdded += (_, _) => UpdateItemSummary(); items.RowsRemoved += (_, _) => UpdateItemSummary();
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, WrapContents = true }; buttons.Controls.Add(fresh);
         foreach (string status in new[] { "PREPARANDO", "PRONTO", "ENTREGUE", "CANCELADO" })
         {
@@ -49,7 +64,12 @@ internal sealed class KitchenForm : Form
         }
         var refresh = new Button { Text = "ATUALIZAR / TENTAR PENDÊNCIAS", AutoSize = true }; buttons.Controls.Add(refresh);
         refresh.Click += async (_, _) => await RefreshAndRetry();
+        buttons.Padding = new Padding(12); buttons.BackColor = Color.White;
+        foreach (Button button in buttons.Controls) StyleButton(button, button == fresh);
+        detail.BorderStyle = BorderStyle.None; detail.BackColor = Color.FromArgb(230, 239, 246); detail.ForeColor = Ink;
+        message.Padding = new Padding(14, 4, 14, 4); message.ForeColor = Ink;
         Controls.Add(orders); Controls.Add(detail); Controls.Add(buttons); Controls.Add(message);
+        Controls.Add(Header("CENTRAL DE COZINHA", "Acompanhe os pedidos e organize o preparo.", 80));
         orders.SelectionChanged += (_, _) =>
         {
             if (orders.CurrentRow?.DataBoundItem is OrderRow row)
@@ -60,6 +80,7 @@ internal sealed class KitchenForm : Form
         {
             if (storeId == null) throw new InvalidOperationException("Conecte uma vez à cozinha preparada no servidor antes de enviar.");
             if (!Auth.CanSell) throw new InvalidOperationException("Entre no PDV antes de enviar.");
+            if (!string.IsNullOrWhiteSpace(itemDescription.Text) || editingRow >= 0) throw new InvalidOperationException("Adicione ou salve o item em edição antes de enviar o pedido.");
             items.EndEdit();
             var rows = items.Rows.Cast<DataGridViewRow>().Where(r => !r.IsNewRow).Select(r => new KitchenItem(Convert.ToString(r.Cells[0].Value) ?? "", KitchenDraft.Quantity(Convert.ToString(r.Cells[1].Value) ?? ""), Convert.ToString(r.Cells[2].Value) ?? "")).ToArray();
             var draft = new KitchenDraft(Guid.NewGuid(), reference.Text.Trim(), notes.Text.Trim(), Auth.OperatorName, DateTimeOffset.UtcNow, rows);
@@ -90,13 +111,7 @@ internal sealed class KitchenForm : Form
             };
             var close = new Button { Text = "FECHAR", AutoSize = true, CausesValidation = false };
             close.Click += (_, _) => entryWindow.Hide();
-            var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
-            actions.Controls.AddRange(new Control[] { send, close });
-            var status = new Label { Dock = DockStyle.Bottom, Height = 52, AutoEllipsis = true, Text = message.Text };
-            message.TextChanged += (_, _) => { if (!status.IsDisposed) status.Text = message.Text; };
-            entryWindow.Controls.Add(items); entryWindow.Controls.Add(notes);
-            entryWindow.Controls.Add(reference); entryWindow.Controls.Add(entryHint);
-            entryWindow.Controls.Add(actions); entryWindow.Controls.Add(status);
+            BuildEntryLayout(close);
             entryWindow.FormClosing += (_, e) =>
             {
                 if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; entryWindow.Hide(); }
@@ -106,21 +121,130 @@ internal sealed class KitchenForm : Form
         {
             items.CancelEdit(); reference.Clear(); notes.Clear(); items.Rows.Clear();
             SetEntryEnabled(true);
-            int row = items.Rows.Add("", "1", "");
-            items.CurrentCell = items.Rows[row].Cells[0];
+            ResetItemFields(); UpdateItemSummary();
         }
         entryHint.Text = "Preencha os itens, quantidades e observações e clique em ENVIAR PEDIDO À COZINHA.";
         if (!entryWindow!.Visible) entryWindow.Show(this);
         entryWindow.Activate();
         entryWindow.BeginInvoke((Action)(() =>
         {
-            if (entryWindow is { IsDisposed: false, Visible: true } && !items.ReadOnly)
+            if (entryWindow is { IsDisposed: false, Visible: true } && send.Enabled)
             {
-                items.Focus(); items.BeginEdit(true);
+                itemDescription.Focus();
             }
         }));
     }
-    private void SetEntryEnabled(bool value) { send.Enabled = value; items.ReadOnly = !value; reference.ReadOnly = notes.ReadOnly = !value; }
+    private void BuildEntryLayout(Button close)
+    {
+        StyleButton(send, true); StyleButton(close, false);
+        var shell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6, Padding = new Padding(18, 0, 18, 10) };
+        shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        foreach (int h in new[] { 80, 90, 150 }) shell.RowStyles.Add(new RowStyle(SizeType.Absolute, h));
+        shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 64)); shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        shell.Controls.Add(Header("NOVO PEDIDO", "Monte o pedido e envie diretamente para a cozinha.", 80), 0, 0);
+        var info = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(0, 10, 0, 10) };
+        info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35)); info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
+        info.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); info.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        info.Controls.Add(FieldLabel("REFERÊNCIA DO PEDIDO"), 0, 0); info.Controls.Add(FieldLabel("OBSERVAÇÕES GERAIS"), 1, 0);
+        reference.Dock = notes.Dock = DockStyle.Fill;
+        reference.Margin = notes.Margin = new Padding(0, 2, 12, 2); reference.BorderStyle = notes.BorderStyle = BorderStyle.FixedSingle;
+        info.Controls.Add(reference, 0, 1); info.Controls.Add(notes, 1, 1); shell.Controls.Add(info, 0, 1);
+        var compose = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3, Padding = new Padding(12), BackColor = Color.White };
+        compose.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45)); compose.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15)); compose.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
+        compose.RowStyles.Add(new RowStyle(SizeType.Absolute, 25)); compose.RowStyles.Add(new RowStyle(SizeType.Absolute, 36)); compose.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        compose.Controls.Add(FieldLabel("ITEM / PRODUTO"), 0, 0); compose.Controls.Add(FieldLabel("QUANTIDADE"), 1, 0); compose.Controls.Add(FieldLabel("OBSERVAÇÃO DO ITEM"), 2, 0);
+        itemDescription.Margin = itemQuantity.Margin = itemNotes.Margin = new Padding(0, 2, 10, 2);
+        itemDescription.BorderStyle = itemNotes.BorderStyle = BorderStyle.FixedSingle;
+        compose.Controls.Add(itemDescription, 0, 1); compose.Controls.Add(itemQuantity, 1, 1); compose.Controls.Add(itemNotes, 2, 1);
+        StyleButton(addItem, true); addItem.Dock = DockStyle.Fill; addItem.Margin = new Padding(0, 5, 10, 0);
+        addItem.Click += (_, _) => AddDraftItem();
+        var remove = new Button { Name = "RemoveItem", Text = "REMOVER SELECIONADO", Dock = DockStyle.Fill, CausesValidation = false };
+        StyleButton(remove, false); remove.Margin = new Padding(0, 5, 0, 0);
+        remove.Click += (_, _) =>
+        {
+            if (!send.Enabled || items.CurrentRow == null) return;
+            items.Rows.RemoveAt(items.CurrentRow.Index); ResetItemFields(); UpdateItemSummary();
+        };
+        compose.Controls.Add(addItem, 0, 2); compose.Controls.Add(remove, 1, 2); compose.SetColumnSpan(remove, 2); shell.Controls.Add(compose, 0, 2);
+        var review = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(12), Margin = new Padding(0, 12, 0, 0) };
+        review.Controls.Add(items);
+        review.Controls.Add(new Label { Text = "ITENS DO PEDIDO   •   Duplo clique para editar", Dock = DockStyle.Top, Height = 28, Font = new Font("Segoe UI", 10, FontStyle.Bold), ForeColor = Ink });
+        items.CellDoubleClick += (_, e) =>
+        {
+            if (!send.Enabled || e.RowIndex < 0) return;
+            editingRow = e.RowIndex; var row = items.Rows[editingRow];
+            itemDescription.Text = Convert.ToString(row.Cells[0].Value);
+            itemQuantity.Value = KitchenDraft.Quantity(Convert.ToString(row.Cells[1].Value) ?? "1");
+            itemNotes.Text = Convert.ToString(row.Cells[2].Value); addItem.Text = "SALVAR ALTERAÇÃO"; itemDescription.Focus();
+        };
+        shell.Controls.Add(review, 0, 3);
+        var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Padding = new Padding(0, 10, 0, 4) };
+        actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 270));
+        itemSummary.Font = new Font("Segoe UI", 11, FontStyle.Bold); itemSummary.ForeColor = Ink;
+        close.Dock = send.Dock = DockStyle.Fill; close.Margin = new Padding(0, 0, 10, 0); send.Margin = Padding.Empty;
+        actions.Controls.Add(itemSummary, 0, 0); actions.Controls.Add(close, 1, 0); actions.Controls.Add(send, 2, 0); shell.Controls.Add(actions, 0, 4);
+        var status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = message.Text, ForeColor = Color.FromArgb(78, 98, 116), Font = new Font("Segoe UI", 9) };
+        message.TextChanged += (_, _) => { if (!status.IsDisposed) status.Text = message.Text; };
+        shell.Controls.Add(status, 0, 5); entryWindow!.Controls.Add(shell); UpdateItemSummary();
+    }
+    private void SetEntryEnabled(bool value)
+    {
+        send.Enabled = value; items.ReadOnly = true; reference.ReadOnly = notes.ReadOnly = !value;
+        itemDescription.ReadOnly = itemNotes.ReadOnly = !value; itemQuantity.Enabled = addItem.Enabled = value;
+    }
+    private void ResetItemFields()
+    {
+        editingRow = -1; itemDescription.Clear(); itemNotes.Clear(); itemQuantity.Value = 1; addItem.Text = "ADICIONAR AO PEDIDO";
+    }
+    private void AddDraftItem()
+    {
+        if (!send.Enabled) return;
+        if (string.IsNullOrWhiteSpace(itemDescription.Text))
+        {
+            message.Text = "Informe o nome do item para adicionar ao pedido."; itemDescription.Focus(); return;
+        }
+        object[] values = { itemDescription.Text.Trim(), itemQuantity.Value.ToString("0.###", System.Globalization.CultureInfo.GetCultureInfo("pt-BR")), itemNotes.Text.Trim() };
+        if (editingRow >= 0 && editingRow < items.Rows.Count) items.Rows[editingRow].SetValues(values);
+        else items.Rows.Add(values);
+        ResetItemFields(); UpdateItemSummary(); itemDescription.Focus();
+    }
+    private void UpdateItemSummary()
+    {
+        int count = items.Rows.Count;
+        itemSummary.Text = count == 0 ? "Adicione o primeiro item" : count == 1 ? "1 item no pedido" : $"{count} itens no pedido";
+    }
+    private static Label FieldLabel(string text) => new() { Text = text, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Ink, TextAlign = ContentAlignment.MiddleLeft };
+    private static Panel Header(string title, string subtitle, int height)
+    {
+        var panel = new Panel { Dock = DockStyle.Top, Height = height, BackColor = Navy, Padding = new Padding(16, 10, 16, 8), Margin = Padding.Empty };
+        panel.Controls.Add(new Label { Text = subtitle, Dock = DockStyle.Bottom, Height = 24, ForeColor = Color.FromArgb(178, 211, 230), Font = new Font("Segoe UI", 10) });
+        panel.Controls.Add(new Label { Text = title, Dock = DockStyle.Top, Height = 34, ForeColor = Color.White, Font = new Font("Segoe UI", 20, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft });
+        return panel;
+    }
+    private static void StyleButton(Button button, bool primary)
+    {
+        button.FlatStyle = FlatStyle.Flat; button.FlatAppearance.BorderSize = primary ? 0 : 1;
+        button.FlatAppearance.BorderColor = Color.FromArgb(197, 213, 226);
+        button.BackColor = primary ? Blue : Color.White; button.ForeColor = primary ? Color.White : Ink;
+        button.Font = new Font("Segoe UI", 9, FontStyle.Bold); button.Padding = new Padding(10, 5, 10, 5);
+        button.Cursor = Cursors.Hand; button.MinimumSize = new Size(0, 42); button.UseVisualStyleBackColor = false;
+    }
+    private static void StyleGrid(DataGridView grid)
+    {
+        grid.BackgroundColor = Color.White; grid.BorderStyle = BorderStyle.None;
+        grid.RowHeadersVisible = false; grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+        grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None; grid.EnableHeadersVisualStyles = false;
+        grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(230, 239, 246); grid.ColumnHeadersDefaultCellStyle.ForeColor = Ink;
+        grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 9, FontStyle.Bold);
+        grid.ColumnHeadersHeight = 34; grid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+        grid.DefaultCellStyle.Font = new Font("Segoe UI", 10); grid.DefaultCellStyle.ForeColor = Ink;
+        grid.DefaultCellStyle.Padding = new Padding(8, 3, 8, 3);
+        grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(216, 239, 249); grid.DefaultCellStyle.SelectionForeColor = Ink;
+        grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(247, 250, 252);
+        grid.RowTemplate.Height = 40; grid.AllowUserToResizeRows = false; grid.AllowUserToResizeColumns = false;
+        grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect; grid.MultiSelect = false; grid.GridColor = Color.FromArgb(232, 239, 245);
+    }
     private async Task Run(Func<Task> action)
     {
         if (!await gate.WaitAsync(0)) return;

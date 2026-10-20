@@ -35,7 +35,7 @@ jobs:
           python scripts/distribute_channels.py plan
           if($LASTEXITCODE -ne 0){throw 'Plan failed'}
           $plan=Get-Content release-plan.json -Raw|ConvertFrom-Json
-          if($plan.Entries.Count -ne 1 -or $plan.Entries[0].Channel -ne '001' -or $plan.Entries[0].Version -ne '10.418'){throw 'Wrong scope'}
+          if($plan.Entries.Count -ne 1 -or $plan.Entries[0].Channel -ne '001' -or $plan.Entries[0].Version -ne '10.419'){throw 'Wrong scope'}
           python scripts/distribute_channels.py prepare 001
           if($LASTEXITCODE -ne 0){throw 'Prepare failed'}
           Push-Location candidate
