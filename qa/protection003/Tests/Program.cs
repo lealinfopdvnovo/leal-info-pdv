@@ -28,7 +28,7 @@ static class Tests
     }
     static Core Engine(string app,Plan? plan=null,byte[]? package=null,byte[]? worker=null,Action<string>? point=null)=>new(app,Path.Combine(app,"data"),plan??Production,package??Package,worker??Worker,"QA-SERVER",File.ReadAllText(Path.Combine(app,"qa-public.pem")),true,point);
     static async Task Reject(Func<Task> action,string name){bool rejected=false;try{await action();}catch{rejected=true;}Check(rejected,name);results.Add(new{scenario=name,pass=true});}
-    static void Cleanup(string app){var e=Engine(app);Core.RunPs("Stop-ScheduledTask -TaskName "+Quote(e.TaskName)+" -ErrorAction SilentlyContinue;Unregister-ScheduledTask -TaskName "+Quote(e.TaskName)+" -Confirm:$false -ErrorAction SilentlyContinue;exit 0").GetAwaiter().GetResult();foreach(var p in Process.GetProcessesByName("LealInfoPDV"))using(p){if(p.MainModule?.FileName==Path.Combine(app,"LealInfoPDV.exe")){p.Kill();p.WaitForExit();}}Directory.Delete(app,true);}
+    static void Cleanup(string app){var e=Engine(app);Core.RunPs("Stop-ScheduledTask -TaskName "+Quote(e.TaskName)+" -ErrorAction SilentlyContinue;Unregister-ScheduledTask -TaskName "+Quote(e.TaskName)+" -Confirm:$false -ErrorAction SilentlyContinue;Unregister-ScheduledTask -TaskName "+Quote(e.TaskName+"-old")+" -Confirm:$false -ErrorAction SilentlyContinue;exit 0").GetAwaiter().GetResult();foreach(var p in Process.GetProcessesByName("LealInfoPDV"))using(p){if(p.MainModule?.FileName==Path.Combine(app,"LealInfoPDV.exe")){p.Kill();p.WaitForExit();}}Directory.Delete(app,true);}
     static async Task<string> Phase(string app,string[] expected,int seconds=45){var until=DateTime.UtcNow.AddSeconds(seconds);string phase="";while(DateTime.UtcNow<until){try{using var j=JsonDocument.Parse(File.ReadAllText(Path.Combine(app,".pdv-update/journal.json")));phase=j.RootElement.GetProperty("Phase").GetString()!;if(expected.Contains(phase))return phase;}catch(IOException){}await Task.Delay(200);}Console.Error.WriteLine(await Core.RunPs("Get-ScheduledTask -TaskName "+Quote(Engine(app).TaskName)+"|Format-List *;Get-ScheduledTaskInfo -TaskName "+Quote(Engine(app).TaskName)+"|Format-List *;Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\"|Select-Object ProcessId,CommandLine|Format-List"));foreach(var f in Directory.GetFiles(Path.Combine(app,".pdv-update"),"*.log"))Console.Error.WriteLine(f+"\n"+File.ReadAllText(f));throw new Exception("State timeout "+phase);}
     static Process Delay(){return Core.StartPs("Start-Sleep -Seconds 45",false);}
     static async Task<byte[]> SeedLegacy(string app)
@@ -40,7 +40,7 @@ static class Tests
     }
     static async Task LegacyCases(RSA rsa)
     {
-        foreach(var fault in new[]{"none","wrong-client","wrong-app","wrong-version","wrong-marker","different-target","different-previous","unknown-phase"}){
+        foreach(var fault in new[]{"none","alternate-task","wrong-client","wrong-app","wrong-version","wrong-marker","different-target","different-previous","unknown-phase"}){
             var app=NewFixture(rsa);try{
                 byte[] original=await SeedLegacy(app);string journal=Path.Combine(app,".pdv-update/journal.json");
                 var j=JsonNode.Parse(original)!;
@@ -53,11 +53,13 @@ static class Tests
                 if(fault=="unknown-phase")j["Phase"]="Applying";
                 byte[] armed=JsonSerializer.SerializeToUtf8Bytes(j);File.WriteAllBytes(journal,armed);var before=DataHashes(app);
                 var e=Engine(app);
-                if(fault!="none"){
+                if(fault=="alternate-task")await Core.RunPs("$xml=Export-ScheduledTask -TaskName "+Quote(e.TaskName)+";Register-ScheduledTask -TaskName "+Quote(e.TaskName+"-old")+" -Xml $xml|Out-Null");
+                if(fault is not ("none" or "alternate-task")){
                     await Reject(()=>e.Prepare(),"legacy-armed-reject-"+fault);
                     Check(File.ReadAllBytes(journal).SequenceEqual(armed),"unrecognized legacy journal is byte-identical after refusal");
                 }else{
                     await e.Prepare();await e.VerifyProtection();
+                    if(fault=="alternate-task")Check((await Core.RunPs("(Get-ScheduledTask -TaskName "+Quote(e.TaskName+"-old")+").State")).Contains("Disabled"),"alternate old recovery task is quiesced before new transaction");
                     Check(File.ReadAllBytes(Path.Combine(e.Bundle,"legacy-armed-preserved/journal-original.json")).SequenceEqual(armed),"original Armed no-update journal preserved verbatim");
                     foreach(var n in Core.Names)Check(Core.HashFile(Path.Combine(e.Bundle,"legacy-armed-preserved",n))==Production.Previous[n],"legacy snapshot verified "+n);
                     Check(await Phase(app,new[]{"Prepared"})=="Prepared","Armed legacy adopted into fresh protected 10.422 preparation");
@@ -65,7 +67,7 @@ static class Tests
                     try{using var process=Process.GetProcessById(e.LaunchedWorkerId);Check(process.WaitForExit(15000),"interrupted adopted transition worker exited");}catch(ArgumentException){}
                     await Core.RunPs("Start-ScheduledTask -TaskName "+Quote(e.TaskName));
                     Check(await Phase(app,new[]{"Recovered"},60)=="Recovered","adopted legacy transaction recovers automatically through SYSTEM task");
-                    results.Add(new{scenario="legacy-armed-adoption-and-first-transition-rollback",pass=true});
+                    results.Add(new{scenario="legacy-armed-adoption-and-first-transition-rollback-"+fault,pass=true});
                 }
                 Original(app);Preserve(app,before);
             }finally{Cleanup(app);}

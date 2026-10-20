@@ -116,8 +116,8 @@ internal sealed class Core
                 Need(HashFile(Path.Combine(snapshot,n))==plan.Previous[n],"Backup da proteção antiga não confere.");
             }
             Durable(Path.Combine(snapshot,"journal-original.json"),original);point?.Invoke("legacy-snapshot");
-            await RunPs("$ErrorActionPreference='Stop';$t=Get-ScheduledTask -TaskName "+Q(TaskName)+" -ErrorAction SilentlyContinue;if($t){if($t.Actions.Count -ne 1 -or $t.Actions[0].Arguments -notlike "+Q("*"+Path.Combine(Root,"worker.ps1")+"*")+"){throw 'Tarefa antiga nao pertence ao worker esperado'};Disable-ScheduledTask -TaskName "+Q(TaskName)+"|Out-Null;if((Get-ScheduledTask -TaskName "+Q(TaskName)+").State -eq 'Running'){Stop-ScheduledTask -TaskName "+Q(TaskName)+"};for($i=0;$i -lt 40;$i++){if((Get-ScheduledTask -TaskName "+Q(TaskName)+").State -ne 'Running'){break};Start-Sleep -Milliseconds 250};if((Get-ScheduledTask -TaskName "+Q(TaskName)+").State -eq 'Running'){throw 'Tarefa antiga ainda executando'}};exit 0");
             taskQuiesced=true;
+            await RunPs("$ErrorActionPreference='Stop';$tasks=@(Get-ScheduledTask|Where-Object{@($_.Actions|Where-Object{$_.Arguments -like "+Q("*"+Path.Combine(Root,"worker.ps1")+"*")+"}).Count -gt 0});$records=@();foreach($t in $tasks){if($t.Actions.Count -ne 1){throw 'Tarefa antiga com acoes adicionais recusada'};$p=[string]$t.Principal.UserId;if($p -notmatch '^S-1-'){$p=(New-Object Security.Principal.NTAccount $p).Translate([Security.Principal.SecurityIdentifier]).Value};if($p -ne 'S-1-5-18'){throw 'Tarefa antiga nao e SYSTEM'};$xml=Export-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath;$file=Join-Path "+Q(snapshot)+" ([Guid]::NewGuid().ToString('N')+'.xml');[IO.File]::WriteAllText($file,$xml);$records+=@{Name=$t.TaskName;Path=$t.TaskPath;Enabled=($t.State -ne 'Disabled')}};[IO.File]::WriteAllText("+Q(Path.Combine(snapshot,"tasks.json"))+",(ConvertTo-Json -InputObject @($records) -Depth 5));foreach($t in $tasks){Disable-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath|Out-Null;if((Get-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath).State -eq 'Running'){Stop-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath|Out-Null};for($i=0;$i -lt 40;$i++){if((Get-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath).State -ne 'Running'){break};Start-Sleep -Milliseconds 250};if((Get-ScheduledTask -TaskName $t.TaskName -TaskPath $t.TaskPath).State -eq 'Running'){throw 'Tarefa antiga ainda executando'}};exit 0");
             Need(File.ReadAllBytes(journal).SequenceEqual(original),"O journal antigo mudou. Nenhum registro será descartado.");
             foreach(var n in Names)Need(HashFile(Path.Combine(App,n))==plan.Previous[n],"Arquivo instalado mudou durante a retomada.");
             var replacement=JsonNode.Parse(original)!;replacement["Phase"]="Aborted";replacement["RetiredBy"]="Protection003-ArmedCompatibility";
@@ -125,7 +125,7 @@ internal sealed class Core
             File.Replace(temp,journal,null);retired=true;point?.Invoke("legacy-retired");
         }finally{
             foreach(var h in handles)h.Dispose();
-            if(taskQuiesced&&!retired)await RunPs("Enable-ScheduledTask -TaskName "+Q(TaskName)+" -ErrorAction SilentlyContinue|Out-Null;exit 0");
+            if(taskQuiesced&&!retired)await RunPs("$file="+Q(Path.Combine(snapshot,"tasks.json"))+";if(Test-Path $file){foreach($t in @(Get-Content $file -Raw|ConvertFrom-Json)){if($t.Enabled){Enable-ScheduledTask -TaskName $t.Name -TaskPath $t.Path -ErrorAction SilentlyContinue|Out-Null}}};exit 0");
         }
     }
     internal async Task VerifyProtection()

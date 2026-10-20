@@ -78,14 +78,14 @@ jobs:
           $hash=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
           @{File='LealInfoProtecao003.exe';Sha256=$hash;Channel='003';BuildRunId=$env:GITHUB_RUN_ID;SourceCommit=$env:GITHUB_SHA;WindowsActivationTestsPassed=$true;RealCustomerActivation=$false;PdvFeedPublished=$false}|ConvertTo-Json|Set-Content activation-output/activation-manifest.json -Encoding UTF8
           Write-Output ('PASS portable activator SHA256 '+$hash)
-      - name: Verificar dez cenarios novos aprovados
+      - name: Verificar onze cenarios novos aprovados
         shell: python
         run: |
           import json
           from pathlib import Path
           r=json.loads(Path('activation-evidence/results.json').read_text())
-          assert r['success'] is True and len(r['Scenarios'])==10 and all(s['pass'] for s in r['Scenarios'])
-          print('PASS 10 new Armed compatibility cases; previous 24 not repeated')
+          assert r['success'] is True and len(r['Scenarios'])==11 and all(s['pass'] for s in r['Scenarios'])
+          print('PASS 11 new Armed compatibility cases; previous 24 not repeated')
       - name: Abrir executavel real e testar recusa segura sem instalacao de cliente
         shell: pwsh
         run: |
@@ -178,7 +178,7 @@ jobs:
           with open(name,'wb') as f:subprocess.run(['gh','api',f'repos/{repo}/actions/artifacts/'+str(artifact['id'])+'/zip'],stdout=f,check=True)
           assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==expected
           tag='protecao-003-r2-armed-10.415'
-          Path('notes.txt').write_text('Ativador exclusivo do 003. Compatibilidade com protecao antiga Armed / Protection003-NoUpdate. Preserva journal e backups; valida e prepara novamente a recuperacao SYSTEM antes da troca. Sem setup e sem comandos. Nenhum feed do PDV alterado. Dez cenarios novos Windows aprovados; cenarios anteriores reaproveitados. SHA256 ZIP: '+expected)
+          Path('notes.txt').write_text('Ativador exclusivo do 003. Compatibilidade com protecao antiga Armed / Protection003-NoUpdate. Preserva journal e backups; valida e prepara novamente a recuperacao SYSTEM antes da troca. Sem setup e sem comandos. Nenhum feed do PDV alterado. Onze cenarios novos Windows aprovados; cenarios anteriores reaproveitados. SHA256 ZIP: '+expected)
           existing=subprocess.run(['gh','release','view',tag,'--repo',repo],capture_output=True)
           if existing.returncode!=0:subprocess.run(['gh','release','create',tag,name,'--repo',repo,'--target',os.environ['GITHUB_SHA'],'--title','Protecao 003 R2 - compatibilidade Armed 10.415','--notes-file','notes.txt','--latest=false'],check=True)
           url=f'https://github.com/{repo}/releases/download/{tag}/{name}'
