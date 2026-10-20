@@ -299,6 +299,7 @@ static class Program
                 Check(Convert.ToInt32(verify.ExecuteScalar()) == 3, "new product registration preserves existing prices and stock");
             }
             Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(photo))) == photoHash, "registration preserves original photo bytes"); File.Delete(photo);
+            string beforeHistory=Snapshot();KitchenHistoryTests.Run(central,Check,Pump);Check(Snapshot()==beforeHistory,"large kitchen history leaves all business tables unchanged");
             KitchenVisualEvidence.Render(central,Check,Pump,evidence);
             central.Close();Check(window.IsDisposed,"floating window disposed with central");
             File.WriteAllText(Path.Combine(evidence,"fixed.json"),JsonSerializer.Serialize(new{success=true,checks},new JsonSerializerOptions{WriteIndented=true}));return 0;

@@ -341,7 +341,7 @@ internal sealed class KitchenForm : Form
         var result = await Task.Run(() => (Recent: store.List(), Active: store.ListActive(), Seating: store.Seating())); if (IsDisposed) return;
         void ApplyResult()
         {
-        var list = result.Recent; tables.UpdateOrders(result.Active);tables.UpdateSeating(result.Seating);
+        var list = result.Active.Concat(result.Recent).DistinctBy(o=>o.Id).OrderByDescending(o=>o.ReceivedUtc).ThenBy(o=>o.Id).ToArray(); tables.UpdateOrders(result.Active);tables.UpdateSeating(result.Seating);
         var selected = (orders.CurrentRow?.DataBoundItem as OrderRow)?.Id;
         orders.DataSource = list.Select(o => new OrderRow(o.Id, o.Reference, o.Status, o.Revision, o.Operator, o.ReceivedUtc.ToLocalTime().ToString("dd/MM HH:mm:ss"),
             o.Notes + Environment.NewLine + string.Join(Environment.NewLine, o.Items.Select(i => $"{i.Quantity:0.###} × {i.Description} — {i.Notes}")))).ToArray();
