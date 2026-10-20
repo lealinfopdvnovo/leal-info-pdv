@@ -98,7 +98,7 @@ internal sealed class KitchenForm : Form
         fresh.Enabled = false;
         try { await action(); }
         catch (Exception e) { if (!IsDisposed) message.Text = e.Message + " • Pendências preservadas; a tentativa será repetida ao reconectar."; }
-        finally { if (!IsDisposed) fresh.Enabled = true; gate.Release(); }
+        finally { gate.Release(); if (!IsDisposed) fresh.Enabled = true; }
     }
     private Task RefreshAndRetry() => Run(async () =>
     {
