@@ -33,6 +33,7 @@ static class Program
     [STAThread] static int Main(string[] args)
     {
         if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true" || !OperatingSystem.IsWindows())throw new Exception("Disposable Windows runner only");
+        using var watchdog = new System.Threading.Timer(_ => { Console.Error.WriteLine("FAIL UI watchdog: 60 seconds"); Environment.Exit(93); }, null, 60000, Timeout.Infinite);
         bool baseline=args.Contains("--baseline");
         string evidence=Path.GetFullPath("new-order-evidence"); Directory.CreateDirectory(evidence);
         try
@@ -66,7 +67,7 @@ static class Program
                 void Fresh()
                 {
                     int clicks=0; EventHandler clicked=(_,_)=>clicks++; fresh.Click+=clicked;
-                    Console.WriteLine($"BEFORE NEW enabled={fresh.Enabled} canSelect={fresh.CanSelect} gate={Field<SemaphoreSlim>(form,"gate").CurrentCount} validate={form.Validate()}");
+                    Console.WriteLine($"BEFORE NEW enabled={fresh.Enabled} canSelect={fresh.CanSelect} gate={Field<SemaphoreSlim>(form,"gate").CurrentCount}");
                     fresh.PerformClick(); Application.DoEvents(); fresh.Click-=clicked;
                     Console.WriteLine($"AFTER NEW clicks={clicks} enabled={fresh.Enabled} gate={Field<SemaphoreSlim>(form,"gate").CurrentCount}");
                     Check(DataRows()==1 && Convert.ToString(grid.Rows[0].Cells[1].Value)=="1","new order has exactly one editable item with quantity 1");

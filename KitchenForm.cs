@@ -21,7 +21,7 @@ internal sealed class KitchenForm : Form
     private readonly Label message = new() { Dock = DockStyle.Bottom, Height = 45, AutoEllipsis = true };
     private readonly Button send = new() { Text = "ENVIAR PEDIDO À COZINHA", AutoSize = true };
     private readonly Label entryHint = new() { Text = "Clique em NOVO PEDIDO para iniciar e preencha os itens abaixo.", Dock = DockStyle.Top, Height = 36, AutoEllipsis = true };
-    private readonly Button fresh = new() { Text = "NOVO PEDIDO", AutoSize = true };
+    private readonly Button fresh = new() { Text = "NOVO PEDIDO", AutoSize = true, CausesValidation = false };
     internal KitchenForm()
     {
         Text = "COZINHA — PEDIDOS / ETAPA 1"; Name = "KitchenForm";

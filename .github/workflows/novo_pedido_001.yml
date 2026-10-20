@@ -8,7 +8,7 @@ permissions:
   actions: read
 concurrency:
   group: novo-pedido-001
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   validar:
     runs-on: windows-latest
@@ -47,6 +47,7 @@ jobs:
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
           Pop-Location
       - name: Reproduzir clique sem resposta na 10.416 R2 e testar correcao
+        timeout-minutes: 3
         working-directory: controller
         shell: pwsh
         run: |
