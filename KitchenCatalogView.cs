@@ -179,7 +179,11 @@ internal sealed class KitchenCatalogView : UserControl
         int available = cards.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 8;
         int columns = Math.Clamp(available / 128,1,4);
         int width = Math.Clamp(available / columns - 8, 116, 174);
-        foreach (var card in cards.Controls.OfType<TableLayoutPanel>()) card.Width = width;
+        foreach (var card in cards.Controls.OfType<TableLayoutPanel>())
+        {
+            card.Width = width;
+            card.Height = (int)Math.Ceiling(card.RowStyles.Cast<RowStyle>().Sum(row => row.Height)) + card.Padding.Vertical + 12;
+        }
     }
     private void BuildCategoryRail()
     {

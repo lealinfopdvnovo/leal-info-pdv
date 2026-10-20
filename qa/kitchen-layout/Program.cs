@@ -47,6 +47,7 @@ static class LayoutTests
                     {
                         var plus=Children(card).OfType<Button>().Single();
                         var rect=card.RectangleToClient(plus.RectangleToScreen(plus.ClientRectangle));
+                        Console.WriteLine($"GEOMETRY card={card.ClientRectangle} plus={rect} info={plus.Parent!.Bounds}");
                         Check(rect.Height>=20&&card.ClientRectangle.Contains(rect),$"product add action remains visible at {viewport} scale {scale}");
                     }
                     using var image=new Bitmap(form.Width,form.Height);form.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));
