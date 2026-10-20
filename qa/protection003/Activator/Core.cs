@@ -61,6 +61,7 @@ internal sealed class Core
     internal string Bundle=>Path.Combine(Root,"activation003-"+bundleId);
     internal string WorkerPath=>Path.Combine(Bundle,"worker.ps1");
     internal string PackagePath=>Path.Combine(Bundle,"package.zip");
+    internal int LaunchedWorkerId { get; private set; }
     internal string TaskName=>"LealInfoPDV-Recovery-"+Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(App.ToUpperInvariant())))[..16];
     static string PS=>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"WindowsPowerShell","v1.0","powershell.exe");
     static string Q(string s)=>"'"+s.Replace("'","''")+"'";
@@ -98,7 +99,7 @@ internal sealed class Core
         Validate();await VerifyProtection();var nonce=Guid.NewGuid().ToString("N");
         Need(fault==""||fixture,"Falha de teste recusada.");
         var script=Args("PrepareApply")+" -PreviousPid "+pid+" -PreviousStarted "+started+" -Nonce "+Q(nonce)+(fault==""?"":" -Fault "+Q(fault))+"\nexit $LASTEXITCODE";
-        using var p=StartPs(script,false);var until=DateTime.UtcNow.AddSeconds(65);
+        using var p=StartPs(script,false);LaunchedWorkerId=p.Id;var until=DateTime.UtcNow.AddSeconds(65);
         while(DateTime.UtcNow<until){if(p.HasExited)throw new IOException("Aplicador encerrou antes da confirmação. O PDV não foi autorizado a trocar arquivos.");try{if(File.ReadAllText(Path.Combine(Root,"prepared.ready"))==nonce){await VerifyProtection();return nonce;}}catch(FileNotFoundException){}await Task.Delay(150);}
         throw new TimeoutException("A proteção não confirmou a preparação. Nenhuma troca foi autorizada.");
     }
