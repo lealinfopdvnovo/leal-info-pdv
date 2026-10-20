@@ -131,6 +131,14 @@ internal sealed class KitchenStore
         using (var rows = cmd.ExecuteReader()) while (rows.Read()) ids.Add(Guid.Parse(rows.GetString(0)));
         return ids.Select(id => Read(db, null, id)).ToArray();
     }
+    // Table occupancy must include every active order, even after 500 newer completed orders.
+    internal IReadOnlyList<KitchenOrder> ListActive()
+    {
+        using var db = open(); var ids = new List<Guid>();
+        using (var cmd = Command(db, null, "SELECT id FROM kitchen_orders_v1 WHERE status IN ('AGUARDANDO','PREPARANDO','PRONTO') ORDER BY received_utc,id"))
+        using (var rows = cmd.ExecuteReader()) while (rows.Read()) ids.Add(Guid.Parse(rows.GetString(0)));
+        return ids.Select(id => Read(db, null, id)).ToArray();
+    }
     internal IReadOnlyList<KitchenEvent> History(Guid id)
     {
         using var db = open(); using var cmd = Command(db, null, "SELECT operation_id,status,at_utc,operator FROM kitchen_events_v1 WHERE order_id=$id ORDER BY rowid", ("$id", id.ToString("D")));

@@ -54,6 +54,40 @@ static class Program
             var fresh=Field<Button>(central,"fresh");var send=Field<Button>(central,"send");var grid=Field<DataGridView>(central,"items");var message=Field<Label>(central,"message");
             Pump(()=>message.Text.Contains("Cozinha conectada")&&fresh.Enabled&&Field<SemaphoreSlim>(central,"gate").CurrentCount==1);
             Field<System.Windows.Forms.Timer>(central,"retry").Stop();
+            var tables = Field<KitchenTablesView>(central, "tables");
+            var mainMenu = Field<KitchenCatalogView>(central, "mainCatalog");
+            Check(tables.Controls.Find("MainTables", true).Single().Controls.Count == 10, "premium main dashboard shows exactly ten tables");
+            Check(mainMenu.Parent != null && mainMenu.Left < tables.Parent!.Left + tables.Left + mainMenu.Width, "product catalog is attached to left dashboard");
+            tables.Controls.Find("MoreKitchenTables", true).OfType<Button>().Single().PerformClick();
+            Application.DoEvents();
+            var allTables = Application.OpenForms.Cast<Form>().Single(f => f.Name == "AllKitchenTables");
+            Check(allTables.Owner == central && !allTables.Modal, "more tables is a floating owned window");
+            var amount = allTables.Controls.Find("KitchenTableCount", true).OfType<NumericUpDown>().Single();
+            var allCards = allTables.Controls.Find("AllKitchenTableCards", true).Single();
+            foreach (int total in new[] { 20, 30, 40, 80 })
+            {
+                amount.Value = total; Application.DoEvents();
+                Check(allCards.Controls.Count == total, "floating table capacity " + total);
+            }
+            var tableStore = new KitchenStore();
+            string kitchenId = Field<string>(central, "storeId");
+            var mesa = tableStore.Submit(kitchenId, new KitchenDraft(Guid.NewGuid(), "Mesa 40", "", "QA", DateTimeOffset.UtcNow, new[] { new KitchenItem("MESA QA", 1, "") }));
+            Check(KitchenTablesView.TableNumber("Mesa 040") == 40 && KitchenTablesView.TableNumber("ORCAMENTO 40") == null, "only explicit table references are linked");
+            foreach (string state in new[] { "OCUPADA", "PREPARANDO", "PRONTA", "LIVRE" })
+            {
+                tables.UpdateOrders(tableStore.ListActive());
+                var table40 = allCards.Controls.Find("KitchenTable_40", true).OfType<Button>().Single();
+                Check(table40.Text.Contains(state), "table status follows durable order: " + state);
+                string? next = state switch { "OCUPADA" => "PREPARANDO", "PREPARANDO" => "PRONTO", "PRONTA" => "ENTREGUE", _ => null };
+                if (next != null) mesa = tableStore.ChangeStatus(mesa.Id, mesa.Revision, next, "QA", Guid.NewGuid());
+            }
+            allCards.Controls.Find("KitchenTable_40", true).OfType<Button>().Single().PerformClick();
+            Application.DoEvents();
+            Check(Field<TextBox>(central, "reference").Text == "Mesa 40", "table click opens floating order bound to selected table");
+            Field<TextBox>(central, "reference").Clear();
+            allTables.Close(); Application.DoEvents();
+            Check(Snapshot() == before, "table UI and status transitions preserve business data");
+            using (var screen = new Bitmap(central.Width, central.Height)) { central.DrawToBitmap(screen, new Rectangle(Point.Empty, screen.Size)); screen.Save(Path.Combine(evidence, "cozinha-premium-preparacao.png")); }
             fresh.PerformClick();Application.DoEvents();var window=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="KitchenOrderEntry");
             var name=Field<TextBox>(central,"itemDescription");var qty=Field<NumericUpDown>(central,"itemQuantity");var itemNotes=Field<TextBox>(central,"itemNotes");var add=Field<Button>(central,"addItem");
             var reference=Field<TextBox>(central,"reference");var notes=Field<TextBox>(central,"notes");

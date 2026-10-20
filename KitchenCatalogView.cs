@@ -14,13 +14,17 @@ internal sealed class KitchenCatalogView : UserControl
     private KitchenCatalogProduct[] products = Array.Empty<KitchenCatalogProduct>();
     private bool loading;
     private int limit = 60;
+    private HashSet<long>? menuIds;
+    private string? menuPath;
+    private bool menuLoaded;
     internal event Action<KitchenCatalogProduct>? ProductChosen;
+    internal event Action? CatalogChanged;
     internal KitchenCatalogView()
     {
         Name = "KitchenCatalog"; Dock = DockStyle.Fill; Font = new Font("Segoe UI",10); Padding = new Padding(10,0,4,10);
-        var root = new TableLayoutPanel { Dock=DockStyle.Fill, ColumnCount=1, RowCount=7 };
+        var root = new TableLayoutPanel { Dock=DockStyle.Fill, ColumnCount=1, RowCount=9 };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        foreach(int h in new[]{76,40,40,42,40,46})root.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
+        foreach(int h in new[]{76,40,40,42,40,46,46,46})root.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
         root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         root.Controls.Add(new Label { Text="CARDÁPIO\nProdutos cadastrados no PDV", Dock=DockStyle.Fill, BackColor=Color.FromArgb(9,29,49), ForeColor=Color.White, Padding=new Padding(12), Font=new Font("Segoe UI",12,FontStyle.Bold), TextAlign=ContentAlignment.MiddleLeft },0,0);
         root.Controls.Add(search,0,1);root.Controls.Add(category,0,2);root.Controls.Add(reload,0,3);root.Controls.Add(status,0,4);
@@ -30,9 +34,31 @@ internal sealed class KitchenCatalogView : UserControl
             if(!Auth.IsAdmin){status.Text="Importação disponível para ADMINISTRADOR.";return;}
             if(LealInfoPDV.Network.NetworkConfiguration.Current.Mode=="terminal"){status.Text="Importe o catálogo no computador servidor.";return;}
             using var dialog=new ReadyKitchenImportForm();
-            if(dialog.ShowDialog(FindForm())==DialogResult.OK)await ReloadAsync();
+            if(dialog.ShowDialog(FindForm())==DialogResult.OK) { await ReloadAsync(); CatalogChanged?.Invoke(); }
         };
-        root.Controls.Add(ready,0,5);root.Controls.Add(cards,0,6);Controls.Add(root);
+        var register = new Button { Name = "KitchenAddProduct", Text = "+ ADICIONAR PRODUTO", Dock = DockStyle.Fill };
+        register.Click += async (_, _) =>
+        {
+            if (!Auth.CanManageCatalog) { status.Text = "Sem permissão para cadastrar produtos."; return; }
+            register.Enabled = false;
+            try
+            {
+                var before = ReadProducts().Select(p => p.Id).ToHashSet();
+                ProductRegistrationForm.Show(FindForm()!, null); await ReloadAsync();
+                if (menuIds != null && menuPath != null)
+                {
+                    menuIds.UnionWith(products.Where(p => !before.Contains(p.Id)).Select(p => p.Id));
+                    ProtectedFile.Write(menuPath, menuIds.OrderBy(id => id).ToArray()); Render();
+                }
+                CatalogChanged?.Invoke();
+            }
+            catch (Exception e) { status.Text = e.Message; }
+            finally { if (!register.IsDisposed) register.Enabled = true; }
+        };
+        var select = new Button { Name = "KitchenImportPdv", Text = "IMPORTAR PRODUTOS DO PDV", Dock = DockStyle.Fill };
+        select.Click += (_, _) => SelectMenu();
+        root.Controls.Add(ready,0,5);root.Controls.Add(register,0,6);root.Controls.Add(select,0,7);root.Controls.Add(cards,0,8);Controls.Add(root);
+        KitchenPremiumStyle.Apply(this);
         category.Items.Add("Todas as categorias");category.SelectedIndex=0;
         search.TextChanged+=(_,_)=>{limit=60;Render();};
         category.SelectedIndexChanged+=(_,_)=>{if(!loading){limit=60;Render();}};
@@ -49,11 +75,24 @@ internal sealed class KitchenCatalogView : UserControl
     internal async Task ReloadAsync()
     {
         if(loading||IsDisposed)return;
+        menuLoaded = false;
         loading=true;reload.Enabled=false;status.Text="Carregando produtos...";
         try
         {
             var data=await Task.Run(() => ReadProducts());if(IsDisposed)return;
-            products=data;string previous=Convert.ToString(category.SelectedItem)??"";
+            products=data;
+            if (!menuLoaded)
+            {
+                string identity = await Task.Run(() => new KitchenStore().StoreId());
+                string endpoint = LealInfoPDV.Network.NetworkConfiguration.Current.Mode == "terminal"
+                    ? LealInfoPDV.Network.NetworkConfiguration.Current.CertificateHash : Database.DbPath;
+                string key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(endpoint + ":" + identity)));
+                menuPath = Path.Combine(Database.AppFolder, "KitchenMenu", key + ".json");
+                menuIds = null;
+                if (File.Exists(menuPath)) menuIds = ProtectedFile.Read<long[]>(menuPath).ToHashSet();
+                menuLoaded = true;
+            }
+            string previous=Convert.ToString(category.SelectedItem)??"";
             category.Items.Clear();category.Items.Add("Todas as categorias");
             foreach(var item in products.Select(p=>p.Category).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c=>c))category.Items.Add(item);
             category.SelectedItem=category.Items.Cast<string>().FirstOrDefault(c=>c==previous)??"Todas as categorias";limit=60;
@@ -68,7 +107,7 @@ internal sealed class KitchenCatalogView : UserControl
         string term=search.Text.Trim();string selected=category.SelectedIndex>0?Convert.ToString(category.SelectedItem)??"":"";
         var compare=CultureInfo.GetCultureInfo("pt-BR").CompareInfo;
         bool Match(string value)=>compare.IndexOf(value,term,CompareOptions.IgnoreCase|CompareOptions.IgnoreNonSpace)>=0;
-        var found=products.Where(p=>(selected==""||p.Category.Equals(selected,StringComparison.OrdinalIgnoreCase))&&(term==""||Match(p.Name)||Match(p.Barcode)||Match(p.Category))).ToArray();
+        var found=products.Where(p=>(menuIds == null || menuIds.Contains(p.Id)) && (selected==""||p.Category.Equals(selected,StringComparison.OrdinalIgnoreCase))&&(term==""||Match(p.Name)||Match(p.Barcode)||Match(p.Category))).ToArray();
         cards.SuspendLayout();
         foreach(Control c in cards.Controls.Cast<Control>().ToArray()){cards.Controls.Remove(c);c.Dispose();}
         foreach(var product in found.Take(limit))cards.Controls.Add(Card(product));
@@ -79,6 +118,30 @@ internal sealed class KitchenCatalogView : UserControl
         }
         status.Text=products.Length==0?"Nenhum produto ativo cadastrado.":found.Length==0?"Nenhum produto encontrado.":$"{Math.Min(limit,found.Length)} de {found.Length} produto(s)";
         cards.ResumeLayout(true);
+    }
+    private void SelectMenu()
+    {
+        if (!Auth.CanManageCatalog) { status.Text = "Sem permissão para selecionar o cardápio."; return; }
+        if (loading || !menuLoaded || menuPath == null) { status.Text = "Aguarde o carregamento dos produtos."; return; }
+        using var dialog = new Form { Name = "KitchenPdvSelection", Text = "PRODUTOS DO PDV — CARDÁPIO", Size = new Size(620, 620), MinimumSize = new Size(500, 400), StartPosition = FormStartPosition.CenterParent, ShowInTaskbar = false };
+        var choices = new CheckedListBox { Name = "KitchenMenuChoices", Dock = DockStyle.Fill, CheckOnClick = true };
+        foreach (var product in products) choices.Items.Add(product.Name + " • " + product.Barcode + " • " + product.Price.ToString("C2", CultureInfo.GetCultureInfo("pt-BR")), menuIds == null || menuIds.Contains(product.Id));
+        var save = new Button { Text = "SALVAR CARDÁPIO", Dock = DockStyle.Bottom, Height = 48 };
+        var hint = new Label { Text = "Selecione os produtos já cadastrados. Preços, fotos e estoque são preservados.", Dock = DockStyle.Top, Height = 52, Padding = new Padding(10) };
+        dialog.Controls.Add(choices); dialog.Controls.Add(save); dialog.Controls.Add(hint);
+        save.Click += (_, _) =>
+        {
+            try
+            {
+                var ids = choices.CheckedIndices.Cast<int>().Select(i => products[i].Id).ToHashSet();
+                Directory.CreateDirectory(Path.GetDirectoryName(menuPath)!);
+                ProtectedFile.Write(menuPath, ids.OrderBy(id => id).ToArray()); menuIds = ids;
+                dialog.DialogResult = DialogResult.OK;
+            }
+            catch (Exception e) { MessageBox.Show(dialog, e.Message, "Cardápio"); }
+        };
+        KitchenPremiumStyle.Apply(dialog);
+        if (dialog.ShowDialog(FindForm()) == DialogResult.OK) { Render(); CatalogChanged?.Invoke(); }
     }
     private Control Card(KitchenCatalogProduct product)
     {
@@ -102,6 +165,7 @@ internal sealed class KitchenCatalogView : UserControl
         void Pick(){ProductChosen?.Invoke(product);}
         choose.Click+=(_,_)=>Pick();visual.Click+=(_,_)=>Pick();title.Click+=(_,_)=>Pick();price.Click+=(_,_)=>Pick();
         card.Controls.Add(visual,0,0);card.Controls.Add(title,0,1);card.Controls.Add(price,0,2);card.Controls.Add(choose,0,3);
+        KitchenPremiumStyle.Apply(card);
         return card;
     }
 }
