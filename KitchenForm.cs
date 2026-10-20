@@ -20,6 +20,7 @@ internal sealed class KitchenForm : Form
     private readonly TextBox detail = new() { Dock = DockStyle.Bottom, Height = 100, ReadOnly = true, Multiline = true, ScrollBars = ScrollBars.Vertical };
     private readonly Label message = new() { Dock = DockStyle.Bottom, Height = 45, AutoEllipsis = true };
     private readonly Button send = new() { Text = "ENVIAR PEDIDO À COZINHA", AutoSize = true };
+    private readonly Label entryHint = new() { Text = "Clique em NOVO PEDIDO para iniciar e preencha os itens abaixo.", Dock = DockStyle.Top, Height = 36, AutoEllipsis = true };
     private readonly Button fresh = new() { Text = "NOVO PEDIDO", AutoSize = true };
     internal KitchenForm()
     {
@@ -34,7 +35,7 @@ internal sealed class KitchenForm : Form
         tabs.TabPages.AddRange(new[] { entry, received });
         items.Columns.Add("Description", "Item"); items.Columns.Add("Quantity", "Quantidade"); items.Columns.Add("Notes", "Observações do item");
         var entryButtons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true }; entryButtons.Controls.AddRange(new Control[] { fresh, send });
-        entry.Controls.Add(items); entry.Controls.Add(notes); entry.Controls.Add(reference); entry.Controls.Add(entryButtons);
+        entry.Controls.Add(items); entry.Controls.Add(notes); entry.Controls.Add(reference); entry.Controls.Add(entryHint); entry.Controls.Add(entryButtons);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
         foreach (string status in new[] { "PREPARANDO", "PRONTO", "ENTREGUE", "CANCELADO" })
         {
@@ -58,7 +59,18 @@ internal sealed class KitchenForm : Form
             if (orders.CurrentRow?.DataBoundItem is OrderRow row)
                 detail.Text = row.Details;
         };
-        fresh.Click += (_, _) => { reference.Clear(); notes.Clear(); items.Rows.Clear(); SetEntryEnabled(true); };
+        fresh.Click += async (_, _) => await Run(() =>
+        {
+            tabs.SelectedTab = entry;
+            items.CancelEdit();
+            reference.Clear(); notes.Clear(); items.Rows.Clear();
+            SetEntryEnabled(true);
+            int row = items.Rows.Add("", "1", "");
+            items.CurrentCell = items.Rows[row].Cells[0];
+            items.Focus(); items.BeginEdit(true);
+            entryHint.Text = "Novo pedido iniciado. Digite o item e a quantidade; depois clique em ENVIAR PEDIDO À COZINHA.";
+            return Task.CompletedTask;
+        });
         send.Click += async (_, _) => await Run(async () =>
         {
             if (storeId == null) throw new InvalidOperationException("Conecte uma vez à cozinha preparada no servidor antes de enviar.");
@@ -77,9 +89,10 @@ internal sealed class KitchenForm : Form
     private async Task Run(Func<Task> action)
     {
         if (!await gate.WaitAsync(0)) return;
+        fresh.Enabled = false;
         try { await action(); }
         catch (Exception e) { if (!IsDisposed) message.Text = e.Message + " • Pendências preservadas; a tentativa será repetida ao reconectar."; }
-        finally { gate.Release(); }
+        finally { if (!IsDisposed) fresh.Enabled = true; gate.Release(); }
     }
     private Task RefreshAndRetry() => Run(async () =>
     {
