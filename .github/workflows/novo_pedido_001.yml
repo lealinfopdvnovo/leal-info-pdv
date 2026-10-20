@@ -35,7 +35,7 @@ jobs:
           python scripts/distribute_channels.py plan
           if($LASTEXITCODE -ne 0){throw 'Plan failed'}
           $plan=Get-Content release-plan.json -Raw|ConvertFrom-Json
-          if($plan.Entries.Count -ne 1 -or $plan.Entries[0].Channel -ne '001' -or $plan.Entries[0].Version -ne '10.417'){throw 'Wrong scope'}
+          if($plan.Entries.Count -ne 1 -or $plan.Entries[0].Channel -ne '001' -or $plan.Entries[0].Version -ne '10.418'){throw 'Wrong scope'}
           python scripts/distribute_channels.py prepare 001
           if($LASTEXITCODE -ne 0){throw 'Prepare failed'}
           Push-Location candidate
@@ -46,20 +46,13 @@ jobs:
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
           Pop-Location
-      - name: Reproduzir clique sem resposta na 10.416 R2 e testar correcao
+      - name: Testar janela flutuante real e envio para cozinha no Windows
         timeout-minutes: 3
         working-directory: controller
         shell: pwsh
         run: |
-          $fixed=[IO.File]::ReadAllText((Join-Path $PWD 'candidate/KitchenForm.cs'))
-          try {
-            $old=git -C candidate show 6bdc0772520720a07cbcae7ff102a99ebd6e4caa:KitchenForm.cs
-            [IO.File]::WriteAllText((Join-Path $PWD 'candidate/KitchenForm.cs'),($old -join "`n"))
-            dotnet run --project candidate/qa/kitchen-new-order/NewOrderTests.csproj -c Release -- --baseline 2>&1|Tee-Object baseline.log
-            if($LASTEXITCODE -ne 0){throw 'Baseline reproduction failed'}
-          } finally {[IO.File]::WriteAllText((Join-Path $PWD 'candidate/KitchenForm.cs'),$fixed)}
           dotnet run --project candidate/qa/kitchen-new-order/NewOrderTests.csproj -c Release 2>&1|Tee-Object fixed.log
-          if($LASTEXITCODE -ne 0){throw 'New order regression failed'}
+          if($LASTEXITCODE -ne 0){throw 'Floating new order regression failed'}
       - name: Compilar e conferir pacote incremental sem setup
         working-directory: controller
         shell: pwsh

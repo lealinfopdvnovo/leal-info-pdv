@@ -7,6 +7,7 @@ namespace LealInfoPDV;
 // Stage 1 entry and consultation only. Sending a kitchen order never finalizes a sale.
 internal sealed class KitchenForm : Form
 {
+    private Form? entryWindow;
     private readonly KitchenStore store = new();
     private readonly KitchenOutbox outbox;
     private readonly string bindingPath;
@@ -31,12 +32,8 @@ internal sealed class KitchenForm : Form
         string key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(endpoint)));
         string folder = Path.Combine(Database.AppFolder, "KitchenOutbox", key); outbox = new(folder); bindingPath = Path.Combine(folder, "binding");
         if (File.Exists(bindingPath)) storeId = ProtectedFile.Read<string>(bindingPath);
-        var tabs = new TabControl { Dock = DockStyle.Fill }; var entry = new TabPage("NOVO PEDIDO"); var received = new TabPage("PEDIDOS REGISTRADOS");
-        tabs.TabPages.AddRange(new[] { entry, received });
         items.Columns.Add("Description", "Item"); items.Columns.Add("Quantity", "Quantidade"); items.Columns.Add("Notes", "Observações do item");
-        var entryButtons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true }; entryButtons.Controls.AddRange(new Control[] { fresh, send });
-        entry.Controls.Add(items); entry.Controls.Add(notes); entry.Controls.Add(reference); entry.Controls.Add(entryHint); entry.Controls.Add(entryButtons);
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, WrapContents = true }; buttons.Controls.Add(fresh);
         foreach (string status in new[] { "PREPARANDO", "PRONTO", "ENTREGUE", "CANCELADO" })
         {
             var button = new Button { Text = status, AutoSize = true }; buttons.Controls.Add(button);
@@ -52,31 +49,13 @@ internal sealed class KitchenForm : Form
         }
         var refresh = new Button { Text = "ATUALIZAR / TENTAR PENDÊNCIAS", AutoSize = true }; buttons.Controls.Add(refresh);
         refresh.Click += async (_, _) => await RefreshAndRetry();
-        received.Controls.Add(orders); received.Controls.Add(detail); received.Controls.Add(buttons);
-        Controls.Add(tabs); Controls.Add(message);
+        Controls.Add(orders); Controls.Add(detail); Controls.Add(buttons); Controls.Add(message);
         orders.SelectionChanged += (_, _) =>
         {
             if (orders.CurrentRow?.DataBoundItem is OrderRow row)
                 detail.Text = row.Details;
         };
-        fresh.Click += async (_, _) => await Run(() =>
-        {
-            tabs.SelectedTab = entry;
-            items.CancelEdit();
-            reference.Clear(); notes.Clear(); items.Rows.Clear();
-            SetEntryEnabled(true);
-            int row = items.Rows.Add("", "1", "");
-            items.CurrentCell = items.Rows[row].Cells[0];
-            BeginInvoke((Action)(() =>
-            {
-                if (!IsDisposed && !items.ReadOnly)
-                {
-                    items.Focus(); items.BeginEdit(true);
-                }
-            }));
-            entryHint.Text = "Novo pedido iniciado. Digite o item e a quantidade; depois clique em ENVIAR PEDIDO À COZINHA.";
-            return Task.CompletedTask;
-        });
+        fresh.Click += (_, _) => OpenEntryWindow();
         send.Click += async (_, _) => await Run(async () =>
         {
             if (storeId == null) throw new InvalidOperationException("Conecte uma vez à cozinha preparada no servidor antes de enviar.");
@@ -87,9 +66,59 @@ internal sealed class KitchenForm : Form
             outbox.Queue(storeId, draft); SetEntryEnabled(false);
             message.Text = "Pedido guardado na fila local. Aguardando confirmação do servidor.";
             await FlushAndRefresh();
+            if (!outbox.Pending().Any(p => p.Draft.Id == draft.Id)) entryWindow?.Hide();
         });
         Shown += async (_, _) => { await RefreshAndRetry(); if (!IsDisposed) retry.Start(); };
         retry.Tick += async (_, _) => await RefreshAndRetry();
+    }
+    private void OpenEntryWindow()
+    {
+        if (entryWindow is { IsDisposed: false, Visible: true } && send.Enabled)
+        {
+            entryWindow.Activate();
+            return;
+        }
+        bool create = entryWindow == null || entryWindow.IsDisposed;
+        if (create)
+        {
+            entryWindow = new Form
+            {
+                Name = "KitchenOrderEntry", Text = "NOVO PEDIDO — COZINHA",
+                StartPosition = FormStartPosition.CenterParent,
+                Size = new Size(900, 600), MinimumSize = new Size(640, 420),
+                ShowInTaskbar = false, Font = Font
+            };
+            var close = new Button { Text = "FECHAR", AutoSize = true, CausesValidation = false };
+            close.Click += (_, _) => entryWindow.Hide();
+            var actions = new FlowLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true };
+            actions.Controls.AddRange(new Control[] { send, close });
+            var status = new Label { Dock = DockStyle.Bottom, Height = 52, AutoEllipsis = true, Text = message.Text };
+            message.TextChanged += (_, _) => { if (!status.IsDisposed) status.Text = message.Text; };
+            entryWindow.Controls.Add(items); entryWindow.Controls.Add(notes);
+            entryWindow.Controls.Add(reference); entryWindow.Controls.Add(entryHint);
+            entryWindow.Controls.Add(actions); entryWindow.Controls.Add(status);
+            entryWindow.FormClosing += (_, e) =>
+            {
+                if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; entryWindow.Hide(); }
+            };
+        }
+        if (create || !send.Enabled)
+        {
+            items.CancelEdit(); reference.Clear(); notes.Clear(); items.Rows.Clear();
+            SetEntryEnabled(true);
+            int row = items.Rows.Add("", "1", "");
+            items.CurrentCell = items.Rows[row].Cells[0];
+        }
+        entryHint.Text = "Preencha os itens, quantidades e observações e clique em ENVIAR PEDIDO À COZINHA.";
+        if (!entryWindow!.Visible) entryWindow.Show(this);
+        entryWindow.Activate();
+        entryWindow.BeginInvoke((Action)(() =>
+        {
+            if (entryWindow is { IsDisposed: false, Visible: true } && !items.ReadOnly)
+            {
+                items.Focus(); items.BeginEdit(true);
+            }
+        }));
     }
     private void SetEntryEnabled(bool value) { send.Enabled = value; items.ReadOnly = !value; reference.ReadOnly = notes.ReadOnly = !value; }
     private async Task Run(Func<Task> action)
@@ -121,5 +150,5 @@ internal sealed class KitchenForm : Form
         foreach (string hidden in new[] { "Id", "Revision", "Details" }) if (orders.Columns[hidden] is { } column) column.Visible = false;
         foreach (DataGridViewRow row in orders.Rows) if ((row.DataBoundItem as OrderRow)?.Id == selected) { row.Selected = true; orders.CurrentCell = row.Cells.Cast<DataGridViewCell>().First(c => c.Visible); break; }
     }
-    protected override void Dispose(bool disposing) { if (disposing) retry.Dispose(); base.Dispose(disposing); }
+    protected override void Dispose(bool disposing) { if (disposing) { retry.Dispose(); entryWindow?.Dispose(); } base.Dispose(disposing); }
 }

@@ -30,84 +30,69 @@ static class Program
         }
         return Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(rows)));
     }
-    [STAThread] static int Main(string[] args)
+    [STAThread] static int Main()
     {
         if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true" || !OperatingSystem.IsWindows())throw new Exception("Disposable Windows runner only");
-        using var watchdog = new System.Threading.Timer(_ => { Console.Error.WriteLine("FAIL UI watchdog: 60 seconds"); Environment.Exit(93); }, null, 60000, Timeout.Infinite);
-        bool baseline=args.Contains("--baseline");
-        string evidence=Path.GetFullPath("new-order-evidence"); Directory.CreateDirectory(evidence);
+        using var watchdog=new System.Threading.Timer(_=>{Console.Error.WriteLine("FAIL UI timeout");Environment.Exit(93);},null,60000,Timeout.Infinite);
+        string evidence=Path.GetFullPath("new-order-evidence");Directory.CreateDirectory(evidence);
         try
         {
-            if(baseline)
-            {
-                Check(!File.Exists(Database.DbPath),"empty disposable profile");
-                Database.Initialize();
-                Auth.CreateUser("QA NOVO PEDIDO","neworderqa","QA-isolated-123!","ADMINISTRADOR","qa@example.invalid","");
-            }
+            Check(!File.Exists(Database.DbPath),"empty disposable profile");
+            Database.Initialize();Auth.CreateUser("QA NOVO PEDIDO","neworderqa","QA-isolated-123!","ADMINISTRADOR","qa@example.invalid","");
             Auth.Login("neworderqa","QA-isolated-123!");
-            string before=Snapshot();
-            Application.EnableVisualStyles();
-            using var form=new KitchenForm(); form.Show();
-            var fresh=Field<Button>(form,"fresh"); var send=Field<Button>(form,"send");
-            var grid=Field<DataGridView>(form,"items"); var message=Field<Label>(form,"message");
-            Pump(()=>message.Text.Contains("Cozinha conectada") && fresh.Enabled);
-            Field<System.Windows.Forms.Timer>(form,"retry").Stop();
-            int DataRows()=>grid.Rows.Cast<DataGridViewRow>().Count(r=>!r.IsNewRow);
-            if(baseline)
+            string before=Snapshot();Application.EnableVisualStyles();
+            using var central=new KitchenForm();central.Show();
+            var fresh=Field<Button>(central,"fresh");var send=Field<Button>(central,"send");
+            var grid=Field<DataGridView>(central,"items");var message=Field<Label>(central,"message");
+            Pump(()=>message.Text.Contains("Cozinha conectada") && fresh.Enabled && Field<SemaphoreSlim>(central,"gate").CurrentCount==1);
+            Field<System.Windows.Forms.Timer>(central,"retry").Stop();
+            Check(!Application.OpenForms.Cast<Form>().Any(f=>f.Name=="KitchenOrderEntry"),"entry window opens only on NOVO PEDIDO click");
+            Form Open()
             {
-                string previous=message.Text;
-                fresh.PerformClick(); Application.DoEvents();
-                Check(DataRows()==0 && message.Text==previous,"REPRODUCED 10.416 R2: blank NOVO PEDIDO click has no visible response");
+                fresh.PerformClick();Application.DoEvents();
+                var window=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="KitchenOrderEntry");
+                Check(window.Visible && window.Owner==central && !window.Modal && central.Visible && central.Enabled,"real floating window opens over the enabled kitchen central");
+                Check(grid.FindForm()==window && send.FindForm()==window,"items and send belong to the floating window");
+                Pump(()=>grid.IsCurrentCellInEditMode && grid.ContainsFocus);
+                return window;
             }
-            else
-            {
-                var store=new KitchenStore(); int count=store.List().Count;
-                var reference=Field<TextBox>(form,"reference"); var notes=Field<TextBox>(form,"notes");
-                var hint=Field<Label>(form,"entryHint");
-                void Fresh()
-                {
-                    int clicks=0; EventHandler clicked=(_,_)=>clicks++; fresh.Click+=clicked;
-                    Console.WriteLine($"BEFORE NEW enabled={fresh.Enabled} canSelect={fresh.CanSelect} gate={Field<SemaphoreSlim>(form,"gate").CurrentCount}");
-                    fresh.PerformClick(); Application.DoEvents(); fresh.Click-=clicked;
-                    Console.WriteLine($"AFTER NEW clicks={clicks} enabled={fresh.Enabled} gate={Field<SemaphoreSlim>(form,"gate").CurrentCount}");
-                    Check(DataRows()==1 && Convert.ToString(grid.Rows[0].Cells[1].Value)=="1","new order has exactly one editable item with quantity 1");
-                    Console.WriteLine($"FOCUS cell={grid.CurrentCell?.ColumnIndex}/{grid.CurrentCell?.RowIndex} editing={grid.IsCurrentCellInEditMode} focus={grid.ContainsFocus} enabled={grid.Enabled} readonly={grid.ReadOnly} active={form.ActiveControl?.GetType().Name} editEnabled={grid.EditingControl?.Enabled}");
-                    try { Pump(() => grid.CurrentCell?.ColumnIndex==0 && grid.IsCurrentCellInEditMode && grid.ContainsFocus); }
-                    catch { Console.WriteLine($"FOCUS FAILED cell={grid.CurrentCell?.ColumnIndex}/{grid.CurrentCell?.RowIndex} editing={grid.IsCurrentCellInEditMode} focus={grid.ContainsFocus} enabled={grid.Enabled} readonly={grid.ReadOnly} active={form.ActiveControl?.GetType().Name} editEnabled={grid.EditingControl?.Enabled} message={message.Text}"); throw; }
-                    Check(true,"cursor is editing the item field");
-                    Check(hint.Text.StartsWith("Novo pedido iniciado") && hint.Visible,"persistent visible acknowledgement");
-                    Check(send.Enabled && !grid.ReadOnly && !reference.ReadOnly && !notes.ReadOnly,"entry enabled");
-                }
-                Fresh(); Fresh();
-                reference.Text="DESCARTAR RASCUNHO"; notes.Text="APENAS RASCUNHO";
-                ((TextBox)grid.EditingControl!).Text="EDICAO AINDA NAO CONFIRMADA";
-                Fresh();
-                Check(reference.Text=="" && notes.Text=="" && Convert.ToString(grid.Rows[0].Cells[0].Value)=="","active cell edit and draft fields cleared");
-                ((TextBox)grid.EditingControl!).Text="ITEM QA UM"; grid.EndEdit(); reference.Text="QA PRIMEIRO";
-                send.PerformClick();
-                Check(!fresh.Enabled,"new order disabled while real send is in progress");
-                Pump(()=>fresh.Enabled && !send.Enabled && store.List().Count==count+1);
-                send.PerformClick(); Application.DoEvents();
-                Check(store.List().Count==count+1,"sent draft cannot be duplicated");
-                var first=store.List().Single(o=>o.Reference=="QA PRIMEIRO");
-                Fresh();
-                Check(store.Get(first.Id).Items.Single().Description=="ITEM QA UM","new order preserves registered order and items");
-                ((TextBox)grid.EditingControl!).Text="ITEM QA DOIS"; grid.EndEdit(); reference.Text="QA SEGUNDO";
-                send.PerformClick(); Pump(()=>fresh.Enabled && !send.Enabled && store.List().Count==count+2);
-                Check(store.List().Count==count+2,"second order sent after new order click");
-                Fresh();
-                var outbox=Field<KitchenOutbox>(form,"outbox"); var id=Field<string>(form,"storeId");
-                var pending=new KitchenDraft(Guid.NewGuid(),"QA PENDENTE","PRESERVAR","QA",DateTimeOffset.UtcNow,new[]{new KitchenItem("PENDENTE",1,"")});
-                outbox.Queue(id,pending);
-                var files=Directory.GetFiles(Database.AppFolder,"*.pending",SearchOption.AllDirectories).ToDictionary(p=>p,p=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))));
-                Fresh();
-                Check(outbox.Pending().Any(x=>x.Draft.Id==pending.Id) && files.All(x=>File.Exists(x.Key) && Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(x.Key)))==x.Value),"durable pending bytes preserved by new order");
-                using(var image=new Bitmap(form.Width,form.Height)){form.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"novo-pedido.png"));}
-                Check(UpdateManager.CurrentVersion=="10.417","candidate version 10.417");
-            }
-            Check(Snapshot()==before,"business data, users and settings preserved");
-            form.Close();
-            File.WriteAllText(Path.Combine(evidence,baseline?"baseline.json":"fixed.json"),JsonSerializer.Serialize(new{success=true,checks},new JsonSerializerOptions{WriteIndented=true}));
+            var firstWindow=Open();
+            Check(grid.Rows.Cast<DataGridViewRow>().Count(r=>!r.IsNewRow)==1 && Convert.ToString(grid.Rows[0].Cells[1].Value)=="1","new floating draft starts with quantity 1");
+            var reference=Field<TextBox>(central,"reference");var notes=Field<TextBox>(central,"notes");
+            reference.Text="RASCUNHO";notes.Text="PRESERVAR";
+            ((TextBox)grid.EditingControl!).Text="ITEM EM EDICAO";grid.EndEdit();
+            fresh.PerformClick();Application.DoEvents();
+            Check(Application.OpenForms.Cast<Form>().Count(f=>f.Name=="KitchenOrderEntry")==1 && reference.Text=="RASCUNHO","repeated click activates the same window without deleting draft");
+            firstWindow.Close();Application.DoEvents();
+            Check(!firstWindow.Visible && !firstWindow.IsDisposed,"close hides draft window without losing data");
+            var reopened=Open();
+            Check(ReferenceEquals(firstWindow,reopened) && reference.Text=="RASCUNHO" && notes.Text=="PRESERVAR" && Convert.ToString(grid.Rows[0].Cells[0].Value)=="ITEM EM EDICAO","reopen restores unsent draft");
+            var store=new KitchenStore();int count=store.List().Count;
+            reference.Text="QA PRIMEIRO";notes.Text="SEM CEBOLA";
+            grid.EndEdit();grid.Rows[0].Cells[1].Value="0";send.PerformClick();
+            Pump(()=>fresh.Enabled && Field<SemaphoreSlim>(central,"gate").CurrentCount==1);
+            Check(reopened.Visible && store.List().Count==count && send.Enabled,"invalid quantity retains floating draft without persisting order");
+            grid.Rows[0].Cells[1].Value="1,5";
+            send.PerformClick();
+            Pump(()=>fresh.Enabled && Field<SemaphoreSlim>(central,"gate").CurrentCount==1 && !reopened.Visible && store.List().Count==count+1);
+            var first=store.List().Single(o=>o.Reference=="QA PRIMEIRO");
+            Check(store.Get(first.Id).Items.Single().Quantity==1.5m && store.Get(first.Id).Notes=="SEM CEBOLA","floating send persists decimal quantity and notes exactly once");
+            send.PerformClick();Application.DoEvents();Check(store.List().Count==count+1,"hidden sent draft cannot be duplicated");
+            var secondWindow=Open();
+            Check(reference.Text=="" && notes.Text=="" && Convert.ToString(grid.Rows[0].Cells[0].Value)=="","next order gets a clean floating draft");
+            ((TextBox)grid.EditingControl!).Text="SEGUNDO ITEM";grid.EndEdit();reference.Text="QA SEGUNDO";send.PerformClick();
+            Pump(()=>fresh.Enabled && Field<SemaphoreSlim>(central,"gate").CurrentCount==1 && !secondWindow.Visible && store.List().Count==count+2);
+            Check(store.Get(first.Id).Items.Single().Description=="ITEM EM EDICAO","new floating order preserves previously submitted order");
+            var finalWindow=Open();var outbox=Field<KitchenOutbox>(central,"outbox");var id=Field<string>(central,"storeId");
+            var pending=new KitchenDraft(Guid.NewGuid(),"QA PENDENTE","PRESERVAR","QA",DateTimeOffset.UtcNow,new[]{new KitchenItem("PENDENTE",1,"")});outbox.Queue(id,pending);
+            var files=Directory.GetFiles(Database.AppFolder,"*.pending",SearchOption.AllDirectories).ToDictionary(p=>p,p=>Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(p))));
+            finalWindow.Close();Open();
+            Check(outbox.Pending().Any(x=>x.Draft.Id==pending.Id) && files.All(x=>File.Exists(x.Key)&&Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(x.Key)))==x.Value),"floating close and reopen preserve encrypted pending bytes");
+            using(var image=new Bitmap(finalWindow.Width,finalWindow.Height)){finalWindow.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"novo-pedido-flutuante.png"));}
+            Check(Snapshot()==before,"business data, users and settings unchanged");
+            Check(UpdateManager.CurrentVersion=="10.418","candidate version 10.418");
+            central.Close();Application.DoEvents();Check(finalWindow.IsDisposed,"closing central disposes its floating window");
+            File.WriteAllText(Path.Combine(evidence,"fixed.json"),JsonSerializer.Serialize(new{success=true,checks},new JsonSerializerOptions{WriteIndented=true}));
             return 0;
         }
         catch(Exception e){File.WriteAllText(Path.Combine(evidence,"failure.txt"),e.ToString());Console.Error.WriteLine(e);return 1;}
