@@ -1,0 +1,110 @@
+name: Protecao externa 003 - primeira transicao Windows
+on:
+  push:
+    branches: ['feature/cozinha-premium-003']
+    paths: ['qa/protection003/**', '.github/workflows/protecao_externa_003.yml']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: ativador-protecao-003
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 16
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.401'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: premium-003-validation-NOT-AUTHORIZED
+          path: existing-evidence/
+          run-id: 39504754135
+          github-token: ${{ github.token }}
+      - name: Reaproveitar pacote e provas existentes sem repetir cozinha nem 19 cenarios
+        shell: python
+        run: |
+          import hashlib,json,zipfile,urllib.request,subprocess,base64
+          from pathlib import Path
+          read=lambda p:json.loads(Path(p).read_text(encoding='utf-8-sig'))
+          root=next(Path('existing-evidence').rglob('candidate.json')).parent
+          e=read(root/'candidate.json')
+          assert e['Channel']=='003' and e['Version']=='10.422' and e['SourceCommit']=='be3d36780eec0bf90aef7666ac5df158115a8e99'
+          assert e['PackageSha256']=='546c776f7b9f48a3462f30ba257c8120c1f7bc144d957698565efe98f246e646'
+          package=(root/e['Package']).read_bytes();assert hashlib.sha256(package).hexdigest()==e['PackageSha256']
+          results=read(root/'transaction-results.json');assert len(results)==19 and all(x['pass'] for x in results)
+          assert read(root/'reused-ui-and-package.json')['UiChecksPassed'] is True
+          with urllib.request.urlopen(e['Baseline']['PackageUrl'],timeout=60) as r:previous=r.read()
+          assert hashlib.sha256(previous).hexdigest()==e['Baseline']['Sha256']
+          Path('previous.zip').write_bytes(previous)
+          with zipfile.ZipFile('previous.zip') as z:z.extractall('previous')
+          for name,digest in e['PreviousFiles'].items():assert hashlib.sha256((Path('previous')/name).read_bytes()).hexdigest()==digest
+          deps=read('previous/LealInfoPDV.deps.json');sdk=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.Windows.SDK.NET.Ref/'));Path('sdk-version.txt').write_text(sdk)
+          bundle=Path('qa/protection003/Activator/bundle');bundle.mkdir(parents=True,exist_ok=True)
+          (bundle/'package.zip').write_bytes(package)
+          plan=dict(Channel='003',Version='10.422',SourceCommit=e['SourceCommit'],PackageSha256=e['PackageSha256'],WorkerSha256=hashlib.sha256(Path('TransactionalUpdate.ps1').read_bytes()).hexdigest(),Previous=e['PreviousFiles'],Target=e['TargetFiles'])
+          (bundle/'plan.json').write_text(json.dumps(plan,indent=2))
+          before={}
+          for ch in ('GLOBAL','001','002','003','004'):
+              path='version.json' if ch=='GLOBAL' else f'clients/{ch}/version.json'
+              d=json.loads(subprocess.check_output(['gh','api',f'repos/lealinfopdvnovo/leal-info-pdv-updates/contents/{path}?ref=main']))
+              before[ch]=d['sha']
+          Path('feeds-before.json').write_text(json.dumps(before))
+          print('PASS immutable prepared package, prior Windows UI/19 worker checks and exact baseline reused')
+      - name: Compilar ativador independente e host sintetico
+        shell: pwsh
+        run: |
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+          dotnet build qa/protection003/Tests/Tests.csproj -c Release 2>&1|Tee-Object activation-build.log
+          if($LASTEXITCODE -ne 0){throw 'Activator compilation failed'}
+          $sdk=Get-Content sdk-version.txt
+          dotnet publish qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o startup-fixture-publish
+          if($LASTEXITCODE -ne 0){throw 'Synthetic host compilation failed'}
+      - name: Testar somente ativacao externa identidade backup e primeira transicao
+        timeout-minutes: 10
+        shell: pwsh
+        run: |
+          dotnet run --no-build --project qa/protection003/Tests/Tests.csproj -c Release 2>&1|Tee-Object activation-tests.log
+          if($LASTEXITCODE -ne 0){throw 'New external activation tests failed; no release'}
+      - name: Gerar ativador portatil somente apos testes aprovados
+        shell: pwsh
+        run: |
+          dotnet publish qa/protection003/Activator/Activator.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:EnableCompressionInSingleFile=true -o activation-output 2>&1|Tee-Object activation-publish.log
+          if($LASTEXITCODE -ne 0){throw 'Portable activator compilation failed'}
+          Get-ChildItem activation-output -Filter *.pdb|Remove-Item
+          $exe=Join-Path $PWD 'activation-output/LealInfoProtecao003.exe'
+          $hash=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          @{File='LealInfoProtecao003.exe';Sha256=$hash;Channel='003';BuildRunId=$env:GITHUB_RUN_ID;SourceCommit=$env:GITHUB_SHA;WindowsActivationTestsPassed=$true;RealCustomerActivation=$false;PdvFeedPublished=$false}|ConvertTo-Json|Set-Content activation-output/activation-manifest.json -Encoding UTF8
+          Write-Output ('PASS portable activator SHA256 '+$hash)
+      - name: Conferir todos os canais preservados
+        if: always()
+        shell: python
+        run: |
+          import json,subprocess
+          from pathlib import Path
+          before=json.loads(Path('feeds-before.json').read_text())
+          after={}
+          for ch in before:
+              path='version.json' if ch=='GLOBAL' else f'clients/{ch}/version.json'
+              d=json.loads(subprocess.check_output(['gh','api',f'repos/lealinfopdvnovo/leal-info-pdv-updates/contents/{path}?ref=main']))
+              after[ch]=d['sha']
+          assert before==after,'A channel changed; no publication authorized'
+          Path('activation-evidence').mkdir(exist_ok=True)
+          Path('activation-evidence/feeds-unchanged.json').write_text(json.dumps(after,indent=2))
+          print('PASS 001 002 003 004 GLOBAL feeds unchanged')
+      - uses: actions/upload-artifact@v4
+        with: {name: ativador-protecao-003-validado, path: activation-output/}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: provas-ativacao-externa-003
+          path: |
+            activation-*.log
+            activation-evidence/
+            feeds-before.json
+            qa/protection003/Activator/bundle/plan.json
