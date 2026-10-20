@@ -15,6 +15,8 @@ static class Program
     static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern IntPtr GetLastActivePopup(IntPtr window);
     static IEnumerable<Control> Descendants(Control root) => root.Controls.Cast<Control>().SelectMany(c => new[] { c }.Concat(Descendants(c)));
     const BindingFlags P = BindingFlags.Instance | BindingFlags.NonPublic;
     static readonly List<string> checks = new();
@@ -222,6 +224,9 @@ static class Program
                 acceptSave.Tick += (_, _) =>
                 {
                     var box = FindWindow("#32770", "LEAL INFO PDV");
+                    var owner = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f is ProductRegistrationForm);
+                    if (box == IntPtr.Zero && owner != null) { var popup = GetLastActivePopup(owner.Handle); if (popup != owner.Handle) box = popup; }
+                    if (box != IntPtr.Zero) Console.WriteLine("REGISTRATION native save confirmation found");
                     if (box != IntPtr.Zero) { GetWindowThreadProcessId(box, out uint pid); if (pid == (uint)Environment.ProcessId) PostMessage(box, 0x0111, new IntPtr(1), IntPtr.Zero); }
                 };
                 populate.Tick += (_, _) =>
@@ -229,6 +234,7 @@ static class Program
                     var productForm = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f is ProductRegistrationForm);
                     if (productForm == null) return;
                     populate.Stop();
+                    Console.WriteLine("REGISTRATION existing form opened");
                     try
                     {
                         if (!productForm.Modal || productForm.Owner != central) throw new Exception("Existing modal registration owner differs");
@@ -236,12 +242,14 @@ static class Program
                         fields["name"].Text = "Produto novo premium QA"; fields["barcode"].Text = "PREMIUM-QA-NEW"; fields["price"].Text = "2350"; fields["stock"].Text = "0";
                         typeof(ProductRegistrationForm).GetField("_photoPath", P)!.SetValue(productForm, photo);
                         acceptSave.Start();
+                        Console.WriteLine("REGISTRATION invoking real save action");
                         Descendants(productForm).OfType<Button>().Single(b => b.Text == "SALVAR • F3").PerformClick();
+                        Console.WriteLine("REGISTRATION save action returned");
                         acceptSave.Stop(); productForm.Close();
                     }
-                    catch (Exception e) { modalError = e; productForm.Close(); }
+                    catch (Exception e) { Console.Error.WriteLine("REGISTRATION " + e); modalError = e; productForm.Close(); }
                 };
-                populate.Start(); mainMenu.Controls.Find("KitchenAddProduct", true).OfType<Button>().Single().PerformClick();
+                populate.Start(); Console.WriteLine("REGISTRATION clicking kitchen add product"); mainMenu.Controls.Find("KitchenAddProduct", true).OfType<Button>().Single().PerformClick();
                 Pump(() => mainMenu.Controls.Find("KitchenAddProduct", true).OfType<Button>().Single().Enabled);
             }
             Check(modalError == null, "kitchen button opens and saves through existing registration form");
