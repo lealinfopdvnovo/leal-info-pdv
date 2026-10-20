@@ -1,0 +1,120 @@
+name: Cozinha 003 - validar pacote imutavel e primeira transicao
+on:
+  push:
+    branches: ['feature/cozinha-premium-003']
+    paths: ['.github/workflows/validar_pacote_003.yml', 'qa/network/Program.cs']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: validar-pacote-003
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: '003'
+      SOURCE_REF: 'be3d36780eec0bf90aef7666ac5df158115a8e99'
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: source}
+      - uses: actions/checkout@v4
+        with: {ref: b95da478624312a5070e9ee512e156b3a9dcb858, path: controller}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.401'}
+      - name: Preparar mesma candidata exclusiva 003 sem repetir interface aprovada
+        working-directory: controller
+        shell: pwsh
+        run: |
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+          python scripts/distribute_channels.py plan
+          if($LASTEXITCODE -ne 0){throw 'Plan failed'}
+          $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
+          if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '003' -or $p.Entries[0].Version -ne '10.422' -or $p.Entries[0].SourceCommit -ne $env:SOURCE_REF){throw 'Wrong scope'}
+          python scripts/distribute_channels.py prepare 003
+          if($LASTEXITCODE -ne 0){throw 'Baseline preparation failed'}
+          Push-Location candidate
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          Pop-Location
+          Copy-Item ../source/qa/network/Program.cs candidate/qa/network/Program.cs -Force
+          git -C candidate show ($p.Entries[0].BaselineSource+':UpdateManager.cs') | Set-Content installed-UpdateManager.cs -Encoding UTF8
+          if($LASTEXITCODE -ne 0){throw 'Cannot extract installed updater'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: candidate-003-NOT-AUTHORIZED
+          path: controller/release-output/
+          run-id: 39504222643
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: premium-003-ui-windows
+          path: controller/ui-proof/
+          run-id: 39504222643
+          github-token: ${{ github.token }}
+      - name: Conferir bytes imutaveis e evidencias existentes
+        working-directory: controller
+        shell: python
+        run: |
+          import hashlib,json
+          from pathlib import Path
+          read=lambda p:json.loads(Path(p).read_text(encoding='utf-8-sig'))
+          e=read('release-output/candidate.json');p=read('release-plan.json')
+          assert e['Channel']=='003' and e['Version']=='10.422' and e['SourceCommit']=='be3d36780eec0bf90aef7666ac5df158115a8e99'
+          assert str(e['BuildRunId'])=='39504222643' and e['BaselineSource']==p['Entries'][0]['BaselineSource']
+          assert hashlib.sha256((Path('release-output')/e['Package']).read_bytes()).hexdigest()==e['PackageSha256']
+          root=next(Path('ui-proof').rglob('fixed.json')).parent
+          assert read(root/'fixed.json')['success'] is True
+          visual=read(root/'ui-visual.json')
+          assert visual['SourceCommit']==e['SourceCommit'] and str(visual['BuildRunId'])=='39504222643'
+          for name,digest in visual['Hashes'].items():assert hashlib.sha256((root/name).read_bytes()).hexdigest()==digest
+          Path('release-output/reused-ui-and-package.json').write_text(json.dumps({'SourceCommit':e['SourceCommit'],'ValidatedBuildRunId':e['BuildRunId'],'PackageSha256':e['PackageSha256'],'UiChecksPassed':True,'RebuiltPackage':False,'PublicationAuthorized':False},indent=2))
+          Path('release-output/release-plan.json').write_bytes(Path('release-plan.json').read_bytes())
+          print('PASS same package and existing Windows UI evidence verified; no UI repetition')
+      - name: Validar payload do mesmo pacote e compilar host sintetico
+        working-directory: controller
+        shell: pwsh
+        run: |
+          $m=Get-Content release-output/candidate.json -Raw|ConvertFrom-Json
+          $package=Join-Path $PWD ('release-output/'+$m.Package)
+          dotnet run --project candidate/qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package $package 2>&1|Tee-Object payload.log
+          if($LASTEXITCODE -ne 0){throw 'Payload policy failed'}
+          $sdk=Get-Content sdk-version.txt
+          dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o startup-fixture-publish
+          if($LASTEXITCODE -ne 0){throw 'Startup fixture compilation failed'}
+      - name: Testar worker protegido e transicao real do atualizador instalado 10.415
+        timeout-minutes: 11
+        working-directory: controller
+        shell: pwsh
+        run: |
+          ./candidate/qa/update-transaction/test-transaction.ps1 2>&1|Tee-Object rollback.log
+          if($LASTEXITCODE -ne 0){throw 'Real rollback failed'}
+          ./candidate/qa/kitchen-preparation/rollback.ps1
+          if($LASTEXITCODE -ne 0){throw 'FIRST TRANSITION BLOCKED: installed 10.415 has no automatic executable rollback. No publication.'}
+      - name: Conferir preservacao de todos os feeds
+        if: always()
+        working-directory: controller
+        shell: python
+        run: |
+          import json
+          from pathlib import Path
+          import scripts.distribute_channels as c
+          plan=json.loads(Path('release-plan.json').read_text(encoding='utf-8-sig'))
+          after={ch:c.readfeed(ch) for ch in c.CHANNELS}
+          assert all(after[ch]['sha']==plan['Before'][ch]['sha'] for ch in c.CHANNELS)
+          c.write('release-output/feeds-unchanged.json',{ch:after[ch]['sha'] for ch in c.CHANNELS})
+          print('PASS all channel feeds unchanged; no publication')
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: premium-003-validation-NOT-AUTHORIZED
+          path: |
+            controller/*.log
+            controller/release-output/

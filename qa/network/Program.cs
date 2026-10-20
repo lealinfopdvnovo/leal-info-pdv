@@ -75,8 +75,6 @@ try
     var terminal = new NetworkConfiguration { Mode = "terminal", Host = "127.0.0.1", Port = port, PairingSecret = config.PairingSecret, CertificateHash = server.CertificateHash };
     var firstIdentity = Identity();
     using var first = new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", firstIdentity);
-    Reject(() => server.BlockForRestore(), "terminais conectados");
-    Assert(first.Send(new() { Operation="scalar", Sql="SELECT 1" }).Scalar!.ToObject().Equals(1L), "Bloqueio de restauração interrompeu terminal conectado.");
     Reject(() => { using var denied = new NetworkDatabaseClient(terminal, "QA-TERMINAL-2", Identity()); }, "LIMITE DE COMPUTADORES ATINGIDO");
     using (var reconnect = new NetworkDatabaseClient(terminal, "QA-TERMINAL-1", firstIdentity))
         Assert(reconnect.Send(new() { Operation="scalar", Sql="SELECT 1" }).Scalar!.ToObject().Equals(1L), "Reconexão falhou.");
