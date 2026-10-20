@@ -10,7 +10,7 @@ OUT=ROOT/'ready-kitchen/generated'
 UA='LealInfoPDV-ReadyKitchen/1.0 (https://github.com/lealinfopdvnovo/leal-info-pdv)'
 def get(url):
     host=urlparse(url).hostname or ''
-    if host not in ('commons.wikimedia.org','upload.wikimedia.org'):raise ValueError('Unexpected image host '+repr(host)+' URL '+repr(url))
+    if host not in ('commons.wikimedia.org','upload.wikimedia.org','thumb.wikimedia.org'):raise ValueError('Unexpected image host '+repr(host)+' URL '+repr(url))
     for attempt in range(3):
         try:
             with urlopen(Request(url,headers={'User-Agent':UA}),timeout=25) as r:
