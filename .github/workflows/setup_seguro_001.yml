@@ -49,11 +49,13 @@ jobs:
         shell: pwsh
         run: |
           $sdk=Get-Content sdk-version.txt
-          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
+          $deps=Get-Content previous/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          $runtime=($deps.libraries.Keys|Where-Object{$_ -like 'runtimepack.Microsoft.NETCore.App.Runtime.win-x64/*'}|Select-Object -First 1).Split('/')[1]
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -p:RuntimeFrameworkVersion=$runtime -p:TargetLatestRuntimePatch=false -o candidate-publish
           if($LASTEXITCODE -ne 0){throw 'Candidate compilation failed'}
           python scripts/distribute_channels.py package 001
           if($LASTEXITCODE -ne 0){throw 'Incremental compatibility failed'}
-          dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o startup-fixture-publish
+          dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -p:RuntimeFrameworkVersion=$runtime -p:TargetLatestRuntimePatch=false -o startup-fixture-publish
           if($LASTEXITCODE -ne 0){throw 'Fixture build failed'}
       - name: Validar cozinha real, pacote e rollback com o worker corrigido
         working-directory: controller
