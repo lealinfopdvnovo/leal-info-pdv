@@ -25,7 +25,7 @@ jobs:
           ref: b95da478624312a5070e9ee512e156b3a9dcb858
           path: controller
       - uses: actions/setup-dotnet@v4
-        with: {dotnet-version: '8.0.425'}
+        with: {dotnet-version: '10.0.401'}
       - name: Preparar apenas canal 001 e sua baseline 10.415
         working-directory: controller
         shell: pwsh
@@ -48,13 +48,14 @@ jobs:
         working-directory: controller
         shell: pwsh
         run: |
-          '{"sdk":{"version":"8.0.425","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
           dotnet --version
           $sdk=Get-Content sdk-version.txt
           $deps=Get-Content previous/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
           $runtime=($deps.libraries.Keys|Where-Object{$_ -like 'runtimepack.Microsoft.NETCore.App.Runtime.win-x64/*'}|Select-Object -First 1).Split('/')[1]
           dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
           if($LASTEXITCODE -ne 0){throw 'Candidate compilation failed'}
+          python -c "import json,difflib;from pathlib import Path;import scripts.distribute_channels as d;a=json.dumps(d.normalize_deps('previous/LealInfoPDV.deps.json'),sort_keys=True,indent=2);b=json.dumps(d.normalize_deps('candidate-publish/LealInfoPDV.deps.json'),sort_keys=True,indent=2);print(''.join(difflib.unified_diff(a.splitlines(True),b.splitlines(True))))"
           python scripts/distribute_channels.py package 001
           if($LASTEXITCODE -ne 0){throw 'Incremental compatibility failed'}
           dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o startup-fixture-publish
@@ -127,3 +128,5 @@ jobs:
           path: |
             controller/*.log
             controller/release-output/
+            controller/candidate-publish/LealInfoPDV.deps.json
+            controller/previous/LealInfoPDV.deps.json
