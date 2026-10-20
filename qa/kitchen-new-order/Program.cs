@@ -1,4 +1,7 @@
 using LealInfoPDV;
+using LealInfoPDV.Network;
+using System.Net;
+using System.Net.Sockets;
 using System.Diagnostics;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -39,6 +42,14 @@ static class Program
         {
             Check(!File.Exists(Database.DbPath),"empty disposable profile");
             Database.Initialize();Auth.CreateUser("QA PEDIDO","neworderqa","QA-isolated-123!","ADMINISTRADOR","qa@example.invalid","");Auth.Login("neworderqa","QA-isolated-123!");
+            string photo=Path.Combine(Path.GetTempPath(),"catalog-qa-"+Guid.NewGuid()+".png");
+            using(var fixture=new Bitmap(64,64)){using var g=Graphics.FromImage(fixture);g.Clear(Color.OrangeRed);fixture.Save(photo);}
+            string photoHash=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(photo)));
+            using(var db=Database.Open())using(var q=db.CreateCommand())
+            {
+                q.CommandText="INSERT INTO products(id,barcode,name,category,price,stock,active,photo_path) VALUES(1,'CARD001','Lanche catálogo','LANCHES',12.50,10,1,$photo),(2,'CARD002','Suco natural','BEBIDAS',7.25,20,1,''),(3,'INATIVO','Produto inativo','LANCHES',9,10,0,''),(4,'CARD004','Lanche catálogo','LANCHES',15,10,1,'missing-photo.png')";
+                q.Parameters.AddWithValue("$photo",photo);q.ExecuteNonQuery();
+            }
             string before=Snapshot();Application.EnableVisualStyles();using var central=new KitchenForm();central.Show();
             var fresh=Field<Button>(central,"fresh");var send=Field<Button>(central,"send");var grid=Field<DataGridView>(central,"items");var message=Field<Label>(central,"message");
             Pump(()=>message.Text.Contains("Cozinha conectada")&&fresh.Enabled&&Field<SemaphoreSlim>(central,"gate").CurrentCount==1);
@@ -60,6 +71,41 @@ static class Program
                 }
                 Check(grid.Height>=65,"review area remains usable");
             }
+            using(var probe=new TcpListener(IPAddress.Loopback,0))
+            {
+                probe.Start();int port=((IPEndPoint)probe.LocalEndpoint).Port;probe.Stop();
+                var config=NetworkConfiguration.NewServer(port);
+                using var key=RSA.Create(2048);var device=new DeviceKey(key.ExportPkcs8PrivateKeyPem(),key.ExportSubjectPublicKeyInfoPem());
+                using var server=new NetworkDatabaseServer(config);server.Start();
+                var terminal=new NetworkConfiguration{Mode="terminal",Host="127.0.0.1",Port=port,PairingSecret=config.PairingSecret,CertificateHash=server.CertificateHash};
+                var remote=KitchenCatalogView.ReadProducts(()=>new PdvConnection(new NetworkDatabaseClient(terminal,"CATALOG-QA-TERMINAL",device)));
+                Check(remote.Length==3&&remote.Single(p=>p.Id==1).Price==12.5m,"real authenticated TLS terminal reads same active catalog and prices");
+            }
+            var catalog=Field<KitchenCatalogView>(central,"catalog");
+            var catalogSearch=catalog.Controls.Find("CatalogSearch",true).OfType<TextBox>().Single();
+            var catalogCategory=catalog.Controls.Find("CatalogCategory",true).OfType<ComboBox>().Single();
+            var catalogCards=catalog.Controls.Find("CatalogCards",true).OfType<FlowLayoutPanel>().Single();
+            Pump(()=>catalog.Controls.Find("CatalogReload",true).OfType<Button>().Single().Enabled&&catalog.Controls.Find("CatalogProduct_1",true).Length==1);
+            Check(catalog.Controls.Find("CatalogProduct_3",true).Length==0&&catalog.Controls.Find("CatalogProduct_0",true).Length==0,"only active registered products appear in menu");
+            Check(catalogCards.Controls.Count==3&&catalogCards.Controls.Cast<Control>().SelectMany(x=>x.Controls.OfType<Label>()).Any(l=>l.Text.Contains("R$")&&l.Text.EndsWith("12,50")),"cards display registered prices in BRL and distinguish same-name products");
+            Check(catalogCards.Controls.Cast<Control>().SelectMany(x=>x.Controls.OfType<PictureBox>()).Any(p=>p.Image!=null),"registered product photo displayed");
+            catalogCategory.SelectedItem="BEBIDAS";Application.DoEvents();
+            Check(catalog.Controls.Find("CatalogProduct_2",true).Length==1&&catalog.Controls.Find("CatalogProduct_1",true).Length==0,"category filter follows existing product categories");
+            catalogCategory.SelectedIndex=0;catalogSearch.Text="LANCHE CATALOGO";Application.DoEvents();
+            Check(catalogCards.Controls.Count==2,"accent-insensitive product search");
+            catalogSearch.Text="CARD001";Application.DoEvents();
+            Check(catalogCards.Controls.Count==1,"barcode search identifies exact product");
+            qty.Value=2.5m;itemNotes.Text="SEM GELO";
+            catalog.Controls.Find("CatalogProduct_1",true).OfType<Button>().Single().PerformClick();
+            Check(grid.Rows.Count==1&&Equals(grid.Rows[0].Tag,1L)&&KitchenDraft.Quantity(Convert.ToString(grid.Rows[0].Cells[1].Value)!)==2.5m,"card click adds selected registered product and quantity");
+            reference.Text="QA CARDAPIO";send.PerformClick();
+            var catalogStore=new KitchenStore();
+            Pump(()=>fresh.Enabled&&Field<SemaphoreSlim>(central,"gate").CurrentCount==1&&!window.Visible&&catalogStore.List().Any(o=>o.Reference=="QA CARDAPIO"));
+            var catalogOrder=catalogStore.List().Single(o=>o.Reference=="QA CARDAPIO");
+            Check(catalogStore.Get(catalogOrder.Id).Items.Single().ProductId==1&&catalogStore.Get(catalogOrder.Id).Items.Single().Notes=="SEM GELO","real order persists original product ID and kitchen note");
+            Check(Snapshot()==before,"catalog selection and kitchen send do not change products prices stock or sales");
+            fresh.PerformClick();Application.DoEvents();catalogSearch.Clear();catalogCategory.SelectedIndex=0;
+            Pump(()=>catalog.Controls.Find("CatalogReload",true).OfType<Button>().Single().Enabled);
             Geometry();var saved=window.Size;window.Size=new Size(820,640);Geometry();window.Size=saved;Application.DoEvents();
             add.PerformClick();Check(grid.Rows.Count==0&&message.Text.Contains("Informe o nome"),"empty item rejected without adding a blank row");
             name.Text="PRATO QA";qty.Value=1.5m;itemNotes.Text="SEM CEBOLA";add.PerformClick();
@@ -88,7 +134,8 @@ static class Program
             window.Close();fresh.PerformClick();Application.DoEvents();Check(files.All(x=>File.Exists(x.Key)&&Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(x.Key)))==x.Value),"pending encrypted records unchanged");
             name.Text="Hambúrguer artesanal";qty.Value=2;itemNotes.Text="Sem cebola";add.PerformClick();reference.Text="Mesa 05";notes.Text="Servir juntos";
             using(var image=new Bitmap(window.Width,window.Height)){window.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"pedido-profissional.png"));}
-            Check(Snapshot()==before,"business data, users and settings preserved");Check(UpdateManager.CurrentVersion=="10.419","version 10.419");
+            Check(Snapshot()==before,"business data, users and settings preserved");Check(UpdateManager.CurrentVersion=="10.420","version 10.420");
+            Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(photo)))==photoHash,"catalog photo remains unchanged and unlocked");File.Delete(photo);
             central.Close();Check(window.IsDisposed,"floating window disposed with central");
             File.WriteAllText(Path.Combine(evidence,"fixed.json"),JsonSerializer.Serialize(new{success=true,checks},new JsonSerializerOptions{WriteIndented=true}));return 0;
         }

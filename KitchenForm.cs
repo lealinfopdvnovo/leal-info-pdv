@@ -8,6 +8,9 @@ namespace LealInfoPDV;
 internal sealed class KitchenForm : Form
 {
     private Form? entryWindow;
+    private readonly KitchenCatalogView catalog = new();
+    private long? selectedProductId;
+    private string selectedProductName = "";
     private readonly TextBox itemDescription = new() { Name = "ItemDescription", Dock = DockStyle.Fill, PlaceholderText = "Nome do produto ou prato" };
     private readonly NumericUpDown itemQuantity = new() { Name = "ItemQuantity", Dock = DockStyle.Fill, DecimalPlaces = 3, Minimum = 0.001m, Maximum = 999999m, Value = 1 };
     private readonly TextBox itemNotes = new() { Name = "ItemNotes", Dock = DockStyle.Fill, PlaceholderText = "Ex.: sem cebola, bem passado" };
@@ -75,6 +78,20 @@ internal sealed class KitchenForm : Form
             if (orders.CurrentRow?.DataBoundItem is OrderRow row)
                 detail.Text = row.Details;
         };
+        itemDescription.TextChanged += (_, _) =>
+        {
+            if (!string.Equals(itemDescription.Text, selectedProductName, StringComparison.Ordinal)) selectedProductId = null;
+        };
+        catalog.ProductChosen += product =>
+        {
+            if (!send.Enabled) return;
+            if (!string.IsNullOrWhiteSpace(itemDescription.Text) || editingRow >= 0)
+            {
+                message.Text = "Adicione ou salve o item em edição antes de escolher outro produto."; return;
+            }
+            selectedProductName = product.Name; itemDescription.Text = product.Name; selectedProductId = product.Id;
+            AddDraftItem();
+        };
         fresh.Click += (_, _) => OpenEntryWindow();
         send.Click += async (_, _) => await Run(async () =>
         {
@@ -82,7 +99,7 @@ internal sealed class KitchenForm : Form
             if (!Auth.CanSell) throw new InvalidOperationException("Entre no PDV antes de enviar.");
             if (!string.IsNullOrWhiteSpace(itemDescription.Text) || editingRow >= 0) throw new InvalidOperationException("Adicione ou salve o item em edição antes de enviar o pedido.");
             items.EndEdit();
-            var rows = items.Rows.Cast<DataGridViewRow>().Where(r => !r.IsNewRow).Select(r => new KitchenItem(Convert.ToString(r.Cells[0].Value) ?? "", KitchenDraft.Quantity(Convert.ToString(r.Cells[1].Value) ?? ""), Convert.ToString(r.Cells[2].Value) ?? "")).ToArray();
+            var rows = items.Rows.Cast<DataGridViewRow>().Where(r => !r.IsNewRow).Select(r => new KitchenItem(Convert.ToString(r.Cells[0].Value) ?? "", KitchenDraft.Quantity(Convert.ToString(r.Cells[1].Value) ?? ""), Convert.ToString(r.Cells[2].Value) ?? "", r.Tag as long?)).ToArray();
             var draft = new KitchenDraft(Guid.NewGuid(), reference.Text.Trim(), notes.Text.Trim(), Auth.OperatorName, DateTimeOffset.UtcNow, rows);
             outbox.Queue(storeId, draft); SetEntryEnabled(false);
             message.Text = "Pedido guardado na fila local. Aguardando confirmação do servidor.";
@@ -106,7 +123,7 @@ internal sealed class KitchenForm : Form
             {
                 Name = "KitchenOrderEntry", Text = "NOVO PEDIDO — COZINHA",
                 StartPosition = FormStartPosition.CenterParent,
-                Size = new Size(900, 600), MinimumSize = new Size(640, 420),
+                Size = new Size(Math.Min(1280, Screen.FromControl(this).WorkingArea.Width - 40), Math.Min(700, Screen.FromControl(this).WorkingArea.Height - 30)), MinimumSize = new Size(960, 640),
                 ShowInTaskbar = false, Font = Font
             };
             var close = new Button { Text = "FECHAR", AutoSize = true, CausesValidation = false };
@@ -126,6 +143,7 @@ internal sealed class KitchenForm : Form
         entryHint.Text = "Preencha os itens, quantidades e observações e clique em ENVIAR PEDIDO À COZINHA.";
         if (!entryWindow!.Visible) entryWindow.Show(this);
         entryWindow.Activate();
+        _ = catalog.ReloadAsync();
         entryWindow.BeginInvoke((Action)(() =>
         {
             if (entryWindow is { IsDisposed: false, Visible: true } && send.Enabled)
@@ -174,7 +192,8 @@ internal sealed class KitchenForm : Form
         {
             if (!send.Enabled || e.RowIndex < 0) return;
             editingRow = e.RowIndex; var row = items.Rows[editingRow];
-            itemDescription.Text = Convert.ToString(row.Cells[0].Value);
+            selectedProductName = Convert.ToString(row.Cells[0].Value) ?? "";
+            itemDescription.Text = selectedProductName; selectedProductId = row.Tag as long?;
             itemQuantity.Value = KitchenDraft.Quantity(Convert.ToString(row.Cells[1].Value) ?? "1");
             itemNotes.Text = Convert.ToString(row.Cells[2].Value); addItem.Text = "SALVAR ALTERAÇÃO"; itemDescription.Focus();
         };
@@ -186,7 +205,11 @@ internal sealed class KitchenForm : Form
         actions.Controls.Add(itemSummary, 0, 0); actions.Controls.Add(close, 1, 0); actions.Controls.Add(send, 2, 0); shell.Controls.Add(actions, 0, 4);
         var status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = message.Text, ForeColor = Color.FromArgb(78, 98, 116), Font = new Font("Segoe UI", 9) };
         message.TextChanged += (_, _) => { if (!status.IsDisposed) status.Text = message.Text; };
-        shell.Controls.Add(status, 0, 5); entryWindow!.Controls.Add(shell); UpdateItemSummary();
+        shell.Controls.Add(status, 0, 5);
+        var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30)); layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100)); layout.Controls.Add(catalog, 0, 0); layout.Controls.Add(shell, 1, 0);
+        entryWindow!.Controls.Add(layout); UpdateItemSummary();
     }
     private void SetEntryEnabled(bool value)
     {
@@ -195,7 +218,7 @@ internal sealed class KitchenForm : Form
     }
     private void ResetItemFields()
     {
-        editingRow = -1; itemDescription.Clear(); itemNotes.Clear(); itemQuantity.Value = 1; addItem.Text = "ADICIONAR AO PEDIDO";
+        selectedProductId = null; selectedProductName = ""; editingRow = -1; itemDescription.Clear(); itemNotes.Clear(); itemQuantity.Value = 1; addItem.Text = "ADICIONAR AO PEDIDO";
     }
     private void AddDraftItem()
     {
@@ -205,8 +228,8 @@ internal sealed class KitchenForm : Form
             message.Text = "Informe o nome do item para adicionar ao pedido."; itemDescription.Focus(); return;
         }
         object[] values = { itemDescription.Text.Trim(), itemQuantity.Value.ToString("0.###", System.Globalization.CultureInfo.GetCultureInfo("pt-BR")), itemNotes.Text.Trim() };
-        if (editingRow >= 0 && editingRow < items.Rows.Count) items.Rows[editingRow].SetValues(values);
-        else items.Rows.Add(values);
+        int rowIndex = editingRow >= 0 && editingRow < items.Rows.Count ? editingRow : items.Rows.Add();
+        items.Rows[rowIndex].SetValues(values); items.Rows[rowIndex].Tag = selectedProductId;
         ResetItemFields(); UpdateItemSummary(); itemDescription.Focus();
     }
     private void UpdateItemSummary()
@@ -274,5 +297,5 @@ internal sealed class KitchenForm : Form
         foreach (string hidden in new[] { "Id", "Revision", "Details" }) if (orders.Columns[hidden] is { } column) column.Visible = false;
         foreach (DataGridViewRow row in orders.Rows) if ((row.DataBoundItem as OrderRow)?.Id == selected) { row.Selected = true; orders.CurrentCell = row.Cells.Cast<DataGridViewCell>().First(c => c.Visible); break; }
     }
-    protected override void Dispose(bool disposing) { if (disposing) { retry.Dispose(); entryWindow?.Dispose(); } base.Dispose(disposing); }
+    protected override void Dispose(bool disposing) { if (disposing) { retry.Dispose(); entryWindow?.Dispose(); catalog.Dispose(); } base.Dispose(disposing); }
 }
