@@ -11,6 +11,8 @@ internal static class Program
     [STAThread]
     static void Main()
     {
+        try { TransactionalUpdate.BeforeStartup(); }
+        catch(Exception ex) { Environment.ExitCode=1; System.Diagnostics.Trace.WriteLine(ex); return; }
         // V10.198: WebView2 precisa de uma pasta gravavel pelo usuario.
         // Evita E_ACCESSDENIED quando o PDV esta instalado em Program Files.
         var webViewUserData = Path.Combine(
@@ -51,6 +53,7 @@ internal static class Program
             networkServer?.License.CheckAccess();
             Database.Initialize();
             if (!Environment.GetCommandLineArgs().Contains("--manutencao")) networkServer?.Start();
+            TransactionalUpdate.ReportReady();
 
             // Nunca bloqueia a abertura do caixa aguardando Internet.
             // A verificação silenciosa continua depois que a tela principal já abriu.

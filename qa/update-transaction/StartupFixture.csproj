@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><OutputType>WinExe</OutputType><TargetFramework>net8.0-windows10.0.19041.0</TargetFramework><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>LealInfoPDV</AssemblyName></PropertyGroup>
+<ItemGroup><Compile Include="../../TransactionalUpdate.cs" Link="TransactionalUpdate.cs" /></ItemGroup>
+<ItemGroup><EmbeddedResource Include="../../TransactionalUpdate.ps1" LogicalName="TransactionalUpdateWorker" /></ItemGroup></Project>

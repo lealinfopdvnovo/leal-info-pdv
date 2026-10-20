@@ -1,0 +1,110 @@
+[
+  {
+    "Code": "LEALMIX001",
+    "Name": "Cheeseburger",
+    "Category": "Lanches",
+    "CommonsFile": "File:Cheeseburger (2).jpg"
+  },
+  {
+    "Code": "LEALMIX002",
+    "Name": "Cachorro-quente",
+    "Category": "Lanches",
+    "CommonsFile": "File:Hot dog sandwich.jpg"
+  },
+  {
+    "Code": "LEALMIX003",
+    "Name": "Coxinha de frango",
+    "Category": "Lanches",
+    "CommonsFile": "File:Coxinha.jpg"
+  },
+  {
+    "Code": "LEALMIX004",
+    "Name": "Pizza margherita",
+    "Category": "Pizzas",
+    "CommonsFile": "File:PizzaMargherita.jpg"
+  },
+  {
+    "Code": "LEALMIX005",
+    "Name": "Pizza de pepperoni",
+    "Category": "Pizzas",
+    "CommonsFile": "File:Peperoni pizza.jpg"
+  },
+  {
+    "Code": "LEALMIX006",
+    "Name": "Pizza calabresa",
+    "Category": "Pizzas",
+    "CommonsFile": "File:Pizza calabresa argentina (porciones).jpg"
+  },
+  {
+    "Code": "LEALMIX007",
+    "Name": "Feijoada",
+    "Category": "Refeições",
+    "CommonsFile": "File:Feijoada.JPG"
+  },
+  {
+    "Code": "LEALMIX008",
+    "Name": "Prato executivo de frango",
+    "Category": "Refeições",
+    "CommonsFile": "File:Prato com arroz e feijão, frango grelhado, batata frita, salada e ovo frito como adicionais.jpg"
+  },
+  {
+    "Code": "LEALMIX009",
+    "Name": "Prato de churrasco",
+    "Category": "Refeições",
+    "CommonsFile": "File:Churrascu 02.jpg"
+  },
+  {
+    "Code": "LEALMIX010",
+    "Name": "Porção de batata frita",
+    "Category": "Porções",
+    "CommonsFile": "File:French Fries.JPG"
+  },
+  {
+    "Code": "LEALMIX011",
+    "Name": "Porção de anéis de cebola",
+    "Category": "Porções",
+    "CommonsFile": "File:Onion rings fried.jpg"
+  },
+  {
+    "Code": "LEALMIX012",
+    "Name": "Porção mista de batata e cebola",
+    "Category": "Porções",
+    "CommonsFile": "File:French Fries and Onion Rings 02.jpg"
+  },
+  {
+    "Code": "LEALMIX013",
+    "Name": "Suco de laranja",
+    "Category": "Bebidas",
+    "CommonsFile": "File:Orange juice 1 edit1.jpg"
+  },
+  {
+    "Code": "LEALMIX014",
+    "Name": "Café espresso",
+    "Category": "Bebidas",
+    "CommonsFile": "File:Espresso Coffee 01.jpg"
+  },
+  {
+    "Code": "LEALMIX015",
+    "Name": "Limonada",
+    "Category": "Bebidas",
+    "CommonsFile": "File:Lemonade 2.jpg"
+  },
+  {
+    "Code": "LEALMIX016",
+    "Name": "Brigadeiro",
+    "Category": "Sobremesas",
+    "CommonsFile": "File:Brigadeiro.jpg"
+  },
+  {
+    "Code": "LEALMIX017",
+    "Name": "Brownie de chocolate",
+    "Category": "Sobremesas",
+    "CommonsFile": "File:Chocolate Brownie.jpg"
+  },
+  {
+    "Code": "LEALMIX018",
+    "Name": "Pudim de leite",
+    "Category": "Sobremesas",
+    "CommonsFile": "File:Pudim de Leite.jpg"
+  }
+]

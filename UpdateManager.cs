@@ -13,7 +13,7 @@ using System.Text.Json;
 namespace LealInfoPDV;
 internal static class UpdateManager
 {
-    public const string CurrentVersion="10.415";
+    public const string CurrentVersion="10.422";
  private const string DistributionChannel="003";
  private const string LatestReleaseApi="https://api.github.com/repos/lealinfopdvnovo/leal-info-pdv-updates/releases/latest";
  private static readonly string UpdatesFolder=Path.Combine(Database.AppFolder,"Updates");
@@ -116,27 +116,18 @@ internal static class UpdateManager
  }
 
  private static bool IsNewer(string candidate,string current)=>Version.TryParse(candidate.TrimStart('v','V'),out var n)&&Version.TryParse(current,out var c)&&n>c;
- private static async Task DownloadAndApplyAsync(UpdateManifest m){var work=Path.Combine(Path.GetTempPath(),"LealInfoPDV_Update_"+Guid.NewGuid().ToString("N"));var zip=Path.Combine(work,"update.zip");var stage=Path.Combine(work,"payload");Directory.CreateDirectory(stage);using(var http=new HttpClient{Timeout=TimeSpan.FromMinutes(5)}){http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.309");var bytes=await http.GetByteArrayAsync(m.PackageUrl);await File.WriteAllBytesAsync(zip,bytes);}if(m.Sha256.Length!=64 || !System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(zip)).SequenceEqual(Convert.FromHexString(m.Sha256)))throw new InvalidDataException("O pacote não corresponde à atualização publicada.");Licensing.UpdatePayloadPolicy.Validate(zip);ZipFile.ExtractToDirectory(zip,stage,true);var exe=Environment.ProcessPath??Path.Combine(AppContext.BaseDirectory,"LealInfoPDV.exe");var app=AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);var ps=Path.Combine(work,"apply-update.ps1");var script=$$"""
-$ErrorActionPreference='Stop'
-$pidToWait={{Environment.ProcessId}}
-$stage='{{EscapePs(stage)}}'
-$app='{{EscapePs(app)}}'
-$exe='{{EscapePs(exe)}}'
-Start-Sleep -Milliseconds 500
-Get-Process -Name 'LicAi' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Get-Process -Id $pidToWait -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-$limit=(Get-Date).AddSeconds(12)
-while((Get-Process -Id $pidToWait -ErrorAction SilentlyContinue) -and (Get-Date) -lt $limit){Start-Sleep -Milliseconds 250}
-Get-Process -Id $pidToWait -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 700
-# Copia somente arquivos aprovados pelo PDV. Nao remove pastas ou dados do cliente.
-Get-ChildItem -Path $stage -Recurse -File | ForEach-Object {
-  $relative=$_.FullName.Substring($stage.Length).TrimStart('\')
-  $destination=Join-Path $app $relative
-  New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
-  Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
-}
-Start-Process -FilePath $exe -WorkingDirectory $app
-""";await File.WriteAllTextAsync(ps,script);Process.Start(new ProcessStartInfo("powershell.exe",$"-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{ps}\""){UseShellExecute=true});Application.Exit();}
- private static string EscapePs(string value)=>value.Replace("'","''");
+ private static async Task DownloadAndApplyAsync(UpdateManifest m)
+ {
+  var work=Path.Combine(Path.GetTempPath(),"LealInfoPDV_Update_"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(work);
+  var zip=Path.Combine(work,"update.zip");
+  using(var http=new HttpClient{Timeout=TimeSpan.FromMinutes(5)})
+  {
+   http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/"+CurrentVersion);
+   var bytes=await http.GetByteArrayAsync(m.PackageUrl);await File.WriteAllBytesAsync(zip,bytes);
+  }
+  if(m.Sha256.Length!=64 || !System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(zip)).SequenceEqual(Convert.FromHexString(m.Sha256)))
+   throw new InvalidDataException("O pacote não corresponde à atualização publicada.");
+  Licensing.UpdatePayloadPolicy.Validate(zip);
+  await TransactionalUpdate.BeginAsync(zip,m.Sha256,m.Version,DistributionChannel);
+ }
 }
