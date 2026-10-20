@@ -124,9 +124,13 @@ function Prepare{
  $boot=New-ScheduledTaskTrigger -AtStartup
  $retry=New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1)
  $settings=New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
- Register-ScheduledTask -TaskName $task -Action $action -Trigger @($boot,$retry) -Settings $settings -User SYSTEM -RunLevel Highest -Force|Out-Null
+ Register-ScheduledTask -TaskName $task -Action $action -Trigger @($boot,$retry) -Settings $settings -User 'S-1-5-18' -RunLevel Highest -Force|Out-Null
  $registered=Get-ScheduledTask -TaskName $task
- if($registered.State -eq 'Disabled' -or $registered.Principal.UserId -notin @('SYSTEM','S-1-5-18')){throw 'External recovery not active'}
+ $principal=[string]$registered.Principal.UserId
+ try{
+  $identity=if($principal -match '^S-1-'){New-Object Security.Principal.SecurityIdentifier $principal}else{(New-Object Security.Principal.NTAccount $principal).Translate([Security.Principal.SecurityIdentifier])}
+ }catch{throw ('Cannot resolve recovery identity: ['+$principal+']; state=['+$registered.State+']')}
+ if($registered.State -eq 'Disabled' -or $identity.Value -ne 'S-1-5-18'){throw ('External recovery not active; principal=['+$principal+']; SID=['+$identity.Value+']; state=['+$registered.State+']')}
  Point 'prepared'
  return $s
 }

@@ -1,60 +1,92 @@
-name: Correcao segura Cozinha 001 - primeira passagem
+name: Correcao segura Cozinha 001 - tarefa SYSTEM por SID
 on:
   push:
     branches: ['feature/setup-seguro-001']
-    paths: ['setup-001/**', '.github/workflows/setup_seguro_001.yml']
+    paths: ['TransactionalUpdate.ps1', 'setup-001/**', '.github/workflows/setup_seguro_001.yml']
 permissions:
   contents: read
   actions: read
 jobs:
   validar:
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     env:
       GH_TOKEN: ${{ github.token }}
+      CHANNEL: '001'
+      SOURCE_REF: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
         with: {path: source}
+      - uses: actions/checkout@v4
+        with:
+          ref: b95da478624312a5070e9ee512e156b3a9dcb858
+          path: controller
       - uses: actions/setup-dotnet@v4
         with: {dotnet-version: '8.0.x'}
-      - uses: actions/download-artifact@v4
-        with:
-          name: rollback-transacional-001-NAO-PUBLICAR
-          run-id: 39317297918
-          github-token: ${{ github.token }}
-          path: work/release-output
-      - name: Conferir candidato imutavel e preparar baseline
-        working-directory: work
+      - name: Preparar apenas canal 001 e sua baseline 10.415
+        working-directory: controller
         shell: pwsh
         run: |
+          python scripts/distribute_channels.py plan
+          if($LASTEXITCODE -ne 0){throw 'Plan failed'}
+          $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
+          if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '001'){throw 'Wrong channel'}
+          python scripts/distribute_channels.py prepare 001
+          if($LASTEXITCODE -ne 0){throw 'Baseline preparation failed'}
+          Push-Location candidate
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          Pop-Location
+      - name: Compilar correcao e conferir dependencias da instalacao
+        working-directory: controller
+        shell: pwsh
+        run: |
+          $sdk=Get-Content sdk-version.txt
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
+          if($LASTEXITCODE -ne 0){throw 'Candidate compilation failed'}
+          python scripts/distribute_channels.py package 001
+          if($LASTEXITCODE -ne 0){throw 'Incremental compatibility failed'}
+          dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o startup-fixture-publish
+          if($LASTEXITCODE -ne 0){throw 'Fixture build failed'}
+      - name: Validar cozinha real, pacote e rollback com o worker corrigido
+        working-directory: controller
+        shell: pwsh
+        run: |
+          dotnet run --project candidate/qa/kitchen-stage1/LealInfoPDV.KitchenStage1Tests.csproj -c Release 2>&1|Tee-Object kitchen-tests.log
+          if($LASTEXITCODE -ne 0){throw 'Kitchen regression failed'}
           $m=Get-Content release-output/candidate.json -Raw|ConvertFrom-Json
-          if($m.Channel -ne '001' -or $m.Version -ne '10.416'){throw 'Wrong candidate'}
-          $p=Join-Path release-output $m.Package
-          if((Get-FileHash $p).Hash.ToLowerInvariant() -ne $m.PackageSha256){throw 'Candidate hash failed'}
-          Invoke-WebRequest $m.Baseline.PackageUrl -OutFile previous.zip
-          if((Get-FileHash previous.zip).Hash.ToLowerInvariant() -ne $m.Baseline.Sha256){throw 'Baseline hash failed'}
-          Expand-Archive previous.zip previous
-          $deps=Get-Content previous/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
-          $sdk=($deps.libraries.Keys|Where-Object{$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1).Split('/')[1]
+          $package=Join-Path (Get-Location) ('release-output/'+$m.Package)
+          dotnet run --project candidate/qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package $package 2>&1|Tee-Object payload-tests.log
+          if($LASTEXITCODE -ne 0){throw 'Payload policy failed'}
+          ./candidate/qa/update-transaction/test-transaction.ps1 2>&1|Tee-Object transaction-tests.log
+          if($LASTEXITCODE -ne 0){throw 'Recovery regression failed'}
+      - name: Preparar wrapper exclusivo 001 sem publicar canais
+        working-directory: controller
+        shell: pwsh
+        run: |
           New-Item -ItemType Directory source/setup-001,bundle -Force|Out-Null
           Copy-Item ../source/setup-001/* source/setup-001/
-          Copy-Item ../source/TransactionalUpdate.ps1 bundle/worker.ps1
+          Copy-Item candidate/TransactionalUpdate.ps1 bundle/worker.ps1
           Copy-Item ../source/setup-001/activate.ps1 bundle/
           Copy-Item release-output/candidate.json bundle/
-          Copy-Item $p bundle/payload.zip
-          dotnet publish ../source/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o startup-fixture-publish
-          if($LASTEXITCODE -ne 0){throw 'Fixture build failed'}
+          $m=Get-Content bundle/candidate.json -Raw|ConvertFrom-Json
+          if($m.Channel -ne '001' -or $m.Version -ne '10.416'){throw 'Wrong candidate'}
+          Copy-Item (Join-Path release-output $m.Package) bundle/payload.zip
           $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6/ISCC.exe'
           if(!(Test-Path $iscc)){throw 'Inno Setup missing'}
           "ISCC=$iscc"|Out-File $env:GITHUB_ENV -Append
-      - name: Testar primeira passagem e recuperacao SYSTEM no Windows isolado
-        working-directory: work
+      - name: Testar principal qualificado e primeira passagem no Windows isolado
+        working-directory: controller
         shell: pwsh
         run: |
           ./source/setup-001/test.ps1 2>&1|Tee-Object setup-tests.log
           if($LASTEXITCODE -ne 0){throw 'First transition failed'}
-      - name: Gerar arquivo exclusivo 001 com os mesmos bytes aprovados
-        working-directory: work
+      - name: Gerar arquivo corrigido
+        working-directory: controller
         shell: pwsh
         run: |
           Remove-Item source/setup-001/bundle -Recurse -Force
@@ -63,17 +95,28 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Setup compilation failed'}
           New-Item -ItemType Directory deliverable|Out-Null
           Copy-Item source/setup-001/output/*.exe deliverable/
+          Rename-Item deliverable/Setup_Correcao_PDV_001_10_416.exe Setup_Correcao_PDV_001_10_416_R2.exe
           Get-FileHash deliverable/*.exe -Algorithm SHA256|Format-List|Out-File deliverable/SHA256.txt
-          Copy-Item setup-tests.log,setup-ui.log,bundle/candidate.json deliverable/
+          Copy-Item setup-tests.log,setup-ui.log,kitchen-tests.log,transaction-tests.log,payload-tests.log,bundle/candidate.json deliverable/
+      - name: Conferir feeds preservados
+        working-directory: controller
+        shell: python
+        run: |
+          import importlib.util,json
+          spec=importlib.util.spec_from_file_location('d','scripts/distribute_channels.py')
+          d=importlib.util.module_from_spec(spec);spec.loader.exec_module(d)
+          before=json.load(open('release-plan.json',encoding='utf-8-sig'))['Before']
+          for ch in d.CHANNELS:assert d.readfeed(ch)['sha']==before[ch]['sha']
+          print('PASS todos os feeds intactos')
       - uses: actions/upload-artifact@v4
         with:
-          name: Correcao_Cozinha_001_10_416_TESTADA
-          path: work/deliverable/
+          name: Correcao_Cozinha_001_10_416_R2_TESTADA
+          path: controller/deliverable/
           retention-days: 30
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: correcao-001-failure
+          name: correcao-001-r2-failure
           path: |
-            work/setup*.log
-            work/bundle/candidate.json
+            controller/*.log
+            controller/release-output/

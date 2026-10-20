@@ -24,6 +24,11 @@ function Cleanup($app){
  Remove-Item $app -Recurse -Force
 }
 try{
+ $systemSid=New-Object Security.Principal.SecurityIdentifier 'S-1-5-18'
+ $qualified=$systemSid.Translate([Security.Principal.NTAccount]).Value
+ $resolved=(New-Object Security.Principal.NTAccount $qualified).Translate([Security.Principal.SecurityIdentifier])
+ Check ($resolved.Value -eq 'S-1-5-18') ('qualified/localized task identity resolves to SYSTEM: '+$qualified)
+ Check ((Get-Content bundle/worker.ps1 -Raw) -notmatch "UserId -notin") 'no locale-dependent principal string comparison'
  New-Item -ItemType Directory fixture-payload|Out-Null
  foreach($n in $names){Copy-Item (Join-Path startup-fixture-publish $n) fixture-payload}
  Remove-Item bundle/payload.zip
