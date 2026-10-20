@@ -58,7 +58,7 @@ jobs:
         run: |
           dotnet run --project candidate/qa/kitchen-new-order/NewOrderTests.csproj -c Release 2>&1|Tee-Object premium-windows.log
           if($LASTEXITCODE -ne 0){throw 'Premium Windows UI failed'}
-          python -c "import hashlib,json,os;from pathlib import Path;p=Path('new-order-evidence');names=['cozinha-referencia-real-windows.png','mesas-referencia-real-windows.png'];d={'SourceCommit':os.environ['SOURCE_REF'],'BuildRunId':os.environ['GITHUB_RUN_ID'],'ViewportNote':'Native Windows rendering at 1680x940 and 1100x650 logical pixels; not a physical display/DPI test','Hashes':{n:hashlib.sha256((p/n).read_bytes()).hexdigest() for n in names}};(p/'ui-visual.json').write_text(json.dumps(d,indent=2),encoding='utf-8')"
+          python -c "import hashlib,json,os,struct;from pathlib import Path;p=Path('new-order-evidence');names=['cozinha-referencia-real-windows.png','mesas-referencia-real-windows.png'];d={'SourceCommit':os.environ['SOURCE_REF'],'BuildRunId':os.environ['GITHUB_RUN_ID'],'ViewportNote':'Native Windows rendering; actual sizes read from PNG headers; not a physical display/DPI test','Sizes':{n:struct.unpack('>II',(p/n).read_bytes()[16:24]) for n in names},'Hashes':{n:hashlib.sha256((p/n).read_bytes()).hexdigest() for n in names}};(p/'ui-visual.json').write_text(json.dumps(d,indent=2),encoding='utf-8')"
           if($LASTEXITCODE -ne 0){throw 'UI capture hashes failed'}
       - uses: actions/upload-artifact@v4
         if: always()

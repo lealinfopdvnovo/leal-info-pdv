@@ -43,7 +43,12 @@ internal sealed class KitchenPremiumHeader : UserControl
         }
         root.Controls.Add(brand,0,0);root.Controls.Add(stats,1,0);root.Controls.Add(actions,2,0);Controls.Add(root);
         KitchenPremiumStyle.Apply(this);KitchenPremiumStyle.Frame(this);
-        clock.Text=DateTime.Now.ToString("HH:mm")+Environment.NewLine+DateTime.Now.ToString("dd/MM/yyyy");
+        clock.Text=DateTime.Now.ToString("HH:mm")+Environment.NewLine+DateTime.Now.ToString("dd/MM/yy");
+        SizeChanged+=(_,_)=>{
+            float size=Width>=1200?11:8;
+            foreach(var badge in new[]{clock,pending,preparing,ready})badge.Font=new Font("Segoe UI",size,FontStyle.Bold);
+            foreach(Button action in actions.Controls)action.Font=new Font("Segoe UI",Width>=1200?8.5f:7.5f,FontStyle.Bold);
+        };
         timer.Tick+=(_,_)=>clock.Text=DateTime.Now.ToString("HH:mm")+Environment.NewLine+DateTime.Now.ToString("dd/MM/yyyy");timer.Start();
     }
     internal void UpdateCounts(int waiting,int cooking,int done)

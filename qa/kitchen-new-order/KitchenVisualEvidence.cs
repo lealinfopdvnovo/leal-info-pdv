@@ -26,7 +26,8 @@ internal static class KitchenVisualEvidence
             select.Start();main.Controls.Find("KitchenImportPdv",true).OfType<Button>().Single().PerformClick();
         }
         var store=Field<KitchenStore>(form,"store");store.ChangeTableCount(40,store.Seating().Revision);
-        form.Size=new Size(1680,940);form.PerformLayout();
+        form.MaximumSize=new Size(1920,1080);form.Size=new Size(1680,940);form.PerformLayout();
+        check(form.Width==1680&&form.Height==940,"reference viewport renders at the requested actual window size");
         foreach(var pair in new[]{(2,"AGUARDANDO"),(3,"PREPARANDO"),(5,"PRONTO"),(6,"AGUARDANDO"),(7,"PREPARANDO"),(10,"AGUARDANDO")})
         {
             var product=seeds[pair.Item1%seeds.Length];
@@ -43,7 +44,8 @@ internal static class KitchenVisualEvidence
         using(var image=new Bitmap(form.Width,form.Height)){form.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"cozinha-referencia-real-windows.png"));}
         var tables=Field<KitchenTablesView>(form,"tables");
         tables.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();Application.DoEvents();
-        var popup=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AllKitchenTables");popup.Size=new Size(1100,650);popup.PerformLayout();Application.DoEvents();
+        var popup=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AllKitchenTables");popup.MaximumSize=new Size(1600,1000);popup.Size=new Size(1100,650);popup.PerformLayout();
+        check(popup.Width==1100&&popup.Height==650,"all tables capture renders at the requested actual window size");Application.DoEvents();
         using(var image=new Bitmap(popup.Width,popup.Height)){popup.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"mesas-referencia-real-windows.png"));}
         popup.Close();
         check(true,"real Windows reference screenshots generated from synthetic products, orders and persisted reservations");
