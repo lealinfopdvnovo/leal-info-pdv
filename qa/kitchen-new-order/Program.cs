@@ -9,6 +9,13 @@ using System.Text.Json;
 
 static class Program
 {
+    [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    static extern IntPtr FindWindow(string className, string title);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern bool PostMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+    static IEnumerable<Control> Descendants(Control root) => root.Controls.Cast<Control>().SelectMany(c => new[] { c }.Concat(Descendants(c)));
     const BindingFlags P = BindingFlags.Instance | BindingFlags.NonPublic;
     static readonly List<string> checks = new();
     static void Check(bool value, string text) { if (!value) throw new Exception(text); checks.Add(text); Console.WriteLine("PASS " + text); }
@@ -182,7 +189,70 @@ static class Program
             name.Text="Hambúrguer artesanal";qty.Value=2;itemNotes.Text="Sem cebola";add.PerformClick();reference.Text="Mesa 05";notes.Text="Servir juntos";
             using(var image=new Bitmap(window.Width,window.Height)){window.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"pedido-profissional.png"));}
             Check(Snapshot()==before,"business data, users and settings preserved");Check(UpdateManager.CurrentVersion=="10.421","version 10.421");
-            Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(photo)))==photoHash,"catalog photo remains unchanged and unlocked");File.Delete(photo);
+            Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(photo)))==photoHash,"catalog photo remains unchanged and unlocked");// Verify the new menu selector against the real modal dialog.
+            catalogSearch.Clear(); catalogCategory.SelectedIndex = 0;
+            Exception? modalError = null;
+            using (var chooseMenu = new System.Windows.Forms.Timer { Interval = 100 })
+            {
+                chooseMenu.Tick += (_, _) =>
+                {
+                    var dialog = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f.Name == "KitchenPdvSelection");
+                    if (dialog == null) return;
+                    chooseMenu.Stop();
+                    try
+                    {
+                        var choices = dialog.Controls.Find("KitchenMenuChoices", true).OfType<CheckedListBox>().Single();
+                        for (int i = 0; i < choices.Items.Count; i++) choices.SetItemChecked(i, Convert.ToString(choices.Items[i])!.Contains("CARD001"));
+                        Descendants(dialog).OfType<Button>().Single(b => b.Text == "SALVAR CARDÁPIO").PerformClick();
+                    }
+                    catch (Exception e) { modalError = e; dialog.Close(); }
+                };
+                chooseMenu.Start(); catalog.Controls.Find("KitchenImportPdv", true).OfType<Button>().Single().PerformClick();
+            }
+            Check(modalError == null, "existing product selection dialog works");
+            Pump(() => mainMenu.Controls.Find("CatalogReload", true).OfType<Button>().Single().Enabled && mainMenu.Controls.Find("CatalogProduct_2", true).Length == 0);
+            Check(catalog.Controls.Find("CatalogProduct_1", true).Length == 1 && catalog.Controls.Find("CatalogProduct_2", true).Length == 0, "menu selector filters actual existing product IDs");
+            Check(Snapshot() == before, "selecting menu products does not mutate any business table");
+            // Open the actual registration form from the new kitchen button and save via its real action.
+            using (var acceptSave = new System.Windows.Forms.Timer { Interval = 50 })
+            using (var populate = new System.Windows.Forms.Timer { Interval = 100 })
+            {
+                acceptSave.Tick += (_, _) =>
+                {
+                    var box = FindWindow("#32770", "LEAL INFO PDV");
+                    if (box != IntPtr.Zero) { GetWindowThreadProcessId(box, out uint pid); if (pid == (uint)Environment.ProcessId) PostMessage(box, 0x0111, new IntPtr(1), IntPtr.Zero); }
+                };
+                populate.Tick += (_, _) =>
+                {
+                    var productForm = Application.OpenForms.Cast<Form>().FirstOrDefault(f => f is ProductRegistrationForm);
+                    if (productForm == null) return;
+                    populate.Stop();
+                    try
+                    {
+                        if (!productForm.Modal || productForm.Owner != central) throw new Exception("Existing modal registration owner differs");
+                        var fields = (Dictionary<string, Control>)typeof(ProductRegistrationForm).GetField("_fields", P)!.GetValue(productForm)!;
+                        fields["name"].Text = "Produto novo premium QA"; fields["barcode"].Text = "PREMIUM-QA-NEW"; fields["price"].Text = "2350"; fields["stock"].Text = "0";
+                        typeof(ProductRegistrationForm).GetField("_photoPath", P)!.SetValue(productForm, photo);
+                        acceptSave.Start();
+                        Descendants(productForm).OfType<Button>().Single(b => b.Text == "SALVAR • F3").PerformClick();
+                        acceptSave.Stop(); productForm.Close();
+                    }
+                    catch (Exception e) { modalError = e; productForm.Close(); }
+                };
+                populate.Start(); mainMenu.Controls.Find("KitchenAddProduct", true).OfType<Button>().Single().PerformClick();
+                Pump(() => mainMenu.Controls.Find("KitchenAddProduct", true).OfType<Button>().Single().Enabled);
+            }
+            Check(modalError == null, "kitchen button opens and saves through existing registration form");
+            var added = KitchenCatalogView.ReadProducts().Single(p => p.Barcode == "PREMIUM-QA-NEW");
+            Pump(() => mainMenu.Controls.Find("CatalogProduct_" + added.Id, true).Length == 1 && catalog.Controls.Find("CatalogProduct_" + added.Id, true).Length == 1);
+            Check(added.Price == 23.5m && File.Exists(added.PhotoPath), "saved registered price and photo appear automatically in both kitchen catalogs");
+            Check(mainMenu.Controls.Find("CatalogProduct_2", true).Length == 0, "adding a product preserves existing menu selection");
+            using (var db = Database.Open()) using (var verify = db.CreateCommand())
+            {
+                verify.CommandText = "SELECT COUNT(*) FROM products WHERE (id=1 AND price=12.5 AND stock=10) OR (id=2 AND price=7.25 AND stock=20) OR (id=4 AND price=15 AND stock=10)";
+                Check(Convert.ToInt32(verify.ExecuteScalar()) == 3, "new product registration preserves existing prices and stock");
+            }
+            Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(photo))) == photoHash, "registration preserves original photo bytes"); File.Delete(photo);
             central.Close();Check(window.IsDisposed,"floating window disposed with central");
             File.WriteAllText(Path.Combine(evidence,"fixed.json"),JsonSerializer.Serialize(new{success=true,checks},new JsonSerializerOptions{WriteIndented=true}));return 0;
         }
