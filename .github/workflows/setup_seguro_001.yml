@@ -1,0 +1,79 @@
+name: Correcao segura Cozinha 001 - primeira passagem
+on:
+  push:
+    branches: ['feature/setup-seguro-001']
+    paths: ['setup-001/**', '.github/workflows/setup_seguro_001.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: source}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: rollback-transacional-001-NAO-PUBLICAR
+          run-id: 39317297918
+          github-token: ${{ github.token }}
+          path: work/release-output
+      - name: Conferir candidato imutavel e preparar baseline
+        working-directory: work
+        shell: pwsh
+        run: |
+          $m=Get-Content release-output/candidate.json -Raw|ConvertFrom-Json
+          if($m.Channel -ne '001' -or $m.Version -ne '10.416'){throw 'Wrong candidate'}
+          $p=Join-Path release-output $m.Package
+          if((Get-FileHash $p).Hash.ToLowerInvariant() -ne $m.PackageSha256){throw 'Candidate hash failed'}
+          Invoke-WebRequest $m.Baseline.PackageUrl -OutFile previous.zip
+          if((Get-FileHash previous.zip).Hash.ToLowerInvariant() -ne $m.Baseline.Sha256){throw 'Baseline hash failed'}
+          Expand-Archive previous.zip previous
+          $deps=Get-Content previous/LealInfoPDV.deps.json -Raw|ConvertFrom-Json -AsHashtable
+          $sdk=($deps.libraries.Keys|Where-Object{$_ -like 'runtimepack.Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1).Split('/')[1]
+          New-Item -ItemType Directory source/setup-001,bundle -Force|Out-Null
+          Copy-Item ../source/setup-001/* source/setup-001/
+          Copy-Item ../source/TransactionalUpdate.ps1 bundle/worker.ps1
+          Copy-Item ../source/setup-001/activate.ps1 bundle/
+          Copy-Item release-output/candidate.json bundle/
+          Copy-Item $p bundle/payload.zip
+          dotnet publish ../source/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o startup-fixture-publish
+          if($LASTEXITCODE -ne 0){throw 'Fixture build failed'}
+          $iscc=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6/ISCC.exe'
+          if(!(Test-Path $iscc)){throw 'Inno Setup missing'}
+          "ISCC=$iscc"|Out-File $env:GITHUB_ENV -Append
+      - name: Testar primeira passagem e recuperacao SYSTEM no Windows isolado
+        working-directory: work
+        shell: pwsh
+        run: |
+          ./source/setup-001/test.ps1 2>&1|Tee-Object setup-tests.log
+          if($LASTEXITCODE -ne 0){throw 'First transition failed'}
+      - name: Gerar arquivo exclusivo 001 com os mesmos bytes aprovados
+        working-directory: work
+        shell: pwsh
+        run: |
+          Remove-Item source/setup-001/bundle -Recurse -Force
+          Copy-Item bundle source/setup-001/bundle -Recurse
+          & $env:ISCC source/setup-001/setup.iss
+          if($LASTEXITCODE -ne 0){throw 'Setup compilation failed'}
+          New-Item -ItemType Directory deliverable|Out-Null
+          Copy-Item source/setup-001/output/*.exe deliverable/
+          Get-FileHash deliverable/*.exe -Algorithm SHA256|Format-List|Out-File deliverable/SHA256.txt
+          Copy-Item setup-tests.log,setup-ui.log,bundle/candidate.json deliverable/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Correcao_Cozinha_001_10_416_TESTADA
+          path: work/deliverable/
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: correcao-001-failure
+          path: |
+            work/setup*.log
+            work/bundle/candidate.json
