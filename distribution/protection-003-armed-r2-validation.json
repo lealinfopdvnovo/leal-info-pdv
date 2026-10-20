@@ -1,0 +1,16 @@
+{
+  "client": "003",
+  "sourceCommit": "6e1a9deadef88e61a60c3dbb5cd8ba0abc06042a",
+  "workflowRun": 39516687225,
+  "conclusion": "success",
+  "newWindowsScenariosPassed": 11,
+  "portableGuiValidated": true,
+  "backupAndAutomaticRollbackValidated": true,
+  "publicDownloadUnauthenticatedVerified": true,
+  "download": "https://github.com/lealinfopdvnovo/leal-info-pdv/releases/download/protecao-003-r2-armed-10.415/LEAL_INFO_PROTECAO_003_R2.zip",
+  "zipSha256": "e8e34ac7358b2e2bd292375f57aa9ba6ca7a684b11451f893c5470ae123623ba",
+  "allClientFeedsUnchanged": true,
+  "client003FeedVersion": "10.415",
+  "customerComputerActivationConfirmed": false,
+  "previousApprovedTestsReused": true
+}
