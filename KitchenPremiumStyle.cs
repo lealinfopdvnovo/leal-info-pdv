@@ -27,7 +27,7 @@ internal static class KitchenPremiumStyle
     }
     internal static void Apply(Control root)
     {
-        if (root is KitchenTableButton) return;
+        if (root is KitchenTableButton or KitchenMoreTablesButton) return;
         root.BackColor = root is TextBox or NumericUpDown or ComboBox ? Surface : Background;
         root.ForeColor = Color.FromArgb(235, 242, 249);
         if (root is Button b)
@@ -44,13 +44,14 @@ internal static class KitchenPremiumStyle
                     var bounds = new Rectangle(2, 2, b.Width - 5, b.Height - 5);
                     e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                     using var shape = Round(bounds, 7);
-                    Color top = b.Focused ? Color.FromArgb(97, 73, 18) : Color.FromArgb(27, 39, 49);
-                    using var fill = new LinearGradientBrush(bounds, top, Color.FromArgb(3, 9, 13), 90f);
+                    bool selected=b.AccessibleDescription=="selecionado";
+                    Color top = selected ? Gold : b.Focused ? Color.FromArgb(97,73,18) : Color.FromArgb(27,39,49);
+                    using var fill = new LinearGradientBrush(bounds, top, selected?Color.FromArgb(104,73,9):Color.FromArgb(3,9,13), 90f);
                     e.Graphics.Clear(Background); e.Graphics.FillPath(fill, shape);
                     using var edge = new Pen(b.Enabled ? Gold : Color.DimGray, b.Focused ? 2 : 1); e.Graphics.DrawPath(edge, shape);
                     if (b.Focused) { using var light = new Pen(Color.FromArgb(70, Gold), 5); e.Graphics.DrawPath(light, shape); }
                     TextRenderer.DrawText(e.Graphics, b.Text, b.Font, new Rectangle(5, 3, b.Width - 10, b.Height - 6),
-                        b.Enabled ? b.ForeColor : Color.Gray, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
+                        b.Enabled ? selected?Color.FromArgb(20,17,4):b.ForeColor : Color.Gray, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
                 };
                 b.MouseEnter += (_, _) => b.Invalidate(); b.MouseLeave += (_, _) => b.Invalidate();
             }

@@ -72,6 +72,9 @@ internal sealed class KitchenCatalogView : UserControl
         body.Controls.Add(categoryRail,0,0);body.Controls.Add(cards,1,0);root.Controls.Add(body,0,4);Controls.Add(root);
         KitchenPremiumStyle.Apply(this); KitchenPremiumStyle.Frame(this); title.ForeColor = KitchenPremiumStyle.Gold;
         cards.Resize += (_,_) => SizeCards();
+        SizeChanged+=(_,_)=>{root.RowStyles[2].Height=Width>=670?38:76;};
+        category.DrawMode=DrawMode.OwnerDrawFixed;
+        category.DrawItem+=(_,e)=>{using var fill=new SolidBrush(KitchenPremiumStyle.Surface);e.Graphics.FillRectangle(fill,e.Bounds);if(e.Index>=0)TextRenderer.DrawText(e.Graphics,Convert.ToString(category.Items[e.Index]),category.Font,e.Bounds,Color.White,TextFormatFlags.VerticalCenter);};
         category.Items.Add("Todas as categorias");category.SelectedIndex=0;
         search.TextChanged+=(_,_)=>{limit=60;Render();};
         category.SelectedIndexChanged+=(_,_)=>{if(!loading){limit=60;Render();}};
@@ -122,6 +125,7 @@ internal sealed class KitchenCatalogView : UserControl
         var compare=CultureInfo.GetCultureInfo("pt-BR").CompareInfo;
         bool Match(string value)=>compare.IndexOf(value,term,CompareOptions.IgnoreCase|CompareOptions.IgnoreNonSpace)>=0;
         var found=products.Where(p=>(menuIds == null || menuIds.Contains(p.Id)) && (selected==""||p.Category.Equals(selected,StringComparison.OrdinalIgnoreCase))&&(term==""||Match(p.Name)||Match(p.Barcode)||Match(p.Category))).ToArray();
+        foreach(Button shortcut in categoryRail.Controls){shortcut.AccessibleDescription=Equals(shortcut.Tag,category.SelectedItem)?"selecionado":"";shortcut.Invalidate();}
         cards.SuspendLayout();
         foreach(Control c in cards.Controls.Cast<Control>().ToArray()){cards.Controls.Remove(c);c.Dispose();}
         foreach(var product in found.Take(limit))cards.Controls.Add(Card(product));
@@ -160,7 +164,7 @@ internal sealed class KitchenCatalogView : UserControl
     private void SizeCards()
     {
         int available = cards.ClientSize.Width - SystemInformation.VerticalScrollBarWidth - 8;
-        int columns = Math.Max(1, available / 128);
+        int columns = Math.Clamp(available / 128,1,4);
         int width = Math.Clamp(available / columns - 8, 116, 174);
         foreach (var card in cards.Controls.OfType<TableLayoutPanel>()) card.Width = width;
     }
@@ -171,7 +175,7 @@ internal sealed class KitchenCatalogView : UserControl
         foreach (Control child in categoryRail.Controls.Cast<Control>().ToArray()) { categoryRail.Controls.Remove(child); child.Dispose(); }
         foreach (string value in category.Items.Cast<string>())
         {
-            var button = new Button { Text = value == "Todas as categorias" ? "TODOS" : value.ToUpperInvariant(), Width = 90, Height = 64, Margin = new Padding(2,4,2,4) };
+            var button = new Button { Tag=value, Text = value == "Todas as categorias" ? "TODOS" : value.ToUpperInvariant(), Width = 90, Height = 64, Margin = new Padding(2,4,2,4) };
             KitchenPremiumStyle.Apply(button); button.Click += (_,_) => category.SelectedItem = value; categoryRail.Controls.Add(button);
         }
     }

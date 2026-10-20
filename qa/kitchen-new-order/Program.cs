@@ -179,6 +179,14 @@ static class Program
             Pump(()=>fresh.Enabled&&Field<SemaphoreSlim>(central,"gate").CurrentCount==1&&!window.Visible&&catalogStore.List().Any(o=>o.Reference=="QA CARDAPIO"));
             var catalogOrder=catalogStore.List().Single(o=>o.Reference=="QA CARDAPIO");
             Check(catalogStore.Get(catalogOrder.Id).Items.Single().ProductId==1&&catalogStore.Get(catalogOrder.Id).Items.Single().Notes=="SEM GELO","real order persists original product ID and kitchen note");
+            var orderPanel=Field<FlowLayoutPanel>(central,"orderCards").Controls.OfType<Panel>().Single(c=>Equals(c.Tag,catalogOrder.Id));
+            typeof(Control).GetMethod("OnClick",BindingFlags.NonPublic|BindingFlags.Instance)!.Invoke(orderPanel,new object[]{EventArgs.Empty});
+            foreach(string target in new[]{"PREPARANDO","PRONTO","ENTREGUE"})
+            {
+                Descendants(central).OfType<Button>().Single(b=>b.Text==target).PerformClick();
+                Pump(()=>catalogStore.Get(catalogOrder.Id).Status==target&&fresh.Enabled&&Field<SemaphoreSlim>(central,"gate").CurrentCount==1);
+            }
+            Check(!Field<FlowLayoutPanel>(central,"orderCards").Controls.OfType<Panel>().Any(c=>Equals(c.Tag,catalogOrder.Id)),"real order cards select and operate kitchen statuses without a spreadsheet");
             Check(Snapshot()==before,"catalog selection and kitchen send do not change products prices stock or sales");
             fresh.PerformClick();Application.DoEvents();catalogSearch.Clear();catalogCategory.SelectedIndex=0;
             Pump(()=>catalog.Controls.Find("CatalogReload",true).OfType<Button>().Single().Enabled);
@@ -210,7 +218,7 @@ static class Program
             window.Close();fresh.PerformClick();Application.DoEvents();Check(files.All(x=>File.Exists(x.Key)&&Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(x.Key)))==x.Value),"pending encrypted records unchanged");
             name.Text="Hambúrguer artesanal";qty.Value=2;itemNotes.Text="Sem cebola";add.PerformClick();reference.Text="Mesa 05";notes.Text="Servir juntos";
             using(var image=new Bitmap(window.Width,window.Height)){window.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"pedido-profissional.png"));}
-            Check(Snapshot()==before,"business data, users and settings preserved");Check(UpdateManager.CurrentVersion=="10.421","version 10.421");
+            Check(Snapshot()==before,"business data, users and settings preserved");Check(UpdateManager.CurrentVersion=="10.422","version 10.422");
             Check(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(photo)))==photoHash,"catalog photo remains unchanged and unlocked");// Verify the new menu selector against the real modal dialog.
             catalogSearch.Clear(); catalogCategory.SelectedIndex = 0;
             Pump(() => catalog.Controls.Find("CatalogReload", true).OfType<Button>().Single().Enabled && mainMenu.Controls.Find("CatalogReload", true).OfType<Button>().Single().Enabled);

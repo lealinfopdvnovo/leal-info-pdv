@@ -3,7 +3,7 @@ namespace LealInfoPDV;
 internal sealed class KitchenTablesView : UserControl
 {
     private readonly TableLayoutPanel main = new() { Dock = DockStyle.Fill, ColumnCount = 5, RowCount = 2, Name = "MainTables" };
-    private readonly Button more = new() { Name = "MoreKitchenTables", Text = "VER MAIS MESAS", Dock = DockStyle.Fill };
+    private readonly Button more = new KitchenMoreTablesButton();
     private KitchenOrder[] active = Array.Empty<KitchenOrder>();
     private Form? floating;
     private FlowLayoutPanel? all;
@@ -30,7 +30,7 @@ internal sealed class KitchenTablesView : UserControl
         for (int i = 0; i < 5; i++) main.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
         for (int i = 0; i < 2; i++) main.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
         root.Controls.Add(main,0,1);root.Controls.Add(more,1,1);Controls.Add(root);
-        more.Text = "▦\nVER MAIS\nMESAS"; more.Click += (_,_) => OpenAll();
+        more.Text = "VER MAIS\nMESAS"; more.Click += (_,_) => OpenAll();
         KitchenPremiumStyle.Apply(this);KitchenPremiumStyle.Frame(this);Render();
     }
     internal static int? TableNumber(string reference)
@@ -131,6 +131,7 @@ internal sealed class KitchenTablesView : UserControl
             button.ForeColor=value=="TODAS"?KitchenPremiumStyle.Gold:KitchenTableButton.StateColor(value);
         }
         if(floating!=null)floating.Text="TODAS AS MESAS ("+count+")";
+        if(selectedLabel!=null&&selectedNumber>0)selectedLabel.Text=$"Mesa {selectedNumber:00} • {CurrentState(selectedNumber)}";
     }
     private void OpenAll()
     {

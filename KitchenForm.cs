@@ -11,7 +11,7 @@ internal sealed class KitchenForm : Form
     private readonly KitchenCatalogView mainCatalog = new();
     private readonly KitchenTablesView tables = new();
     private readonly FlowLayoutPanel orderCards = new() { Name="KitchenOrderCards",Dock=DockStyle.Fill,AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false };
-    private readonly Label totals = new() { Dock=DockStyle.Bottom,Height=24,TextAlign=ContentAlignment.MiddleLeft };
+    private readonly KitchenPremiumHeader premiumHeader = new();
     private readonly KitchenCatalogView catalog = new();
     private long? selectedProductId;
     private string selectedProductName = "";
@@ -76,7 +76,7 @@ internal sealed class KitchenForm : Form
         refresh.Click += async (_, _) => await RefreshAndRetry();
         buttons.Padding = new Padding(12); buttons.BackColor = Color.White;
         foreach (Button button in buttons.Controls) StyleButton(button, button == fresh);
-        detail.BorderStyle = BorderStyle.None; detail.BackColor = Color.FromArgb(230, 239, 246); detail.ForeColor = Ink;
+        detail.Visible=false; detail.BorderStyle = BorderStyle.None; detail.BackColor = Color.FromArgb(230, 239, 246); detail.ForeColor = Ink;
         message.Padding = new Padding(14, 4, 14, 4); message.ForeColor = Ink;
         var workspace = new Panel { Dock = DockStyle.Fill };
         orders.Visible=false;workspace.Controls.Add(orders);workspace.Controls.Add(orderCards); workspace.Controls.Add(detail); workspace.Controls.Add(buttons); workspace.Controls.Add(message); workspace.Controls.Add(tables);
@@ -106,9 +106,11 @@ internal sealed class KitchenForm : Form
         mainCatalog.ProductChosen += product => { OpenEntryWindow(); ChooseProduct(product); };
         mainCatalog.CatalogChanged += async () => await catalog.ReloadAsync();
         catalog.CatalogChanged += async () => await mainCatalog.ReloadAsync();
-        var heading=Header("LEAL INFO  ·  COZINHA", "PDV PRO   |   PEDIDOS EM TEMPO REAL", 86);
-        foreach(var subtitle in heading.Controls.OfType<Label>().Where(l=>l.Dock==DockStyle.Bottom).ToArray()){heading.Controls.Remove(subtitle);subtitle.Dispose();}
-        heading.Controls.Add(totals);Controls.Add(heading);
+        premiumHeader.ImportRequested+=()=>mainCatalog.Controls.Find("KitchenImportPdv",true).OfType<Button>().Single().PerformClick();
+        premiumHeader.RefreshRequested+=async()=>await RefreshAndRetry();
+        premiumHeader.SettingsRequested+=()=>tables.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();
+        premiumHeader.ExitRequested+=()=>Close();
+        Controls.Add(premiumHeader);
         orderCards.SizeChanged+=(_,_)=>{foreach(Control card in orderCards.Controls)card.Width=Math.Max(160,orderCards.ClientSize.Width-28);};
         orders.SelectionChanged += (_, _) =>
         {
@@ -357,16 +359,17 @@ internal sealed class KitchenForm : Form
         var selected=(orders.CurrentRow?.DataBoundItem as OrderRow)?.Id;
         foreach(Control card in orderCards.Controls.Cast<Control>().ToArray()){orderCards.Controls.Remove(card);card.Dispose();}
         var rows=orders.Rows.Cast<DataGridViewRow>().Select(r=>(Row:r,Value:r.DataBoundItem as OrderRow)).Where(r=>r.Value!=null&&r.Value.Status is not ("ENTREGUE" or "CANCELADO")).ToArray();
-        totals.Text=$"   {DateTime.Now:HH:mm}   |   {rows.Count(r=>r.Value!.Status=="AGUARDANDO"):00} PENDENTES   |   {rows.Count(r=>r.Value!.Status=="PREPARANDO"):00} PREPARANDO   |   {rows.Count(r=>r.Value!.Status=="PRONTO"):00} PRONTOS";
-        totals.ForeColor=KitchenPremiumStyle.Gold;
+        premiumHeader.UpdateCounts(rows.Count(r=>r.Value!.Status=="AGUARDANDO"),rows.Count(r=>r.Value!.Status=="PREPARANDO"),rows.Count(r=>r.Value!.Status=="PRONTO"));
         foreach(var row in rows)
         {
             var value=row.Value!;
-            var card=new Panel{Width=Math.Max(160,orderCards.ClientSize.Width-28),Height=104,Padding=new Padding(10),Margin=new Padding(8,5,8,5),Cursor=Cursors.Hand};
+            var card=new Panel{Width=Math.Max(160,orderCards.ClientSize.Width-28),Height=104,Padding=new Padding(10),Margin=new Padding(8,5,8,5),Cursor=Cursors.Hand,Tag=value.Id};
             var title=new Label{Text=$"{value.Referencia}   •   {value.Status}   •   {value.Recebido}",Dock=DockStyle.Top,Height=26,Font=new Font("Segoe UI",10,FontStyle.Bold)};
             var text=new Label{Text=value.Details,Dock=DockStyle.Fill,AutoEllipsis=true};
             card.Controls.Add(text);card.Controls.Add(title);KitchenPremiumStyle.Apply(card);KitchenPremiumStyle.Frame(card);title.ForeColor=value.Status=="PRONTO"?KitchenTableButton.StateColor("PRONTA"):KitchenPremiumStyle.Gold;
-            void Select(){orders.CurrentCell=row.Row.Cells.Cast<DataGridViewCell>().First(c=>c.Visible);row.Row.Selected=true;detail.Text=value.Details;}
+            void Select(){orders.CurrentCell=row.Row.Cells.Cast<DataGridViewCell>().First(c=>c.Visible);row.Row.Selected=true;detail.Text=value.Details;message.Text="Pedido selecionado: "+value.Referencia+" • "+value.Status;}
+            void Details(){using var dialog=new Form{Text="PEDIDO • "+value.Referencia,Size=new Size(680,480),StartPosition=FormStartPosition.CenterParent,ShowInTaskbar=false};dialog.Controls.Add(new TextBox{Multiline=true,ReadOnly=true,Dock=DockStyle.Fill,ScrollBars=ScrollBars.Vertical,Text=value.Referencia+Environment.NewLine+value.Status+Environment.NewLine+value.Details});KitchenPremiumStyle.Apply(dialog);dialog.ShowDialog(this);}
+            card.DoubleClick+=(_,_)=>Details();text.DoubleClick+=(_,_)=>Details();title.DoubleClick+=(_,_)=>Details();
             card.Click+=(_,_)=>Select();title.Click+=(_,_)=>Select();text.Click+=(_,_)=>Select();orderCards.Controls.Add(card);
         }
         if(rows.Length==0)orderCards.Controls.Add(new Label{Text="NENHUM PEDIDO EM PREPARO\nSelecione uma mesa ou clique em NOVO PEDIDO.",ForeColor=Color.Silver,Width=Math.Max(160,orderCards.ClientSize.Width-28),Height=100,TextAlign=ContentAlignment.MiddleCenter});

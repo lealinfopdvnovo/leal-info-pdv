@@ -25,7 +25,8 @@ internal static class KitchenVisualEvidence
             };
             select.Start();main.Controls.Find("KitchenImportPdv",true).OfType<Button>().Single().PerformClick();
         }
-        var store=Field<KitchenStore>(form,"store");
+        var store=Field<KitchenStore>(form,"store");store.ChangeTableCount(40,store.Seating().Revision);
+        form.Size=new Size(1680,940);form.PerformLayout();
         foreach(var pair in new[]{(2,"AGUARDANDO"),(3,"PREPARANDO"),(5,"PRONTO"),(6,"AGUARDANDO"),(7,"PREPARANDO"),(10,"AGUARDANDO")})
         {
             var product=seeds[pair.Item1%seeds.Length];
@@ -42,7 +43,7 @@ internal static class KitchenVisualEvidence
         using(var image=new Bitmap(form.Width,form.Height)){form.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"cozinha-referencia-real-windows.png"));}
         var tables=Field<KitchenTablesView>(form,"tables");
         tables.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();Application.DoEvents();
-        var popup=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AllKitchenTables");
+        var popup=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AllKitchenTables");popup.Size=new Size(1100,650);popup.PerformLayout();Application.DoEvents();
         using(var image=new Bitmap(popup.Width,popup.Height)){popup.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save(Path.Combine(evidence,"mesas-referencia-real-windows.png"));}
         popup.Close();
         check(true,"real Windows reference screenshots generated from synthetic products, orders and persisted reservations");

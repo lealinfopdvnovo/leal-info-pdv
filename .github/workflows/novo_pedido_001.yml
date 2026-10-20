@@ -1,58 +1,148 @@
-name: Preparar Cozinha Premium 001 - Windows sem publicacao
+name: Cozinha Premium 001 - Windows rollback e atualizador interno
 on:
   push:
     branches: ['feature/setup-seguro-001']
-    paths: ['Kitchen*.cs', 'ReadyKitchen*.cs', 'ready-kitchen/**', 'scripts/prepare_ready_kitchen.py', 'qa/kitchen-new-order/**', '.github/workflows/novo_pedido_001.yml']
+    paths: ['Kitchen*.cs', 'ReadyKitchen*.cs', 'UpdateManager.cs', 'LealInfoPDV.csproj', 'ready-kitchen/**', 'scripts/prepare_ready_kitchen.py', 'qa/kitchen-new-order/**', 'qa/update-transaction/StartupFixture.cs', '.github/workflows/novo_pedido_001.yml']
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: novo-pedido-001
   cancel-in-progress: true
 jobs:
   validar:
     runs-on: windows-latest
-    timeout-minutes: 18
+    timeout-minutes: 22
     env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: '001'
+      SOURCE_REF: ${{ github.sha }}
       PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v4
-        with: {path: candidate}
+        with: {path: source}
+      - uses: actions/checkout@v4
+        with: {ref: b95da478624312a5070e9ee512e156b3a9dcb858, path: controller}
       - uses: actions/setup-dotnet@v4
         with: {dotnet-version: '10.0.401'}
-      - name: Preparar compilacao isolada sem canal de publicacao
-        working-directory: candidate
+      - name: Preparar exclusivamente 001 e dependencias da baseline
+        working-directory: controller
         shell: pwsh
         run: |
           '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+          python scripts/distribute_channels.py plan
+          if($LASTEXITCODE -ne 0){throw 'Plan failed'}
+          $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
+          if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '001' -or $p.Entries[0].Version -ne '10.422'){throw 'Wrong scope'}
+          python scripts/distribute_channels.py prepare 001
+          if($LASTEXITCODE -ne 0){throw 'Baseline preparation failed'}
+          Push-Location candidate
           ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
           ./scripts/aplicar_lic_ai_botao_v10_186.ps1
           ./scripts/aplicar_lic_ai_estado_v10_210.ps1
           ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
           ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
           ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          Pop-Location
       - name: Preparar fotos licenciadas existentes
         timeout-minutes: 5
+        working-directory: controller
         shell: pwsh
         run: |
           python candidate/scripts/prepare_ready_kitchen.py
           if($LASTEXITCODE -ne 0){throw 'Photo preparation failed'}
-      - name: Testar interface mesas catalogo e pedidos reais Windows
-        timeout-minutes: 4
+      - name: Testar interface reservas servidor terminal e cadastro real Windows
+        timeout-minutes: 5
+        working-directory: controller
         shell: pwsh
         run: |
           dotnet run --project candidate/qa/kitchen-new-order/NewOrderTests.csproj -c Release 2>&1|Tee-Object premium-windows.log
-          if($LASTEXITCODE -ne 0){throw 'Premium Windows tests failed'}
-      - name: Compilar aplicacao Windows sem gerar atualizacao
-        shell: pwsh
-        run: |
-          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o candidate-publish
-          if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
+          if($LASTEXITCODE -ne 0){throw 'Premium Windows UI failed'}
+          python -c "import hashlib,json,os;from pathlib import Path;p=Path('new-order-evidence');names=['cozinha-referencia-real-windows.png','mesas-referencia-real-windows.png'];d={'SourceCommit':os.environ['SOURCE_REF'],'BuildRunId':os.environ['GITHUB_RUN_ID'],'ViewportNote':'Native Windows rendering at 1680x940 and 1100x650 logical pixels; not a physical display/DPI test','Hashes':{n:hashlib.sha256((p/n).read_bytes()).hexdigest() for n in names}};(p/'ui-visual.json').write_text(json.dumps(d,indent=2),encoding='utf-8')"
+          if($LASTEXITCODE -ne 0){throw 'UI capture hashes failed'}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: cozinha-premium-001-preparacao
+          name: premium-001-ui-windows
           path: |
-            premium-windows.log
-            new-order-evidence/
-# Intentionally no publication job, update token, installer, or feed mutation.
-# Visual comparison and rollback validation remain mandatory before a future release.
+            controller/premium-windows.log
+            controller/new-order-evidence/
+      - name: Compilar pacote incremental e verificar isolamento
+        working-directory: controller
+        shell: pwsh
+        run: |
+          $sdk=Get-Content sdk-version.txt
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
+          if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
+          python scripts/distribute_channels.py package 001
+          if($LASTEXITCODE -ne 0){throw 'Dependency compatibility failed'}
+          $m=Get-Content release-output/candidate.json -Raw|ConvertFrom-Json
+          $package=Join-Path $PWD ('release-output/'+$m.Package)
+          dotnet run --project candidate/qa/channel-isolation/LealInfoPDV.ChannelTests.csproj -c Release 2>&1|Tee-Object channel.log
+          if($LASTEXITCODE -ne 0){throw 'Channel isolation failed'}
+          dotnet run --project candidate/qa/network/LealInfoPDV.NetworkTests.csproj -c Release -- --validate-package $package 2>&1|Tee-Object payload.log
+          if($LASTEXITCODE -ne 0){throw 'Payload policy failed'}
+          dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o startup-fixture-publish
+          if($LASTEXITCODE -ne 0){throw 'Startup fixture compilation failed'}
+      - name: Testar rollback real protegido e interrupcoes em Windows isolado
+        timeout-minutes: 11
+        working-directory: controller
+        shell: pwsh
+        run: |
+          ./candidate/qa/update-transaction/test-transaction.ps1 2>&1|Tee-Object rollback.log
+          if($LASTEXITCODE -ne 0){throw 'Real rollback failed'}
+          python candidate/qa/kitchen-new-order/validate_release.py
+          if($LASTEXITCODE -ne 0){throw 'Release security gate failed'}
+          python scripts/distribute_channels.py passed
+          if($LASTEXITCODE -ne 0){throw 'Candidate evidence failed'}
+          Copy-Item release-plan.json release-output/
+      - uses: actions/upload-artifact@v4
+        with: {name: candidate-001, path: controller/release-output/}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: premium-001-rollback-windows
+          path: |
+            controller/*.log
+            controller/release-output/
+  publicar:
+    needs: validar
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: b95da478624312a5070e9ee512e156b3a9dcb858}
+      - uses: actions/download-artifact@v4
+        with: {name: candidate-001, path: artifacts/candidate-001}
+      - name: Exigir revisao visual das capturas exatas antes da publicacao
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import json,base64,subprocess,time,hashlib
+          from pathlib import Path
+          folder=Path('artifacts/candidate-001')
+          gate=json.loads((folder/'premium-release-gate.json').read_text())
+          visual=json.loads((folder/'ui-visual.json').read_text())
+          assert gate['Channel']=='001' and gate['SafeForPublication'] is True
+          approved=False
+          for attempt in range(90):
+              response=subprocess.run(['gh','api','repos/lealinfopdvnovo/leal-info-pdv/contents/distribution/premium-001-visual-approval.json?ref=feature/setup-seguro-001'],capture_output=True,text=True)
+              if response.returncode==0:
+                  record=json.loads(base64.b64decode(json.loads(response.stdout)['content']))
+                  approved=(record.get('SourceCommit')==gate['SourceCommit'] and str(record.get('BuildRunId'))==str(gate['BuildRunId']) and record.get('Hashes')==visual['Hashes'] and record.get('Reviewed') is True and record.get('ReferenceSha256')=='3dd5b0fc43faf18c40e2b26a06ad7954f7866277d6f801f0e1bbd3af3909e254')
+              if approved:break
+              time.sleep(10)
+          assert approved,'Visual review absent or different source/capture bytes. No publication.'
+      - name: Publicar exclusivamente o pacote 001 testado e validar feed
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        shell: bash
+        run: |
+          cp artifacts/candidate-001/release-plan.json release-plan.json
+          python scripts/distribute_channels.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: publication-evidence-001, path: publication-evidence/}
