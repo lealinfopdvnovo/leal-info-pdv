@@ -10,7 +10,7 @@ OUT=ROOT/'ready-kitchen/generated'
 UA='LealInfoPDV-ReadyKitchen/1.0 (https://github.com/lealinfopdvnovo/leal-info-pdv)'
 def get(url):
     host=urlparse(url).hostname or ''
-    if host not in ('commons.wikimedia.org','upload.wikimedia.org'):raise ValueError('Unexpected image host')
+    if host not in ('commons.wikimedia.org','upload.wikimedia.org'):raise ValueError('Unexpected image host '+repr(host)+' URL '+repr(url))
     for attempt in range(3):
         try:
             with urlopen(Request(url,headers={'User-Agent':UA}),timeout=25) as r:
@@ -42,6 +42,7 @@ def main():
         creator=value('Artist') or value('Credit')
         if not creator:raise ValueError('Missing author '+s['CommonsFile'])
         source='https://commons.wikimedia.org/wiki/'+s['CommonsFile'].replace(' ','_')
+        print('PHOTO SOURCE',s['Code'],repr(info.get('thumburl') or info['url']),flush=True)
         image=get(info.get('thumburl') or info['url'])
         if not (image.startswith(b'\xff\xd8') or image.startswith(b'\x89PNG')):raise ValueError('Not JPEG/PNG: '+s['CommonsFile'])
         filename=s['Code']+'.jpg';(OUT/filename).write_bytes(image)
