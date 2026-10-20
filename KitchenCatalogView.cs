@@ -73,7 +73,7 @@ internal sealed class KitchenCatalogView : UserControl
     }
     private Control Card(KitchenCatalogProduct product)
     {
-        var card=new TableLayoutPanel{Width=174,Height=214,ColumnCount=1,RowCount=4,Padding=new Padding(8),BackColor=Color.White,Margin=new Padding(4)};
+        var card=new TableLayoutPanel{Width=156,Height=214,ColumnCount=1,RowCount=4,Padding=new Padding(8),BackColor=Color.White,Margin=new Padding(4)};
         card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         foreach(int h in new[]{82,44,26,40})card.RowStyles.Add(new RowStyle(SizeType.Absolute,h));
         Image? photo=null;
