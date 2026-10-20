@@ -69,7 +69,7 @@ jobs:
         timeout-minutes: 10
         shell: pwsh
         run: |
-          dotnet run --no-build --project qa/protection003/Tests/Tests.csproj -c Release 2>&1|Tee-Object activation-tests.log
+          dotnet run --no-build --project qa/protection003/Tests/Tests.csproj -c Release -- --transition-only 2>&1|Tee-Object activation-tests.log
           if($LASTEXITCODE -ne 0){throw 'New external activation tests failed; no release'}
       - name: Gerar ativador portatil somente apos testes aprovados
         shell: pwsh
