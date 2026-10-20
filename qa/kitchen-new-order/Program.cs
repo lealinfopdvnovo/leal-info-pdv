@@ -67,7 +67,9 @@ static class Program
                 {
                     fresh.PerformClick(); Application.DoEvents();
                     Check(DataRows()==1 && Convert.ToString(grid.Rows[0].Cells[1].Value)=="1","new order has exactly one editable item with quantity 1");
-                    Pump(() => grid.CurrentCell?.ColumnIndex==0 && grid.IsCurrentCellInEditMode && grid.ContainsFocus);
+                    Console.WriteLine($"FOCUS cell={grid.CurrentCell?.ColumnIndex}/{grid.CurrentCell?.RowIndex} editing={grid.IsCurrentCellInEditMode} focus={grid.ContainsFocus} enabled={grid.Enabled} readonly={grid.ReadOnly} active={form.ActiveControl?.GetType().Name} editEnabled={grid.EditingControl?.Enabled}");
+                    try { Pump(() => grid.CurrentCell?.ColumnIndex==0 && grid.IsCurrentCellInEditMode && grid.ContainsFocus); }
+                    catch { Console.WriteLine($"FOCUS FAILED cell={grid.CurrentCell?.ColumnIndex}/{grid.CurrentCell?.RowIndex} editing={grid.IsCurrentCellInEditMode} focus={grid.ContainsFocus} enabled={grid.Enabled} readonly={grid.ReadOnly} active={form.ActiveControl?.GetType().Name} editEnabled={grid.EditingControl?.Enabled} message={message.Text}"); throw; }
                     Check(true,"cursor is editing the item field");
                     Check(hint.Text.StartsWith("Novo pedido iniciado") && hint.Visible,"persistent visible acknowledgement");
                     Check(send.Enabled && !grid.ReadOnly && !reference.ReadOnly && !notes.ReadOnly,"entry enabled");
