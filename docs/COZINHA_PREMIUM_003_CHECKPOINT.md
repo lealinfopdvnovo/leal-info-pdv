@@ -1,3 +1,7 @@
+## Candidata visual em revisão — sem publicação
+
+10.426 validada em Windows, 270 verificações, fonte c6e3eb9ff4c87fa089c55078804311ee6fb88d23. Captura e detalhes: [COZINHA_003_VISUAL_10.426.md](COZINHA_003_VISUAL_10.426.md). Aprovação visual e rollback da candidata pendentes; atualizador permanece 10.425.
+
 # Cozinha Premium 003 — estado atual
 
 **10.425 publicada exclusivamente no atualizador interno do 003.** Instalação no computador real ainda não confirmada. 001, 002, 004 e GLOBAL não foram alterados.

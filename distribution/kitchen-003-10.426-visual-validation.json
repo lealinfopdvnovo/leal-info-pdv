@@ -1,0 +1,20 @@
+{
+  "Client": "003",
+  "Version": "10.426",
+  "Published": false,
+  "PublishedVersionStill": "10.425",
+  "SourceCommit": "c6e3eb9ff4c87fa089c55078804311ee6fb88d23",
+  "BuildRunId": "39539006348",
+  "WindowsChecks": 270,
+  "ReferenceDimensions": [
+    1672,
+    941
+  ],
+  "ScreenshotPath": "docs/evidence/cozinha-003-10.426-1672x941.png",
+  "ScreenshotBlobSha": "6495922bccb5fbe8ad4769831ab1c38de37f9cf4",
+  "PackageSha256": "04877d5ad399520eea2fa1dc4cc2010a02124d4d2b057335831175d1742a4ac9",
+  "PublicationAuthorized": false,
+  "UserVisualApproval": false,
+  "OtherFeedsUnchanged": true,
+  "RollbackForThisCandidateValidated": false
+}
