@@ -37,3 +37,26 @@ internal sealed class KitchenProductCard : TableLayoutPanel
     protected override void OnPaintBackground(PaintEventArgs e)
     {e.Graphics.Clear(KitchenPremiumStyle.Background);KitchenLighting.Surface(e.Graphics,new Rectangle(5,5,Math.Max(1,Width-11),Math.Max(1,Height-11)),KitchenPremiumStyle.Gold,false);}
 }
+
+// Painted face over the existing native combo; its items, selection and popup remain unchanged.
+internal sealed class KitchenCategoryFace : Control
+{
+    private readonly ComboBox combo;
+    internal KitchenCategoryFace(ComboBox combo)
+    {
+        this.combo=combo;Name="KitchenCategoryFace";Dock=DockStyle.Fill;TabStop=false;Cursor=Cursors.Hand;
+        SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,true);
+        combo.SelectedIndexChanged+=Changed;combo.TextChanged+=Changed;
+    }
+    private void Changed(object? sender,EventArgs e)=>Invalidate();
+    protected override void OnClick(EventArgs e){base.OnClick(e);if(!combo.IsDisposed&&combo.Enabled){combo.Focus();combo.DroppedDown=true;}}
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g=e.Graphics;g.Clear(KitchenPremiumStyle.Background);
+        KitchenLighting.Surface(g,new Rectangle(2,2,Math.Max(1,Width-5),Math.Max(1,Height-5)),Color.FromArgb(90,111,130),false);
+        string selected=Convert.ToString(combo.SelectedItem)??"TODOS";if(selected=="Todas as categorias")selected="TODOS";
+        KitchenPremiumStyle.DrawFittedText(g,selected,new Rectangle(6,3,Math.Max(1,Width-31),Math.Max(1,Height-6)),Color.White,12);
+        KitchenPremiumStyle.DrawFittedText(g,"⌄",new Rectangle(Width-25,3,20,Math.Max(1,Height-6)),KitchenPremiumStyle.Gold,18);
+    }
+    protected override void Dispose(bool disposing){if(disposing){combo.SelectedIndexChanged-=Changed;combo.TextChanged-=Changed;}base.Dispose(disposing);}
+}
