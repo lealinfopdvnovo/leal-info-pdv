@@ -82,6 +82,7 @@ static class LayoutTests
             InternalWorkspace.Apply(entry);PremiumGlobalTheme.Apply(entry);
             Check(entry.Visible&&entry.Owner==form&&!entry.Modal,"NOVO PEDIDO opens owned floating window after production theme pass");
             Check(entry.BackColor==KitchenPremiumStyle.Background,"floating order keeps black premium palette");
+            Check(Screen.FromControl(entry).WorkingArea.Contains(entry.Bounds),"floating order remains inside the real Windows desktop");
             entry.Close();
             form.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();Application.DoEvents();
             var popup=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AllKitchenTables");
