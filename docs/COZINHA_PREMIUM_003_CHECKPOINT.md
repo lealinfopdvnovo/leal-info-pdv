@@ -1,26 +1,26 @@
 # Cozinha Premium 003 — estado atual
 
-A versão **10.423 está publicada exclusivamente no feed 003**, para atualização pelo botão do PDV. 001, 002, 004 e GLOBAL permanecem intactos.
+**10.424 publicada exclusivamente no atualizador interno do 003.** A instalação dessa versão no computador real aguarda confirmação. 001, 002, 004 e GLOBAL permanecem intactos.
 
-O usuário confirmou a instalação local 10.422 antes da liberação. A instalação real da 10.423 ainda não foi confirmada.
+Pedido atual: centralizar os textos com erros mostrados nos prints image(20261021-001629).png e image(20261021-001650).png.
 
-Correção: impedir que o shell/tema geral repinte a Cozinha; medir textos desenhados em seus limites reais; ajustar cabeçalho, números/estados das mesas, botões e altura dos cards conforme a escala; manter o enquadramento das janelas flutuantes. Cadastro, pedidos, banco, estoque, licença e configurações não foram alterados.
+Correções: cabeçalho centralizado, com limpeza e redesenho completo após redimensionamento para eliminar letras duplicadas; categorias sem quebra de palavras; nomes e preços alinhados, com moeda e valor completos; NOVO PEDIDO centralizado; campos e rodapé ajustados à altura medida da fonte, com lista de itens preservada. As áreas automáticas podem crescer e encolher sem ocupar a lista. Fotos e créditos originais do catálogo pronto foram reaproveitados do pacote imutável aprovado, sem importação automática ou alteração de produtos.
 
-Fonte do pacote: 8d3ec93138ee8962700369da51bdfaf96c112b83.
-SHA-256: 53076441f304f102fbde9091ed794cca46f7fd5516f6452c25b0aae23f9e06f4.
-Commit do feed: 7868303fc2e183dec7b107497bdaa98e891822f5.
+Fonte: a6462ce82b8d55e0d2a0f9646238423038f7a5d8.
+Pacote SHA-256: 120e85f3c03d9266b3867e8a6d6b8185dbbf320cbe266589b54816894251bbaa.
+Commit do feed: a1b011e3f7024b8899be48edf18099b338d12f13.
 
 ## Evidências
 
-- Windows: https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/39519486382 — compilação e 110 verificações aprovadas. Shell de produção instalado no teste; NOVO PEDIDO e mesas flutuantes preservam seu tema. Capturas completas inspecionadas em três tamanhos e escalas por software 100/125/150%. Isso não equivale a teste de monitores físicos nesses DPIs.
-- Rollback e publicação: https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/39519903363 — pacote exato 10.423 aplicado sobre os três executáveis imutáveis 10.422; backup íntegro, interrupção real do processo e recuperação SYSTEM para os hashes exatos anteriores, rejeição de SHA inválido e preservação de sentinelas de dados/licença/configuração.
-- Worker, inicialização protegida, política de payload e caminho do botão comparados à fonte 10.422: idênticos, exceto o número de versão no UpdateManager. As suítes anteriores aprovadas foram reaproveitadas.
-- Download público com SHA-256 e manifesto servido na URL do atualizador verificados; somente clients/003/version.json mudou. Publicação latest=false.
+- Windows https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/39521451223 — compilação e 184 verificações aprovadas. Capturas completas do pedido inspecionadas em 1366 e 1909 pixels, com fontes ampliadas por software em 100/125/150%; título, ações e lista visíveis. Comparação de pixels capturados do desktop Windows antes/depois de redimensionar a janela: cabeçalho sem letras residuais. Não equivale a teste de monitores físicos em todos os DPIs.
+- Rollback/publicação https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/39521805378 — pacote exato aplicado sobre a 10.423 imutável; backup verificado, interrupção real e recuperação SYSTEM para hashes anteriores, recusa de SHA inválido e preservação de sentinelas de banco/licença/estoque/configuração.
+- Caminho do atualizador, política de payload, worker e inicialização protegida permanecem idênticos aos já aprovados, salvo o número da versão no UpdateManager. Suítes anteriores aprovadas reaproveitadas.
+- Download público, SHA-256 e manifesto na URL consultada pelo botão verificados. Somente clients/003/version.json mudou; publicação latest=false.
 
-## Uso
+## Próximo passo no computador real
 
-No computador do 003 já na 10.422, abrir o botão de atualização da tela principal e aceitar a 10.423. Sem setup, ZIP manual ou comandos. Solicitar print após atualizar para confirmar instalação e aparência no computador real.
+Na tela principal do PDV 003, usar o botão de atualização e aceitar 10.424. Sem setup, ZIP manual ou comandos. Pedir print após atualizar para conferir a centralização na tela real.
 
 ## Histórico
 
-A 10.415 tinha falha de cópia interrompida. A primeira transição exigiu proteção externa validada; seus registros anteriores estão em PROTECAO_003_ATIVACAO_LOCAL.md e PROTECAO_003_ARMED_R2.md. A presente liberação parte da 10.422 informada pelo usuário; não declara homologação do atualizador antigo.
+A 10.423 anterior teve compilação/layout aprovados em 39519486382 e rollback/publicação em 39519903363. A 10.415 exigia proteção externa na primeira transição; ver PROTECAO_003_ATIVACAO_LOCAL.md e PROTECAO_003_ARMED_R2.md. O usuário confirmou 10.422 protegida durante a etapa anterior; os novos prints não exibem o número da versão.

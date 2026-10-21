@@ -1,0 +1,35 @@
+{
+  "Client": "003",
+  "Version": "10.424",
+  "SourceCommit": "a6462ce82b8d55e0d2a0f9646238423038f7a5d8",
+  "PackageSha256": "120e85f3c03d9266b3867e8a6d6b8185dbbf320cbe266589b54816894251bbaa",
+  "WindowsRun": 39521451223,
+  "WindowsChecksPassed": 184,
+  "NativeDesktopResizeRepaintCompared": true,
+  "OrderTextScaleMatrix": [
+    1,
+    1.25,
+    1.5
+  ],
+  "PhysicalMonitorDpiTest": false,
+  "OrderDraftPreserved": true,
+  "ReadyMenuOriginalPhotosAndCreditsPreserved": 18,
+  "RollbackAndPublicationRun": 39521805378,
+  "RollbackBaseline": "10.423",
+  "ExactPackageRollbackScenarios": [
+    "success",
+    "interruption-System-recovery",
+    "bad-sha-rejected"
+  ],
+  "FeedCommit": "a1b011e3f7024b8899be48edf18099b338d12f13",
+  "PublicPackageAndUpdaterManifestVerified": true,
+  "OtherFeedsUnchanged": [
+    "001",
+    "002",
+    "004",
+    "GLOBAL"
+  ],
+  "CustomerInstallation10424Confirmed": false,
+  "Delivery": "internal updater only",
+  "Setup": false
+}
