@@ -201,7 +201,7 @@ internal sealed class KitchenForm : Form
             SetEntryEnabled(true);
             ResetItemFields(); UpdateItemSummary();
         }
-        entryHint.Text = "Preencha os itens, quantidades e observações e clique em ENVIAR PEDIDO À COZINHA.";
+        entryHint.Text = "Escolha ADICIONAR À MESA para consumo direto ou ENVIAR À COZINHA para preparo.";
         if (!entryWindow!.Visible) entryWindow.Show(this);
         entryWindow.Activate();
         _ = catalog.ReloadAsync();
@@ -221,7 +221,7 @@ internal sealed class KitchenForm : Form
         for(int i=0;i<3;i++)shell.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         shell.RowStyles.Add(new RowStyle(SizeType.AutoSize)); shell.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        shell.Controls.Add(Header("NOVO PEDIDO", "Monte o pedido e envie diretamente para a cozinha.", 80), 0, 0);
+        shell.Controls.Add(Header("NOVO PEDIDO", "Adicione à conta da mesa ou envie para preparo na cozinha.", 80), 0, 0);
         var info = new TableLayoutPanel { AutoSize=true, AutoSizeMode=AutoSizeMode.GrowAndShrink, Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(0, 10, 0, 10) };
         info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35)); info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
         info.RowStyles.Add(new RowStyle(SizeType.AutoSize)); info.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -481,7 +481,7 @@ internal sealed class KitchenForm : Form
         add.Click+=(_,_)=> { int? table=KitchenTablesView.TableNumber(SelectedOrder()?.Reference??reference.Text);if(table.HasValue)OpenEntryForTable(table.Value); };
         floatingTableOrder.AttachNewOrder(add);
         tableWindow.Controls.Add(floatingTableOrder);
-        var hint=new Label{Text="ADICIONAR ITENS abre o editor. Seta ▼ ou botão direito nos itens enviados: preparar, pronto, entregue ou cancelar o pedido.",Dock=DockStyle.Bottom,Height=44,Padding=new Padding(10),AutoEllipsis=true};
+        var hint=new Label{Text="ADICIONAR ITENS abre o editor. Seta ▼ ou botão direito: alterar preparo ou cancelar somente o item.",Dock=DockStyle.Bottom,Height=44,Padding=new Padding(10),AutoEllipsis=true};
         tableWindow.Controls.Add(hint);
         KitchenPremiumStyle.Apply(tableWindow);KitchenPremiumStyle.Frame(tableWindow);
         tableWindow.FormClosed+=(_,_)=>{floatingTableOrder=null;tableWindow=null;};
