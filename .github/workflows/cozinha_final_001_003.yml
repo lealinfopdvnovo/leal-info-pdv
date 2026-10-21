@@ -1,4 +1,4 @@
-name: Cozinha 10.428 - corrigir e validar 001 e 003
+name: Cozinha 10.429 - corrigir e validar 001 e 003
 permissions:
   contents: read
   actions: read
@@ -12,8 +12,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ matrix.channel }}
-      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || '7cd24d7b326b10daf8c331ca4ab1841b3d16d5e7' }}
-      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || '7cd24d7b326b10daf8c331ca4ab1841b3d16d5e7' }}
+      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || '7e7f317ec10c47cd2e72f4383a4e9a604013b9f5' }}
+      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || '7e7f317ec10c47cd2e72f4383a4e9a604013b9f5' }}
       PYTHONUTF8: '1'
     steps:
     - uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
     - uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.401
-    - name: Preparar canal proprio com dependencias da 10.427
+    - name: Preparar canal proprio com dependencias da 10.428
       working-directory: controller
       shell: pwsh
       run: '''{"sdk":{"version":"10.0.401","rollForward":"disable"}}''|Set-Content global.json -Encoding UTF8
@@ -42,7 +42,7 @@ jobs:
 
         $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
 
-        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne $env:CHANNEL -or $p.Entries[0].Version -ne ''10.428'' -or $p.Entries[0].Baseline.Version -ne ''10.427''){throw ''Wrong
+        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne $env:CHANNEL -or $p.Entries[0].Version -ne ''10.429'' -or $p.Entries[0].Baseline.Version -ne ''10.428''){throw ''Wrong
         scope''}
 
         python scripts/distribute_channels.py prepare $env:CHANNEL
@@ -102,7 +102,7 @@ jobs:
         if($LASTEXITCODE -ne 0){throw ''Incremental dependencies changed''}
 
         '
-    - name: Validar rollback exato da 10.427 para 10.428
+    - name: Validar rollback exato da 10.428 para 10.429
       working-directory: source
       shell: pwsh
       run: 'New-Item -ItemType Directory validated|Out-Null
@@ -156,12 +156,12 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
         SOURCE_001: ${{ github.sha }}
-        SOURCE_003: 7cd24d7b326b10daf8c331ca4ab1841b3d16d5e7
+        SOURCE_003: 7e7f317ec10c47cd2e72f4383a4e9a604013b9f5
       run: python qa/kitchen-final/publish.py
     - uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: publicacao-duplo-clique-001-003-10428
+        name: publicacao-cozinha-001-003-10429
         path: published-001-003.json
 'on':
   push:
