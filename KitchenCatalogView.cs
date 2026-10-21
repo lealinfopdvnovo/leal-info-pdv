@@ -192,7 +192,7 @@ internal sealed class KitchenCatalogView : UserControl
         foreach (Control child in categoryRail.Controls.Cast<Control>().ToArray()) { categoryRail.Controls.Remove(child); child.Dispose(); }
         foreach (string value in category.Items.Cast<string>())
         {
-            var button = new Button { Tag=value, Text = value == "Todas as categorias" ? "TODOS" : value.ToUpperInvariant(), Width = 90, Height = 64, Margin = new Padding(2,4,2,4) };
+            var button = new Button { Name="KitchenCategory_"+categoryRail.Controls.Count, Tag=value, Text = value == "Todas as categorias" ? "TODOS" : value.Equals("Sem categoria",StringComparison.OrdinalIgnoreCase) ? "SEM\nCATEGORIA" : value.ToUpperInvariant(), Width = 90, Height = 64, Margin = new Padding(2,4,2,4) };
             KitchenPremiumStyle.Apply(button); button.Click += (_,_) => category.SelectedItem = value; categoryRail.Controls.Add(button);
         }
     }
@@ -211,8 +211,8 @@ internal sealed class KitchenCatalogView : UserControl
             picture.Disposed+=(_,_)=>picture.Image?.Dispose();visual=picture;
         }
         else visual=new Label{Text="SEM FOTO",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,BackColor=Color.FromArgb(230,239,246),ForeColor=Color.FromArgb(65,90,110)};
-        var title=new Label{Text=product.Name,Dock=DockStyle.Fill,AutoEllipsis=true,Font=new Font("Segoe UI",10,FontStyle.Bold),ForeColor=Color.FromArgb(28,48,68)};
-        var price=new Label{Text=product.Price.ToString("C2",CultureInfo.GetCultureInfo("pt-BR")),Dock=DockStyle.Fill,Font=new Font("Segoe UI",11,FontStyle.Bold),ForeColor=Color.FromArgb(0,114,162)};
+        var title=new Label{Text=product.Name,Dock=DockStyle.Fill,AutoEllipsis=true,TextAlign=ContentAlignment.MiddleCenter,Font=new Font("Segoe UI",10,FontStyle.Bold),ForeColor=Color.FromArgb(28,48,68)};
+        var price=new KitchenCenteredLabel{Text=product.Price.ToString("C2",CultureInfo.GetCultureInfo("pt-BR")),Dock=DockStyle.Fill,Font=new Font("Segoe UI",11,FontStyle.Bold),ForeColor=Color.FromArgb(0,114,162)};
         var choose=new Button{Name="CatalogProduct_"+product.Id,Text="+",Dock=DockStyle.Fill,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(0,133,190),ForeColor=Color.White,Cursor=Cursors.Hand,AccessibleName=product.Name+" "+price.Text,Tag=product};
         choose.FlatAppearance.BorderSize=0;
         void Pick(){ProductChosen?.Invoke(product);}
@@ -225,4 +225,5 @@ internal sealed class KitchenCatalogView : UserControl
         return card;
     }
 }
+
 

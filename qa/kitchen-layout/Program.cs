@@ -11,7 +11,7 @@ static class LayoutTests
     static T Field<T>(object o,string n)=>(T)o.GetType().GetField(n,P)!.GetValue(o)!;
     static IEnumerable<Control> Children(Control c)=>c.Controls.Cast<Control>().SelectMany(x=>new[]{x}.Concat(Children(x)));
     static void Pump(Func<bool> done){var end=DateTime.UtcNow.AddSeconds(15);while(!done()&&DateTime.UtcNow<end){Application.DoEvents();Thread.Sleep(10);}Check(done(),"asynchronous UI completed");}
-    static void RenderClient(Form form,Size size,string path)
+    static void RenderClient(Form form,Size size,string path,Action<Panel>? verify=null)
     {
         var children=form.Controls.Cast<Control>().ToArray();
         using var host=new Panel{Size=size,Font=form.Font,BackColor=KitchenPremiumStyle.Background};
@@ -21,7 +21,7 @@ static class LayoutTests
             foreach(var child in children){form.Controls.Remove(child);host.Controls.Add(child);}
             host.ResumeLayout(true);host.CreateControl();host.PerformLayout();
             using var image=new Bitmap(size.Width,size.Height);
-            host.DrawToBitmap(image,new Rectangle(Point.Empty,size));image.Save(path);
+            host.DrawToBitmap(image,new Rectangle(Point.Empty,size));image.Save(path);verify?.Invoke(host);
         }
         finally
         {
@@ -78,12 +78,61 @@ static class LayoutTests
                     RenderClient(form,viewport,$"layout-evidence/cozinha-{viewport.Width}-{scale.ToString(System.Globalization.CultureInfo.InvariantCulture)}.png");
                 }
             }
+            // Actual native desktop repaint: compare after a resize cycle against a full clean paint.
+            form.MinimumSize=Size.Empty;form.ClientSize=new Size(900,640);
+            form.Location=Screen.FromControl(form).WorkingArea.Location+new Size(8,8);form.Refresh();Application.DoEvents();
+            var brand=form.Controls.Find("KitchenHeaderBrand",true).Single();
+            byte[] CaptureBrand(string filename)
+            {
+                using var picture=new Bitmap(brand.Width,brand.Height);
+                using(var g=Graphics.FromImage(picture))g.CopyFromScreen(brand.PointToScreen(Point.Empty),Point.Empty,picture.Size);
+                picture.Save(filename);using var stream=new MemoryStream();picture.Save(stream,System.Drawing.Imaging.ImageFormat.Png);return stream.ToArray();
+            }
+            var cleanBrand=CaptureBrand("layout-evidence/cabecalho-limpo-nativo.png");
+            form.ClientSize=new Size(760,640);Application.DoEvents();form.ClientSize=new Size(900,640);Application.DoEvents();
+            var resizedBrand=CaptureBrand("layout-evidence/cabecalho-redimensionado-nativo.png");
+            Check(SHA256.HashData(cleanBrand).SequenceEqual(SHA256.HashData(resizedBrand)),"native resize repaint leaves exactly one centered brand with no stale glyphs");
             fresh.PerformClick();Application.DoEvents();
             var entry=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="KitchenOrderEntry");
             InternalWorkspace.Apply(entry);PremiumGlobalTheme.Apply(entry);
             Check(entry.Visible&&entry.Owner==form&&!entry.Modal,"NOVO PEDIDO opens owned floating window after production theme pass");
             Check(entry.BackColor==KitchenPremiumStyle.Background,"floating order keeps black premium palette");
             Check(Screen.FromControl(entry).WorkingArea.Contains(entry.Bounds),"floating order remains inside the real Windows desktop");
+            var entryCatalog=Field<KitchenCatalogView>(form,"catalog");
+            Pump(()=>entryCatalog.Controls.Find("CatalogProduct_1",true).Length==1);
+            var draft=Field<TextBox>(form,"reference");draft.Text="QA CENTRALIZACAO";
+            Field<TextBox>(form,"itemDescription").Text="ITEM PRESERVADO";Field<Button>(form,"addItem").PerformClick();
+            var textControls=Children(entry).Where(c=>c is Label or Button or TextBoxBase or NumericUpDown or ComboBox).ToArray();
+            var fonts=textControls.ToDictionary(c=>c,c=>c.Font);
+            foreach(float textScale in new[]{1f,1.25f,1.5f})
+            {
+                foreach(var c in textControls)if(!c.IsDisposed){var original=fonts[c];c.Font=new Font(original.FontFamily,original.SizeInPoints*textScale,original.Style);}
+                foreach(var viewport in new[]{new Size(1366,720),new Size(1909,970)})
+                {
+                    RenderClient(entry,viewport,$"layout-evidence/pedido-{viewport.Width}-texto-{textScale.ToString(System.Globalization.CultureInfo.InvariantCulture)}.png",host=>
+                    {
+                        foreach(var c in Children(host).Where(c=>c.Name is "KitchenEntryTitle" or "CloseKitchenOrder" or "SendKitchenOrder"))
+                        {
+                            var bounds=host.RectangleToClient(c.RectangleToScreen(c.ClientRectangle));
+                            Check(host.ClientRectangle.Contains(bounds),$"floating order title/actions fit complete client: {c.Name} {viewport} text {textScale}");
+                            if(c is Label label)Check(label.Height>=TextRenderer.MeasureText(label.Text,label.Font).Height,$"complete title glyph height at text scale {textScale}");
+                        }
+                        var actions=host.Controls.Find("KitchenEntryActions",true).Single();
+                        foreach(var action in actions.Controls.Cast<Control>())Check(actions.ClientRectangle.Contains(action.Bounds),$"order footer child fits its own row {action.Name} text {textScale}");
+                        var title=host.Controls.Find("KitchenEntryTitle",true).OfType<Label>().Single();
+                        Check(title.TextAlign==ContentAlignment.MiddleCenter,"NOVO PEDIDO heading centered");
+                    });
+                }
+            }
+            foreach(var c in textControls)if(!c.IsDisposed)c.Font=fonts[c];
+            Check(draft.Text=="QA CENTRALIZACAO"&&Field<DataGridView>(form,"items").Rows.Count==1,"text and resize checks preserve the assembled draft");
+            foreach(var rail in new[]{catalog,Field<KitchenCatalogView>(form,"catalog")})
+            {
+                var buttons=rail.Controls.Find("KitchenCategoryRail",true).Single().Controls.OfType<Button>().ToArray();
+                Check(buttons.Any(b=>b.Text=="CONDIMENTOS")&&buttons.Any(b=>b.Text=="SEM\nCATEGORIA"),"category labels retain complete words and intentional lines");
+                Check(Children(rail).OfType<KitchenCenteredLabel>().Any(p=>p.Text.Contains("7,99")),"full price remains available to centered fitted renderer");
+            }
+            var ready=ReadyKitchenCatalog.Load();Check(ready.Length==18&&ready.All(p=>ReadyKitchenCatalog.Photo(p).Length>0),"immutable ready-menu photos and attributions preserved");
             entry.Close();
             form.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();Application.DoEvents();
             var popup=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AllKitchenTables");
@@ -96,3 +145,4 @@ static class LayoutTests
         catch(Exception e){Console.Error.WriteLine(e);File.WriteAllText("layout-evidence/failure.txt",e.ToString());return 1;}
     }
 }
+

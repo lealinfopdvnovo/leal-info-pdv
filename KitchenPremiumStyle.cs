@@ -79,7 +79,7 @@ internal static class KitchenPremiumStyle
                     if (b.Focused) { using var light = new Pen(Color.FromArgb(70, Gold), 5); e.Graphics.DrawPath(light, shape); }
                     DrawFittedText(e.Graphics, b.Text, new Rectangle(7, 4, b.Width - 14, b.Height - 8),
                         b.Enabled ? selected ? Color.FromArgb(20,17,4) : b.ForeColor : Color.Gray,
-                        b.Font.SizeInPoints * e.Graphics.DpiY / 72f, true);
+                        b.Font.SizeInPoints * e.Graphics.DpiY / 72f, !b.Name.StartsWith("KitchenCategory_",StringComparison.Ordinal));
                 };
                 b.MouseEnter += (_, _) => b.Invalidate(); b.MouseLeave += (_, _) => b.Invalidate();
             }
@@ -96,3 +96,14 @@ internal static class KitchenPremiumStyle
     }
 }
 
+
+
+internal sealed class KitchenCenteredLabel : Label
+{
+    internal KitchenCenteredLabel() { TextAlign=ContentAlignment.MiddleCenter; DoubleBuffered=true; }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        e.Graphics.Clear(BackColor);
+        KitchenPremiumStyle.DrawFittedText(e.Graphics,Text,new Rectangle(2,1,Math.Max(1,Width-4),Math.Max(1,Height-2)),ForeColor,Font.SizeInPoints*e.Graphics.DpiY/72f);
+    }
+}

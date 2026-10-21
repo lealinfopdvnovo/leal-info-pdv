@@ -18,7 +18,7 @@ internal sealed class KitchenPremiumHeader : UserControl
         var root=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Padding=new Padding(8)};
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,34));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,38));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,28));
         root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        var brand=new Panel{Dock=DockStyle.Fill};
+        var brand=new KitchenHeaderBrand{Name="KitchenHeaderBrand",Dock=DockStyle.Fill};
         brand.Paint+=(_,e)=>{
             var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
             int middle=brand.Width/2;
@@ -88,3 +88,11 @@ internal sealed class KitchenMoreTablesButton : Button
     }
 }
 
+
+
+// Redraw the whole brand after resize/DPI changes, so old centered glyphs cannot remain.
+internal sealed class KitchenHeaderBrand : Panel
+{
+    internal KitchenHeaderBrand() { DoubleBuffered=true; ResizeRedraw=true; }
+    protected override void OnPaintBackground(PaintEventArgs e) => e.Graphics.Clear(KitchenPremiumStyle.Background);
+}

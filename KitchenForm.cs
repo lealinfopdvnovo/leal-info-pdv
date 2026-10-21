@@ -203,29 +203,29 @@ internal sealed class KitchenForm : Form
     private void BuildEntryLayout(Button close)
     {
         StyleButton(send, true); StyleButton(close, false);
-        var shell = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6, Padding = new Padding(18, 0, 18, 10) };
+        var shell = new TableLayoutPanel { Name="KitchenEntryShell", Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 6, Padding = new Padding(18, 0, 18, 10) };
         shell.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        foreach (int h in new[] { 80, 90, 150 }) shell.RowStyles.Add(new RowStyle(SizeType.Absolute, h));
+        for(int i=0;i<3;i++)shell.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         shell.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 64)); shell.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        shell.RowStyles.Add(new RowStyle(SizeType.AutoSize)); shell.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         shell.Controls.Add(Header("NOVO PEDIDO", "Monte o pedido e envie diretamente para a cozinha.", 80), 0, 0);
-        var info = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(0, 10, 0, 10) };
+        var info = new TableLayoutPanel { AutoSize=true, Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2, Padding = new Padding(0, 10, 0, 10) };
         info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35)); info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
-        info.RowStyles.Add(new RowStyle(SizeType.Absolute, 24)); info.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        info.RowStyles.Add(new RowStyle(SizeType.AutoSize)); info.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         info.Controls.Add(FieldLabel("REFERÊNCIA DO PEDIDO"), 0, 0); info.Controls.Add(FieldLabel("OBSERVAÇÕES GERAIS"), 1, 0);
         reference.Dock = notes.Dock = DockStyle.Fill;
         reference.Margin = notes.Margin = new Padding(0, 2, 12, 2); reference.BorderStyle = notes.BorderStyle = BorderStyle.FixedSingle;
         info.Controls.Add(reference, 0, 1); info.Controls.Add(notes, 1, 1); shell.Controls.Add(info, 0, 1);
-        var compose = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3, Padding = new Padding(12), BackColor = Color.White };
+        var compose = new TableLayoutPanel { AutoSize=true, Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 3, Padding = new Padding(12), BackColor = Color.White };
         compose.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 45)); compose.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 15)); compose.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 40));
-        compose.RowStyles.Add(new RowStyle(SizeType.Absolute, 25)); compose.RowStyles.Add(new RowStyle(SizeType.Absolute, 36)); compose.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        for(int i=0;i<3;i++)compose.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         compose.Controls.Add(FieldLabel("ITEM / PRODUTO"), 0, 0); compose.Controls.Add(FieldLabel("QUANTIDADE"), 1, 0); compose.Controls.Add(FieldLabel("OBSERVAÇÃO DO ITEM"), 2, 0);
         itemDescription.Margin = itemQuantity.Margin = itemNotes.Margin = new Padding(0, 2, 10, 2);
         itemDescription.BorderStyle = itemNotes.BorderStyle = BorderStyle.FixedSingle;
         compose.Controls.Add(itemDescription, 0, 1); compose.Controls.Add(itemQuantity, 1, 1); compose.Controls.Add(itemNotes, 2, 1);
-        StyleButton(addItem, true); addItem.Dock = DockStyle.Fill; addItem.Margin = new Padding(0, 5, 10, 0);
+        StyleButton(addItem, true); addItem.AutoSize=true; addItem.Dock = DockStyle.Fill; addItem.Margin = new Padding(0, 5, 10, 0);
         addItem.Click += (_, _) => AddDraftItem();
-        var remove = new Button { Name = "RemoveItem", Text = "REMOVER SELECIONADO", Dock = DockStyle.Fill, CausesValidation = false };
+        var remove = new Button { Name = "RemoveItem", AutoSize=true, Text = "REMOVER SELECIONADO", Dock = DockStyle.Fill, CausesValidation = false };
         StyleButton(remove, false); remove.Margin = new Padding(0, 5, 0, 0);
         remove.Click += (_, _) =>
         {
@@ -246,12 +246,14 @@ internal sealed class KitchenForm : Form
             itemNotes.Text = Convert.ToString(row.Cells[2].Value); addItem.Text = "SALVAR ALTERAÇÃO"; itemDescription.Focus();
         };
         shell.Controls.Add(review, 0, 3);
-        var actions = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Padding = new Padding(0, 10, 0, 4) };
+        var actions = new TableLayoutPanel { Name="KitchenEntryActions", AutoSize=true, Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, Padding = new Padding(0, 10, 0, 4) };
         actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120)); actions.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 270));
-        itemSummary.Font = new Font("Segoe UI", 11, FontStyle.Bold); itemSummary.ForeColor = Ink;
+        actions.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        itemSummary.AutoSize=true; itemSummary.TextAlign=ContentAlignment.MiddleCenter; itemSummary.Font = new Font("Segoe UI", 11, FontStyle.Bold); itemSummary.ForeColor = Ink;
+        close.Name="CloseKitchenOrder"; send.Name="SendKitchenOrder"; close.AutoSize=send.AutoSize=true;
         close.Dock = send.Dock = DockStyle.Fill; close.Margin = new Padding(0, 0, 10, 0); send.Margin = Padding.Empty;
         actions.Controls.Add(itemSummary, 0, 0); actions.Controls.Add(close, 1, 0); actions.Controls.Add(send, 2, 0); shell.Controls.Add(actions, 0, 4);
-        var status = new Label { Dock = DockStyle.Fill, AutoEllipsis = true, Text = message.Text, ForeColor = Color.FromArgb(78, 98, 116), Font = new Font("Segoe UI", 9) };
+        var status = new Label { Name="KitchenEntryStatus", AutoSize=true, TextAlign=ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, AutoEllipsis = false, Text = message.Text, ForeColor = Color.FromArgb(78, 98, 116), Font = new Font("Segoe UI", 9) };
         message.TextChanged += (_, _) => { if (!status.IsDisposed) status.Text = message.Text; };
         shell.Controls.Add(status, 0, 5);
         var layout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
@@ -285,12 +287,14 @@ internal sealed class KitchenForm : Form
         int count = items.Rows.Count;
         itemSummary.Text = count == 0 ? "Adicione o primeiro item" : count == 1 ? "1 item no pedido" : $"{count} itens no pedido";
     }
-    private static Label FieldLabel(string text) => new() { Text = text, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Ink, TextAlign = ContentAlignment.MiddleLeft };
+    private static Label FieldLabel(string text) => new() { Text = text, AutoSize=true, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Ink, TextAlign = ContentAlignment.MiddleLeft };
     private static Panel Header(string title, string subtitle, int height)
     {
-        var panel = new Panel { Dock = DockStyle.Top, Height = height, BackColor = Navy, Padding = new Padding(16, 10, 16, 8), Margin = Padding.Empty };
-        panel.Controls.Add(new Label { Text = subtitle, Dock = DockStyle.Bottom, Height = 24, ForeColor = Color.FromArgb(178, 211, 230), Font = new Font("Segoe UI", 10) });
-        panel.Controls.Add(new Label { Text = title, Dock = DockStyle.Top, Height = 34, ForeColor = KitchenPremiumStyle.Gold, Font = new Font("Segoe UI", 20, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft });
+        var panel = new TableLayoutPanel { Name="KitchenEntryHeading", Dock = DockStyle.Fill, AutoSize=true, ColumnCount=1, RowCount=2, MinimumSize=new Size(0,height), BackColor = Navy, Padding = new Padding(16, 10, 16, 8), Margin = Padding.Empty };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.Controls.Add(new Label { Name="KitchenEntryTitle", Text=title, AutoSize=true, Dock=DockStyle.Fill, ForeColor=KitchenPremiumStyle.Gold, Font=new Font("Segoe UI",20,FontStyle.Bold), TextAlign=ContentAlignment.MiddleCenter },0,0);
+        panel.Controls.Add(new Label { Text=subtitle, AutoSize=true, Dock=DockStyle.Fill, ForeColor=Color.FromArgb(178,211,230), Font=new Font("Segoe UI",10), TextAlign=ContentAlignment.MiddleCenter },0,1);
         return panel;
     }
     private static void StyleButton(Button button, bool primary)
@@ -376,3 +380,4 @@ internal sealed class KitchenForm : Form
     }
     protected override void Dispose(bool disposing) { if (disposing) { retry.Dispose(); entryWindow?.Dispose(); catalog.Dispose(); mainCatalog.Dispose(); tables.Dispose(); } base.Dispose(disposing); }
 }
+
