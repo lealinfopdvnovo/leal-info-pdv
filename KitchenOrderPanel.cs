@@ -35,6 +35,7 @@ internal sealed class KitchenOrderPanel : UserControl
         Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="Notes",HeaderText="OBSERVAÇÃO",FillWeight=43});
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Edit",HeaderText="",Text="✎",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Remove",HeaderText="",Text="×",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
+        Rows.Columns.Add(new DataGridViewButtonColumn{Name="StatusMenu",HeaderText="",Text="▼",ToolTipText="Alterar status do pedido",UseColumnTextForButtonValue=true,Width=32,MinimumWidth=32,AutoSizeMode=DataGridViewAutoSizeColumnMode.None,DisplayIndex=2});
         Rows.RowTemplate.Height=34;Rows.ColumnHeadersHeight=30;Rows.ColumnHeadersHeightSizeMode=DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         Rows.CellPainting+=(_,e)=>
         {
@@ -42,11 +43,16 @@ internal sealed class KitchenOrderPanel : UserControl
             using var background=new SolidBrush(Color.FromArgb(7,13,19));e.Graphics!.FillRectangle(background,e.CellBounds);
             var box=Rectangle.Inflate(e.CellBounds,-4,-3);var accent=e.ColumnIndex==4?Color.FromArgb(255,65,65):Color.FromArgb(115,174,207);
             KitchenLighting.Surface(e.Graphics,box,accent,false);
-            KitchenPremiumStyle.DrawFittedText(e.Graphics,e.ColumnIndex==4?"×":"✎",box,Color.White,17);e.Handled=true;
+            KitchenPremiumStyle.DrawFittedText(e.Graphics,e.ColumnIndex==5?"▼":e.ColumnIndex==4?"×":"✎",box,Color.White,17);e.Handled=true;
         };
-        Rows.CellContentClick+=(_,e)=>{if(persisted||e.RowIndex<0)return;if(e.ColumnIndex==3)EditRequested?.Invoke(e.RowIndex);if(e.ColumnIndex==4)RemoveRequested?.Invoke(e.RowIndex);};
-        var states=new ContextMenuStrip();
-        foreach(string status in new[]{"PREPARANDO","PRONTO","ENTREGUE","CANCELADO"}){var item=states.Items.Add(status);item.Click+=(_,_)=>{if(persisted)StatusRequested?.Invoke(status);};}
+        var states=new ContextMenuStrip{Name="KitchenOrderStatusMenu",ShowImageMargin=false};
+        foreach(var pair in new[]{("Preparando","PREPARANDO"),("Pronto","PRONTO"),("Entregue","ENTREGUE"),("Cancelado","CANCELADO")}){var item=states.Items.Add(pair.Item1);item.Tag=pair.Item2;item.Click+=(_,_)=>{if(persisted)StatusRequested?.Invoke(pair.Item2);};}
+        states.Opening+=(_,e)=>e.Cancel=!persisted;
+        Rows.CellContentClick+=(_,e)=>{
+            if(e.RowIndex<0)return;
+            if(persisted){if(e.ColumnIndex==Rows.Columns["StatusMenu"].Index){var cell=Rows.GetCellDisplayRectangle(e.ColumnIndex,e.RowIndex,true);states.Show(Rows,new Point(cell.Left,cell.Bottom));}return;}
+            if(e.ColumnIndex==3)EditRequested?.Invoke(e.RowIndex);if(e.ColumnIndex==4)RemoveRequested?.Invoke(e.RowIndex);
+        };
         Rows.ContextMenuStrip=states;Rows.Disposed+=(_,_)=>states.Dispose();
         root.Controls.Add(Rows,0,1);
         var actions=new TableLayoutPanel{Name="DashboardHeroActions",Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Margin=new Padding(0,8,0,0)};
@@ -64,7 +70,7 @@ internal sealed class KitchenOrderPanel : UserControl
     {
         persisted=saved;started=since;payment.Enabled=saved&&status!="CANCELADO";title.Text=(reference.StartsWith("Mesa ",StringComparison.OrdinalIgnoreCase)?"PEDIDO DA "+reference.ToUpperInvariant():string.IsNullOrWhiteSpace(reference)?"PEDIDO DA MESA":"PEDIDO • "+reference)+(saved?"   •   "+status:"");
         Rows.Rows.Clear();foreach(var item in items)Rows.Rows.Add(item.Quantity.ToString("0.###",CultureInfo.GetCultureInfo("pt-BR")),item.Description,item.Notes);
-        Rows.Columns["Edit"].Visible=Rows.Columns["Remove"].Visible=!saved;clear.Enabled=!saved&&canSend&&items.Length>0;send.Enabled=!saved&&canSend&&items.Length>0;print.Enabled=items.Length>0;ready.Enabled=saved&&status is ("AGUARDANDO" or "PREPARANDO");Tick();
+        Rows.Columns["StatusMenu"].Visible=saved;Rows.Columns["Edit"].Visible=Rows.Columns["Remove"].Visible=!saved;clear.Enabled=!saved&&canSend&&items.Length>0;send.Enabled=!saved&&canSend&&items.Length>0;print.Enabled=items.Length>0;ready.Enabled=saved&&status is ("AGUARDANDO" or "PREPARANDO");Tick();
     }
     private void Tick(){var age=started.HasValue?DateTimeOffset.UtcNow-started.Value:TimeSpan.Zero;elapsed.Text="TEMPO: "+((int)Math.Max(0,age.TotalMinutes)).ToString("00")+":"+Math.Max(0,age.Seconds).ToString("00");}
     protected override void Dispose(bool disposing){if(disposing)clock.Dispose();base.Dispose(disposing);}
