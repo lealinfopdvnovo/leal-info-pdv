@@ -237,7 +237,7 @@ internal sealed class KitchenCatalogView : UserControl
         info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,70));info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,30));
         info.Controls.Add(price,0,0);info.Controls.Add(choose,1,0);
         card.Controls.Add(visual,0,0);card.Controls.Add(title,0,1);card.Controls.Add(info,0,2);
-        KitchenPremiumStyle.Apply(card); KitchenPremiumStyle.Frame(card);title.BackColor=Color.Transparent;price.BackColor=Color.Transparent;info.BackColor=Color.Transparent; price.ForeColor=KitchenPremiumStyle.Gold; choose.Font=new Font("Segoe UI",18,FontStyle.Bold);
+        KitchenPremiumStyle.Apply(card); KitchenPremiumStyle.Frame(card);title.BackColor=Color.Transparent;price.BackColor=Color.Transparent;info.BackColor=KitchenPremiumStyle.Background; price.ForeColor=KitchenPremiumStyle.Gold; choose.Font=new Font("Segoe UI",18,FontStyle.Bold);
         return card;
     }
 }
