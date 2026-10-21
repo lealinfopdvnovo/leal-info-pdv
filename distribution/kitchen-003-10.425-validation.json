@@ -1,0 +1,23 @@
+{
+  "Client": "003",
+  "Version": "10.425",
+  "Published": true,
+  "InstalledOnCustomerComputer": false,
+  "SourceCommit": "66b473648998bb7f4e2f9595c72cff82157dd9be",
+  "PackageSha256": "47db067c2bb796b1a7c9515bd939bc5063c40ea9e8607e58c24667a8bda23cc5",
+  "BuildRunId": "39527535881",
+  "ValidationRunId": "39529160429",
+  "FeedCommit": "928b8a16856e02503d84775740ae21bd2e810695",
+  "WindowsChecks": 264,
+  "WindowsRollbackScenarios": [
+    "success",
+    "interruption",
+    "bad-sha"
+  ],
+  "PublicPackageHashVerified": true,
+  "PublicManifestVerified": true,
+  "OtherFeedsUnchanged": true,
+  "PhysicalPrinterTested": false,
+  "PhysicalMonitorDpiTested": false,
+  "Reference": "Dashboard Futurista de Cozinha e Pedidos(2).png"
+}
