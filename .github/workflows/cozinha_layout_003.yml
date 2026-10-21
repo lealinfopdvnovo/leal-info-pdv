@@ -68,49 +68,10 @@ jobs:
           $folder=Join-Path $PWD 'controller/candidate/ready-kitchen/generated'
           New-Item -ItemType Directory $folder -Force|Out-Null
           foreach($name in $names){
-            if($name -notmatch '^ReadyKitchen\.(catalog\.json|LEALMIX[0-9]{3}\.jpg)
-        working-directory: controller
-        shell: pwsh
-        run: |
-          dotnet run --project candidate/qa/kitchen-layout/LayoutTests.csproj -c Release 2>&1|Tee-Object layout-windows.log
-          if($LASTEXITCODE -ne 0){throw 'Layout Windows failed'}
-          $r=Get-Content layout-evidence/results.json -Raw|ConvertFrom-Json
-          if($r.success -ne $true){throw 'No layout evidence'}
-      - name: Compilar candidata exclusiva 003 sem publicar
-        working-directory: controller
-        shell: pwsh
-        run: |
-          $sdk=Get-Content sdk-version.txt
-          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
-          if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
-          python scripts/distribute_channels.py package 003
-          if($LASTEXITCODE -ne 0){throw 'Dependency compatibility failed'}
-          python -c "import json;from pathlib import Path;p=Path('release-output/candidate.json');d=json.loads(p.read_text(encoding='utf-8-sig'));d.update(PublicationAuthorized=False,RequiredInstalledVersion='10.423',RequiredProtectedUpdater=True,RealComputerVersionConfirmed=False);p.write_text(json.dumps(d,indent=2),encoding='utf-8')"
-      - name: Conferir todos os canais preservados
-        working-directory: controller
-        shell: python
-        run: |
-          import json,sys
-          from pathlib import Path
-          sys.path.insert(0,'scripts')
-          import distribute_channels as d
-          before=json.loads(Path('release-plan.json').read_text(encoding='utf-8-sig'))['Before']
-          after={c:d.readfeed(c) for c in d.CHANNELS}
-          assert all(after[c]['sha']==before[c]['sha'] for c in d.CHANNELS)
-          Path('layout-evidence/feeds-unchanged.json').write_text(json.dumps({c:after[c]['sha'] for c in d.CHANNELS},indent=2))
-          print('PASS all five feeds unchanged; no PDV publication')
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: cozinha-layout-003-windows
-          path: |
-            controller/layout-windows.log
-            controller/layout-evidence/
-            controller/release-output/
-){throw 'Unexpected resource'}
-            $input=$assembly.GetManifestResourceStream($name)
+            if($name -notmatch '^ReadyKitchen\.(catalog\.json|LEALMIX[0-9]{3}\.jpg)$'){throw 'Unexpected resource'}
+            $stream=$assembly.GetManifestResourceStream($name)
             $output=[IO.File]::Create((Join-Path $folder $name.Substring('ReadyKitchen.'.Length)))
-            try{$input.CopyTo($output)}finally{$input.Dispose();$output.Dispose()}
+            try{$stream.CopyTo($output)}finally{$stream.Dispose();$output.Dispose()}
           }
           Write-Output 'PASS immutable 18 photos and attribution catalog preserved without new download or import'
       - name: Compilar e conferir layout com o shell real do PDV
