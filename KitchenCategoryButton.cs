@@ -13,7 +13,7 @@ internal sealed class KitchenCategoryButton : Button
         KitchenLighting.Surface(g,box,selected?KitchenPremiumStyle.Gold:Color.FromArgb(95,120,138),selected);
         string text=Text.Replace("\n"," ");string symbol=text.Contains("PIZ")?"🍕":text.Contains("BEB")?"🥤":text.Contains("LANCH")?"🍔":text.Contains("POR")?"🍟":text.Contains("SOBREM")?"🍰":text.Contains("REFEI")?"♨":text=="TODOS"?"▦":"●";
         bool stacked=!Text.Contains("\n")&&text.Length>10;
-        using var font=new Font("Segoe UI Emoji",Math.Min(25,Height*.36f),GraphicsUnit.Pixel);using var ink=new SolidBrush(selected?Color.FromArgb(45,29,3):KitchenPremiumStyle.Gold);g.DrawString(symbol,font,ink,new PointF(stacked?(Width-30)/2:6,stacked?4:(Height-font.GetHeight(g))/2));
-        KitchenPremiumStyle.DrawFittedText(g,Text,stacked?new Rectangle(5,35,Math.Max(1,Width-10),Math.Max(1,Height-39)):new Rectangle(35,5,Math.Max(1,Width-40),Math.Max(1,Height-10)),selected?Color.FromArgb(27,20,3):Color.White,13*g.DpiY/96f);
+        using var font=new Font("Segoe UI Emoji",Math.Min(25,Height*.36f),GraphicsUnit.Pixel);using var ink=new SolidBrush(KitchenPremiumStyle.Gold);g.DrawString(symbol,font,ink,new PointF(stacked?(Width-30)/2:6,stacked?4:(Height-font.GetHeight(g))/2));
+        KitchenPremiumStyle.DrawFittedText(g,Text,stacked?new Rectangle(5,35,Math.Max(1,Width-10),Math.Max(1,Height-39)):new Rectangle(35,5,Math.Max(1,Width-40),Math.Max(1,Height-10)),Color.White,13*g.DpiY/96f);
     }
 }

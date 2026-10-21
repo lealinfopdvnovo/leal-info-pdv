@@ -68,6 +68,13 @@ internal sealed class KitchenCatalogView : UserControl
         var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,140));body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
         body.Controls.Add(categoryRail,0,0);body.Controls.Add(cards,1,0);root.Controls.Add(body,0,3);Controls.Add(root);
+        category.DrawMode=DrawMode.OwnerDrawFixed;category.FlatStyle=FlatStyle.Flat;category.ItemHeight=24;
+        category.DrawItem+=(_,e)=>
+        {
+            using var fill=new SolidBrush(KitchenPremiumStyle.Surface);e.Graphics.FillRectangle(fill,e.Bounds);
+            string label=e.Index>=0?Convert.ToString(category.Items[e.Index])??"":Convert.ToString(category.SelectedItem)??"";
+            TextRenderer.DrawText(e.Graphics,label,category.Font,e.Bounds,Color.White,TextFormatFlags.VerticalCenter|TextFormatFlags.Left|TextFormatFlags.EndEllipsis);e.DrawFocusRectangle();
+        };
         KitchenPremiumStyle.Apply(this); KitchenPremiumStyle.Frame(this); title.ForeColor = KitchenPremiumStyle.Gold;
         cards.Resize += (_,_) => SizeCards();
         categoryRail.SizeChanged+=(_,_)=>{foreach(Control shortcut in categoryRail.Controls)shortcut.Width=Math.Max(90,categoryRail.ClientSize.Width-SystemInformation.VerticalScrollBarWidth-8);};
@@ -237,7 +244,7 @@ internal sealed class KitchenCatalogView : UserControl
         info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,70));info.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,30));
         info.Controls.Add(price,0,0);info.Controls.Add(choose,1,0);
         card.Controls.Add(visual,0,0);card.Controls.Add(title,0,1);card.Controls.Add(info,0,2);
-        KitchenPremiumStyle.Apply(card); KitchenPremiumStyle.Frame(card);title.BackColor=Color.Transparent;price.BackColor=Color.Transparent;info.BackColor=KitchenPremiumStyle.Background; price.ForeColor=KitchenPremiumStyle.Gold; choose.Font=new Font("Segoe UI",18,FontStyle.Bold);
+        KitchenPremiumStyle.Apply(card);title.BackColor=Color.Transparent;price.BackColor=Color.Transparent;info.BackColor=KitchenPremiumStyle.Background; price.ForeColor=KitchenPremiumStyle.Gold; choose.Font=new Font("Segoe UI",18,FontStyle.Bold);
         return card;
     }
 }
