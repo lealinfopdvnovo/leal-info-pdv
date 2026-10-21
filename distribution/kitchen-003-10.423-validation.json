@@ -1,0 +1,33 @@
+{
+  "Client": "003",
+  "Version": "10.423",
+  "SourceCommit": "8d3ec93138ee8962700369da51bdfaf96c112b83",
+  "PackageSha256": "53076441f304f102fbde9091ed794cca46f7fd5516f6452c25b0aae23f9e06f4",
+  "WindowsLayoutRun": 39519486382,
+  "WindowsChecksPassed": 110,
+  "SoftwareScaleMatrix": [
+    1,
+    1.25,
+    1.5
+  ],
+  "PhysicalMonitorDpiTest": false,
+  "RollbackAndPublicationRun": 39519903363,
+  "ExactPackageRollbackScenarios": [
+    "success",
+    "interruption-System-recovery",
+    "bad-sha-rejected"
+  ],
+  "FeedCommit": "7868303fc2e183dec7b107497bdaa98e891822f5",
+  "PublicPackageAndManifestVerified": true,
+  "OtherClientFeedsUnchanged": [
+    "001",
+    "002",
+    "004",
+    "GLOBAL"
+  ],
+  "CustomerReportedInstalledBeforeUpdate": "10.422",
+  "CustomerInstallation10423Confirmed": false,
+  "Delivery": "internal updater only",
+  "Setup": false,
+  "OldApprovedSuitesReused": true
+}
