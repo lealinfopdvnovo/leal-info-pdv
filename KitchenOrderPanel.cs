@@ -39,8 +39,8 @@ internal sealed class KitchenOrderPanel : UserControl
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Edit",HeaderText="",Text="✎",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Remove",HeaderText="",Text="×",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="StatusMenu",HeaderText="",Text="▼",ToolTipText="Alterar status do pedido",UseColumnTextForButtonValue=true,Width=32,MinimumWidth=32,AutoSizeMode=DataGridViewAutoSizeColumnMode.None,DisplayIndex=2});
-        Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="UnitPrice",HeaderText="UNIT. R$",FillWeight=18,DefaultCellStyle=new DataGridViewCellStyle{Format="N2"}});
-        Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="LineTotal",HeaderText="TOTAL R$",FillWeight=19,DefaultCellStyle=new DataGridViewCellStyle{Format="N2"}});
+        Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="UnitPrice",HeaderText="UNIT. R$",FillWeight=18,DefaultCellStyle=new DataGridViewCellStyle{Format="N2",FormatProvider=CultureInfo.GetCultureInfo("pt-BR")}});
+        Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="LineTotal",HeaderText="TOTAL R$",FillWeight=19,DefaultCellStyle=new DataGridViewCellStyle{Format="N2",FormatProvider=CultureInfo.GetCultureInfo("pt-BR")}});
         Rows.RowTemplate.Height=34;Rows.ColumnHeadersHeight=30;Rows.ColumnHeadersHeightSizeMode=DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         Rows.CellPainting+=(_,e)=>
         {
