@@ -34,7 +34,7 @@ internal sealed class ReadyKitchenImportForm : Form
         var credits=new Button{Text="ORIGEM DAS FOTOS",Dock=DockStyle.Left,Width=170,FlatStyle=FlatStyle.Flat};
         credits.Click+=(_,_)=>ShowCredits();
         var selectAll=new Button{Text="SELECIONAR TODOS",Dock=DockStyle.Left,Width=180,FlatStyle=FlatStyle.Flat};
-        selectAll.Click+=(_,_)=>{foreach(DataGridViewRow row in grid.Rows)row.Cells["Selected"].Value=true;};
+        selectAll.Click+=(_,_)=>{grid.EndEdit();foreach(DataGridViewRow row in grid.Rows)row.Cells["Selected"].Value=true;};
         var cancel=new Button{Text="FECHAR",Dock=DockStyle.Right,Width=110,DialogResult=DialogResult.Cancel,FlatStyle=FlatStyle.Flat};
         actions.Controls.Add(import);actions.Controls.Add(cancel);actions.Controls.Add(selectAll);actions.Controls.Add(credits);
         Controls.Add(grid);Controls.Add(heading);Controls.Add(status);Controls.Add(actions);

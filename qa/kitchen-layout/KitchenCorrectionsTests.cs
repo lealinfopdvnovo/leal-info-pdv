@@ -30,7 +30,7 @@ internal static class KitchenCorrectionsTests
         }
         var store=Field<KitchenStore>(form,"store");string identity=store.StoreId();
         KitchenOrder Add(string mesa,params KitchenItem[] items)=>store.Submit(identity,new KitchenDraft(Guid.NewGuid(),mesa,"","QA LAYOUT",DateTimeOffset.UtcNow,items));
-        var first=Add("Mesa 99",new("QA COZINHA",2,"",7002));var second=Add("Mesa 99",new("QA SEM ESTOQUE",1,"",7003));
+        var first=Add("Mesa 99",new KitchenItem("QA COZINHA",2,"",7002));var second=Add("Mesa 99",new KitchenItem("QA SEM ESTOQUE",1,"",7003));
         var bill=store.Quote(first.Id);check(bill.Orders.Length==2&&bill.Total==22,"payment covers all active orders of the selected table with rounded prices");
         long sales=Count("SELECT COUNT(*) FROM sales"),cash=Count("SELECT COUNT(*) FROM cash_movements");
         check(Count("SELECT COUNT(*) FROM sales")==sales,"opening quote and cancelling payment write no sale");
@@ -40,15 +40,15 @@ internal static class KitchenCorrectionsTests
         check(Count("SELECT stock FROM products WHERE id=7002")==48&&Count("SELECT stock FROM products WHERE id=7003")==0,"stock decreases once only when stock control is enabled");
         check(store.Get(first.Id).Status=="ENTREGUE"&&store.Get(second.Id).Status=="ENTREGUE","successful payment closes all charged orders and releases table");
         check(store.Receive(bill,new[]{new KitchenPayment("Dinheiro",10),new KitchenPayment("Cartão",12)},"QA LAYOUT")==sale&&Count("SELECT COUNT(*) FROM sales")==sales+1&&Count("SELECT stock FROM products WHERE id=7002")==48,"retry after committed payment returns same sale without double charge");
-        var stale=Add("Mesa 98",new("QA COZINHA",1,"",7002));var old=store.Quote(stale.Id);Add("Mesa 98",new("QA COZINHA",1,"",7002));
+        var stale=Add("Mesa 98",new KitchenItem("QA COZINHA",1,"",7002));var old=store.Quote(stale.Id);Add("Mesa 98",new KitchenItem("QA COZINHA",1,"",7002));
         invalid=false;try{store.Receive(old,new[]{new KitchenPayment("PIX",old.Total)},"QA LAYOUT");}catch(InvalidOperationException){invalid=true;}check(invalid&&Count("SELECT COUNT(*) FROM sales")==sales+1,"new order during payment invalidates quote atomically");
-        var noStock=Add("Mesa 97",new("QA COZINHA",100,"",7002));var unavailable=store.Quote(noStock.Id);invalid=false;try{store.Receive(unavailable,new[]{new KitchenPayment("Dinheiro",unavailable.Total)},"QA LAYOUT");}catch(InvalidOperationException){invalid=true;}check(invalid&&Count("SELECT COUNT(*) FROM sales")==sales+1&&Count("SELECT stock FROM products WHERE id=7002")==48,"insufficient stock rolls back full payment");
+        var noStock=Add("Mesa 97",new KitchenItem("QA COZINHA",100,"",7002));var unavailable=store.Quote(noStock.Id);invalid=false;try{store.Receive(unavailable,new[]{new KitchenPayment("Dinheiro",unavailable.Total)},"QA LAYOUT");}catch(InvalidOperationException){invalid=true;}check(invalid&&Count("SELECT COUNT(*) FROM sales")==sales+1&&Count("SELECT stock FROM products WHERE id=7002")==48,"insufficient stock rolls back full payment");
         // Timers must retain the explicitly selected order even when a newer order arrives.
         var draft=Field<DataGridView>(form,"items");draft.Rows.Clear();Call(form,"SetEntryEnabled",false);
         var task=(Task)Call(form,"RefreshOrders")!;pump(()=>task.IsCompleted);task.GetAwaiter().GetResult();
         typeof(KitchenForm).GetField("dashboardDraft",P)!.SetValue(form,false);Call(form,"SelectSavedOrder",stale.Id);
         var panel=Field<KitchenOrderPanel>(form,"dashboardOrder");var since=Field<DateTimeOffset?>(panel,"started");
-        Add("Mesa 96",new("QA COZINHA",1,"",7002));
+        Add("Mesa 96",new KitchenItem("QA COZINHA",1,"",7002));
         Field<System.Windows.Forms.Timer>(form,"dashboardClock").Stop();
         Exec("UPDATE kitchen_orders_v1 SET received_utc='"+DateTimeOffset.UtcNow.AddMinutes(-3).ToString("O")+"' WHERE id='"+stale.Id.ToString("D")+"'");
         task=(Task)Call(form,"RefreshOrders")!;pump(()=>task.IsCompleted);task.GetAwaiter().GetResult();since=Field<DateTimeOffset?>(panel,"started");

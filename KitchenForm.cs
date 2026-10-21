@@ -399,7 +399,10 @@ internal sealed class KitchenForm : Form
         var selected=SelectedOrder();if(selected==null)return;
         await Run(async()=>{
             var main=Application.OpenForms.OfType<MainForm>().FirstOrDefault()??throw new InvalidOperationException("Abra a cozinha pelo PDV para receber o pagamento.");
-            if(main.ReceiveKitchenOrder(tableWindow is {Visible:true}?tableWindow:this,store,selected.Id)){
+            bool received;
+            try {received=main.ReceiveKitchenOrder(tableWindow is {Visible:true}?tableWindow:this,store,selected.Id);}
+            catch(Exception e){MessageBox.Show(tableWindow is {Visible:true}?tableWindow:this,e.Message,"Pagamento não concluído",MessageBoxButtons.OK,MessageBoxIcon.Warning);return;}
+            if(received){
                 message.Text="Pagamento registrado. Mesa liberada.";tableWindow?.Close();await RefreshOrders();dashboardDraft=true;items.Rows.Clear();reference.Text="";draftStarted=null;SetEntryEnabled(true);SyncDashboard();
             }
         });
@@ -470,7 +473,8 @@ internal sealed class KitchenForm : Form
     private void PrintCurrentOrder()
     {
         var selected=SelectedOrder();var rows=selected?.Items??DraftItems();if(rows.Length==0)return;
-        KitchenComanda.Preview(this,KitchenComanda.Text(selected?.Reference??reference.Text,rows,selected?.Notes??notes.Text));
+        try{KitchenComanda.Preview(this,KitchenComanda.Text(selected?.Reference??reference.Text,rows,selected?.Notes??notes.Text));}
+        catch(Exception e){MessageBox.Show(this,e.Message,"Imprimir comanda",MessageBoxButtons.OK,MessageBoxIcon.Warning);}
     }
     private Task RefreshAndRetry() => Run(async () =>
     {
