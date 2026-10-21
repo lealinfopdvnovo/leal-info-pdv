@@ -126,7 +126,7 @@ internal sealed class KitchenForm : Form
         premiumHeader.SettingsRequested+=()=>{
             using var configuration=new Form{Name="KitchenConfiguration",Text="CONFIGURAÇÃO DA COZINHA",Size=new Size(520,300),StartPosition=FormStartPosition.CenterParent};
             var seating=new Button{Text="QUANTIDADE DE MESAS E RESERVAS",Dock=DockStyle.Top,Height=60};
-            seating.Click+=(_,_)=>tables.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();
+            seating.Click+=(_,_)=>{configuration.Close();tables.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();};
             var printer=new Button{Text="IMPRESSORA DA COMANDA • TÉRMICA / A4",Dock=DockStyle.Top,Height=60};printer.Click+=(_,_)=>KitchenComanda.Configure(configuration);
             configuration.Controls.Add(new Label{Text="Configure as mesas e a impressão da comanda. Pagamento: selecione a mesa e clique em RECEBER / PAGAMENTO.",Dock=DockStyle.Fill,Padding=new Padding(16)});configuration.Controls.Add(printer);configuration.Controls.Add(seating);KitchenPremiumStyle.Apply(configuration);configuration.ShowDialog(this);
         };
