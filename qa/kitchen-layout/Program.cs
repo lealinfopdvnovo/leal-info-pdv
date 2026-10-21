@@ -147,6 +147,7 @@ static class LayoutTests
             Check(popup.BackColor==KitchenPremiumStyle.Background,"floating tables keep black premium palette");popup.Close();
             using(var ordinary=new Form{Name="UnrelatedForm"}){PremiumGlobalTheme.Apply(ordinary);Check(ordinary.BackColor==PremiumGlobalTheme.Background,"unrelated forms retain their existing shared theme");}
             DashboardTests.Run(form,Check,Pump,"layout-evidence",RenderClient);
+            TableDoubleClickTests.Run(Check,Pump);
             using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="SELECT COUNT(*) FROM products WHERE (id=1 AND price=7.99 AND stock=10) OR (id=2 AND price=.50 AND stock=20)";Check(Convert.ToInt32(q.ExecuteScalar())==2,"layout checks preserve product prices and stock");}
             form.Close();form.Dispose();
             Check(form.IsDisposed&&Application.OpenForms.Count==0,"all tested windows close and dispose before successful runner shutdown");

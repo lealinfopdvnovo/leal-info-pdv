@@ -19,6 +19,7 @@ internal sealed class KitchenTableButton : Button
         AccessibleName = $"Mesa {number}, {state}"; Cursor = Cursors.Hand;
         FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0; Margin = new Padding(5);
         DoubleBuffered = true; SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer, true);
+        SetStyle(ControlStyles.StandardClick | ControlStyles.StandardDoubleClick, true);
         BackColor = StateColor(state); ForeColor = Color.White;
     }
     internal static Color StateColor(string state) => state switch
