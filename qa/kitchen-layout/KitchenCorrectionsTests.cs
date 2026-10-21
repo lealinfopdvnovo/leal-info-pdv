@@ -49,6 +49,12 @@ internal static class KitchenCorrectionsTests
         typeof(KitchenForm).GetField("dashboardDraft",P)!.SetValue(form,false);Call(form,"SelectSavedOrder",stale.Id);
         var panel=Field<KitchenOrderPanel>(form,"dashboardOrder");var since=Field<DateTimeOffset?>(panel,"started");
         Add("Mesa 96",new("QA COZINHA",1,"",7002));
+        Field<System.Windows.Forms.Timer>(form,"dashboardClock").Stop();
+        Exec("UPDATE kitchen_orders_v1 SET received_utc='"+DateTimeOffset.UtcNow.AddMinutes(-3).ToString("O")+"' WHERE id='"+stale.Id.ToString("D")+"'");
+        task=(Task)Call(form,"RefreshOrders")!;pump(()=>task.IsCompleted);task.GetAwaiter().GetResult();since=Field<DateTimeOffset?>(panel,"started");
+        var card=Field<FlowLayoutPanel>(form,"orderCards").Controls.Cast<Control>().Single(c=>Equals(c.Tag,stale.Id));
+        check(card.Controls.Find("ActiveOrderClock",true).Single().Text.StartsWith("03:"),"rebuilt active card immediately shows original elapsed time, never a temporary 00:00");
+        Field<System.Windows.Forms.Timer>(form,"dashboardClock").Start();
         int resets=0;var elapsed=panel.Controls.Find("DashboardOrderElapsed",true).Single();elapsed.TextChanged+=(_,_)=>{if(Field<DateTimeOffset?>(panel,"started")!=since)resets++;};
         for(int i=0;i<3;i++){task=(Task)Call(form,"RefreshOrders")!;pump(()=>task.IsCompleted);task.GetAwaiter().GetResult();}
         check(resets==0&&Field<DateTimeOffset?>(panel,"started")==since,"poll refresh and incoming order never reset selected order clock");

@@ -4,7 +4,7 @@ permissions:
   actions: read
 concurrency:
   group: cozinha-duplo-clique-001-003
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   validar:
     runs-on: windows-latest
@@ -12,8 +12,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ matrix.channel }}
-      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || 'c3de27b6bd8312286b93659ff808b1eb1a4b2277' }}
-      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || 'c3de27b6bd8312286b93659ff808b1eb1a4b2277' }}
+      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || '15f66df7534945d6463c17259780f154659bb382' }}
+      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || '15f66df7534945d6463c17259780f154659bb382' }}
       PYTHONUTF8: '1'
     steps:
     - uses: actions/checkout@v4
@@ -156,7 +156,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
         SOURCE_001: ${{ github.sha }}
-        SOURCE_003: c3de27b6bd8312286b93659ff808b1eb1a4b2277
+        SOURCE_003: 15f66df7534945d6463c17259780f154659bb382
       run: python qa/kitchen-final/publish.py
     - uses: actions/upload-artifact@v4
       if: always()
