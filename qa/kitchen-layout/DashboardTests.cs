@@ -68,7 +68,7 @@ internal static class DashboardTests
         using var visual=new KitchenForm();visual.Show();
         pump(()=>Field<Label>(visual,"message").Text.Contains("Cozinha conectada")&&Field<Button>(visual,"fresh").Enabled);
         Field<System.Windows.Forms.Timer>(visual,"retry").Stop();
-        var visualMenu=Field<KitchenCatalogView>(visual,"mainCatalog");pump(()=>Field<KitchenCatalogProduct[]>(visualMenu,"products").Any(p=>p.Id==1));
+        var visualMenu=Field<KitchenCatalogView>(visual,"mainCatalog");pump(()=>Field<KitchenCatalogProduct[]>(visualMenu,"products").Any(p=>p.Id==1));Field<System.Windows.Forms.Timer>(visual,"retry").Stop();
         Field<KitchenTablesView>(visual,"tables").Controls.Find("KitchenTable_1",true).OfType<Button>().Single().PerformClick();
         foreach(var viewport in new[]{new Size(1672,941),new Size(1920,1000),new Size(1366,720)})
         {
