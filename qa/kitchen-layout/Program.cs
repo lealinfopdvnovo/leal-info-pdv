@@ -11,6 +11,24 @@ static class LayoutTests
     static T Field<T>(object o,string n)=>(T)o.GetType().GetField(n,P)!.GetValue(o)!;
     static IEnumerable<Control> Children(Control c)=>c.Controls.Cast<Control>().SelectMany(x=>new[]{x}.Concat(Children(x)));
     static void Pump(Func<bool> done){var end=DateTime.UtcNow.AddSeconds(15);while(!done()&&DateTime.UtcNow<end){Application.DoEvents();Thread.Sleep(10);}Check(done(),"asynchronous UI completed");}
+    static void RenderClient(Form form,Size size,string path)
+    {
+        var children=form.Controls.Cast<Control>().ToArray();
+        using var host=new Panel{Size=size,Font=form.Font,BackColor=KitchenPremiumStyle.Background};
+        form.SuspendLayout();host.SuspendLayout();
+        try
+        {
+            foreach(var child in children){form.Controls.Remove(child);host.Controls.Add(child);}
+            host.ResumeLayout(true);host.CreateControl();host.PerformLayout();
+            using var image=new Bitmap(size.Width,size.Height);
+            host.DrawToBitmap(image,new Rectangle(Point.Empty,size));image.Save(path);
+        }
+        finally
+        {
+            foreach(var child in children){host.Controls.Remove(child);form.Controls.Add(child);}
+            form.ResumeLayout(true);
+        }
+    }
     [STAThread] static int Main()
     {
         if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true"||!OperatingSystem.IsWindows())throw new Exception("Disposable Windows runner only");
@@ -50,8 +68,7 @@ static class LayoutTests
                         Console.WriteLine($"GEOMETRY card={card.ClientRectangle} plus={rect} info={plus.Parent!.Bounds}");
                         Check(rect.Height>=20&&card.ClientRectangle.Contains(rect),$"product add action remains visible at {viewport} scale {scale}");
                     }
-                    using var image=new Bitmap(form.Width,form.Height);form.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));
-                    image.Save($"layout-evidence/cozinha-{viewport.Width}-{scale.ToString(System.Globalization.CultureInfo.InvariantCulture)}.png");
+                    RenderClient(form,viewport,$"layout-evidence/cozinha-{viewport.Width}-{scale.ToString(System.Globalization.CultureInfo.InvariantCulture)}.png");
                 }
             }
             fresh.PerformClick();Application.DoEvents();

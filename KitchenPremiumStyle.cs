@@ -27,7 +27,7 @@ internal static class KitchenPremiumStyle
         while (true)
         {
             using var font = new Font("Segoe UI", size, FontStyle.Bold, GraphicsUnit.Pixel);
-            var measured = g.MeasureString(text, font, new SizeF(bounds.Width, 10000), format);
+            var measured = g.MeasureString(text, font, new SizeF(wrap ? bounds.Width : 10000, 10000), format);
             if ((measured.Width <= bounds.Width + .5f && measured.Height <= bounds.Height + .5f) || size <= 6)
             {
                 g.DrawString(text, font, ink, bounds, format); return;
