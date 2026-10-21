@@ -84,6 +84,7 @@ internal static class KitchenCorrectionsTests
         }
         check(Count("SELECT COUNT(*) FROM products WHERE barcode LIKE 'LEALMIX%' AND kitchen_preparation=1" )==ReadyKitchenCatalog.Load().Length&&Count("SELECT stock FROM products WHERE id=7001")==50,"ready kitchen import preserves existing store catalog and stock");
         using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="SELECT price FROM products WHERE barcode='LEALMIX001'";check(Convert.ToDecimal(q.ExecuteScalar())==99.90m,"reimport preserves customer-edited price instead of applying suggested or newly-entered values");}
+        KitchenPhotoTests.Run(form,check,pump);
         bool sawConfiguration=false;
         using(var timer=new System.Windows.Forms.Timer{Interval=30}){
             timer.Tick+=(_,_)=>{var config=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Name=="KitchenConfiguration");if(config==null)return;timer.Stop();sawConfiguration=true;config.Controls.OfType<Button>().Single(b=>b.Text.StartsWith("QUANTIDADE")).PerformClick();};

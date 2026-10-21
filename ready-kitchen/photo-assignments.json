@@ -1,0 +1,1568 @@
+[
+  {
+    "Code": "LEALMIX001",
+    "Name": "Cheeseburger",
+    "Category": "Lanches",
+    "CommonsFile": "File:Cheeseburger (2).jpg",
+    "Query": "cheeseburger lettuce"
+  },
+  {
+    "Code": "LEALMIX002",
+    "Name": "Cachorro-quente",
+    "Category": "Lanches",
+    "CommonsFile": "File:Hot dog sandwich.jpg",
+    "Query": "hot dog sandwich"
+  },
+  {
+    "Code": "LEALMIX003",
+    "Name": "Coxinha de frango",
+    "Category": "Lanches",
+    "CommonsFile": "File:Coxinha.jpg",
+    "Query": "coxinha"
+  },
+  {
+    "Code": "LEALMIX004",
+    "Name": "Pizza margherita",
+    "Category": "Pizzas",
+    "CommonsFile": "File:PizzaMargherita.jpg",
+    "Query": "pizza margherita"
+  },
+  {
+    "Code": "LEALMIX005",
+    "Name": "Pizza de pepperoni",
+    "Category": "Pizzas",
+    "CommonsFile": "File:Peperoni pizza.jpg",
+    "Query": "pepperoni pizza"
+  },
+  {
+    "Code": "LEALMIX006",
+    "Name": "Pizza calabresa",
+    "Category": "Pizzas",
+    "CommonsFile": "File:Pizza calabresa argentina (porciones).jpg",
+    "Query": "pizza calabresa"
+  },
+  {
+    "Code": "LEALMIX007",
+    "Name": "Feijoada",
+    "Category": "Refeições",
+    "CommonsFile": "File:Feijoada.JPG",
+    "Query": "feijoada"
+  },
+  {
+    "Code": "LEALMIX008",
+    "Name": "Prato executivo de frango",
+    "Category": "Refeições",
+    "CommonsFile": "File:Prato com arroz e feijão, frango grelhado, batata frita, salada e ovo frito como adicionais.jpg",
+    "Query": "prato feito chicken"
+  },
+  {
+    "Code": "LEALMIX009",
+    "Name": "Prato de churrasco",
+    "Category": "Refeições",
+    "CommonsFile": "File:Churrascu 02.jpg",
+    "Query": "churrasco plate"
+  },
+  {
+    "Code": "LEALMIX010",
+    "Name": "Porção de batata frita",
+    "Category": "Porções",
+    "CommonsFile": "File:French Fries.JPG",
+    "Query": "french fries"
+  },
+  {
+    "Code": "LEALMIX011",
+    "Name": "Porção de anéis de cebola",
+    "Category": "Porções",
+    "CommonsFile": "File:Onion rings fried.jpg",
+    "Query": "onion rings"
+  },
+  {
+    "Code": "LEALMIX012",
+    "Name": "Porção mista de batata e cebola",
+    "Category": "Porções",
+    "CommonsFile": "File:French Fries and Onion Rings 02.jpg",
+    "Query": "burger fries onion rings"
+  },
+  {
+    "Code": "LEALMIX013",
+    "Name": "Suco de laranja",
+    "Category": "Bebidas",
+    "CommonsFile": "File:Orange juice 1 edit1.jpg",
+    "Query": "orange juice glass"
+  },
+  {
+    "Code": "LEALMIX014",
+    "Name": "Café espresso",
+    "Category": "Bebidas",
+    "CommonsFile": "File:Espresso Coffee 01.jpg",
+    "Query": "espresso cup"
+  },
+  {
+    "Code": "LEALMIX015",
+    "Name": "Limonada",
+    "Category": "Bebidas",
+    "CommonsFile": "File:Lemonade 2.jpg",
+    "Query": "lemonade glass"
+  },
+  {
+    "Code": "LEALMIX016",
+    "Name": "Brigadeiro",
+    "Category": "Sobremesas",
+    "CommonsFile": "File:Brigadeiro.jpg",
+    "Query": "brigadeiro"
+  },
+  {
+    "Code": "LEALMIX017",
+    "Name": "Brownie de chocolate",
+    "Category": "Sobremesas",
+    "CommonsFile": "File:Chocolate Brownie.jpg",
+    "Query": "chocolate brownie"
+  },
+  {
+    "Code": "LEALMIX018",
+    "Name": "Pudim de leite",
+    "Category": "Sobremesas",
+    "CommonsFile": "File:Pudim de Leite.jpg",
+    "Query": "pudim leite"
+  },
+  {
+    "Code": "LEALMIX019",
+    "Name": "Cerveja pilsen lata 350 ml",
+    "Category": "Cervejas",
+    "Query": "beer can"
+  },
+  {
+    "Code": "LEALMIX020",
+    "Name": "Cerveja pilsen long neck 330 ml",
+    "Category": "Cervejas",
+    "Query": "beer bottle lager"
+  },
+  {
+    "Code": "LEALMIX021",
+    "Name": "Cerveja pilsen garrafa 600 ml",
+    "Category": "Cervejas",
+    "Query": "beer bottle lager"
+  },
+  {
+    "Code": "LEALMIX022",
+    "Name": "Cerveja puro malte lata 350 ml",
+    "Category": "Cervejas",
+    "Query": "beer can"
+  },
+  {
+    "Code": "LEALMIX023",
+    "Name": "Cerveja puro malte long neck 330 ml",
+    "Category": "Cervejas",
+    "Query": "beer bottle lager"
+  },
+  {
+    "Code": "LEALMIX024",
+    "Name": "Cerveja puro malte garrafa 600 ml",
+    "Category": "Cervejas",
+    "Query": "beer bottle lager"
+  },
+  {
+    "Code": "LEALMIX025",
+    "Name": "Cerveja sem álcool lata 350 ml",
+    "Category": "Cervejas",
+    "Query": "non alcoholic beer"
+  },
+  {
+    "Code": "LEALMIX026",
+    "Name": "Cerveja sem álcool long neck 330 ml",
+    "Category": "Cervejas",
+    "Query": "non alcoholic beer"
+  },
+  {
+    "Code": "LEALMIX027",
+    "Name": "Cerveja IPA long neck 355 ml",
+    "Category": "Cervejas",
+    "Query": "india pale ale glass"
+  },
+  {
+    "Code": "LEALMIX028",
+    "Name": "Cerveja de trigo long neck 500 ml",
+    "Category": "Cervejas",
+    "Query": "wheat beer glass"
+  },
+  {
+    "Code": "LEALMIX029",
+    "Name": "Cerveja lager lata 473 ml",
+    "Category": "Cervejas",
+    "Query": "beer can"
+  },
+  {
+    "Code": "LEALMIX030",
+    "Name": "Cerveja artesanal stout 500 ml",
+    "Category": "Cervejas",
+    "Query": "stout glass"
+  },
+  {
+    "Code": "LEALMIX031",
+    "Name": "Chopp pilsen 300 ml",
+    "Category": "Cervejas",
+    "Query": "draught beer glass"
+  },
+  {
+    "Code": "LEALMIX032",
+    "Name": "Chopp pilsen 500 ml",
+    "Category": "Cervejas",
+    "Query": "draught beer glass"
+  },
+  {
+    "Code": "LEALMIX033",
+    "Name": "Chopp de vinho 300 ml",
+    "Category": "Cervejas",
+    "Query": "red wine glass"
+  },
+  {
+    "Code": "LEALMIX034",
+    "Name": "Refrigerante cola lata 350 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "cola can"
+  },
+  {
+    "Code": "LEALMIX035",
+    "Name": "Refrigerante cola zero lata 350 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "cola can"
+  },
+  {
+    "Code": "LEALMIX036",
+    "Name": "Refrigerante guaraná lata 350 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "guarana soda can"
+  },
+  {
+    "Code": "LEALMIX037",
+    "Name": "Refrigerante guaraná zero lata 350 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "guarana soda can"
+  },
+  {
+    "Code": "LEALMIX038",
+    "Name": "Refrigerante laranja lata 350 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "orange soda can"
+  },
+  {
+    "Code": "LEALMIX039",
+    "Name": "Refrigerante limão lata 350 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "lemon lime soda can"
+  },
+  {
+    "Code": "LEALMIX040",
+    "Name": "Refrigerante uva lata 350 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "grape soda"
+  },
+  {
+    "Code": "LEALMIX041",
+    "Name": "Refrigerante cola 600 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "cola bottle"
+  },
+  {
+    "Code": "LEALMIX042",
+    "Name": "Refrigerante guaraná 600 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "guarana bottle"
+  },
+  {
+    "Code": "LEALMIX043",
+    "Name": "Refrigerante cola 2 litros",
+    "Category": "Refrigerantes e águas",
+    "Query": "cola bottle"
+  },
+  {
+    "Code": "LEALMIX044",
+    "Name": "Refrigerante guaraná 2 litros",
+    "Category": "Refrigerantes e águas",
+    "Query": "guarana bottle"
+  },
+  {
+    "Code": "LEALMIX045",
+    "Name": "Água mineral sem gás 500 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "mineral water bottle"
+  },
+  {
+    "Code": "LEALMIX046",
+    "Name": "Água mineral com gás 500 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "sparkling water bottle"
+  },
+  {
+    "Code": "LEALMIX047",
+    "Name": "Água tônica lata 350 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "tonic water can"
+  },
+  {
+    "Code": "LEALMIX048",
+    "Name": "Água de coco 300 ml",
+    "Category": "Refrigerantes e águas",
+    "Query": "coconut water glass"
+  },
+  {
+    "Code": "LEALMIX049",
+    "Name": "Suco de laranja 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "orange juice glass"
+  },
+  {
+    "Code": "LEALMIX050",
+    "Name": "Suco de limão 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "lemonade glass"
+  },
+  {
+    "Code": "LEALMIX051",
+    "Name": "Suco de abacaxi 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "pineapple juice glass"
+  },
+  {
+    "Code": "LEALMIX052",
+    "Name": "Suco de abacaxi com hortelã 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "pineapple mint juice"
+  },
+  {
+    "Code": "LEALMIX053",
+    "Name": "Suco de maracujá 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "passion fruit juice"
+  },
+  {
+    "Code": "LEALMIX054",
+    "Name": "Suco de manga 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "mango juice glass"
+  },
+  {
+    "Code": "LEALMIX055",
+    "Name": "Suco de acerola 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "acerola juice"
+  },
+  {
+    "Code": "LEALMIX056",
+    "Name": "Suco de goiaba 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "guava juice glass"
+  },
+  {
+    "Code": "LEALMIX057",
+    "Name": "Suco de morango 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "strawberry juice glass"
+  },
+  {
+    "Code": "LEALMIX058",
+    "Name": "Suco de melancia 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "watermelon juice glass"
+  },
+  {
+    "Code": "LEALMIX059",
+    "Name": "Limonada suíça 300 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "limonada suica"
+  },
+  {
+    "Code": "LEALMIX060",
+    "Name": "Jarra de suco de laranja 1 litro",
+    "Category": "Sucos e vitaminas",
+    "Query": "orange juice pitcher"
+  },
+  {
+    "Code": "LEALMIX061",
+    "Name": "Jarra de suco de maracujá 1 litro",
+    "Category": "Sucos e vitaminas",
+    "Query": "passion fruit juice pitcher"
+  },
+  {
+    "Code": "LEALMIX062",
+    "Name": "Vitamina de banana 400 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "banana milkshake"
+  },
+  {
+    "Code": "LEALMIX063",
+    "Name": "Vitamina de abacate 400 ml",
+    "Category": "Sucos e vitaminas",
+    "Query": "avocado smoothie"
+  },
+  {
+    "Code": "LEALMIX064",
+    "Name": "Caipirinha de limão",
+    "Category": "Drinks e doses",
+    "Query": "caipirinha lime"
+  },
+  {
+    "Code": "LEALMIX065",
+    "Name": "Caipirinha de maracujá",
+    "Category": "Drinks e doses",
+    "Query": "passion fruit caipirinha"
+  },
+  {
+    "Code": "LEALMIX066",
+    "Name": "Caipiroska de limão",
+    "Category": "Drinks e doses",
+    "Query": "caipiroska lime"
+  },
+  {
+    "Code": "LEALMIX067",
+    "Name": "Caipiroska de morango",
+    "Category": "Drinks e doses",
+    "Query": "strawberry caipiroska"
+  },
+  {
+    "Code": "LEALMIX068",
+    "Name": "Caipifruta de abacaxi",
+    "Category": "Drinks e doses",
+    "Query": "pineapple cocktail"
+  },
+  {
+    "Code": "LEALMIX069",
+    "Name": "Gin tônica",
+    "Category": "Drinks e doses",
+    "Query": "gin tonic"
+  },
+  {
+    "Code": "LEALMIX070",
+    "Name": "Gin com frutas vermelhas",
+    "Category": "Drinks e doses",
+    "Query": "gin tonic berries"
+  },
+  {
+    "Code": "LEALMIX071",
+    "Name": "Mojito",
+    "Category": "Drinks e doses",
+    "Query": "mojito"
+  },
+  {
+    "Code": "LEALMIX072",
+    "Name": "Piña colada",
+    "Category": "Drinks e doses",
+    "Query": "pina colada"
+  },
+  {
+    "Code": "LEALMIX073",
+    "Name": "Cuba libre",
+    "Category": "Drinks e doses",
+    "Query": "cuba libre cocktail"
+  },
+  {
+    "Code": "LEALMIX074",
+    "Name": "Sex on the beach",
+    "Category": "Drinks e doses",
+    "Query": "sex on the beach cocktail"
+  },
+  {
+    "Code": "LEALMIX075",
+    "Name": "Dose de cachaça",
+    "Category": "Drinks e doses",
+    "Query": "cachaca shot glass"
+  },
+  {
+    "Code": "LEALMIX076",
+    "Name": "Dose de vodka",
+    "Category": "Drinks e doses",
+    "Query": "vodka shot glass"
+  },
+  {
+    "Code": "LEALMIX077",
+    "Name": "Dose de whisky",
+    "Category": "Drinks e doses",
+    "Query": "whisky glass"
+  },
+  {
+    "Code": "LEALMIX078",
+    "Name": "Dose de rum",
+    "Category": "Drinks e doses",
+    "Query": "rum glass"
+  },
+  {
+    "Code": "LEALMIX079",
+    "Name": "Taça de vinho tinto seco",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "red wine glass"
+  },
+  {
+    "Code": "LEALMIX080",
+    "Name": "Taça de vinho tinto suave",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "red wine glass"
+  },
+  {
+    "Code": "LEALMIX081",
+    "Name": "Taça de vinho branco seco",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "white wine glass"
+  },
+  {
+    "Code": "LEALMIX082",
+    "Name": "Taça de vinho rosé",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "rose wine glass"
+  },
+  {
+    "Code": "LEALMIX083",
+    "Name": "Garrafa de vinho tinto seco 750 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "red wine bottle"
+  },
+  {
+    "Code": "LEALMIX084",
+    "Name": "Garrafa de vinho tinto suave 750 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "red wine bottle"
+  },
+  {
+    "Code": "LEALMIX085",
+    "Name": "Garrafa de vinho branco 750 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "white wine bottle"
+  },
+  {
+    "Code": "LEALMIX086",
+    "Name": "Garrafa de vinho rosé 750 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "rose wine bottle"
+  },
+  {
+    "Code": "LEALMIX087",
+    "Name": "Garrafa de espumante brut 750 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "sparkling wine bottle"
+  },
+  {
+    "Code": "LEALMIX088",
+    "Name": "Garrafa de espumante moscatel 750 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "sparkling wine bottle"
+  },
+  {
+    "Code": "LEALMIX089",
+    "Name": "Energético lata 250 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "energy drink can"
+  },
+  {
+    "Code": "LEALMIX090",
+    "Name": "Energético lata 473 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "energy drink can"
+  },
+  {
+    "Code": "LEALMIX091",
+    "Name": "Isotônico 500 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "sports drink bottle"
+  },
+  {
+    "Code": "LEALMIX092",
+    "Name": "Coquetel de frutas sem álcool",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "fruit cocktail mocktail"
+  },
+  {
+    "Code": "LEALMIX093",
+    "Name": "Soda italiana 400 ml",
+    "Category": "Vinhos e bebidas especiais",
+    "Query": "italian soda glass"
+  },
+  {
+    "Code": "LEALMIX094",
+    "Name": "Porção de calabresa acebolada",
+    "Category": "Petiscos de bar",
+    "Query": "calabresa acebolada"
+  },
+  {
+    "Code": "LEALMIX095",
+    "Name": "Porção de frango a passarinho",
+    "Category": "Petiscos de bar",
+    "Query": "frango passarinho"
+  },
+  {
+    "Code": "LEALMIX096",
+    "Name": "Porção de mandioca frita",
+    "Category": "Petiscos de bar",
+    "Query": "mandioca frita"
+  },
+  {
+    "Code": "LEALMIX097",
+    "Name": "Porção de polenta frita",
+    "Category": "Petiscos de bar",
+    "Query": "fried polenta"
+  },
+  {
+    "Code": "LEALMIX098",
+    "Name": "Porção de torresmo",
+    "Category": "Petiscos de bar",
+    "Query": "torresmo"
+  },
+  {
+    "Code": "LEALMIX099",
+    "Name": "Porção de carne de sol com aipim",
+    "Category": "Petiscos de bar",
+    "Query": "carne sol mandioca"
+  },
+  {
+    "Code": "LEALMIX100",
+    "Name": "Porção de iscas de carne",
+    "Category": "Petiscos de bar",
+    "Query": "beef strips onions"
+  },
+  {
+    "Code": "LEALMIX101",
+    "Name": "Porção de iscas de frango",
+    "Category": "Petiscos de bar",
+    "Query": "fried chicken strips"
+  },
+  {
+    "Code": "LEALMIX102",
+    "Name": "Porção de iscas de peixe",
+    "Category": "Petiscos de bar",
+    "Query": "fried fish strips"
+  },
+  {
+    "Code": "LEALMIX103",
+    "Name": "Porção de camarão empanado",
+    "Category": "Petiscos de bar",
+    "Query": "breaded shrimp"
+  },
+  {
+    "Code": "LEALMIX104",
+    "Name": "Porção de bolinho de bacalhau",
+    "Category": "Petiscos de bar",
+    "Query": "bolinho bacalhau"
+  },
+  {
+    "Code": "LEALMIX105",
+    "Name": "Porção de bolinho de aipim",
+    "Category": "Petiscos de bar",
+    "Query": "bolinho mandioca"
+  },
+  {
+    "Code": "LEALMIX106",
+    "Name": "Porção de bolinho de feijoada",
+    "Category": "Petiscos de bar",
+    "Query": "bolinho feijoada"
+  },
+  {
+    "Code": "LEALMIX107",
+    "Name": "Porção de pastel de angu",
+    "Category": "Petiscos de bar",
+    "Query": "pastel angu"
+  },
+  {
+    "Code": "LEALMIX108",
+    "Name": "Porção de linguiça artesanal",
+    "Category": "Petiscos de bar",
+    "Query": "grilled sausage plate"
+  },
+  {
+    "Code": "LEALMIX109",
+    "Name": "Batata frita com cheddar e bacon",
+    "Category": "Porções e entradas",
+    "Query": "french fries cheddar bacon"
+  },
+  {
+    "Code": "LEALMIX110",
+    "Name": "Batata rústica",
+    "Category": "Porções e entradas",
+    "Query": "potato wedges"
+  },
+  {
+    "Code": "LEALMIX111",
+    "Name": "Mandioca com queijo",
+    "Category": "Porções e entradas",
+    "Query": "fried cassava cheese"
+  },
+  {
+    "Code": "LEALMIX112",
+    "Name": "Dadinho de tapioca",
+    "Category": "Porções e entradas",
+    "Query": "dadinho tapioca"
+  },
+  {
+    "Code": "LEALMIX113",
+    "Name": "Queijo coalho grelhado",
+    "Category": "Porções e entradas",
+    "Query": "queijo coalho grelhado"
+  },
+  {
+    "Code": "LEALMIX114",
+    "Name": "Provolone à milanesa",
+    "Category": "Porções e entradas",
+    "Query": "fried cheese"
+  },
+  {
+    "Code": "LEALMIX115",
+    "Name": "Azeitonas temperadas",
+    "Category": "Porções e entradas",
+    "Query": "olives bowl"
+  },
+  {
+    "Code": "LEALMIX116",
+    "Name": "Amendoim torrado",
+    "Category": "Porções e entradas",
+    "Query": "roasted peanuts bowl"
+  },
+  {
+    "Code": "LEALMIX117",
+    "Name": "Tábua de frios",
+    "Category": "Porções e entradas",
+    "Query": "charcuterie board"
+  },
+  {
+    "Code": "LEALMIX118",
+    "Name": "Tábua de queijos",
+    "Category": "Porções e entradas",
+    "Query": "cheese board"
+  },
+  {
+    "Code": "LEALMIX119",
+    "Name": "Salame fatiado",
+    "Category": "Porções e entradas",
+    "Query": "salami slices"
+  },
+  {
+    "Code": "LEALMIX120",
+    "Name": "Ovo de codorna temperado",
+    "Category": "Porções e entradas",
+    "Query": "quail eggs bowl"
+  },
+  {
+    "Code": "LEALMIX121",
+    "Name": "Cesta de pães",
+    "Category": "Porções e entradas",
+    "Query": "bread basket"
+  },
+  {
+    "Code": "LEALMIX122",
+    "Name": "Bruschetta de tomate",
+    "Category": "Porções e entradas",
+    "Query": "tomato bruschetta"
+  },
+  {
+    "Code": "LEALMIX123",
+    "Name": "Pastéis mistos — porção",
+    "Category": "Porções e entradas",
+    "Query": "brazilian pastel"
+  },
+  {
+    "Code": "LEALMIX124",
+    "Name": "Espetinho de carne bovina",
+    "Category": "Espetinhos",
+    "Query": "beef skewer"
+  },
+  {
+    "Code": "LEALMIX125",
+    "Name": "Espetinho de frango",
+    "Category": "Espetinhos",
+    "Query": "chicken skewers"
+  },
+  {
+    "Code": "LEALMIX126",
+    "Name": "Espetinho de linguiça",
+    "Category": "Espetinhos",
+    "Query": "sausage skewer"
+  },
+  {
+    "Code": "LEALMIX127",
+    "Name": "Espetinho de coração de frango",
+    "Category": "Espetinhos",
+    "Query": "chicken heart skewer"
+  },
+  {
+    "Code": "LEALMIX128",
+    "Name": "Espetinho misto",
+    "Category": "Espetinhos",
+    "Query": "mixed grill skewers"
+  },
+  {
+    "Code": "LEALMIX129",
+    "Name": "Espetinho de queijo coalho",
+    "Category": "Espetinhos",
+    "Query": "queijo coalho skewers"
+  },
+  {
+    "Code": "LEALMIX130",
+    "Name": "Espetinho de kafta",
+    "Category": "Espetinhos",
+    "Query": "kofta skewer"
+  },
+  {
+    "Code": "LEALMIX131",
+    "Name": "Espetinho de panceta",
+    "Category": "Espetinhos",
+    "Query": "pork belly skewers"
+  },
+  {
+    "Code": "LEALMIX132",
+    "Name": "Espetinho de medalhão de frango",
+    "Category": "Espetinhos",
+    "Query": "chicken bacon skewers"
+  },
+  {
+    "Code": "LEALMIX133",
+    "Name": "Espetinho de legumes",
+    "Category": "Espetinhos",
+    "Query": "vegetable skewers"
+  },
+  {
+    "Code": "LEALMIX134",
+    "Name": "Espetinho de camarão",
+    "Category": "Espetinhos",
+    "Query": "shrimp skewers"
+  },
+  {
+    "Code": "LEALMIX135",
+    "Name": "Espetinho de pão de alho",
+    "Category": "Espetinhos",
+    "Query": "garlic bread"
+  },
+  {
+    "Code": "LEALMIX136",
+    "Name": "Espetinho de carne com queijo",
+    "Category": "Espetinhos",
+    "Query": "beef cheese skewer"
+  },
+  {
+    "Code": "LEALMIX137",
+    "Name": "Espetinho de frango com bacon",
+    "Category": "Espetinhos",
+    "Query": "chicken bacon skewers"
+  },
+  {
+    "Code": "LEALMIX138",
+    "Name": "Combo de três espetinhos com farofa",
+    "Category": "Espetinhos",
+    "Query": "churrasco espetinho"
+  },
+  {
+    "Code": "LEALMIX139",
+    "Name": "X-búrguer",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "cheeseburger"
+  },
+  {
+    "Code": "LEALMIX140",
+    "Name": "X-salada",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "cheeseburger lettuce"
+  },
+  {
+    "Code": "LEALMIX141",
+    "Name": "X-bacon",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "bacon cheeseburger"
+  },
+  {
+    "Code": "LEALMIX142",
+    "Name": "X-egg",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "burger fried egg"
+  },
+  {
+    "Code": "LEALMIX143",
+    "Name": "X-calabresa",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "sausage sandwich"
+  },
+  {
+    "Code": "LEALMIX144",
+    "Name": "X-frango",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "chicken burger"
+  },
+  {
+    "Code": "LEALMIX145",
+    "Name": "X-tudo",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "burger egg bacon"
+  },
+  {
+    "Code": "LEALMIX146",
+    "Name": "Hambúrguer artesanal de costela",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "beef burger"
+  },
+  {
+    "Code": "LEALMIX147",
+    "Name": "Hambúrguer artesanal com cheddar",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "cheddar burger"
+  },
+  {
+    "Code": "LEALMIX148",
+    "Name": "Hambúrguer vegetariano",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "vegetarian burger"
+  },
+  {
+    "Code": "LEALMIX149",
+    "Name": "Sanduíche de pernil",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "pork sandwich"
+  },
+  {
+    "Code": "LEALMIX150",
+    "Name": "Sanduíche de carne louca",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "beef sandwich"
+  },
+  {
+    "Code": "LEALMIX151",
+    "Name": "Misto quente",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "ham cheese toasted sandwich"
+  },
+  {
+    "Code": "LEALMIX152",
+    "Name": "Bauru",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "bauru sandwich"
+  },
+  {
+    "Code": "LEALMIX153",
+    "Name": "Sanduíche natural de frango",
+    "Category": "Hambúrgueres e sanduíches",
+    "Query": "chicken salad sandwich"
+  },
+  {
+    "Code": "LEALMIX154",
+    "Name": "Coxinha de frango com catupiry",
+    "Category": "Salgados e pastéis",
+    "Query": "coxinha"
+  },
+  {
+    "Code": "LEALMIX155",
+    "Name": "Coxinha de carne",
+    "Category": "Salgados e pastéis",
+    "Query": "coxinha"
+  },
+  {
+    "Code": "LEALMIX156",
+    "Name": "Quibe frito",
+    "Category": "Salgados e pastéis",
+    "Query": "kibbeh fried"
+  },
+  {
+    "Code": "LEALMIX157",
+    "Name": "Risole de presunto e queijo",
+    "Category": "Salgados e pastéis",
+    "Query": "risole"
+  },
+  {
+    "Code": "LEALMIX158",
+    "Name": "Risole de camarão",
+    "Category": "Salgados e pastéis",
+    "Query": "risole"
+  },
+  {
+    "Code": "LEALMIX159",
+    "Name": "Bolinha de queijo",
+    "Category": "Salgados e pastéis",
+    "Query": "bolinha queijo"
+  },
+  {
+    "Code": "LEALMIX160",
+    "Name": "Enroladinho de salsicha",
+    "Category": "Salgados e pastéis",
+    "Query": "brazilian enroladinho salsicha"
+  },
+  {
+    "Code": "LEALMIX161",
+    "Name": "Empada de frango",
+    "Category": "Salgados e pastéis",
+    "Query": "empada frango"
+  },
+  {
+    "Code": "LEALMIX162",
+    "Name": "Empada de palmito",
+    "Category": "Salgados e pastéis",
+    "Query": "empada palmito"
+  },
+  {
+    "Code": "LEALMIX163",
+    "Name": "Esfiha de carne",
+    "Category": "Salgados e pastéis",
+    "Query": "esfiha carne"
+  },
+  {
+    "Code": "LEALMIX164",
+    "Name": "Esfiha de queijo",
+    "Category": "Salgados e pastéis",
+    "Query": "cheese fatayer"
+  },
+  {
+    "Code": "LEALMIX165",
+    "Name": "Pastel de carne",
+    "Category": "Salgados e pastéis",
+    "Query": "brazilian pastel meat"
+  },
+  {
+    "Code": "LEALMIX166",
+    "Name": "Pastel de queijo",
+    "Category": "Salgados e pastéis",
+    "Query": "brazilian pastel cheese"
+  },
+  {
+    "Code": "LEALMIX167",
+    "Name": "Pastel de frango com catupiry",
+    "Category": "Salgados e pastéis",
+    "Query": "brazilian pastel chicken"
+  },
+  {
+    "Code": "LEALMIX168",
+    "Name": "Pastel de pizza",
+    "Category": "Salgados e pastéis",
+    "Query": "brazilian pastel"
+  },
+  {
+    "Code": "LEALMIX169",
+    "Name": "Pizza portuguesa",
+    "Category": "Pizzas",
+    "Query": "pizza portuguesa"
+  },
+  {
+    "Code": "LEALMIX170",
+    "Name": "Pizza quatro queijos",
+    "Category": "Pizzas",
+    "Query": "four cheese pizza"
+  },
+  {
+    "Code": "LEALMIX171",
+    "Name": "Pizza de frango com catupiry",
+    "Category": "Pizzas",
+    "Query": "pizza frango catupiry"
+  },
+  {
+    "Code": "LEALMIX172",
+    "Name": "Pizza de muçarela",
+    "Category": "Pizzas",
+    "Query": "mozzarella pizza"
+  },
+  {
+    "Code": "LEALMIX173",
+    "Name": "Pizza de presunto",
+    "Category": "Pizzas",
+    "Query": "ham pizza"
+  },
+  {
+    "Code": "LEALMIX174",
+    "Name": "Pizza de bacon",
+    "Category": "Pizzas",
+    "Query": "bacon pizza"
+  },
+  {
+    "Code": "LEALMIX175",
+    "Name": "Pizza de atum",
+    "Category": "Pizzas",
+    "Query": "tuna pizza"
+  },
+  {
+    "Code": "LEALMIX176",
+    "Name": "Pizza napolitana",
+    "Category": "Pizzas",
+    "Query": "neapolitan pizza"
+  },
+  {
+    "Code": "LEALMIX177",
+    "Name": "Pizza de palmito",
+    "Category": "Pizzas",
+    "Query": "pizza palmito"
+  },
+  {
+    "Code": "LEALMIX178",
+    "Name": "Pizza vegetariana",
+    "Category": "Pizzas",
+    "Query": "vegetarian pizza"
+  },
+  {
+    "Code": "LEALMIX179",
+    "Name": "Pizza de carne seca",
+    "Category": "Pizzas",
+    "Query": "pizza carne seca"
+  },
+  {
+    "Code": "LEALMIX180",
+    "Name": "Pizza de camarão",
+    "Category": "Pizzas",
+    "Query": "shrimp pizza"
+  },
+  {
+    "Code": "LEALMIX181",
+    "Name": "Pizza de chocolate",
+    "Category": "Pizzas",
+    "Query": "chocolate pizza"
+  },
+  {
+    "Code": "LEALMIX182",
+    "Name": "Pizza de banana com canela",
+    "Category": "Pizzas",
+    "Query": "banana pizza"
+  },
+  {
+    "Code": "LEALMIX183",
+    "Name": "Pizza Romeu e Julieta",
+    "Category": "Pizzas",
+    "Query": "romeu julieta pizza"
+  },
+  {
+    "Code": "LEALMIX184",
+    "Name": "Prato feito de bife acebolado",
+    "Category": "Refeições",
+    "Query": "prato feito beef"
+  },
+  {
+    "Code": "LEALMIX185",
+    "Name": "Prato feito de frango grelhado",
+    "Category": "Refeições",
+    "Query": "prato feito chicken"
+  },
+  {
+    "Code": "LEALMIX186",
+    "Name": "Prato feito de carne de panela",
+    "Category": "Refeições",
+    "Query": "carne panela"
+  },
+  {
+    "Code": "LEALMIX187",
+    "Name": "Prato feito de linguiça",
+    "Category": "Refeições",
+    "Query": "prato feito sausage"
+  },
+  {
+    "Code": "LEALMIX188",
+    "Name": "Prato feito de peixe frito",
+    "Category": "Refeições",
+    "Query": "fried fish rice"
+  },
+  {
+    "Code": "LEALMIX189",
+    "Name": "Filé de frango à parmegiana",
+    "Category": "Refeições",
+    "Query": "chicken parmigiana"
+  },
+  {
+    "Code": "LEALMIX190",
+    "Name": "Filé mignon à parmegiana",
+    "Category": "Refeições",
+    "Query": "beef parmigiana"
+  },
+  {
+    "Code": "LEALMIX191",
+    "Name": "Bife à milanesa",
+    "Category": "Refeições",
+    "Query": "milanesa beef"
+  },
+  {
+    "Code": "LEALMIX192",
+    "Name": "Estrogonofe de carne",
+    "Category": "Refeições",
+    "Query": "beef stroganoff rice"
+  },
+  {
+    "Code": "LEALMIX193",
+    "Name": "Estrogonofe de frango",
+    "Category": "Refeições",
+    "Query": "chicken stroganoff rice"
+  },
+  {
+    "Code": "LEALMIX194",
+    "Name": "Moqueca de peixe",
+    "Category": "Refeições",
+    "Query": "moqueca peixe"
+  },
+  {
+    "Code": "LEALMIX195",
+    "Name": "Moqueca de camarão",
+    "Category": "Refeições",
+    "Query": "moqueca camarao"
+  },
+  {
+    "Code": "LEALMIX196",
+    "Name": "Filé de peixe grelhado",
+    "Category": "Refeições",
+    "Query": "grilled fish fillet"
+  },
+  {
+    "Code": "LEALMIX197",
+    "Name": "Costela bovina com mandioca",
+    "Category": "Refeições",
+    "Query": "beef ribs cassava"
+  },
+  {
+    "Code": "LEALMIX198",
+    "Name": "Picanha na chapa para duas pessoas",
+    "Category": "Refeições",
+    "Query": "picanha grilled plate"
+  },
+  {
+    "Code": "LEALMIX199",
+    "Name": "Espaguete à bolonhesa",
+    "Category": "Massas e caldos",
+    "Query": "spaghetti bolognese"
+  },
+  {
+    "Code": "LEALMIX200",
+    "Name": "Espaguete ao molho de tomate",
+    "Category": "Massas e caldos",
+    "Query": "spaghetti tomato sauce"
+  },
+  {
+    "Code": "LEALMIX201",
+    "Name": "Espaguete ao alho e óleo",
+    "Category": "Massas e caldos",
+    "Query": "spaghetti aglio olio"
+  },
+  {
+    "Code": "LEALMIX202",
+    "Name": "Penne ao molho branco",
+    "Category": "Massas e caldos",
+    "Query": "penne cream sauce"
+  },
+  {
+    "Code": "LEALMIX203",
+    "Name": "Penne quatro queijos",
+    "Category": "Massas e caldos",
+    "Query": "penne cheese sauce"
+  },
+  {
+    "Code": "LEALMIX204",
+    "Name": "Lasanha à bolonhesa",
+    "Category": "Massas e caldos",
+    "Query": "lasagna bolognese"
+  },
+  {
+    "Code": "LEALMIX205",
+    "Name": "Lasanha de frango",
+    "Category": "Massas e caldos",
+    "Query": "chicken lasagna"
+  },
+  {
+    "Code": "LEALMIX206",
+    "Name": "Nhoque ao molho de tomate",
+    "Category": "Massas e caldos",
+    "Query": "gnocchi tomato sauce"
+  },
+  {
+    "Code": "LEALMIX207",
+    "Name": "Panqueca de carne",
+    "Category": "Massas e caldos",
+    "Query": "brazilian pancake beef"
+  },
+  {
+    "Code": "LEALMIX208",
+    "Name": "Panqueca de frango",
+    "Category": "Massas e caldos",
+    "Query": "brazilian pancake chicken"
+  },
+  {
+    "Code": "LEALMIX209",
+    "Name": "Caldo de feijão",
+    "Category": "Massas e caldos",
+    "Query": "caldo feijao"
+  },
+  {
+    "Code": "LEALMIX210",
+    "Name": "Caldo verde",
+    "Category": "Massas e caldos",
+    "Query": "caldo verde"
+  },
+  {
+    "Code": "LEALMIX211",
+    "Name": "Caldo de mandioca com carne",
+    "Category": "Massas e caldos",
+    "Query": "caldo mandioca"
+  },
+  {
+    "Code": "LEALMIX212",
+    "Name": "Canja de galinha",
+    "Category": "Massas e caldos",
+    "Query": "canja galinha"
+  },
+  {
+    "Code": "LEALMIX213",
+    "Name": "Sopa de legumes",
+    "Category": "Massas e caldos",
+    "Query": "vegetable soup"
+  },
+  {
+    "Code": "LEALMIX214",
+    "Name": "Arroz branco — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "white rice bowl"
+  },
+  {
+    "Code": "LEALMIX215",
+    "Name": "Arroz com brócolis — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "rice broccoli"
+  },
+  {
+    "Code": "LEALMIX216",
+    "Name": "Arroz à grega — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "arroz grega"
+  },
+  {
+    "Code": "LEALMIX217",
+    "Name": "Feijão carioca — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "cooked pinto beans bowl"
+  },
+  {
+    "Code": "LEALMIX218",
+    "Name": "Feijão preto — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "cooked black beans bowl"
+  },
+  {
+    "Code": "LEALMIX219",
+    "Name": "Feijão tropeiro — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "feijao tropeiro"
+  },
+  {
+    "Code": "LEALMIX220",
+    "Name": "Farofa da casa — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "farofa"
+  },
+  {
+    "Code": "LEALMIX221",
+    "Name": "Vinagrete — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "brazilian vinagrete"
+  },
+  {
+    "Code": "LEALMIX222",
+    "Name": "Purê de batatas — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "mashed potatoes"
+  },
+  {
+    "Code": "LEALMIX223",
+    "Name": "Legumes salteados — porção",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "sauteed vegetables"
+  },
+  {
+    "Code": "LEALMIX224",
+    "Name": "Salada de folhas",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "green salad"
+  },
+  {
+    "Code": "LEALMIX225",
+    "Name": "Salada de tomate e cebola",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "tomato onion salad"
+  },
+  {
+    "Code": "LEALMIX226",
+    "Name": "Salada Caesar",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "caesar salad"
+  },
+  {
+    "Code": "LEALMIX227",
+    "Name": "Salada de maionese",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "brazilian potato salad"
+  },
+  {
+    "Code": "LEALMIX228",
+    "Name": "Ovo frito — unidade",
+    "Category": "Acompanhamentos e saladas",
+    "Query": "fried egg"
+  },
+  {
+    "Code": "LEALMIX229",
+    "Name": "Pudim de leite — fatia",
+    "Category": "Sobremesas e açaí",
+    "Query": "pudim leite"
+  },
+  {
+    "Code": "LEALMIX230",
+    "Name": "Mousse de chocolate",
+    "Category": "Sobremesas e açaí",
+    "Query": "chocolate mousse"
+  },
+  {
+    "Code": "LEALMIX231",
+    "Name": "Mousse de maracujá",
+    "Category": "Sobremesas e açaí",
+    "Query": "passion fruit mousse"
+  },
+  {
+    "Code": "LEALMIX232",
+    "Name": "Torta de limão — fatia",
+    "Category": "Sobremesas e açaí",
+    "Query": "lemon pie slice"
+  },
+  {
+    "Code": "LEALMIX233",
+    "Name": "Torta de chocolate — fatia",
+    "Category": "Sobremesas e açaí",
+    "Query": "chocolate cake slice"
+  },
+  {
+    "Code": "LEALMIX234",
+    "Name": "Bolo de cenoura com chocolate — fatia",
+    "Category": "Sobremesas e açaí",
+    "Query": "brazilian carrot cake"
+  },
+  {
+    "Code": "LEALMIX235",
+    "Name": "Bolo de fubá — fatia",
+    "Category": "Sobremesas e açaí",
+    "Query": "bolo fuba"
+  },
+  {
+    "Code": "LEALMIX236",
+    "Name": "Sorvete — duas bolas",
+    "Category": "Sobremesas e açaí",
+    "Query": "ice cream scoop"
+  },
+  {
+    "Code": "LEALMIX237",
+    "Name": "Petit gâteau com sorvete",
+    "Category": "Sobremesas e açaí",
+    "Query": "chocolate lava cake ice cream"
+  },
+  {
+    "Code": "LEALMIX238",
+    "Name": "Salada de frutas",
+    "Category": "Sobremesas e açaí",
+    "Query": "fruit salad"
+  },
+  {
+    "Code": "LEALMIX239",
+    "Name": "Açaí tradicional 300 ml",
+    "Category": "Sobremesas e açaí",
+    "Query": "acai bowl"
+  },
+  {
+    "Code": "LEALMIX240",
+    "Name": "Açaí tradicional 500 ml",
+    "Category": "Sobremesas e açaí",
+    "Query": "acai bowl"
+  },
+  {
+    "Code": "LEALMIX241",
+    "Name": "Açaí com banana e granola 300 ml",
+    "Category": "Sobremesas e açaí",
+    "Query": "acai banana granola"
+  },
+  {
+    "Code": "LEALMIX242",
+    "Name": "Açaí com morango e leite condensado 500 ml",
+    "Category": "Sobremesas e açaí",
+    "Query": "acai strawberry"
+  },
+  {
+    "Code": "LEALMIX243",
+    "Name": "Milk-shake de chocolate 400 ml",
+    "Category": "Sobremesas e açaí",
+    "Query": "chocolate milkshake"
+  },
+  {
+    "Code": "LEALMIX244",
+    "Name": "Café coado 100 ml",
+    "Category": "Cafeteria e combos",
+    "Query": "black coffee cup"
+  },
+  {
+    "Code": "LEALMIX245",
+    "Name": "Café com leite 200 ml",
+    "Category": "Cafeteria e combos",
+    "Query": "cafe com leite"
+  },
+  {
+    "Code": "LEALMIX246",
+    "Name": "Cappuccino 200 ml",
+    "Category": "Cafeteria e combos",
+    "Query": "cappuccino"
+  },
+  {
+    "Code": "LEALMIX247",
+    "Name": "Chocolate quente 200 ml",
+    "Category": "Cafeteria e combos",
+    "Query": "hot chocolate cup"
+  },
+  {
+    "Code": "LEALMIX248",
+    "Name": "Chá de camomila 200 ml",
+    "Category": "Cafeteria e combos",
+    "Query": "chamomile tea cup"
+  },
+  {
+    "Code": "LEALMIX249",
+    "Name": "Chá de hortelã 200 ml",
+    "Category": "Cafeteria e combos",
+    "Query": "mint tea cup"
+  },
+  {
+    "Code": "LEALMIX250",
+    "Name": "Pão na chapa",
+    "Category": "Cafeteria e combos",
+    "Query": "pao na chapa"
+  },
+  {
+    "Code": "LEALMIX251",
+    "Name": "Pão de queijo — unidade",
+    "Category": "Cafeteria e combos",
+    "Query": "pao queijo"
+  },
+  {
+    "Code": "LEALMIX252",
+    "Name": "Combo café com leite e pão na chapa",
+    "Category": "Cafeteria e combos",
+    "Query": "cafe leite pao"
+  },
+  {
+    "Code": "LEALMIX253",
+    "Name": "Combo x-salada com batata e refrigerante",
+    "Category": "Cafeteria e combos",
+    "Query": "burger fries soda"
+  },
+  {
+    "Code": "LEALMIX254",
+    "Name": "Combo x-bacon com batata e refrigerante",
+    "Category": "Cafeteria e combos",
+    "Query": "bacon burger fries"
+  },
+  {
+    "Code": "LEALMIX255",
+    "Name": "Combo cachorro-quente com refrigerante",
+    "Category": "Cafeteria e combos",
+    "Query": "hot dog soda"
+  },
+  {
+    "Code": "LEALMIX256",
+    "Name": "Combo pastel com caldo de cana",
+    "Category": "Cafeteria e combos",
+    "Query": "pastel caldo cana"
+  },
+  {
+    "Code": "LEALMIX257",
+    "Name": "Combo porção de calabresa com batata",
+    "Category": "Cafeteria e combos",
+    "Query": "calabresa fries"
+  },
+  {
+    "Code": "LEALMIX258",
+    "Name": "Combo infantil de frango com arroz e batata",
+    "Category": "Cafeteria e combos",
+    "Query": "chicken rice fries"
+  }
+]

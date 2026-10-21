@@ -16,7 +16,7 @@ internal sealed class ReadyKitchenImportForm : Form
         Size=new Size(1040,700);MinimumSize=new Size(840,560);Font=new Font("Segoe UI",10);BackColor=Color.FromArgb(241,246,250);Padding=new Padding(16);
         entries=ReadyKitchenCatalog.Load();
         grid.Columns.Add(new DataGridViewCheckBoxColumn{Name="Selected",HeaderText="Importar",FillWeight=12});
-        grid.Columns.Add(new DataGridViewImageColumn{Name="Photo",HeaderText="Foto / ilustração",ImageLayout=DataGridViewImageCellLayout.Zoom,FillWeight=18,ReadOnly=true});
+        grid.Columns.Add(new DataGridViewImageColumn{Name="Photo",HeaderText="Foto ilustrativa",ImageLayout=DataGridViewImageCellLayout.Zoom,FillWeight=18,ReadOnly=true});
         grid.Columns.Add("Product","Produto");grid.Columns["Product"].ReadOnly=true;grid.Columns["Product"].FillWeight=40;
         grid.Columns.Add("Category","Categoria");grid.Columns["Category"].ReadOnly=true;grid.Columns["Category"].FillWeight=24;
         grid.Columns.Add(new DataGridViewTextBoxColumn{Name="SuggestedPrice",HeaderText="Sugestão (R$)",ReadOnly=true,FillWeight=18});
@@ -30,7 +30,7 @@ internal sealed class ReadyKitchenImportForm : Form
             grid.Rows[index].Tag=item;
         }
         var heading=new Label{Dock=DockStyle.Top,Height=104,BackColor=Color.FromArgb(9,29,49),ForeColor=Color.White,Padding=new Padding(12),
-            Text=$"BAR E COZINHA • {entries.Length} ITENS • PREÇOS SUGERIDOS EDITÁVEIS\nEdite a coluna SEU PREÇO antes de importar. Cadastros existentes preservados.\nValores ilustrativos. Fotos existentes e ilustrações de categoria.",Font=new Font("Segoe UI",12,FontStyle.Bold)};
+            Text=$"BAR E COZINHA • {entries.Length} ITENS • PREÇOS SUGERIDOS EDITÁVEIS\nEdite a coluna SEU PREÇO antes de importar. Cadastros existentes preservados.\nFotos ilustrativas dos produtos. Valores sugeridos editáveis.",Font=new Font("Segoe UI",12,FontStyle.Bold)};
         var filters=new TableLayoutPanel{Dock=DockStyle.Top,Height=42,ColumnCount=2,RowCount=1};
         filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,60));filters.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,40));
         var search=new TextBox{Name="ReadyKitchenSearch",PlaceholderText="Buscar nome do produto",Dock=DockStyle.Fill};
@@ -40,7 +40,7 @@ internal sealed class ReadyKitchenImportForm : Form
         void ApplyFilter(){if(busy)return;grid.EndEdit();grid.CurrentCell=null;foreach(DataGridViewRow row in grid.Rows){var item=(ReadyKitchenItem)row.Tag!;row.Visible=(category.SelectedIndex==0||item.Category==Convert.ToString(category.SelectedItem))&&CultureInfo.GetCultureInfo("pt-BR").CompareInfo.IndexOf(item.Name,search.Text.Trim(),CompareOptions.IgnoreCase|CompareOptions.IgnoreNonSpace)>=0;}}
         search.TextChanged+=(_,_)=>ApplyFilter();category.SelectedIndexChanged+=(_,_)=>ApplyFilter();
         var actions=new Panel{Dock=DockStyle.Bottom,Height=56,Padding=new Padding(0,8,0,0)};
-        var credits=new Button{Text="FOTOS / ILUSTRAÇÕES",Dock=DockStyle.Left,Width=170,FlatStyle=FlatStyle.Flat};
+        var credits=new Button{Text="ORIGEM DAS FOTOS",Dock=DockStyle.Left,Width=170,FlatStyle=FlatStyle.Flat};
         credits.Click+=(_,_)=>ShowCredits();
         var selectAll=new Button{Text="SELECIONAR TODOS",Dock=DockStyle.Left,Width=180,FlatStyle=FlatStyle.Flat};
         selectAll.Click+=(_,_)=>{grid.EndEdit();foreach(DataGridViewRow row in grid.Rows)if(row.Visible)row.Cells["Selected"].Value=true;status.Text="Selecionados os itens visíveis. Revise os preços antes de importar.";};

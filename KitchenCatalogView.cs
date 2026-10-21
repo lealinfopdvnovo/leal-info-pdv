@@ -137,7 +137,8 @@ internal sealed class KitchenCatalogView : UserControl
         loading=true;reload.Enabled=false;status.Text="Carregando produtos...";
         try
         {
-            var data=await Task.Run(() => ReadProducts());if(IsDisposed)return;
+            string? photoWarning=null;
+            var data=await Task.Run(() => {try{ReadyKitchenCatalog.RepairPhotos();}catch(Exception e){photoWarning=e.Message;}return ReadProducts();});if(IsDisposed)return;
             products=data;
             if (!menuLoaded)
             {
@@ -154,7 +155,7 @@ internal sealed class KitchenCatalogView : UserControl
             category.Items.Clear();category.Items.Add("Todas as categorias");
             foreach(var item in products.Select(p=>p.Category).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(c=>c))category.Items.Add(item);
             category.SelectedItem=category.Items.Cast<string>().FirstOrDefault(c=>c==previous)??"Todas as categorias";limit=60;
-            BuildCategoryRail(); Render();
+            BuildCategoryRail(); Render();if(photoWarning!=null)status.Text+=" • Fotos pendentes: "+photoWarning;
         }
         catch(Exception e){if(!IsDisposed)status.Text="Cardápio indisponível. Tente atualizar.";System.Diagnostics.Debug.WriteLine(e.GetType().Name);}
         finally{loading=false;if(!IsDisposed)reload.Enabled=true;}
@@ -233,6 +234,10 @@ internal sealed class KitchenCatalogView : UserControl
         Image? photo=null;
         try{if(File.Exists(product.PhotoPath)){using var original=Image.FromFile(product.PhotoPath);double scale=Math.Min(240d/original.Width,160d/original.Height);photo=new Bitmap(original,new Size(Math.Max(1,(int)(original.Width*scale)),Math.Max(1,(int)(original.Height*scale))));}}
         catch(Exception e)when(e is IOException or ArgumentException or System.Runtime.InteropServices.ExternalException or OutOfMemoryException){ }
+        if(photo==null&&ReadyKitchenCatalog.IsCatalogPhotoReference(product.PhotoPath,product.Barcode)){
+            try{var entry=ReadyKitchenCatalog.FindPhoto(product.Barcode,product.Name);if(entry!=null){using var input=new MemoryStream(ReadyKitchenCatalog.Photo(entry));using var original=Image.FromStream(input);double scale=Math.Min(240d/original.Width,160d/original.Height);photo=new Bitmap(original,new Size(Math.Max(1,(int)(original.Width*scale)),Math.Max(1,(int)(original.Height*scale))));}}
+            catch(Exception e)when(e is IOException or ArgumentException or InvalidDataException or System.Runtime.InteropServices.ExternalException or OutOfMemoryException){ }
+        }
         Control visual;
         if(photo!=null)
         {
