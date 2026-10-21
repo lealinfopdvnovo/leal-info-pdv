@@ -7,8 +7,10 @@ $ui=Get-Content validated/layout-evidence/results.json -Raw|ConvertFrom-Json
 if($ui.success -ne $true){throw 'UI not approved'}
 $package=(Resolve-Path ('validated/release-output/'+$entry.Package)).Path
 if((Get-FileHash $package).Hash.ToLowerInvariant() -ne $entry.PackageSha256){throw 'Candidate changed'}
-$old=Get-Content original/candidate.json -Raw|ConvertFrom-Json
-$baseline=(Resolve-Path ('original/'+$old.Package)).Path
+$metadata=@(Get-ChildItem original -Filter candidate.json -Recurse)
+if($metadata.Count -ne 1){throw 'Ambiguous 10.422 evidence'}
+$old=Get-Content $metadata[0].FullName -Raw|ConvertFrom-Json
+$baseline=(Resolve-Path (Join-Path $metadata[0].Directory.FullName $old.Package)).Path
 if((Get-FileHash $baseline).Hash.ToLowerInvariant() -ne '546c776f7b9f48a3462f30ba257c8120c1f7bc144d957698565efe98f246e646'){throw '10.422 immutable baseline changed'}
 if($old.Channel -ne '003' -or $old.Version -ne '10.422'){throw 'Wrong protected baseline'}
 $worker=(Resolve-Path TransactionalUpdate.ps1).Path

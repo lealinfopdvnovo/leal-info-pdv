@@ -35,7 +35,7 @@ jobs:
           path: validated
       - uses: actions/download-artifact@v4
         with:
-          name: candidate-003-NOT-AUTHORIZED
+          name: premium-003-validation-NOT-AUTHORIZED
           run-id: 39504754135
           github-token: ${{ github.token }}
           path: original
