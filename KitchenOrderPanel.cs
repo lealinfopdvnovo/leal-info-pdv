@@ -46,7 +46,7 @@ internal sealed class KitchenOrderPanel : UserControl
         clear.Click+=(_,_)=>ClearRequested?.Invoke();send.Click+=(_,_)=>SubmitRequested?.Invoke();print.Click+=(_,_)=>PrintRequested?.Invoke();ready.Click+=(_,_)=>ReadyRequested?.Invoke();
         KitchenPremiumStyle.Apply(this);KitchenPremiumStyle.Frame(this);
         elapsed.ForeColor=Color.OrangeRed;Rows.ColumnHeadersDefaultCellStyle.ForeColor=Color.Silver;Rows.ColumnHeadersDefaultCellStyle.SelectionBackColor=KitchenPremiumStyle.Surface;Rows.ColumnHeadersDefaultCellStyle.SelectionForeColor=Color.Silver;
-        Rows.DefaultCellStyle.SelectionBackColor=Color.FromArgb(49,43,22);Rows.DefaultCellStyle.Padding=new Padding(5,2,5,2);
+        Rows.DefaultCellStyle.BackColor=Color.FromArgb(7,13,19);Rows.RowsDefaultCellStyle.BackColor=Color.FromArgb(7,13,19);Rows.AlternatingRowsDefaultCellStyle.BackColor=Color.FromArgb(13,21,29);Rows.DefaultCellStyle.ForeColor=Color.White;Rows.RowsDefaultCellStyle.ForeColor=Color.White;Rows.DefaultCellStyle.SelectionBackColor=Color.FromArgb(23,53,64);Rows.DefaultCellStyle.Padding=new Padding(5,2,5,2);
         clock.Tick+=(_,_)=>Tick();clock.Start();Display("",Array.Empty<KitchenItem>(),false,null,false,"");
     }
     internal void AttachNewOrder(Button button){button.Dock=DockStyle.Fill;button.Margin=new Padding(2);header.Controls.Add(button,3,0);}
@@ -69,8 +69,7 @@ internal sealed class KitchenHeroButton : Button
     {
         var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;g.Clear(KitchenPremiumStyle.Background);
         var box=new Rectangle(3,3,Math.Max(1,Width-7),Math.Max(1,Height-7));using var shape=KitchenPremiumStyle.Round(box,8);
-        using var fill=new LinearGradientBrush(box,Color.FromArgb(accent.R/3,accent.G/3,accent.B/3),Color.FromArgb(3,9,13),90f);g.FillPath(fill,shape);
-        using(var glow=new Pen(Color.FromArgb(Enabled?75:20,accent),6))g.DrawPath(glow,shape);using(var edge=new Pen(Enabled?accent:Color.DimGray,1.5f))g.DrawPath(edge,shape);
+        KitchenLighting.Surface(g,box,Enabled?accent:Color.FromArgb(65,85,76),Enabled);
         if(string.IsNullOrEmpty(subtitle))
         {
             using var headerIcon=new Font("Segoe MDL2 Assets",Math.Min(30,Height*.40f),GraphicsUnit.Pixel);using var headerInk=new SolidBrush(Enabled?accent:Color.Gray);

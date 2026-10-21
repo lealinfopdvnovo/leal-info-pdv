@@ -61,7 +61,7 @@ internal static class DashboardTests
         Field<System.Windows.Forms.Timer>(visual,"retry").Stop();
         var visualMenu=Field<KitchenCatalogView>(visual,"mainCatalog");pump(()=>visualMenu.Controls.Find("CatalogProduct_1",true).Length==1);
         Field<KitchenTablesView>(visual,"tables").Controls.Find("KitchenTable_1",true).OfType<Button>().Single().PerformClick();
-        foreach(var viewport in new[]{new Size(1680,940),new Size(1920,1000),new Size(1366,720)})
+        foreach(var viewport in new[]{new Size(1672,941),new Size(1920,1000),new Size(1366,720)})
         {
             render(visual,viewport,Path.Combine(evidence,$"referencia-dashboard-{viewport.Width}.png"),host=>
             {
@@ -69,6 +69,7 @@ internal static class DashboardTests
                 foreach(var name in new[]{"DashboardSend","DashboardPrint","DashboardReady"}){var button=host.Controls.Find(name,true).Single();var bounds=order.RectangleToClient(button.RectangleToScreen(button.ClientRectangle));check(order.ClientRectangle.Contains(bounds),$"premium order action visible: {name} at {viewport}");}
                 check(host.Controls.Find("MainTables",true).Single().Controls.Count==10,"reference comparison retains ten main tables");
                 var orderGrid=host.Controls.Find("KitchenDashboardOrder",true).OfType<KitchenOrderPanel>().Single().Rows;
+                check(orderGrid.RowsDefaultCellStyle.BackColor.GetBrightness()<.2f&&orderGrid.AlternatingRowsDefaultCellStyle.BackColor.GetBrightness()<.2f,"order rows have explicit dark surfaces, including alternating rows");
                 check(orderGrid.Rows.Count>0&&orderGrid.GetRowDisplayRectangle(0,false).Bottom<=orderGrid.ClientRectangle.Bottom,"selected order shows a complete first item row");
                 foreach(var timerLabel in host.Controls.Find("ActiveOrderClock",true)){check(timerLabel.Parent!.ClientRectangle.Contains(timerLabel.Bounds)&&!timerLabel.Parent.Controls.Cast<Control>().Any(c=>c!=timerLabel&&c.Bounds.IntersectsWith(timerLabel.Bounds)),"active order timer has its own unobscured area");}
                 var strip=host.Controls.Find("KitchenOrderCards",true).OfType<FlowLayoutPanel>().Single();

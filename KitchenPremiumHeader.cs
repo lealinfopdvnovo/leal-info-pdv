@@ -16,7 +16,7 @@ internal sealed class KitchenPremiumHeader : UserControl
     {
         Dock=DockStyle.Top;Height=96;
         var root=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Padding=new Padding(8)};
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,34));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,38));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,28));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,38));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,36));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,26));
         root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         var brand=new KitchenHeaderBrand{Name="KitchenHeaderBrand",Dock=DockStyle.Fill};
         brand.Paint+=(_,e)=>{
@@ -25,7 +25,7 @@ internal sealed class KitchenPremiumHeader : UserControl
             int h=brand.ClientSize.Height;
             var upper=new Rectangle(47,4,Math.Max(1,middle-51),Math.Max(1,h*55/100-4));
             var lower=new Rectangle(47,h*55/100,Math.Max(1,middle-51),Math.Max(1,h*40/100));
-            float pixels=Math.Min(h*.34f,brand.Width*.048f);
+            float pixels=Math.Min(h*.44f,brand.Width*.057f);
             KitchenGold.DrawTitle(g,"LEAL INFO",upper,pixels);KitchenGold.Icon(g,new Rectangle(5,h/2-21,38,42),false);
             KitchenPremiumStyle.DrawFittedText(g,"PDV PRO",lower,Color.White,h*.17f);
             using var edge=new Pen(Color.FromArgb(90,KitchenPremiumStyle.Gold));g.DrawLine(edge,middle,8,middle,h-8);

@@ -32,15 +32,8 @@ internal sealed class KitchenTableButton : Button
         var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias;
         Color accent = StateColor(state);
         var box = new Rectangle(4, 4, Math.Max(1, Width - 9), Math.Max(1, Height - 9));
-        using var shape = KitchenPremiumStyle.Round(box, 10);
-        using var fill = new LinearGradientBrush(box, Color.FromArgb(accent.R / 7, accent.G / 7, accent.B / 7), Color.FromArgb(3, 9, 12), 90f);
-        g.Clear(KitchenPremiumStyle.Background); g.FillPath(fill, shape);
-        for (int glow = 5; glow >= 1; glow--)
-        {
-            using var pen = new Pen(Color.FromArgb(14 + (5 - glow) * 8, accent), glow + 1);
-            g.DrawPath(pen, shape);
-        }
-        using (var border = new Pen(accent, Focused ? 2.4f : 1.3f)) g.DrawPath(border, shape);
+        g.Clear(KitchenPremiumStyle.Background);
+        KitchenLighting.Surface(g,box,accent);
         int slot=state switch{"OCUPADA"=>1,"PREPARANDO"=>2,"PRONTA"=>3,_=>0};
         var image=Furniture.Value;int cell=image.Width/2;
         int side=Math.Max(1,Math.Min(Width-8,(int)(Height*.69f)));

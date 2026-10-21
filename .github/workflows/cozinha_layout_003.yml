@@ -33,7 +33,7 @@ jobs:
           python scripts/distribute_channels.py plan
           if($LASTEXITCODE -ne 0){throw 'Plan failed'}
           $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
-          if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '003' -or $p.Entries[0].Version -ne '10.425'){throw 'Wrong scope'}
+          if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '003' -or $p.Entries[0].Version -ne '10.426'){throw 'Wrong scope'}
           python scripts/distribute_channels.py prepare 003
           if($LASTEXITCODE -ne 0){throw 'Baseline preparation failed'}
           $env:BASELINE_SOURCE=$p.Entries[0].BaselineSource
@@ -92,7 +92,7 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
           python scripts/distribute_channels.py package 003
           if($LASTEXITCODE -ne 0){throw 'Dependency compatibility failed'}
-          python -c "import json;from pathlib import Path;p=Path('release-output/candidate.json');d=json.loads(p.read_text(encoding='utf-8-sig'));d.update(PublicationAuthorized=False,RequiredInstalledVersion='10.424',RequiredProtectedUpdater=True,RealComputerVersionConfirmed=False);p.write_text(json.dumps(d,indent=2),encoding='utf-8')"
+          python -c "import json;from pathlib import Path;p=Path('release-output/candidate.json');d=json.loads(p.read_text(encoding='utf-8-sig'));d.update(PublicationAuthorized=False,RequiredInstalledVersion='10.425',RequiredProtectedUpdater=True,RealComputerVersionConfirmed=False);p.write_text(json.dumps(d,indent=2),encoding='utf-8')"
       - name: Conferir todos os canais preservados
         working-directory: controller
         shell: python

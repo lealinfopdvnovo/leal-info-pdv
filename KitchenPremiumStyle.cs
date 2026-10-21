@@ -49,7 +49,7 @@ internal static class KitchenPremiumStyle
             if (panel.Width < 4 || panel.Height < 4) return;
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using var shape = Round(new Rectangle(1, 1, panel.Width - 3, panel.Height - 3), 10);
-            using var edge = new Pen(Color.FromArgb(155, Gold)); e.Graphics.DrawPath(edge, shape);
+            for(int w=6;w>=2;w-=2){using var halo=new Pen(Color.FromArgb(15,Gold),w);e.Graphics.DrawPath(halo,shape);}using var edge = new Pen(Color.FromArgb(220, Gold)); e.Graphics.DrawPath(edge, shape);
         };
     }
     internal static void Apply(Control root)
@@ -75,6 +75,9 @@ internal static class KitchenPremiumStyle
                     Color top = selected ? Gold : b.Focused ? Color.FromArgb(97,73,18) : Color.FromArgb(27,39,49);
                     using var fill = new LinearGradientBrush(bounds, top, selected?Color.FromArgb(104,73,9):Color.FromArgb(3,9,13), 90f);
                     e.Graphics.Clear(Background); e.Graphics.FillPath(fill, shape);
+                    if(b.Text=="+"){KitchenLighting.Surface(e.Graphics,bounds,Gold);returnText();}
+                    void returnText(){DrawFittedText(e.Graphics,b.Text,new Rectangle(4,1,b.Width-8,b.Height-2),Color.FromArgb(255,241,166),23);}
+                    if(b.Text=="+")return;
                     using var edge = new Pen(b.Enabled ? Gold : Color.DimGray, b.Focused ? 2 : 1); e.Graphics.DrawPath(edge, shape);
                     if (b.Focused) { using var light = new Pen(Color.FromArgb(70, Gold), 5); e.Graphics.DrawPath(light, shape); }
                     DrawFittedText(e.Graphics, b.Text, new Rectangle(7, 4, b.Width - 14, b.Height - 8),
