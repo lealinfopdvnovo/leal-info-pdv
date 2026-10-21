@@ -74,7 +74,7 @@ internal sealed class KitchenHeroButton : Button
         {
             using var headerIcon=new Font("Segoe MDL2 Assets",Math.Min(30,Height*.40f),GraphicsUnit.Pixel);using var headerInk=new SolidBrush(Enabled?accent:Color.Gray);
             var measured=g.MeasureString(glyph,headerIcon);g.DrawString(glyph,headerIcon,headerInk,new PointF((Width-measured.Width)/2,7));
-            KitchenPremiumStyle.DrawFittedText(g,Text,new Rectangle(7,Height/2,Width-14,Math.Max(1,Height/2-8)),Color.White,12*g.DpiY/96f,true);return;
+            KitchenPremiumStyle.DrawFittedText(g,Text,new Rectangle(7,Height/2,Width-14,Math.Max(1,Height/2-8)),Color.White,12*g.DpiY/96f,false);return;
         }
         int icon=Math.Min(38,Width/5);using var font=new Font("Segoe MDL2 Assets",Math.Max(12,icon*.65f),GraphicsUnit.Pixel);using var ink=new SolidBrush(Enabled?accent:Color.Gray);g.DrawString(glyph,font,ink,new PointF(10,(Height-font.GetHeight(g))/2));
         var text=new Rectangle(icon+8,5,Math.Max(1,Width-icon-20),Math.Max(1,Height*55/100));KitchenPremiumStyle.DrawFittedText(g,Text,text,Enabled?Color.White:Color.Gray,15*g.DpiY/96f,true);

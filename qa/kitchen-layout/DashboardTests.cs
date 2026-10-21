@@ -68,7 +68,10 @@ internal static class DashboardTests
                 var order=host.Controls.Find("KitchenDashboardOrder",true).Single();
                 foreach(var name in new[]{"DashboardSend","DashboardPrint","DashboardReady"}){var button=host.Controls.Find(name,true).Single();var bounds=order.RectangleToClient(button.RectangleToScreen(button.ClientRectangle));check(order.ClientRectangle.Contains(bounds),$"premium order action visible: {name} at {viewport}");}
                 check(host.Controls.Find("MainTables",true).Single().Controls.Count==10,"reference comparison retains ten main tables");
-                check(host.Controls.Find("KitchenActiveOrders",true).Single().Height>=90,"active orders retain the bottom horizontal strip");
+                var strip=host.Controls.Find("KitchenOrderCards",true).OfType<FlowLayoutPanel>().Single();
+                check(strip.Controls.Cast<Control>().Where(c=>c is Panel).All(c=>c.Bottom<=strip.ClientSize.Height),"active order cards and timers are fully visible vertically");
+                check(host.Controls.Find("MainTables",true).Single().Controls.Cast<Control>().All(c=>c.Height>=70),"ten main table buttons retain readable height");
+                var rail=host.Controls.Find("KitchenCategoryRail",true).OfType<FlowLayoutPanel>().Single();check(!rail.HorizontalScroll.Visible,"category rail does not add a clipping horizontal scrollbar");
             });
         }
         check(Field<FlowLayoutPanel>(form,"orderCards").FlowDirection==FlowDirection.LeftToRight,"active orders use the reference horizontal composition");

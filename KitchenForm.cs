@@ -78,10 +78,10 @@ internal sealed class KitchenForm : Form
         var workspace = new Panel { Dock = DockStyle.Fill };
         var right=new TableLayoutPanel{Name="KitchenPremiumWorkspace",Dock=DockStyle.Fill,ColumnCount=1,RowCount=5,Padding=new Padding(4)};
         right.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        right.SizeChanged+=(_,_)=>{float top=right.Height>=740?55:45;right.RowStyles[0].Height=top;right.RowStyles[1].Height=100-top;};
-        right.RowStyles.Add(new RowStyle(SizeType.Percent,55));right.RowStyles.Add(new RowStyle(SizeType.Percent,45));
-        right.RowStyles.Add(new RowStyle(SizeType.Absolute,128));right.RowStyles.Add(new RowStyle(SizeType.AutoSize));right.RowStyles.Add(new RowStyle(SizeType.Absolute,32));
-        tables.Dock=DockStyle.Fill;tables.MinimumSize=new Size(0,172);right.Controls.Add(tables,0,0);right.Controls.Add(dashboardOrder,0,1);
+        right.SizeChanged+=(_,_)=>{right.RowStyles[0].Height=Math.Clamp((right.Height-190)*0.51f,226,330);};
+        right.RowStyles.Add(new RowStyle(SizeType.Absolute,226));right.RowStyles.Add(new RowStyle(SizeType.Percent,100));
+        right.RowStyles.Add(new RowStyle(SizeType.Absolute,150));right.RowStyles.Add(new RowStyle(SizeType.AutoSize));right.RowStyles.Add(new RowStyle(SizeType.Absolute,32));
+        tables.Dock=DockStyle.Fill;tables.MinimumSize=new Size(0,226);right.Controls.Add(tables,0,0);right.Controls.Add(dashboardOrder,0,1);
         var history=new Panel{Name="KitchenActiveOrders",Dock=DockStyle.Fill,Padding=new Padding(4,4,4,2)};
         history.Controls.Add(orderCards);history.Controls.Add(new Label{Text="PEDIDOS EM ANDAMENTO",Dock=DockStyle.Top,Height=25,Font=new Font("Segoe UI",10,FontStyle.Bold)});
         right.Controls.Add(history,0,2);buttons.Dock=DockStyle.Fill;buttons.Padding=new Padding(3);buttons.Margin=Padding.Empty;right.Controls.Add(buttons,0,3);buttons.Visible=false;dashboardOrder.AttachNewOrder(fresh);
@@ -444,7 +444,7 @@ internal sealed class KitchenForm : Form
             var model=visibleOrders.Single(o=>o.Id==value.Id);
             var text=new Label{Text=value.Status+"   •   "+model.Items.Length+" itens",Dock=DockStyle.Fill,AutoEllipsis=true,Font=new Font("Segoe UI",8)};
             var ageLabel=new Label{Tag=model.ReceivedUtc,Text="00:00",Dock=DockStyle.Bottom,Height=20,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9,FontStyle.Bold)};card.Controls.Add(ageLabel);
-            card.Controls.Add(text);card.Controls.Add(title);KitchenPremiumStyle.Apply(card);KitchenPremiumStyle.Frame(card);title.ForeColor=value.Status=="PRONTO"?KitchenTableButton.StateColor("PRONTA"):KitchenPremiumStyle.Gold;
+            card.Controls.Add(text);card.Controls.Add(title);KitchenPremiumStyle.Apply(card);KitchenPremiumStyle.Frame(card);var accent=KitchenTableButton.StateColor(value.Status=="PRONTO"?"PRONTA":value.Status=="AGUARDANDO"?"OCUPADA":value.Status);title.ForeColor=accent;ageLabel.ForeColor=accent;card.Paint+=(_,e)=>{using var pen=new Pen(accent,2);e.Graphics.DrawLine(pen,10,card.Height-3,card.Width-10,card.Height-3);};
             void Select(){if(send.Enabled&&items.Rows.Count>0){message.Text="Conclua o rascunho antes de selecionar outro pedido.";return;}dashboardDraft=false;orders.CurrentCell=row.Row.Cells.Cast<DataGridViewCell>().First(c=>c.Visible);row.Row.Selected=true;detail.Text=value.Details;message.Text="Pedido selecionado: "+value.Referencia+" • "+value.Status;SyncDashboard();}
             void Details(){using var dialog=new Form{Text="PEDIDO • "+value.Referencia,Size=new Size(680,480),StartPosition=FormStartPosition.CenterParent,ShowInTaskbar=false};dialog.Controls.Add(new TextBox{Multiline=true,ReadOnly=true,Dock=DockStyle.Fill,ScrollBars=ScrollBars.Vertical,Text=value.Referencia+Environment.NewLine+value.Status+Environment.NewLine+value.Details});KitchenPremiumStyle.Apply(dialog);dialog.ShowDialog(this);}
             card.DoubleClick+=(_,_)=>Details();text.DoubleClick+=(_,_)=>Details();title.DoubleClick+=(_,_)=>Details();

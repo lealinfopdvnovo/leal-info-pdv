@@ -70,6 +70,7 @@ internal sealed class KitchenCatalogView : UserControl
         body.Controls.Add(categoryRail,0,0);body.Controls.Add(cards,1,0);root.Controls.Add(body,0,3);Controls.Add(root);
         KitchenPremiumStyle.Apply(this); KitchenPremiumStyle.Frame(this); title.ForeColor = KitchenPremiumStyle.Gold;
         cards.Resize += (_,_) => SizeCards();
+        categoryRail.SizeChanged+=(_,_)=>{foreach(Control shortcut in categoryRail.Controls)shortcut.Width=Math.Max(90,categoryRail.ClientSize.Width-SystemInformation.VerticalScrollBarWidth-8);};
         void LayoutActions()
         {
             int available=Math.Max(1,actions.ClientSize.Width-actions.Padding.Horizontal),used=0,rowHeight=0,total=0;
@@ -207,7 +208,7 @@ internal sealed class KitchenCatalogView : UserControl
         foreach (Control child in categoryRail.Controls.Cast<Control>().ToArray()) { categoryRail.Controls.Remove(child); child.Dispose(); }
         foreach (string value in category.Items.Cast<string>())
         {
-            var button = new KitchenCategoryButton { Name="KitchenCategory_"+categoryRail.Controls.Count, Tag=value, Text = value == "Todas as categorias" ? "TODOS" : value.Equals("Sem categoria",StringComparison.OrdinalIgnoreCase) ? "SEM\nCATEGORIA" : value.ToUpperInvariant(), Width = 130, Height = 64, Margin = new Padding(2,4,2,4) };
+            var button = new KitchenCategoryButton { Name="KitchenCategory_"+categoryRail.Controls.Count, Tag=value, Text = value == "Todas as categorias" ? "TODOS" : value.Equals("Sem categoria",StringComparison.OrdinalIgnoreCase) ? "SEM\nCATEGORIA" : value.ToUpperInvariant(), Width = Math.Max(90,categoryRail.ClientSize.Width-SystemInformation.VerticalScrollBarWidth-8), Height = 64, Margin = new Padding(2,4,2,4) };
             KitchenPremiumStyle.Apply(button); button.Click += (_,_) => category.SelectedItem = value; categoryRail.Controls.Add(button);
         }
     }
