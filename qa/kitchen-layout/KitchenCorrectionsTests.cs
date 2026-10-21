@@ -1,0 +1,70 @@
+using LealInfoPDV;
+using System.Reflection;
+using System.Runtime.InteropServices;
+internal static class KitchenCorrectionsTests
+{
+    const BindingFlags P=BindingFlags.NonPublic|BindingFlags.Instance;
+    static T Field<T>(object o,string n)=>(T)o.GetType().GetField(n,P)!.GetValue(o)!;
+    static object? Call(object o,string n,params object[] args)=>o.GetType().GetMethod(n,P)!.Invoke(o,args);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern IntPtr FindWindow(string? cls,string title);
+    [DllImport("user32.dll")]static extern bool PostMessage(IntPtr window,uint message,IntPtr w,IntPtr l);
+    static long Count(string sql){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText=sql;return Convert.ToInt64(q.ExecuteScalar());}
+    static void Exec(string sql){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText=sql;q.ExecuteNonQuery();}
+    internal static void Run(KitchenForm form,Action<bool,string> check,Action<Func<bool>> pump)
+    {
+        Exec("INSERT INTO products(id,name,price,stock,kitchen_preparation,track_stock) VALUES(7001,'QA LOJA',15,50,0,1),(7002,'QA COZINHA',10,50,1,1),(7003,'QA SEM ESTOQUE',2,0,1,0)");
+        var products=KitchenCatalogView.ReadProducts();check(!products.Any(p=>p.Id==7001)&&products.Any(p=>p.Id==7002),"kitchen excludes store products and preserves kitchen products");
+        Database.Initialize();check(Count("SELECT stock FROM products WHERE id=7001")==50,"additive migration repeat preserves existing stock");
+        // Mandatory new product classification: a real save click without a choice must not insert anything.
+        typeof(ProductRegistrationForm).GetMethod("EnsureSchema",BindingFlags.NonPublic|BindingFlags.Static)!.Invoke(null,null);
+        using(var registration=(Form)Activator.CreateInstance(typeof(ProductRegistrationForm),BindingFlags.NonPublic|BindingFlags.Instance,null,new object?[]{null},null)!)
+        {
+            registration.Show(form);var fields=Field<Dictionary<string,Control>>(registration,"_fields");((TextBox)fields["name"]).Text="QA REQUIRED CHOICE";
+            var choice=(ComboBox)fields["kitchen"];check(choice.SelectedIndex==-1,"new product requires explicit kitchen yes/no selection");
+            using var timer=new System.Windows.Forms.Timer{Interval=40};timer.Tick+=(_,_)=>{var window=FindWindow(null,"Classificação obrigatória");if(window!=IntPtr.Zero)PostMessage(window,0x0010,IntPtr.Zero,IntPtr.Zero);};timer.Start();Call(registration,"SaveProduct");timer.Stop();
+            check(Count("SELECT COUNT(*) FROM products WHERE name='QA REQUIRED CHOICE'")==0,"saving without kitchen choice alerts and inserts no product");choice.SelectedIndex=1;
+            timer.Tick+=(_,_)=>{var window=FindWindow(null,"LEAL INFO PDV");if(window!=IntPtr.Zero)PostMessage(window,0x0010,IntPtr.Zero,IntPtr.Zero);};timer.Start();Call(registration,"SaveProduct");timer.Stop();
+            check(Count("SELECT COUNT(*) FROM products WHERE name='QA REQUIRED CHOICE' AND kitchen_preparation=0 AND kitchen_classified=1")==1,"explicit NO saves product as store and records confirmed classification");
+            choice.SelectedIndex=0;timer.Start();Call(registration,"SaveProduct");timer.Stop();
+            check(Count("SELECT COUNT(*) FROM products WHERE name='QA REQUIRED CHOICE' AND kitchen_preparation=1 AND kitchen_classified=1")==1,"explicit YES saves kitchen classification");registration.Close();
+        }
+        var store=Field<KitchenStore>(form,"store");string identity=store.StoreId();
+        KitchenOrder Add(string mesa,params KitchenItem[] items)=>store.Submit(identity,new KitchenDraft(Guid.NewGuid(),mesa,"","QA LAYOUT",DateTimeOffset.UtcNow,items));
+        var first=Add("Mesa 99",new("QA COZINHA",2,"",7002));var second=Add("Mesa 99",new("QA SEM ESTOQUE",1,"",7003));
+        var bill=store.Quote(first.Id);check(bill.Orders.Length==2&&bill.Total==22,"payment covers all active orders of the selected table with rounded prices");
+        long sales=Count("SELECT COUNT(*) FROM sales"),cash=Count("SELECT COUNT(*) FROM cash_movements");
+        check(Count("SELECT COUNT(*) FROM sales")==sales,"opening quote and cancelling payment write no sale");
+        bool invalid=false;try{store.Receive(bill,new[]{new KitchenPayment("Dinheiro",21)},"QA LAYOUT");}catch(InvalidOperationException){invalid=true;}check(invalid&&Count("SELECT COUNT(*) FROM sales")==sales,"wrong payment total changes no sale or stock");
+        long sale=store.Receive(bill,new[]{new KitchenPayment("Dinheiro",10),new KitchenPayment("Cartão",12)},"QA LAYOUT");
+        check(Count("SELECT COUNT(*) FROM sales")==sales+1&&Count("SELECT COUNT(*) FROM cash_movements")==cash+2,"payment writes one sale and correct split cash movements");
+        check(Count("SELECT stock FROM products WHERE id=7002")==48&&Count("SELECT stock FROM products WHERE id=7003")==0,"stock decreases once only when stock control is enabled");
+        check(store.Get(first.Id).Status=="ENTREGUE"&&store.Get(second.Id).Status=="ENTREGUE","successful payment closes all charged orders and releases table");
+        check(store.Receive(bill,new[]{new KitchenPayment("Dinheiro",10),new KitchenPayment("Cartão",12)},"QA LAYOUT")==sale&&Count("SELECT COUNT(*) FROM sales")==sales+1&&Count("SELECT stock FROM products WHERE id=7002")==48,"retry after committed payment returns same sale without double charge");
+        var stale=Add("Mesa 98",new("QA COZINHA",1,"",7002));var old=store.Quote(stale.Id);Add("Mesa 98",new("QA COZINHA",1,"",7002));
+        invalid=false;try{store.Receive(old,new[]{new KitchenPayment("PIX",old.Total)},"QA LAYOUT");}catch(InvalidOperationException){invalid=true;}check(invalid&&Count("SELECT COUNT(*) FROM sales")==sales+1,"new order during payment invalidates quote atomically");
+        var noStock=Add("Mesa 97",new("QA COZINHA",100,"",7002));var unavailable=store.Quote(noStock.Id);invalid=false;try{store.Receive(unavailable,new[]{new KitchenPayment("Dinheiro",unavailable.Total)},"QA LAYOUT");}catch(InvalidOperationException){invalid=true;}check(invalid&&Count("SELECT COUNT(*) FROM sales")==sales+1&&Count("SELECT stock FROM products WHERE id=7002")==48,"insufficient stock rolls back full payment");
+        // Timers must retain the explicitly selected order even when a newer order arrives.
+        var draft=Field<DataGridView>(form,"items");draft.Rows.Clear();Call(form,"SetEntryEnabled",false);
+        var task=(Task)Call(form,"RefreshOrders")!;pump(()=>task.IsCompleted);task.GetAwaiter().GetResult();
+        typeof(KitchenForm).GetField("dashboardDraft",P)!.SetValue(form,false);Call(form,"SelectSavedOrder",stale.Id);
+        var panel=Field<KitchenOrderPanel>(form,"dashboardOrder");var since=Field<DateTimeOffset?>(panel,"started");
+        Add("Mesa 96",new("QA COZINHA",1,"",7002));
+        int resets=0;var elapsed=panel.Controls.Find("DashboardOrderElapsed",true).Single();elapsed.TextChanged+=(_,_)=>{if(Field<DateTimeOffset?>(panel,"started")!=since)resets++;};
+        for(int i=0;i<3;i++){task=(Task)Call(form,"RefreshOrders")!;pump(()=>task.IsCompleted);task.GetAwaiter().GetResult();}
+        check(resets==0&&Field<DateTimeOffset?>(panel,"started")==since,"poll refresh and incoming order never reset selected order clock");
+        check(panel.Controls.Find("KitchenReceivePayment",true).Single().Visible,"payment button is present on main order panel");
+        // Imports preserve existing shop products and classify only new ready-catalog products.
+        using(var import=new ReadyKitchenImportForm())
+        {
+            import.Show(form);var grid=import.Controls.Find("ReadyKitchenProducts",true).OfType<DataGridView>().Single();
+            // Use the real event path for select-all; duplicates already imported by DashboardTests are harmless.
+            var select=import.Controls.Cast<Control>().SelectMany(c=>c.Controls.Cast<Control>()).OfType<Button>().Single(b=>b.Text=="SELECIONAR TODOS");select.PerformClick();
+            foreach(DataGridViewRow row in grid.Rows)row.Cells["Price"].Value="12,50";
+            import.Controls.Find("ImportReadyKitchen",true).OfType<Button>().Single().PerformClick();pump(()=>import.IsDisposed||!import.Visible);
+            check(import.DialogResult==DialogResult.OK,"actual select-all and import button completes with OK after releasing busy guard");
+        }
+        check(Count("SELECT COUNT(*) FROM products WHERE barcode LIKE 'LEALMIX%' AND kitchen_preparation=1")==18&&Count("SELECT stock FROM products WHERE id=7001")==50,"ready kitchen import preserves existing store catalog and stock");
+        // Restore empty UI draft for subsequent double-click tests; historical fixtures stay auditable.
+        typeof(KitchenForm).GetField("dashboardDraft",P)!.SetValue(form,true);Call(form,"SetEntryEnabled",true);Call(form,"SyncDashboard");
+    }
+}

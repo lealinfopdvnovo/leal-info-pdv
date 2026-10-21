@@ -4388,11 +4388,11 @@ private void ApplyFloatingTheme(Form f)
 
 
 
-    private List<PaymentPart>? SelectPayment(double total, int initialMethod = 0)
+    private List<PaymentPart>? SelectPayment(double total, int initialMethod = 0, IWin32Window? owner = null, string? caption = null)
     {
         using var f = new Form
         {
-            Text = "Finalizar Venda",
+            Text = caption ?? "Finalizar Venda",
             StartPosition = FormStartPosition.CenterParent,
             Width = 760,
             Height = 610,
@@ -4808,9 +4808,24 @@ private void ApplyFloatingTheme(Form f)
         UpdateMulti();
 
         ApplyFloatingTheme(f);
-        return f.ShowDialog(Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.Visible && form.Text.Contains("TELA DE VENDA")) ?? this) == DialogResult.OK ? result : null;
+        return f.ShowDialog(owner ?? Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.Visible && form.Text.Contains("TELA DE VENDA")) ?? this) == DialogResult.OK ? result : null;
     }
 
+    internal bool ReceiveKitchenOrder(IWin32Window owner,KitchenStore store,Guid selected)
+    {
+        if(!Auth.HasPermission("sales"))throw new InvalidOperationException("Sem permissão para receber pagamentos.");
+        var bill=store.Quote(selected);
+        string summary=bill.Reference.ToUpperInvariant()+" — "+bill.Orders.Length+" pedido(s)\n\n"+string.Join("\n",bill.Items.Select(i=>$"{i.Quantity:0.###} × {i.Description}: {i.Total:C2}"))+ $"\n\nTOTAL: {bill.Total:C2}\nConferir os itens e prosseguir para o pagamento?";
+        if(MessageBox.Show(owner,summary,"CONFERIR CONTA DA MESA",MessageBoxButtons.OKCancel,MessageBoxIcon.Information)!=DialogResult.OK)return false;
+        var parts=SelectPayment((double)bill.Total,0,owner,"RECEBER / PAGAMENTO — "+bill.Reference.ToUpperInvariant());
+        if(parts==null||parts.Count==0)return false;
+        long id=store.Receive(bill,parts.Select(p=>new KitchenPayment(p.Method,decimal.Round((decimal)p.Amount,2))).ToArray(),Auth.OperatorName);
+        try {
+            var receipt=BuildReceipt(id,DateTime.Now,bill.Items.Select(i=>new CartItem{ProductId=i.ProductId,Description=i.Description,Qty=(double)i.Quantity,UnitPrice=(double)i.UnitPrice}),parts,(double)bill.Total);
+            RefreshDashboard();ShowReceipt(receipt);ThermalPrinterService.PrintAutomaticallyIfEnabled(receipt,this);
+        }catch(Exception e){MessageBox.Show(owner,"Pagamento registrado na venda #"+id+". Não foi possível exibir/imprimir o comprovante: "+e.Message,"Pagamento registrado");}
+        return true;
+    }
     private string BuildReceipt(long saleId, DateTime soldAt, IEnumerable<CartItem> items, IEnumerable<PaymentPart> payments, double total)
     {
         var sb = new System.Text.StringBuilder();

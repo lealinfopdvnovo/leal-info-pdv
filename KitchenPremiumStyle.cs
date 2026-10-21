@@ -12,7 +12,7 @@ internal static class KitchenPremiumStyle
     internal static bool Owns(Control control)
     {
         var form = control as Form ?? control.FindForm();
-        return form is KitchenForm || form?.Name is "KitchenOrderEntry" or "KitchenTableOrder" or "AllKitchenTables" or "KitchenPdvSelection";
+        return form is KitchenForm || form?.Name is "KitchenOrderEntry" or "KitchenTableOrder" or "AllKitchenTables" or "KitchenPdvSelection" or "KitchenConfiguration" or "KitchenPrinterConfiguration";
     }
     internal static void DrawFittedText(Graphics g, string text, Rectangle bounds, Color color, float preferredPixels, bool wrap = false)
     {
@@ -89,6 +89,7 @@ internal static class KitchenPremiumStyle
         }
         if (root is DataGridView grid)
         {
+            grid.EnableHeadersVisualStyles=false;grid.ColumnHeadersDefaultCellStyle.SelectionBackColor=Surface;grid.ColumnHeadersDefaultCellStyle.SelectionForeColor=Gold;
             grid.BackgroundColor = Background; grid.GridColor = Surface;
             grid.DefaultCellStyle.BackColor = Surface; grid.DefaultCellStyle.ForeColor = Color.White;
             grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(75, 60, 21); grid.DefaultCellStyle.SelectionForeColor = Color.White;
