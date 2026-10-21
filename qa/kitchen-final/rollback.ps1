@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Windows isolado somente'}
 $e=Get-Content validated/release-output/candidate.json -Raw|ConvertFrom-Json
-if($e.Channel -ne $env:CHANNEL -or $e.Version -ne '10.429'){throw 'Wrong package identity'}
+if($e.Channel -ne $env:CHANNEL -or $e.Version -ne '10.430'){throw 'Wrong package identity'}
 if($e.SourceCommit -ne $env:APPROVED_SOURCE){throw 'Wrong source'}
 $r=Get-Content validated/layout-evidence/results.json -Raw|ConvertFrom-Json
 if($r.success -ne $true){throw 'No Windows UI approval'}

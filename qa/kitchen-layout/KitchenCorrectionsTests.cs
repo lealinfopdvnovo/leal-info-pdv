@@ -70,13 +70,20 @@ internal static class KitchenCorrectionsTests
         using(var import=new ReadyKitchenImportForm())
         {
             import.Show(form);var grid=import.Controls.Find("ReadyKitchenProducts",true).OfType<DataGridView>().Single();
+            check(grid.Rows.Count>=200&&grid.Rows.Cast<DataGridViewRow>().All(r=>!Convert.ToBoolean(r.Cells["Selected"].Value)&&Convert.ToString(r.Cells["Price"].Value)==Convert.ToString(r.Cells["SuggestedPrice"].Value)&&ReadyKitchenPrices.Suggested((ReadyKitchenItem)r.Tag!)>0),"expanded catalog starts with positive editable suggested prices and no automatic selection");
+            using(var screenshot=new Bitmap(import.Width,import.Height)){import.DrawToBitmap(screenshot,new Rectangle(Point.Empty,screenshot.Size));screenshot.Save("layout-evidence/catalogo-pronto-258.png");}
+            var category=import.Controls.Find("ReadyKitchenCategory",true).OfType<ComboBox>().Single();category.SelectedItem="Cervejas";
+            check(grid.Rows.Cast<DataGridViewRow>().Count(r=>r.Visible)==15,"expanded catalog category filter isolates fifteen beer options");category.SelectedIndex=0;
+            var search=import.Controls.Find("ReadyKitchenSearch",true).OfType<TextBox>().Single();search.Text="caipirinha";check(grid.Rows.Cast<DataGridViewRow>().Count(r=>r.Visible)==2,"expanded catalog name search finds caipirinha flavors");search.Clear();
+            grid.Rows[0].Cells["Price"].Value="99,90";check(Convert.ToString(grid.Rows[0].Cells["SuggestedPrice"].Value)!="99,90","editing the customer price preserves original suggested reference");
             // Use the real event path for select-all; duplicates already imported by DashboardTests are harmless.
             var select=import.Controls.Cast<Control>().SelectMany(c=>c.Controls.Cast<Control>()).OfType<Button>().Single(b=>b.Text=="SELECIONAR TODOS");select.PerformClick();
             foreach(DataGridViewRow row in grid.Rows)row.Cells["Price"].Value="12,50";
             import.Controls.Find("ImportReadyKitchen",true).OfType<Button>().Single().PerformClick();pump(()=>import.IsDisposed||!import.Visible);
             check(import.DialogResult==DialogResult.OK,"actual select-all and import button completes with OK after releasing busy guard");
         }
-        check(Count("SELECT COUNT(*) FROM products WHERE barcode LIKE 'LEALMIX%' AND kitchen_preparation=1")==18&&Count("SELECT stock FROM products WHERE id=7001")==50,"ready kitchen import preserves existing store catalog and stock");
+        check(Count("SELECT COUNT(*) FROM products WHERE barcode LIKE 'LEALMIX%' AND kitchen_preparation=1" )==ReadyKitchenCatalog.Load().Length&&Count("SELECT stock FROM products WHERE id=7001")==50,"ready kitchen import preserves existing store catalog and stock");
+        using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="SELECT price FROM products WHERE barcode='LEALMIX001'";check(Convert.ToDecimal(q.ExecuteScalar())==99.90m,"reimport preserves customer-edited price instead of applying suggested or newly-entered values");}
         bool sawConfiguration=false;
         using(var timer=new System.Windows.Forms.Timer{Interval=30}){
             timer.Tick+=(_,_)=>{var config=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Name=="KitchenConfiguration");if(config==null)return;timer.Stop();sawConfiguration=true;config.Controls.OfType<Button>().Single(b=>b.Text.StartsWith("QUANTIDADE")).PerformClick();};
