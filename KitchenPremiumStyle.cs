@@ -54,7 +54,7 @@ internal static class KitchenPremiumStyle
     }
     internal static void Apply(Control root)
     {
-        if (root is KitchenTableButton or KitchenMoreTablesButton or KitchenHeroButton or KitchenCategoryButton) return;
+        if (root is KitchenTableButton or KitchenMoreTablesButton or KitchenHeroButton or KitchenCategoryButton or KitchenCategorySelector) return;
         root.BackColor = root is TextBox or NumericUpDown or ComboBox ? Surface : Background;
         root.ForeColor = Color.FromArgb(235, 242, 249);
         if (root is Button b)

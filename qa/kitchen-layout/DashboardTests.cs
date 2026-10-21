@@ -15,9 +15,10 @@ internal static class DashboardTests
         var reference=Field<TextBox>(form,"reference");reference.Clear();typeof(KitchenForm).GetField("dashboardDraft",P)!.SetValue(form,true);
         var menu=Field<KitchenCatalogView>(form,"mainCatalog");var tables=Field<KitchenTablesView>(form,"tables");var panel=Field<KitchenOrderPanel>(form,"dashboardOrder");var store=Field<KitchenStore>(form,"store");var fresh=Field<Button>(form,"fresh");
         var category=menu.Controls.Find("CatalogCategory",true).OfType<ComboBox>().Single();
-        check(category is KitchenCategoryCombo,"dark category painting retains the native combo control");category.DroppedDown=true;
-        check(category.DroppedDown,"dark category face opens the existing native product-category popup");category.DroppedDown=false;
-        int selectedCategory=category.SelectedIndex;category.SelectedIndex=1;check(category.SelectedIndex==1,"native category selection remains functional");category.SelectedIndex=selectedCategory;
+        var selector=menu.Controls.Find("KitchenCategorySelector",true).OfType<KitchenCategorySelector>().Single();selector.PerformClick();
+        check(selector.Menu?.Visible==true&&selector.Menu.Items.Count==category.Items.Count,"dark category selector opens all existing product categories");
+        int selectedCategory=category.SelectedIndex;((ToolStripMenuItem)selector.Menu!.Items[1]).PerformClick();selector.Menu.Close();
+        check(category.SelectedIndex==1,"category menu click updates the original filter selection");category.SelectedIndex=selectedCategory;
         tables.Controls.Find("KitchenTable_3",true).OfType<Button>().Single().PerformClick();
         check(panel.Controls.Find("DashboardOrderTitle",true).Single().Text.Contains("03"),"table selection binds the embedded order panel");
         menu.Controls.Find("CatalogProduct_1",true).OfType<Button>().Single().PerformClick();

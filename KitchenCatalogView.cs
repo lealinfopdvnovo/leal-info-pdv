@@ -8,7 +8,8 @@ internal sealed record KitchenCatalogProduct(long Id, string Name, string Catego
 internal sealed class KitchenCatalogView : UserControl
 {
     private readonly TextBox search = new() { Name = "CatalogSearch", Dock = DockStyle.Fill, PlaceholderText = "Buscar produto ou código" };
-    private readonly ComboBox category = new KitchenCategoryCombo() { Name = "CatalogCategory", Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly ComboBox category = new() { Name = "CatalogCategory", Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+    private readonly KitchenCategorySelector categorySelector;
     private readonly FlowLayoutPanel cards = new() { Name = "CatalogCards", Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, BackColor = Color.FromArgb(241,246,250) };
     private readonly Label status = new() { Dock = DockStyle.Fill, AutoEllipsis = true, ForeColor = Color.FromArgb(65,90,110) };
     private readonly Button reload = new() { Name = "CatalogReload", Text = "ATUALIZAR CARDÁPIO", Dock = DockStyle.Fill, FlatStyle = FlatStyle.Flat };
@@ -23,6 +24,7 @@ internal sealed class KitchenCatalogView : UserControl
     internal event Action? CatalogChanged;
     internal KitchenCatalogView()
     {
+        categorySelector=new KitchenCategorySelector(category);
         Name = "KitchenCatalog"; Dock = DockStyle.Fill; Font = new Font("Segoe UI",10); Padding = new Padding(10,0,4,10);
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, Padding = new Padding(6) };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
@@ -30,7 +32,7 @@ internal sealed class KitchenCatalogView : UserControl
         var title = new KitchenCenteredLabel { Text = "PRODUTOS", Dock = DockStyle.Fill, Font = new Font("Segoe UI",18,FontStyle.Bold) };
         var searchRow = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize=true,AutoSizeMode=AutoSizeMode.GrowAndShrink,MinimumSize=new Size(0,50),ColumnCount = 3, RowCount = 1 };
         searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,145));searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,135));searchRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        searchRow.Controls.Add(title,0,0);searchRow.Controls.Add(search,1,0);searchRow.Controls.Add(category,2,0);root.Controls.Add(searchRow,0,0);
+        searchRow.Controls.Add(title,0,0);searchRow.Controls.Add(search,1,0);searchRow.Controls.Add(categorySelector,2,0);root.Controls.Add(searchRow,0,0);
         var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, WrapContents = true, Padding = Padding.Empty };
         var ready=new Button{Name="ReadyKitchenOpen",Text="CATÁLOGO PRONTO",Width=155,Height=40,FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(9,29,49),ForeColor=Color.White};
         ready.Click+=async(_,_)=>
@@ -99,12 +101,12 @@ internal sealed class KitchenCatalogView : UserControl
             if(next)
             {
                 searchRow.ColumnCount=2;searchRow.RowCount=2;searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,65));searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,35));
-                searchRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));searchRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));searchRow.Controls.Add(title,0,0);searchRow.SetColumnSpan(title,2);searchRow.Controls.Add(search,0,1);searchRow.Controls.Add(category,1,1);
+                searchRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));searchRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));searchRow.Controls.Add(title,0,0);searchRow.SetColumnSpan(title,2);searchRow.Controls.Add(search,0,1);searchRow.Controls.Add(categorySelector,1,1);
             }
             else
             {
                 searchRow.ColumnCount=3;searchRow.RowCount=1;searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,145));searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,135));
-                searchRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));searchRow.Controls.Add(title,0,0);searchRow.SetColumnSpan(title,1);searchRow.Controls.Add(search,1,0);searchRow.Controls.Add(category,2,0);
+                searchRow.RowStyles.Add(new RowStyle(SizeType.AutoSize));searchRow.Controls.Add(title,0,0);searchRow.SetColumnSpan(title,1);searchRow.Controls.Add(search,1,0);searchRow.Controls.Add(categorySelector,2,0);
             }
             searchRow.ResumeLayout(true);
         }

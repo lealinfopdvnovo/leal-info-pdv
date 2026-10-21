@@ -38,22 +38,34 @@ internal sealed class KitchenProductCard : TableLayoutPanel
     {e.Graphics.Clear(KitchenPremiumStyle.Background);KitchenLighting.Surface(e.Graphics,new Rectangle(5,5,Math.Max(1,Width-11),Math.Max(1,Height-11)),KitchenPremiumStyle.Gold,false);}
 }
 
-// Native combo behavior is preserved; repaint its closed face for both screen and Windows print captures.
-internal sealed class KitchenCategoryCombo : ComboBox
+// Presentation only: all filtering continues through the existing combo selection model.
+internal sealed class KitchenCategorySelector : Button
 {
-    protected override void WndProc(ref Message m)
+    private readonly ComboBox selection;
+    internal ContextMenuStrip? Menu {get;private set;}
+    internal KitchenCategorySelector(ComboBox selection)
     {
-        base.WndProc(ref m);
-        if(IsDisposed||!IsHandleCreated||Width<4||Height<4)return;
-        if(m.Msg==0x000F){using var g=Graphics.FromHwnd(Handle);PaintFace(g);}
-        else if((m.Msg==0x0317||m.Msg==0x0318)&&m.WParam!=IntPtr.Zero){using var g=Graphics.FromHdc(m.WParam);PaintFace(g);}
+        this.selection=selection;Name="KitchenCategorySelector";Dock=DockStyle.Fill;FlatStyle=FlatStyle.Flat;FlatAppearance.BorderSize=0;DoubleBuffered=true;Cursor=Cursors.Hand;
+        selection.Visible=false;selection.Dock=DockStyle.None;Controls.Add(selection);selection.SelectedIndexChanged+=Selected;
+        Text="TODOS";
     }
-    private void PaintFace(Graphics g)
+    private void Selected(object? sender,EventArgs e){Text=Convert.ToString(selection.SelectedItem)??"TODOS";if(Text=="Todas as categorias")Text="TODOS";Invalidate();}
+    protected override void OnClick(EventArgs e)
     {
-        g.Clear(KitchenPremiumStyle.Surface);
-        KitchenLighting.Surface(g,new Rectangle(1,1,Math.Max(1,Width-3),Math.Max(1,Height-3)),Color.FromArgb(90,111,130),false);
-        string selected=Convert.ToString(SelectedItem)??"TODOS";if(selected=="Todas as categorias")selected="TODOS";
-        KitchenPremiumStyle.DrawFittedText(g,selected,new Rectangle(5,2,Math.Max(1,Width-30),Math.Max(1,Height-4)),Color.White,12);
+        base.OnClick(e);Menu?.Dispose();Menu=new ContextMenuStrip{BackColor=KitchenPremiumStyle.Surface,ForeColor=Color.White};
+        for(int i=0;i<selection.Items.Count;i++)
+        {
+            int index=i;var item=new ToolStripMenuItem(Convert.ToString(selection.Items[i])){Checked=selection.SelectedIndex==i,BackColor=KitchenPremiumStyle.Surface,ForeColor=Color.White};
+            item.Click+=(_,_)=>selection.SelectedIndex=index;Menu.Items.Add(item);
+        }
+        Menu.Show(this,new Point(0,Height));
+    }
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        var g=e.Graphics;g.Clear(KitchenPremiumStyle.Background);
+        KitchenLighting.Surface(g,new Rectangle(2,2,Math.Max(1,Width-5),Math.Max(1,Height-5)),Color.FromArgb(90,111,130),false);
+        KitchenPremiumStyle.DrawFittedText(g,Text,new Rectangle(5,2,Math.Max(1,Width-30),Math.Max(1,Height-4)),Color.White,12);
         KitchenPremiumStyle.DrawFittedText(g,"⌄",new Rectangle(Width-25,2,20,Math.Max(1,Height-4)),KitchenPremiumStyle.Gold,18);
     }
+    protected override void Dispose(bool disposing){if(disposing){selection.SelectedIndexChanged-=Selected;Menu?.Dispose();}base.Dispose(disposing);}
 }
