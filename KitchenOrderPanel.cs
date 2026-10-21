@@ -77,7 +77,7 @@ internal sealed class KitchenHeroButton : Button
     {
         var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;g.Clear(KitchenPremiumStyle.Background);
         var box=new Rectangle(3,3,Math.Max(1,Width-7),Math.Max(1,Height-7));using var shape=KitchenPremiumStyle.Round(box,8);
-        KitchenLighting.Surface(g,box,Enabled?accent:Color.FromArgb(65,85,76),Enabled);
+        KitchenLighting.Surface(g,box,accent,Enabled);
         if(string.IsNullOrEmpty(subtitle))
         {
             using var headerIcon=new Font("Segoe MDL2 Assets",Math.Min(30,Height*.40f),GraphicsUnit.Pixel);using var headerInk=new SolidBrush(Enabled?accent:Color.Gray);

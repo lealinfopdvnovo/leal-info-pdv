@@ -78,7 +78,7 @@ internal sealed class KitchenForm : Form
         var workspace = new Panel { Dock = DockStyle.Fill };
         var right=new TableLayoutPanel{Name="KitchenPremiumWorkspace",Dock=DockStyle.Fill,ColumnCount=1,RowCount=5,Padding=new Padding(4)};
         right.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        right.SizeChanged+=(_,_)=>{right.RowStyles[0].Height=Math.Clamp((right.Height-190)*0.56f,226,365);};
+        right.SizeChanged+=(_,_)=>{right.RowStyles[0].Height=right.Height<740?226:Math.Clamp((right.Height-190)*0.56f,226,365);};
         right.RowStyles.Add(new RowStyle(SizeType.Absolute,226));right.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         right.RowStyles.Add(new RowStyle(SizeType.Absolute,150));right.RowStyles.Add(new RowStyle(SizeType.AutoSize));right.RowStyles.Add(new RowStyle(SizeType.Absolute,32));
         tables.Dock=DockStyle.Fill;tables.MinimumSize=new Size(0,226);right.Controls.Add(tables,0,0);right.Controls.Add(dashboardOrder,0,1);

@@ -78,6 +78,9 @@ internal static class DashboardTests
                 var rail=host.Controls.Find("KitchenCategoryRail",true).OfType<FlowLayoutPanel>().Single();check(!rail.HorizontalScroll.Visible,"category rail does not add a clipping horizontal scrollbar");
             });
         }
+        Field<KitchenTablesView>(visual,"tables").Controls.Find("KitchenTable_4",true).OfType<Button>().Single().PerformClick();
+        foreach(int id in new[]{3,4,5})visualMenu.Controls.Find("CatalogProduct_"+id,true).OfType<Button>().Single().PerformClick();
+        render(visual,new Size(1672,941),Path.Combine(evidence,"referencia-rascunho-1672.png"),host=>{check(host.Controls.Find("DashboardSend",true).Single().Enabled,"reference-sized draft retains functional send action");});
         check(Field<FlowLayoutPanel>(form,"orderCards").FlowDirection==FlowDirection.LeftToRight,"active orders use the reference horizontal composition");
     }
 }
