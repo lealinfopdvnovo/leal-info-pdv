@@ -1,4 +1,4 @@
-name: Catalogo 258 itens com precos editaveis 001 e 003
+name: Fotos dos 258 itens - reparar 001 e 003
 permissions:
   contents: read
   actions: read
@@ -12,8 +12,10 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ matrix.channel }}
-      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || 'ef42c64d47573289cea2572abd7431bcb8accd8d' }}
-      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || 'ef42c64d47573289cea2572abd7431bcb8accd8d' }}
+      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || 'e8e24b316155fcfe44557a02e1488860be451246'
+        }}
+      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || 'e8e24b316155fcfe44557a02e1488860be451246'
+        }}
       PYTHONUTF8: '1'
     steps:
     - uses: actions/checkout@v4
@@ -31,10 +33,11 @@ jobs:
     - uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.401
-    - name: Preparar canal proprio com dependencias da 10.429
+    - name: Preparar canal proprio com dependencias da 10.430
       working-directory: controller
       shell: pwsh
-      run: '''{"sdk":{"version":"10.0.401","rollForward":"disable"}}''|Set-Content global.json -Encoding UTF8
+      run: '''{"sdk":{"version":"10.0.401","rollForward":"disable"}}''|Set-Content
+        global.json -Encoding UTF8
 
         python scripts/distribute_channels.py plan
 
@@ -42,7 +45,8 @@ jobs:
 
         $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
 
-        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne $env:CHANNEL -or $p.Entries[0].Version -ne ''10.430'' -or $p.Entries[0].Baseline.Version -ne ''10.429''){throw ''Wrong
+        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne $env:CHANNEL -or $p.Entries[0].Version
+        -ne ''10.431'' -or $p.Entries[0].Baseline.Version -ne ''10.430''){throw ''Wrong
         scope''}
 
         python scripts/distribute_channels.py prepare $env:CHANNEL
@@ -66,24 +70,15 @@ jobs:
         Pop-Location
 
         '
-    - uses: actions/download-artifact@v4
-      with:
-        name: premium-003-validation-NOT-AUTHORIZED
-        run-id: 39504754135
-        github-token: ${{ github.token }}
-        path: original-photos
-    - name: Reutilizar fotografias e creditos ja aprovados
-      shell: pwsh
-      run: "$metadata=@(Get-ChildItem original-photos -Filter candidate.json -Recurse)\nif($metadata.Count -ne 1){throw 'Ambiguous original photo package'}\n$original=Get-Content $metadata[0].FullName\
-        \ -Raw|ConvertFrom-Json\n$zip=Join-Path $metadata[0].Directory.FullName $original.Package\nif((Get-FileHash $zip).Hash.ToLowerInvariant() -ne '546c776f7b9f48a3462f30ba257c8120c1f7bc144d957698565efe98f246e646'){throw\
-        \ 'Photo source changed'}\nExpand-Archive $zip original-photo-assembly\n$a=[Reflection.Assembly]::LoadFile((Resolve-Path original-photo-assembly/LealInfoPDV.dll).Path)\n$names=@($a.GetManifestResourceNames()|Where-Object{$_\
-        \ -like 'ReadyKitchen.*'})\nif($names.Count -ne 19){throw 'Missing original photos'}\n$folder=Join-Path $PWD 'controller/candidate/ready-kitchen/generated'\nNew-Item -ItemType\
-        \ Directory $folder -Force|Out-Null\nforeach($n in $names){\n  if($n -notmatch '^ReadyKitchen\\.(catalog\\.json|LEALMIX[0-9]{3}\\.jpg)$'){throw 'Unexpected resource'}\n  $s=$a.GetManifestResourceStream($n);$o=[IO.File]::Create((Join-Path\
-        \ $folder $n.Substring('ReadyKitchen.'.Length)))\n  try{$s.CopyTo($o)}finally{$s.Dispose();$o.Dispose()}\n}\n"
+    - name: Conferir 258 fotos e creditos antes de compilar
+      working-directory: controller/candidate
+      run: python scripts/verify_ready_photos.py
     - name: Testar Cozinha Novo Pedido e tema real do canal
       working-directory: controller
       shell: pwsh
-      run: 'dotnet run --project candidate/qa/kitchen-layout/LayoutTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false 2>&1|Tee-Object layout-windows.log
+      run: 'dotnet run --project candidate/qa/kitchen-layout/LayoutTests.csproj -c
+        Release -p:UseSharedCompilation=false -p:BuildInParallel=false 2>&1|Tee-Object
+        layout-windows.log
 
         if($LASTEXITCODE -ne 0){throw ''001 Windows UI failed''}
 
@@ -93,7 +88,8 @@ jobs:
 
         $sdk=Get-Content sdk-version.txt
 
-        dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
+        dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained
+        true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
 
         if($LASTEXITCODE -ne 0){throw ''Compilation failed''}
 
@@ -102,7 +98,7 @@ jobs:
         if($LASTEXITCODE -ne 0){throw ''Incremental dependencies changed''}
 
         '
-    - name: Validar rollback exato da 10.429 para 10.430
+    - name: Validar rollback exato da 10.430 para 10.431
       working-directory: source
       shell: pwsh
       run: 'New-Item -ItemType Directory validated|Out-Null
@@ -156,12 +152,12 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
         SOURCE_001: ${{ github.sha }}
-        SOURCE_003: ef42c64d47573289cea2572abd7431bcb8accd8d
+        SOURCE_003: e8e24b316155fcfe44557a02e1488860be451246
       run: python qa/kitchen-final/publish.py
     - uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: publicacao-cozinha-001-003-10430
+        name: publicacao-fotos-001-003-10431
         path: published-001-003.json
 'on':
   push:

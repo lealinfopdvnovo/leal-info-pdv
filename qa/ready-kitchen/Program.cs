@@ -38,7 +38,7 @@ static class Program
             foreach(var item in entries)
             {
                 using var input=new MemoryStream(ReadyKitchenCatalog.Photo(item));using var image=Image.FromStream(input);
-                Check(image.Width>=40&&image.Height>=40&&!string.IsNullOrWhiteSpace(item.Author)&&(item.SourceUrl.StartsWith("https://commons.wikimedia.org/wiki/")||item.CommonsFile=="LEAL_CATEGORY_ART"),"licensed photo or original category illustration verified: "+item.Code);
+                Check(image.Width>=40&&image.Height>=40&&!string.IsNullOrWhiteSpace(item.Author)&&item.SourceUrl.StartsWith("https://commons.wikimedia.org/wiki/"),"licensed photo or original category illustration verified: "+item.Code);
             }
             Sql("INSERT INTO products(barcode,name,category,price,stock,active,photo_path) VALUES('PRESERVAR_EXISTENTE','cHeEsEbUrGeR','CLIENTE',19.90,17,1,'foto-cliente-preservada.jpg'); SELECT 1");
             string before=Snapshot();int backups=BackupCount();

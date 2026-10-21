@@ -141,7 +141,7 @@ static class LayoutTests
                 Check(buttons.Any(b=>b.Text=="CONDIMENTOS")&&buttons.Any(b=>b.Text=="SEM\nCATEGORIA"),"category labels retain complete words and intentional lines");
                 Check(Children(rail).OfType<KitchenCenteredLabel>().Any(p=>p.Text.Contains("7,99")),"full price remains available to centered fitted renderer");
             }
-            var ready=ReadyKitchenCatalog.Load();Check(ready.Length>=200&&ready.All(p=>ReadyKitchenCatalog.Photo(p).Length>0),"immutable ready-menu photos and attributions preserved");
+            var ready=ReadyKitchenCatalog.Load();Check(ready.Length>=200&&ready.All(p=>p.CommonsFile.StartsWith("File:")&&p.SourceUrl.StartsWith("https://commons.wikimedia.org/wiki/")&&ReadyKitchenCatalog.Photo(p).Length>0),"immutable ready-menu photos and attributions preserved");
             entry.Close();
             form.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();Application.DoEvents();
             var popup=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AllKitchenTables");
