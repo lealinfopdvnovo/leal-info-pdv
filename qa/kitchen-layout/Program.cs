@@ -57,6 +57,12 @@ static class LayoutTests
                 foreach(var viewport in new[]{new Size(1366,720),new Size(1600,850),new Size(1909,970)})
                 {
                     form.MinimumSize=Size.Empty;form.ClientSize=viewport;form.PerformLayout();Application.DoEvents();
+                    var header=Field<KitchenPremiumHeader>(form,"premiumHeader");
+                    foreach(var action in Children(header).OfType<Button>())
+                    {
+                        var actionBounds=header.RectangleToClient(action.RectangleToScreen(action.ClientRectangle));
+                        Check(header.ClientRectangle.Contains(actionBounds),$"header action fully visible {action.Text} at {viewport} scale {scale}");
+                    }
                     var tables=Field<KitchenTablesView>(form,"tables");
                     Check(tables.Controls.Find("MainTables",true).Single().Controls.Count==10,$"ten tables retained at {viewport} scale {scale}");
                     foreach(var b in Children(catalog).OfType<Button>().Where(b=>b.Name is "KitchenAddProduct" or "KitchenImportPdv" or "ReadyKitchenOpen" or "CatalogReload"))

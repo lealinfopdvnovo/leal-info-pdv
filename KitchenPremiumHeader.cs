@@ -17,6 +17,7 @@ internal sealed class KitchenPremiumHeader : UserControl
         Dock=DockStyle.Top;Height=104;
         var root=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Padding=new Padding(8)};
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,34));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,38));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,28));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         var brand=new Panel{Dock=DockStyle.Fill};
         brand.Paint+=(_,e)=>{
             var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
@@ -34,6 +35,7 @@ internal sealed class KitchenPremiumHeader : UserControl
         };
         var stats=new TableLayoutPanel{Name="KitchenLiveCounters",Dock=DockStyle.Fill,ColumnCount=4,RowCount=1};
         for(int i=0;i<4;i++)stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,25));
+        stats.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         Label Badge()=>new(){Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,Font=new Font("Segoe UI",11,FontStyle.Bold),Margin=new Padding(3),BorderStyle=BorderStyle.FixedSingle};
         clock=Badge();pending=Badge();preparing=Badge();ready=Badge();
         stats.Controls.Add(clock,0,0);stats.Controls.Add(pending,1,0);stats.Controls.Add(preparing,2,0);stats.Controls.Add(ready,3,0);
