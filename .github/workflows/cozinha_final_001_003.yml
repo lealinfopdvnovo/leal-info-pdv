@@ -1,4 +1,4 @@
-name: Fotos dos 258 itens - reparar 001 e 003
+name: Relatorio financeiro - corrigir 001 e 003
 permissions:
   contents: read
   actions: read
@@ -12,9 +12,9 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ matrix.channel }}
-      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || '6c0fb5ed6445fec4f1e8cf15bb6acbb788f73bdf'
+      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || 'c12d3fe71506d545a3242777c1c990e02ea07089'
         }}
-      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || '6c0fb5ed6445fec4f1e8cf15bb6acbb788f73bdf'
+      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || 'c12d3fe71506d545a3242777c1c990e02ea07089'
         }}
       PYTHONUTF8: '1'
     steps:
@@ -33,7 +33,7 @@ jobs:
     - uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.401
-    - name: Preparar canal proprio com dependencias da 10.430
+    - name: Preparar canal proprio com dependencias da 10.431
       working-directory: controller
       shell: pwsh
       run: '''{"sdk":{"version":"10.0.401","rollForward":"disable"}}''|Set-Content
@@ -46,7 +46,7 @@ jobs:
         $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
 
         if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne $env:CHANNEL -or $p.Entries[0].Version
-        -ne ''10.431'' -or $p.Entries[0].Baseline.Version -ne ''10.430''){throw ''Wrong
+        -ne ''10.432'' -or $p.Entries[0].Baseline.Version -ne ''10.431''){throw ''Wrong
         scope''}
 
         python scripts/distribute_channels.py prepare $env:CHANNEL
@@ -98,7 +98,7 @@ jobs:
         if($LASTEXITCODE -ne 0){throw ''Incremental dependencies changed''}
 
         '
-    - name: Validar rollback exato da 10.430 para 10.431
+    - name: Validar rollback exato da 10.431 para 10.432
       working-directory: source
       shell: pwsh
       run: 'New-Item -ItemType Directory validated|Out-Null
@@ -152,12 +152,12 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
         SOURCE_001: ${{ github.sha }}
-        SOURCE_003: 6c0fb5ed6445fec4f1e8cf15bb6acbb788f73bdf
+        SOURCE_003: c12d3fe71506d545a3242777c1c990e02ea07089
       run: python qa/kitchen-final/publish.py
     - uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: publicacao-fotos-001-003-10431
+        name: publicacao-fotos-001-003-10432
         path: published-001-003.json
 'on':
   push:
