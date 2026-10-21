@@ -12,7 +12,7 @@ internal static class KitchenPremiumStyle
     internal static bool Owns(Control control)
     {
         var form = control as Form ?? control.FindForm();
-        return form is KitchenForm || form?.Name is "KitchenOrderEntry" or "AllKitchenTables" or "KitchenPdvSelection";
+        return form is KitchenForm || form?.Name is "KitchenOrderEntry" or "KitchenTableOrder" or "AllKitchenTables" or "KitchenPdvSelection";
     }
     internal static void DrawFittedText(Graphics g, string text, Rectangle bounds, Color color, float preferredPixels, bool wrap = false)
     {

@@ -18,6 +18,7 @@ internal sealed class KitchenTablesView : UserControl
     private bool receivedOrders;
     internal long SeatingRevision => seating.Revision;
     internal event Action<int>? TableChosen;
+    internal event Action<int>? TableActivated;
     internal event Action<int>? CapacityRequested;
     internal event Action<int, long, bool>? ReservationRequested;
     internal KitchenTablesView()
@@ -84,6 +85,7 @@ internal sealed class KitchenTablesView : UserControl
             if(selectedLabel!=null)selectedLabel.Text=$"Mesa {number:00} • {CurrentState(number)}";
         }
         button.Click += (_,_) => { Select(); if(state!="RESERVADA")TableChosen?.Invoke(number); };
+        button.DoubleClick += (_,_) => { Select(); if(CurrentState(number)!="RESERVADA")TableActivated?.Invoke(number); };
         var menu = new ContextMenuStrip();
         var reserve = menu.Items.Add("RESERVAR MESA");
         reserve.Click += (_,_)=>{Select();RequestReservation(true);};

@@ -8,6 +8,8 @@ namespace LealInfoPDV;
 internal sealed class KitchenForm : Form
 {
     private Form? entryWindow;
+    private Form? tableWindow;
+    private KitchenOrderPanel? floatingTableOrder;
     private readonly KitchenOrderPanel dashboardOrder=new();
     private KitchenOrder[] visibleOrders=Array.Empty<KitchenOrder>();
     private bool dashboardDraft=true;
@@ -106,6 +108,7 @@ internal sealed class KitchenForm : Form
             finally { await RefreshOrders(); }
         });
         tables.TableChosen += SelectDashboardTable;
+        tables.TableActivated += OpenTableWindow;
         mainCatalog.ProductChosen += AddDashboardProduct;
         mainCatalog.CatalogChanged += async () => await catalog.ReloadAsync();
         catalog.CatalogChanged += async () => await mainCatalog.ReloadAsync();
@@ -175,7 +178,7 @@ internal sealed class KitchenForm : Form
                 if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; entryWindow.Hide(); }
             };
         }
-        if (create || !send.Enabled)
+        if (!send.Enabled)
         {
             items.CancelEdit(); reference.Clear(); notes.Clear(); items.Rows.Clear();
             SetEntryEnabled(true);
@@ -357,6 +360,11 @@ internal sealed class KitchenForm : Form
         if(IsDisposed||dashboardOrder.IsDisposed)return;
         var selected=SelectedOrder();
         dashboardOrder.Display(selected?.Reference??reference.Text,selected?.Items??DraftItems(),selected!=null,selected?.ReceivedUtc??draftStarted,send.Enabled&&gate.CurrentCount==1,selected?.Status??"");
+        if (tableWindow is { IsDisposed: false } && floatingTableOrder is { IsDisposed: false })
+        {
+            tableWindow.Text="PEDIDO — "+(selected?.Reference??reference.Text).ToUpperInvariant();
+            floatingTableOrder.Display(selected?.Reference??reference.Text,selected?.Items??DraftItems(),selected!=null,selected?.ReceivedUtc??draftStarted,send.Enabled&&gate.CurrentCount==1,selected?.Status??"");
+        }
     }
     private void SelectSavedOrder(Guid id)
     {
@@ -370,6 +378,45 @@ internal sealed class KitchenForm : Form
         var saved=visibleOrders.FirstOrDefault(o=>KitchenTablesView.TableNumber(o.Reference)==number&&o.Status is not ("ENTREGUE" or "CANCELADO"));
         if(saved!=null&&!(send.Enabled&&items.Rows.Count>0)){dashboardDraft=false;SelectSavedOrder(saved.Id);}
         else {dashboardDraft=true;reference.Text=target;if(!send.Enabled&&outbox.Pending().Count==0){items.Rows.Clear();SetEntryEnabled(true);ResetItemFields();}SyncDashboard();}
+    }
+    private void OpenTableWindow(int number)
+    {
+        if (!fresh.Enabled) return;
+        SelectDashboardTable(number);
+        string target=$"Mesa {number:00}";
+        if(KitchenTablesView.TableNumber(SelectedOrder()?.Reference??reference.Text)!=number) return;
+        if(SelectedOrder()==null) { OpenEntryForTable(number); return; }
+        if(tableWindow is { IsDisposed:false }) { SyncDashboard();tableWindow.Show();tableWindow.Activate();return; }
+        var area=Screen.FromControl(this).WorkingArea;
+        tableWindow=new Form{Name="KitchenTableOrder",Text="PEDIDO — "+target.ToUpperInvariant(),StartPosition=FormStartPosition.CenterParent,Size=new Size(Math.Min(1000,area.Width-24),Math.Min(540,area.Height-24)),MinimumSize=new Size(Math.Min(700,area.Width-24),Math.Min(380,area.Height-24)),ShowInTaskbar=false,Font=Font};
+        floatingTableOrder=new KitchenOrderPanel();
+        floatingTableOrder.SubmitRequested+=async()=>await SubmitDraft();
+        floatingTableOrder.ReadyRequested+=async()=>await AdvanceOrder("PRONTO");
+        floatingTableOrder.StatusRequested+=async status=>await AdvanceOrder(status);
+        floatingTableOrder.PrintRequested+=PrintCurrentOrder;
+        floatingTableOrder.EditRequested+=EditDashboardItem;
+        floatingTableOrder.RemoveRequested+=RemoveDashboardItem;
+        floatingTableOrder.ClearRequested+=()=>ClearDashboardDraft();
+        var add=new Button{Name="TableAddItems",Text="ADICIONAR ITENS",AutoSize=true,Font=new Font("Segoe UI",8,FontStyle.Bold)};
+        add.Click+=(_,_)=> { int? table=KitchenTablesView.TableNumber(SelectedOrder()?.Reference??reference.Text);if(table.HasValue)OpenEntryForTable(table.Value); };
+        floatingTableOrder.AttachNewOrder(add);
+        tableWindow.Controls.Add(floatingTableOrder);
+        var hint=new Label{Text="ADICIONAR ITENS abre o editor. Botão direito nos itens enviados: preparar, pronto, entregue ou cancelar o pedido.",Dock=DockStyle.Bottom,Height=44,Padding=new Padding(10),AutoEllipsis=true};
+        tableWindow.Controls.Add(hint);
+        KitchenPremiumStyle.Apply(tableWindow);KitchenPremiumStyle.Frame(tableWindow);
+        tableWindow.FormClosed+=(_,_)=>{floatingTableOrder=null;tableWindow=null;};
+        SyncDashboard();tableWindow.Show(this);
+    }
+    private void OpenEntryForTable(int number)
+    {
+        if(!fresh.Enabled)return;
+        if(outbox.Pending().Count!=0){message.Text="Aguarde a confirmação do pedido preservado na fila.";return;}
+        string target=$"Mesa {number:00}";
+        if(send.Enabled&&items.Rows.Count>0&&KitchenTablesView.TableNumber(reference.Text)!=number){message.Text="Conclua o rascunho da "+reference.Text+" antes de mudar de mesa.";return;}
+        OpenEntryWindow();
+        reference.Text=target;
+        if(entryWindow is { IsDisposed:false })entryWindow.Text="PEDIDO — "+target.ToUpperInvariant();
+        SyncDashboard();
     }
     private void AddDashboardProduct(KitchenCatalogProduct product)
     {
@@ -452,7 +499,7 @@ internal sealed class KitchenForm : Form
         }
         if(rows.Length==0)orderCards.Controls.Add(new Label{Text="Nenhum pedido em andamento. Selecione uma mesa para iniciar.",ForeColor=Color.Silver,Width=Math.Max(160,orderCards.ClientSize.Width-28),Height=64,TextAlign=ContentAlignment.MiddleCenter});
     }
-    protected override void Dispose(bool disposing) { if (disposing) { retry.Dispose(); dashboardClock.Dispose(); dashboardOrder.Dispose(); entryWindow?.Dispose(); catalog.Dispose(); mainCatalog.Dispose(); tables.Dispose(); } base.Dispose(disposing); }
+    protected override void Dispose(bool disposing) { if (disposing) { retry.Dispose(); dashboardClock.Dispose(); dashboardOrder.Dispose(); tableWindow?.Dispose(); entryWindow?.Dispose(); catalog.Dispose(); mainCatalog.Dispose(); tables.Dispose(); } base.Dispose(disposing); }
 }
 
 
