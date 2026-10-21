@@ -40,7 +40,11 @@ internal sealed class KitchenCatalogView : UserControl
             if(!Auth.IsAdmin){status.Text="Importação disponível para ADMINISTRADOR.";return;}
             if(LealInfoPDV.Network.NetworkConfiguration.Current.Mode=="terminal"){status.Text="Importe o catálogo no computador servidor.";return;}
             using var dialog=new ReadyKitchenImportForm();
-            if(dialog.ShowDialog(FindForm())==DialogResult.OK) { await ReloadAsync(); CatalogChanged?.Invoke(); }
+            if(dialog.ShowDialog(FindForm())==DialogResult.OK) {
+                var previous=products.Select(p=>p.Id).ToHashSet();await ReloadAsync();
+                if(menuIds!=null&&menuPath!=null){menuIds.UnionWith(products.Where(p=>!previous.Contains(p.Id)).Select(p=>p.Id));ProtectedFile.Write(menuPath,menuIds.OrderBy(x=>x).ToArray());Render();}
+                CatalogChanged?.Invoke();
+            }
         };
         var register = new Button { Name = "KitchenAddProduct", Text = "+ ADICIONAR PRODUTO", Width = 155, Height = 40 };
         register.Click += async (_, _) =>
@@ -121,7 +125,7 @@ internal sealed class KitchenCatalogView : UserControl
     internal static KitchenCatalogProduct[] ReadProducts(Func<LealInfoPDV.Network.PdvConnection>? open = null)
     {
         using var db=(open ?? Database.Open)();using var cmd=db.CreateCommand();
-        cmd.CommandText="SELECT id,name,COALESCE(NULLIF(TRIM(category),''),'Sem categoria'),price,COALESCE(photo_path,''),COALESCE(barcode,'') FROM products WHERE active=1 AND id>0 ORDER BY name,id";
+        cmd.CommandText="SELECT id,name,COALESCE(NULLIF(TRIM(category),''),'Sem categoria'),price,COALESCE(photo_path,''),COALESCE(barcode,'') FROM products WHERE active=1 AND id>0 AND kitchen_preparation=1 ORDER BY name,id";
         using var r=cmd.ExecuteReader();var result=new List<KitchenCatalogProduct>();
         while(r.Read())result.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),Convert.ToDecimal(r.GetDouble(3)),r.GetString(4),r.GetString(5)));
         return result.ToArray();
@@ -172,7 +176,7 @@ internal sealed class KitchenCatalogView : UserControl
             var more=new Button{Text="MOSTRAR MAIS PRODUTOS",Width=180,Height=42,FlatStyle=FlatStyle.Flat};
             more.Click+=(_,_)=>{limit+=60;Render();};cards.Controls.Add(more);
         }
-        status.Text=products.Length==0?"Nenhum produto ativo cadastrado.":found.Length==0?"Nenhum produto encontrado.":$"{Math.Min(limit,found.Length)} de {found.Length} produto(s)";
+        status.Text=products.Length==0?"Nenhum produto da cozinha. Cadastre com É produto da cozinha? SIM.":found.Length==0?"Nenhum produto encontrado.":$"{Math.Min(limit,found.Length)} de {found.Length} produto(s)";
         cards.ResumeLayout(true); SizeCards();
     }
     private void SelectMenu()
@@ -183,7 +187,7 @@ internal sealed class KitchenCatalogView : UserControl
         var choices = new CheckedListBox { Name = "KitchenMenuChoices", Dock = DockStyle.Fill, CheckOnClick = true };
         foreach (var product in products) choices.Items.Add(product.Name + " • " + product.Barcode + " • " + product.Price.ToString("C2", CultureInfo.GetCultureInfo("pt-BR")), menuIds == null || menuIds.Contains(product.Id));
         var save = new Button { Text = "SALVAR CARDÁPIO", Dock = DockStyle.Bottom, Height = 48 };
-        var hint = new Label { Text = "Selecione os produtos já cadastrados. Preços, fotos e estoque são preservados.", Dock = DockStyle.Top, Height = 52, Padding = new Padding(10) };
+        var hint = new Label { Text = "Somente produtos classificados como COZINHA no cadastro. Selecione os que compõem o cardápio.", Dock = DockStyle.Top, Height = 52, Padding = new Padding(10) };
         dialog.Controls.Add(choices); dialog.Controls.Add(save); dialog.Controls.Add(hint);
         save.Click += (_, _) =>
         {

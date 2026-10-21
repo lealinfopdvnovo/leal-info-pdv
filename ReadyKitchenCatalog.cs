@@ -94,6 +94,7 @@ internal static class ReadyKitchenCatalog
                 using var insert=db.CreateCommand();insert.Transaction=tx;
                 string extra=columns.Contains("kitchen_preparation")?",kitchen_preparation":"";
                 string values=columns.Contains("kitchen_preparation")?",1":"";
+                if(columns.Contains("kitchen_classified")){extra+=",kitchen_classified";values+=",1";}
                 if(columns.Contains("track_stock")){extra+=",track_stock";values+=",0";}
                 insert.CommandText="INSERT INTO products(barcode,name,category,price,cost,stock,min_stock,active,photo_path"+extra+") VALUES($code,$name,$category,$price,0,0,0,1,$photo"+values+")";
                 insert.Parameters.AddWithValue("$code",item.Code);insert.Parameters.AddWithValue("$name",item.Name);insert.Parameters.AddWithValue("$category",item.Category);

@@ -35,6 +35,7 @@ internal static class DashboardTests
         {
             timer.Tick+=(_,_)=>
             {
+                var config=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Name=="KitchenPrinterConfiguration");if(config!=null){config.Controls.Find("SaveComandaPrinter",true).OfType<Button>().Single().PerformClick();return;}
                 var preview=Application.OpenForms.OfType<PrintPreviewDialog>().FirstOrDefault();if(preview!=null){previewOpened=preview.Document?.DocumentName=="Comanda da cozinha";preview.Close();return;}
                 var box=FindWindow(null,"Imprimir comanda");if(box!=IntPtr.Zero){GetWindowThreadProcessId(box,out uint pid);if(pid==(uint)Environment.ProcessId){noPrinter=true;PostMessage(box,0x0010,IntPtr.Zero,IntPtr.Zero);}}
             };

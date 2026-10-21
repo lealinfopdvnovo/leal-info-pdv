@@ -13,19 +13,20 @@ internal sealed class KitchenOrderPanel : UserControl
     private readonly KitchenHeroButton send=new("DashboardSend","ENVIAR PARA COZINHA","CONFIRMAR PEDIDO",Color.FromArgb(0,226,100),"\uE8F4");
     private readonly KitchenHeroButton print=new("DashboardPrint","IMPRIMIR COMANDA","PEDIDO DA MESA",Color.FromArgb(0,163,255),"\uE749");
     private readonly KitchenHeroButton ready=new("DashboardReady","MARCAR PRONTO","FINALIZAR PREPARO",Color.FromArgb(255,200,40),"\uE7F4");
+    private readonly Button payment=new(){Name="KitchenReceivePayment",Text="RECEBER / PAGAMENTO",Dock=DockStyle.Fill,Height=44};
     private readonly TableLayoutPanel header=new(){Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,Margin=Padding.Empty};
     private DateTimeOffset? started;
     private bool persisted;
     private readonly System.Windows.Forms.Timer clock=new(){Interval=1000};
-    internal event Action? SubmitRequested,PrintRequested,ReadyRequested,ClearRequested;
+    internal event Action? SubmitRequested,PrintRequested,ReadyRequested,ClearRequested,PaymentRequested;
     internal event Action<int>? EditRequested,RemoveRequested;
     internal event Action<string>? StatusRequested;
     internal KitchenOrderPanel()
     {
         Name="KitchenDashboardOrder";Dock=DockStyle.Fill;Padding=new Padding(10);
-        var root=new TableLayoutPanel{Dock=DockStyle.Fill,RowCount=3,ColumnCount=1,Margin=Padding.Empty};
-        root.SizeChanged+=(_,_)=>{if(root.RowStyles.Count==3){bool compact=root.Height<220;root.RowStyles[0].Height=compact?42:48;root.RowStyles[2].Height=compact?58:72;}};
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));root.RowStyles.Add(new RowStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,72));
+        var root=new TableLayoutPanel{Dock=DockStyle.Fill,RowCount=4,ColumnCount=1,Margin=Padding.Empty};
+        root.SizeChanged+=(_,_)=>{if(root.RowStyles.Count==4){bool compact=root.Height<220;root.RowStyles[0].Height=compact?42:48;root.RowStyles[2].Height=compact?58:72;}};
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));root.RowStyles.Add(new RowStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,72));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));
         
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,110));header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,76));header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,100));header.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         header.Controls.Add(title,0,0);header.Controls.Add(elapsed,1,0);header.Controls.Add(clear,2,0);root.Controls.Add(header,0,0);
@@ -50,7 +51,8 @@ internal sealed class KitchenOrderPanel : UserControl
         root.Controls.Add(Rows,0,1);
         var actions=new TableLayoutPanel{Name="DashboardHeroActions",Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Margin=new Padding(0,8,0,0)};
         for(int i=0;i<3;i++)actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));actions.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        actions.Controls.Add(send,0,0);actions.Controls.Add(print,1,0);actions.Controls.Add(ready,2,0);root.Controls.Add(actions,0,2);Controls.Add(root);
+        actions.Controls.Add(send,0,0);actions.Controls.Add(print,1,0);actions.Controls.Add(ready,2,0);root.Controls.Add(actions,0,2);root.Controls.Add(payment,0,3);Controls.Add(root);
+        payment.Click+=(_,_)=>PaymentRequested?.Invoke();
         clear.Click+=(_,_)=>ClearRequested?.Invoke();send.Click+=(_,_)=>SubmitRequested?.Invoke();print.Click+=(_,_)=>PrintRequested?.Invoke();ready.Click+=(_,_)=>ReadyRequested?.Invoke();
         KitchenPremiumStyle.Apply(this);KitchenPremiumStyle.Frame(this);
         elapsed.ForeColor=Color.OrangeRed;Rows.ColumnHeadersDefaultCellStyle.ForeColor=Color.Silver;Rows.ColumnHeadersDefaultCellStyle.SelectionBackColor=KitchenPremiumStyle.Surface;Rows.ColumnHeadersDefaultCellStyle.SelectionForeColor=Color.Silver;
@@ -60,7 +62,7 @@ internal sealed class KitchenOrderPanel : UserControl
     internal void AttachNewOrder(Button button){button.Dock=DockStyle.Fill;button.Margin=new Padding(2);header.Controls.Add(button,3,0);}
     internal void Display(string reference,KitchenItem[] items,bool saved,DateTimeOffset? since,bool canSend,string status)
     {
-        persisted=saved;started=since;title.Text=(reference.StartsWith("Mesa ",StringComparison.OrdinalIgnoreCase)?"PEDIDO DA "+reference.ToUpperInvariant():string.IsNullOrWhiteSpace(reference)?"PEDIDO DA MESA":"PEDIDO • "+reference)+(saved?"   •   "+status:"");
+        persisted=saved;started=since;payment.Enabled=saved&&status!="CANCELADO";title.Text=(reference.StartsWith("Mesa ",StringComparison.OrdinalIgnoreCase)?"PEDIDO DA "+reference.ToUpperInvariant():string.IsNullOrWhiteSpace(reference)?"PEDIDO DA MESA":"PEDIDO • "+reference)+(saved?"   •   "+status:"");
         Rows.Rows.Clear();foreach(var item in items)Rows.Rows.Add(item.Quantity.ToString("0.###",CultureInfo.GetCultureInfo("pt-BR")),item.Description,item.Notes);
         Rows.Columns["Edit"].Visible=Rows.Columns["Remove"].Visible=!saved;clear.Enabled=!saved&&canSend&&items.Length>0;send.Enabled=!saved&&canSend&&items.Length>0;print.Enabled=items.Length>0;ready.Enabled=saved&&status is ("AGUARDANDO" or "PREPARANDO");Tick();
     }
@@ -93,18 +95,50 @@ internal sealed class KitchenHeroButton : Button
 internal static class KitchenComanda
 {
     internal static string Text(string reference,KitchenItem[] items,string notes)=>"LEAL INFO PDV PRO — COMANDA\n"+reference.ToUpperInvariant()+"\n"+DateTime.Now.ToString("dd/MM/yyyy HH:mm")+"\n\n"+string.Join("\n",items.Select(i=>$"{i.Quantity:0.###} × {i.Description}"+(string.IsNullOrWhiteSpace(i.Notes)?"":"\n   "+i.Notes)))+(string.IsNullOrWhiteSpace(notes)?"":"\n\nOBSERVAÇÕES: "+notes);
+    private static string Setting(string key,string fallback="")
+    {
+        using var db=Database.Open();using var q=db.CreateCommand();q.CommandText="SELECT value FROM settings WHERE key=$k";q.Parameters.AddWithValue("$k",key);return Convert.ToString(q.ExecuteScalar()) is string value&&value.Length>0?value:fallback;
+    }
+    internal static bool Configure(IWin32Window owner)
+    {
+        using var dialog=new Form{Name="KitchenPrinterConfiguration",Text="IMPRESSORA DA COMANDA",Size=new Size(580,340),StartPosition=FormStartPosition.CenterParent,MinimumSize=new Size(500,300)};
+        var printer=new ComboBox{Name="ComandaPrinter",Dock=DockStyle.Top,DropDownStyle=ComboBoxStyle.DropDownList};
+        foreach(string name in PrinterSettings.InstalledPrinters)printer.Items.Add(name);
+        string saved=Setting("kitchen_printer");printer.SelectedItem=saved;
+        if(printer.SelectedIndex<0&&printer.Items.Count>0){using var defaultDocument=new PrintDocument();printer.SelectedItem=defaultDocument.PrinterSettings.PrinterName;if(printer.SelectedIndex<0)printer.SelectedIndex=0;}
+        var paper=new ComboBox{Name="ComandaPaper",Dock=DockStyle.Top,DropDownStyle=ComboBoxStyle.DropDownList};paper.Items.AddRange(new object[]{"TÉRMICA — 80 mm","TÉRMICA — 58 mm","NÃO TÉRMICA — A4"});paper.SelectedIndex=int.TryParse(Setting("kitchen_paper","0"),out int index)?Math.Clamp(index,0,2):0;
+        var save=new Button{Name="SaveComandaPrinter",Text="USAR ESTA IMPRESSORA E FORMATO",Dock=DockStyle.Bottom,Height=52};
+        save.Click+=(_,_)=>{
+            if(printer.SelectedItem==null){MessageBox.Show(dialog,"Escolha uma impressora instalada no Windows.","Imprimir comanda");return;}
+            using var db=Database.Open();using var tx=db.BeginTransaction();
+            foreach(var item in new[]{("kitchen_printer",Convert.ToString(printer.SelectedItem)!), ("kitchen_paper",paper.SelectedIndex.ToString())}){using var q=db.CreateCommand();q.Transaction=tx;q.CommandText="INSERT INTO settings(key,value) VALUES($k,$v) ON CONFLICT(key) DO UPDATE SET value=excluded.value";q.Parameters.AddWithValue("$k",item.Item1);q.Parameters.AddWithValue("$v",item.Item2);q.ExecuteNonQuery();}tx.Commit();dialog.DialogResult=DialogResult.OK;
+        };
+        dialog.Controls.Add(new Label{Text="A comanda será exibida para conferência antes de imprimir. Configure o mesmo papel no driver da impressora.",Dock=DockStyle.Fill,Padding=new Padding(12)});
+        dialog.Controls.Add(paper);dialog.Controls.Add(new Label{Text="TIPO E LARGURA DO PAPEL",Dock=DockStyle.Top,Height=30});dialog.Controls.Add(printer);dialog.Controls.Add(new Label{Text="IMPRESSORA INSTALADA",Dock=DockStyle.Top,Height=30});dialog.Controls.Add(save);KitchenPremiumStyle.Apply(dialog);
+        return dialog.ShowDialog(owner)==DialogResult.OK;
+    }
     internal static void Preview(IWin32Window owner,string text)
     {
-        using var document=new PrintDocument{DocumentName="Comanda da cozinha"};
-        if(!document.PrinterSettings.IsValid){MessageBox.Show(owner,"Selecione uma impressora instalada no Windows para imprimir a comanda.","Imprimir comanda",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
+        if(PrinterSettings.InstalledPrinters.Count==0){MessageBox.Show(owner,"Selecione uma impressora instalada no Windows para imprimir a comanda.","Imprimir comanda",MessageBoxButtons.OK,MessageBoxIcon.Information);return;}
+        if(!Configure(owner))return;
+        using var document=new PrintDocument{DocumentName="Comanda da cozinha"};document.PrinterSettings.PrinterName=Setting("kitchen_printer");
+        if(!document.PrinterSettings.IsValid){MessageBox.Show(owner,"A impressora selecionada está indisponível.","Imprimir comanda");return;}
+        int mode=int.Parse(Setting("kitchen_paper","0"));bool thermal=mode<2;
+        document.DefaultPageSettings.PaperSize=thermal?new PaperSize(mode==0?"Comanda 80 mm":"Comanda 58 mm",mode==0?315:228,1100):new PaperSize("A4",827,1169);
+        document.DefaultPageSettings.Landscape=false;document.DefaultPageSettings.Margins=new Margins(thermal?12:40,thermal?12:40,thermal?12:40,thermal?12:40);
         int position=0;document.BeginPrint+=(_,_)=>position=0;
-        document.PrintPage+=(_,e)=>{position=DrawPage(e.Graphics!,e.MarginBounds,text,position);e.HasMorePages=position<text.Length;};
+        document.PrintPage+=(_,e)=>{
+            var printable=Rectangle.Round(e.PageSettings.PrintableArea);var bounds=Rectangle.Intersect(e.MarginBounds,printable);
+            bounds.Offset(-(int)Math.Ceiling(e.PageSettings.HardMarginX),-(int)Math.Ceiling(e.PageSettings.HardMarginY));
+            if(bounds.Width>720){bounds.X+=(bounds.Width-720)/2;bounds.Width=720;}
+            position=DrawPage(e.Graphics!,bounds,text,position,thermal?9:11);e.HasMorePages=position<text.Length;
+        };
         using var preview=new PrintPreviewDialog{Document=document,Width=900,Height=720,StartPosition=FormStartPosition.CenterParent};preview.ShowDialog(owner);
     }
-    internal static int DrawPage(Graphics graphics,Rectangle bounds,string text,int start)
+    internal static int DrawPage(Graphics graphics,Rectangle bounds,string text,int start,float fontSize=11)
     {
-        using var font=new Font("Segoe UI",11);using var format=new StringFormat(StringFormat.GenericTypographic){FormatFlags=StringFormatFlags.LineLimit};
+        using var font=new Font("Segoe UI",fontSize);using var format=new StringFormat(StringFormat.GenericTypographic){FormatFlags=StringFormatFlags.LineLimit};
         graphics.MeasureString(text[start..],font,bounds.Size,format,out int characters,out _);
-        if(characters<=0)return text.Length;graphics.DrawString(text.Substring(start,characters),font,Brushes.Black,bounds,format);return start+characters;
+        if(characters<=0)throw new InvalidOperationException("A área imprimível é insuficiente. Confira papel e margens da impressora.");graphics.DrawString(text.Substring(start,characters),font,Brushes.Black,bounds,format);return start+characters;
     }
 }

@@ -240,6 +240,18 @@ public static class Database
         """;
         cmd.ExecuteNonQuery();
 
+        // Additive migration only: existing classification, prices and stock remain intact.
+        foreach (string definition in new[]{"kitchen_preparation INTEGER NOT NULL DEFAULT 0", "kitchen_classified INTEGER NOT NULL DEFAULT 0", "track_stock INTEGER NOT NULL DEFAULT 1"})
+        {
+            using var info=cn.CreateCommand();info.CommandText="PRAGMA table_info(products)";
+            var names=new HashSet<string>();using(var r=info.ExecuteReader())while(r.Read())names.Add(r.GetString(1));
+            if(!names.Contains(definition.Split(' ')[0])){using var add=cn.CreateCommand();add.CommandText="ALTER TABLE products ADD COLUMN "+definition;add.ExecuteNonQuery();}
+        }
+        using(var checkout=cn.CreateCommand())
+        {
+            checkout.CommandText="CREATE TABLE IF NOT EXISTS kitchen_paid_orders_v1(order_id TEXT PRIMARY KEY,sale_id INTEGER NOT NULL,FOREIGN KEY(order_id) REFERENCES kitchen_orders_v1(id),FOREIGN KEY(sale_id) REFERENCES sales(id))";
+            checkout.ExecuteNonQuery();
+        }
         EnsureSaleItemsAllowsLooseSales(cn);
         StoreLicensedClientUpdateId();
 

@@ -20,11 +20,11 @@ def download(url):
  with urllib.request.urlopen(req,timeout=45) as r:return r.read()
 def move(sha):api(f'repos/{REPO}/git/refs/heads/main',dict(sha=sha,force=False),'PATCH')
 before={c:feed(c) for c in CHANNELS}
-check(before['001']['manifest']['Version']=='10.426' and before['003']['manifest']['Version']=='10.426','Published baseline changed')
+check(before['001']['manifest']['Version']=='10.427' and before['003']['manifest']['Version']=='10.427','Published baseline changed')
 entries=[];manifests={}
 for c in SELECTED:
  root=Path('proof')/c/'validated';e=json.loads((root/'release-output/candidate.json').read_text(encoding='utf-8-sig'))
- check(e['Channel']==c and e['Version']=='10.427','Wrong release identity')
+ check(e['Channel']==c and e['Version']=='10.428','Wrong release identity')
  check(e['ExpectedFeedSha']==before[c]['sha'],'Baseline changed after validation')
  ui=json.loads((root/'layout-evidence/results.json').read_text(encoding='utf-8-sig'))
  check(ui['success'] is True and len(ui['checks'])>=260,'Required UI checks absent')
@@ -36,17 +36,17 @@ for c in SELECTED:
   check(len(z.namelist())==3 and set(z.namelist())=={'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'},'Unexpected payload')
   check(all(hashlib.sha256(z.read(n)).hexdigest()==e['TargetFiles'][n] for n in z.namelist()),'Member hash differs')
  check(e['SourceCommit']==(os.environ['SOURCE_001'] if c=='001' else os.environ['SOURCE_003']),'Wrong tested source')
- notes='Duplo clique nas mesas abre a janela flutuante da mesa: incluir, editar e retirar itens do rascunho, consultar pedidos enviados e usar suas ações. Visual aprovado, dados, licença e personalizações preservados.'
+ notes='Contador estável, pagamento da mesa integrado ao PDV, catálogo separado por classificação obrigatória Cozinha SIM/NÃO, importação com avisos e comanda com impressora térmica/A4. Dados e licença preservados.'
  manifests[c]=dict(Version=e['Version'],TargetClientCode=c,PackageUrl=e['Url'],Sha256=e['PackageSha256'],SourceCommit=e['SourceCommit'],Mandatory=False,Notes=notes,BuildRunId=str(e['BuildRunId']),ValidationRunId=os.environ['GITHUB_RUN_ID'],ProtectedUpdaterRequired=True,PublishedBaselineVersion=e['Baseline']['Version'])
  entries.append((e,package))
 for e,package in entries:
  exists=subprocess.run(['gh','release','view',e['Tag'],'--repo',REPO],capture_output=True)
- if exists.returncode:subprocess.run(['gh','release','create',e['Tag'],str(package),'--repo',REPO,'--target','main','--title',f"PDV {e['Channel']} V10.427 - Cozinha Premium",'--notes',manifests[e['Channel']]['Notes'],'--latest=false'],check=True)
+ if exists.returncode:subprocess.run(['gh','release','create',e['Tag'],str(package),'--repo',REPO,'--target','main','--title',f"PDV {e['Channel']} V10.428 - Cozinha Premium",'--notes',manifests[e['Channel']]['Notes'],'--latest=false'],check=True)
  check(hashlib.sha256(download(e['Url'])).hexdigest()==e['PackageSha256'],'Public release bytes differ; feeds unchanged')
 head=api(f'repos/{REPO}/git/ref/heads/main')['object']['sha'];old=api(f'repos/{REPO}/git/commits/{head}')
 check(all(feed(c)['sha']==before[c]['sha'] for c in CHANNELS),'Concurrent feed change')
 tree=api(f'repos/{REPO}/git/trees',dict(base_tree=old['tree']['sha'],tree=[dict(path=f'clients/{c}/version.json',mode='100644',type='blob',content=json.dumps(manifests[c],ensure_ascii=False,indent=2)+'\n') for c in SELECTED]))
-commit=api(f'repos/{REPO}/git/commits',dict(message='001 e 003 V10.427: Cozinha Windows validada, bases e rollback independentes',tree=tree['sha'],parents=[head]))
+commit=api(f'repos/{REPO}/git/commits',dict(message='001 e 003 V10.428: Cozinha Windows validada, bases e rollback independentes',tree=tree['sha'],parents=[head]))
 move(commit['sha'])
 try:
  detail=api(f"repos/{REPO}/commits/{commit['sha']}")
@@ -61,8 +61,8 @@ try:
   check(live==manifests[c],'Updater URL differs '+c)
  after={c:feed(c) for c in CHANNELS}
  check(all(after[c]['sha']==before[c]['sha'] for c in CHANNELS if c not in SELECTED),'Protected channel changed')
- Path('published-001-003.json').write_text(json.dumps(dict(Published=True,Version='10.427',Channels=SELECTED,Commit=commit['sha'],Manifests=manifests,Untouched={c:after[c]['sha'] for c in CHANNELS if c not in SELECTED},PublicPackagesVerified=True,UpdaterUrlsVerified=True,InstalledOnRealComputers=False),indent=2),encoding='utf-8')
- print('PASS PUBLISHED 001 AND 003 10.427; verified public bytes and updater URLs; 002/004/GLOBAL unchanged')
+ Path('published-001-003.json').write_text(json.dumps(dict(Published=True,Version='10.428',Channels=SELECTED,Commit=commit['sha'],Manifests=manifests,Untouched={c:after[c]['sha'] for c in CHANNELS if c not in SELECTED},PublicPackagesVerified=True,UpdaterUrlsVerified=True,InstalledOnRealComputers=False),indent=2),encoding='utf-8')
+ print('PASS PUBLISHED 001 AND 003 10.428; verified public bytes and updater URLs; 002/004/GLOBAL unchanged')
 except Exception:
  if api(f'repos/{REPO}/git/ref/heads/main')['object']['sha']==commit['sha']:
   restore=api(f'repos/{REPO}/git/commits',dict(message='Restore feeds after unsuccessful 001/003 verification',tree=old['tree']['sha'],parents=[commit['sha']]))

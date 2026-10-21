@@ -50,20 +50,20 @@ internal sealed class ReadyKitchenImportForm : Form
             if(Convert.ToBoolean(row.Cells["Selected"].Value)!=true)continue;
             string text=(Convert.ToString(row.Cells["Price"].Value)??"").Trim();
             if(!Regex.IsMatch(text,@"^[0-9]+(?:[.,][0-9]{1,2})?$")||!decimal.TryParse(text.Replace(',','.'),NumberStyles.AllowDecimalPoint,CultureInfo.InvariantCulture,out var price)||price<=0)
-            {status.Text="Informe seu preço positivo para "+row.Cells["Product"].Value+".";grid.CurrentCell=row.Cells["Price"];return;}
+            {status.Text="Informe seu preço positivo para "+row.Cells["Product"].Value+".";grid.CurrentCell=row.Cells["Price"];grid.BeginEdit(true);MessageBox.Show(this,status.Text+"\nPreencha a coluna Seu preço (R$) dos itens selecionados. Nenhum produto foi alterado.","Preço obrigatório",MessageBoxButtons.OK,MessageBoxIcon.Warning);return;}
             selected.Add(((ReadyKitchenItem)row.Tag!).Code,price);
         }
         if(selected.Count==0){status.Text="Selecione os produtos que deseja importar.";return;}
-        busy=true;import.Enabled=false;grid.Enabled=false;status.Text="Criando backup de proteção e importando os produtos selecionados...";
+        bool success=false;busy=true;import.Enabled=false;grid.Enabled=false;status.Text="Criando backup de proteção e importando os produtos selecionados...";
         try
         {
             var result=await Task.Run(()=>ReadyKitchenCatalog.Import(selected));
             status.Text=$"{result.Added} produto(s) importado(s). {result.Skipped} já cadastrado(s), preservado(s). Backup criado.";
-            DialogResult=DialogResult.OK;
+            success=true;
         }
-        catch(Exception e){status.Text=e.Message;}
+        catch(Exception e){status.Text=e.Message;MessageBox.Show(this,e.Message,"Importação não concluída",MessageBoxButtons.OK,MessageBoxIcon.Error);}
         finally{busy=false;import.Enabled=true;grid.Enabled=true;}
-        if(DialogResult==DialogResult.OK)Close();
+        if(success){DialogResult=DialogResult.OK;Close();}
     }
     private void ShowCredits()
     {

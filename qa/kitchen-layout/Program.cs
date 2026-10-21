@@ -39,7 +39,7 @@ static class LayoutTests
             Check(!File.Exists(Database.DbPath),"empty disposable profile");
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);Application.EnableVisualStyles();
             Database.Initialize();Auth.CreateUser("QA LAYOUT","layoutqa","QA-layout-123!","ADMINISTRADOR","qa@example.invalid","");Auth.Login("layoutqa","QA-layout-123!");
-            using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="INSERT INTO products(id,barcode,name,category,price,stock,active,photo_path) VALUES(1,'LAYOUT1','Produto com nome extenso','CONDIMENTOS',7.99,10,1,''),(2,'LAYOUT2','Produto sem categoria','',.50,20,1,'')";q.ExecuteNonQuery();}
+            using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="INSERT INTO products(id,barcode,name,category,price,stock,active,photo_path,kitchen_preparation) VALUES(1,'LAYOUT1','Produto com nome extenso','CONDIMENTOS',7.99,10,1,'',1),(2,'LAYOUT2','Produto sem categoria','',.50,20,1,'',1)";q.ExecuteNonQuery();}
             InternalWorkspace.Install();PremiumGlobalTheme.Install();
             using var form=new KitchenForm();form.Show();
             var fresh=Field<Button>(form,"fresh");
@@ -147,6 +147,7 @@ static class LayoutTests
             Check(popup.BackColor==KitchenPremiumStyle.Background,"floating tables keep black premium palette");popup.Close();
             using(var ordinary=new Form{Name="UnrelatedForm"}){PremiumGlobalTheme.Apply(ordinary);Check(ordinary.BackColor==PremiumGlobalTheme.Background,"unrelated forms retain their existing shared theme");}
             DashboardTests.Run(form,Check,Pump,"layout-evidence",RenderClient);
+            KitchenCorrectionsTests.Run(form,Check,Pump);
             TableDoubleClickTests.Run(Check,Pump);
             using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="SELECT COUNT(*) FROM products WHERE (id=1 AND price=7.99 AND stock=10) OR (id=2 AND price=.50 AND stock=20)";Check(Convert.ToInt32(q.ExecuteScalar())==2,"layout checks preserve product prices and stock");}
             form.Close();form.Dispose();
