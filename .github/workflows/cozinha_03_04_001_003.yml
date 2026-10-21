@@ -16,8 +16,9 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ matrix.channel }}
-      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || '81a2094117f16dd32c796d24466c7e6463d3e95c' }}
-      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || '81a2094117f16dd32c796d24466c7e6463d3e95c'
+      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || 'b1bd51b573ca6770f2120257136ff7f36fec3878'
+        }}
+      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || 'b1bd51b573ca6770f2120257136ff7f36fec3878'
         }}
       PYTHONUTF8: '1'
     steps:
@@ -25,6 +26,7 @@ jobs:
       with:
         path: source
         fetch-depth: 0
+        ref: ${{ env.SOURCE_REF }}
     - name: Conferir somente escopo e identidade do canal
       working-directory: source
       run: python qa/kitchen-03-04/scope.py
@@ -153,7 +155,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
         SOURCE_001: ${{ github.sha }}
-        SOURCE_003: 81a2094117f16dd32c796d24466c7e6463d3e95c
+        SOURCE_003: b1bd51b573ca6770f2120257136ff7f36fec3878
       run: python qa/kitchen-03-04/publish.py
     - uses: actions/upload-artifact@v4
       if: always()
