@@ -23,8 +23,11 @@ internal static class DashboardTests
         check(panel.Controls.Find("DashboardOrderTitle",true).Single().Text.Contains("03"),"table selection binds the embedded order panel");
         menu.Controls.Find("CatalogProduct_1",true).OfType<Button>().Single().PerformClick();
         check(panel.Rows.Rows.Count==1&&draft.Rows.Count==1&&Field<Form>(form,"entryWindow").Visible==false,"main product adds to embedded draft without opening another window");
-        panel.Controls.Find("DashboardSend",true).OfType<Button>().Single().PerformClick();
-        pump(()=>fresh.Enabled&&store.ListActive().Any(o=>o.Reference=="Mesa 03"));
+        var submit=panel.Controls.Find("DashboardSend",true).OfType<Button>().Single();
+        Console.WriteLine($"BEFORE SEND enabled={submit.Enabled} fresh={fresh.Enabled} status={Field<Label>(form,"message").Text}");
+        pump(()=>submit.Enabled&&fresh.Enabled);submit.PerformClick();
+        try{pump(()=>fresh.Enabled&&store.ListActive().Any(o=>o.Reference=="Mesa 03"));}
+        catch{Console.WriteLine($"AFTER SEND enabled={submit.Enabled} fresh={fresh.Enabled} status={Field<Label>(form,"message").Text}");throw;}
         var saved=store.ListActive().Single(o=>o.Reference=="Mesa 03");check(saved.Items.Single().ProductId==1,"embedded send persists the original product ID");
         check(!panel.Rows.Columns["Remove"].Visible,"saved order cannot be edited as an unsent draft");
         panel.Controls.Find("DashboardReady",true).OfType<Button>().Single().PerformClick();pump(()=>fresh.Enabled&&store.Get(saved.Id).Status=="PRONTO");
