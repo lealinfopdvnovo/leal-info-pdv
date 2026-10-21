@@ -1,0 +1,87 @@
+using LealInfoPDV;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+using Microsoft.Data.Sqlite;
+static class Tests
+{
+    const BindingFlags P=BindingFlags.Instance|BindingFlags.NonPublic;
+    static readonly List<string> checks=new();
+    static void Check(bool ok,string text){if(!ok)throw new Exception(text);checks.Add(text);Console.WriteLine("PASS "+text);}
+    static T Field<T>(object o,string n)=>(T)o.GetType().GetField(n,P)!.GetValue(o)!;
+    static object? Call(object o,string n,params object[] args)=>o.GetType().GetMethod(n,P)!.Invoke(o,args);
+    static IEnumerable<Control> All(Control c)=>new[]{c}.Concat(c.Controls.Cast<Control>().SelectMany(All));
+    static void Pump(Func<bool> done){var end=DateTime.UtcNow.AddSeconds(15);while(!done()&&DateTime.UtcNow<end){Application.DoEvents();Thread.Sleep(10);}if(!done())throw new Exception("Targeted UI action timed out");}
+    static object? Sql(string sql){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText=sql;return q.ExecuteScalar();}
+    static long Count(string sql)=>Convert.ToInt64(Sql(sql));
+    static string Money()=>Convert.ToString(Sql("SELECT (SELECT COUNT(*) FROM sales)||':'||(SELECT COALESCE(SUM(total),0) FROM sales)||':'||(SELECT COUNT(*) FROM sale_payments)||':'||(SELECT COALESCE(SUM(amount),0) FROM cash_movements)||':'||(SELECT group_concat(id||'='||stock||'/'||price,';') FROM products)"))!;
+    static KitchenDraft Draft(string table,bool direct,params KitchenItem[] items)=>new(Guid.NewGuid(),table,"QA 03 04","QA",DateTimeOffset.UtcNow,items,direct);
+    static void Reject(Action action,string text){bool failed=false;try{action();}catch(InvalidOperationException){failed=true;}Check(failed,text);}
+    [DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr h,uint m,IntPtr w,IntPtr l);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern IntPtr FindWindow(string? cls,string title);
+    static void Capture(Form form,string name){using var b=new Bitmap(form.Width,form.Height);form.DrawToBitmap(b,new Rectangle(Point.Empty,b.Size));b.Save("corrections-evidence/"+name+".png");}
+    [STAThread]static int Main(){
+        if(!OperatingSystem.IsWindows()||Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true")throw new Exception("Disposable Windows only");
+        Directory.CreateDirectory("corrections-evidence");using var timeout=new System.Threading.Timer(_=>Environment.Exit(93),null,110000,Timeout.Infinite);
+        try{
+            Check(!File.Exists(Database.DbPath),"isolated Windows fixture has no operational database");Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);Application.EnableVisualStyles();Database.Initialize();Auth.CreateUser("QA CONSUMO","qaconsumo","QA-03-04-123!","ADMINISTRADOR","qa@example.invalid","");Auth.Login("qaconsumo","QA-03-04-123!");
+            Sql("INSERT INTO products(id,barcode,name,category,price,cost,stock,track_stock,active,kitchen_preparation) VALUES(1,'QA34A','REFRIGERANTE QA','BEBIDAS',5,1,100,1,1,1),(2,'QA34B','ARROZ QA','PREPARO',12,3,100,1,1,1),(3,'QA34C','FEIJAO QA','PREPARO',8,2,100,1,1,1)");
+            var store=new KitchenStore();string identity=store.EnsureReady();store.EnsureSeatingReady();
+            // Simulate an existing pre-v3 installation; preserve original order payload and quantities.
+            Sql("DROP TABLE kitchen_item_cancellations_v3;DROP TABLE kitchen_consumption_prices_v3;DROP TABLE kitchen_consumption_orders_v3;");
+            var legacy=Draft("Mesa 09",false,new KitchenItem("LEGADO PRESERVADO",1,"",1));
+            using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="INSERT INTO kitchen_orders_v1 VALUES($id,'Mesa 09','','QA','AGUARDANDO',1,$now,$now,$now,$json,$hash);INSERT INTO kitchen_items_v1 VALUES($id,0,'LEGADO PRESERVADO','1','',1);INSERT INTO kitchen_events_v1 VALUES('legacy',$id,'AGUARDANDO',$now,'QA',$hash)";q.Parameters.AddWithValue("$id",legacy.Id.ToString("D"));q.Parameters.AddWithValue("$now",DateTimeOffset.UtcNow.ToString("O"));q.Parameters.AddWithValue("$json",legacy.Json);q.Parameters.AddWithValue("$hash",legacy.Hash);q.ExecuteNonQuery();}
+            string before=Money();store=new KitchenStore();Check(store.EnsureReady()==identity,"additive migration preserves original store identity");
+            Check(store.LastConsumptionBackup!=null&&File.Exists(store.LastConsumptionBackup),"verified database backup is created before consumption migration");
+            using(var backup=new SqliteConnection("Data Source="+store.LastConsumptionBackup+";Mode=ReadOnly")){backup.Open();using var q=backup.CreateCommand();q.CommandText="PRAGMA quick_check";Check(Convert.ToString(q.ExecuteScalar())=="ok","pre-migration database backup passes integrity check");q.CommandText="SELECT COUNT(*) FROM kitchen_orders_v1";Check(Convert.ToInt32(q.ExecuteScalar())==1,"backup contains existing order before new tables are added");}
+            Check(store.Get(legacy.Id).Items.Single().Quantity==1&&Money()==before,"migration preserves legacy items, prices, stock and financial records");
+            var oldJson=JsonSerializer.Serialize(new{legacy.Id,legacy.Reference,legacy.Notes,legacy.Operator,legacy.CreatedUtc,Items=legacy.Items.Select(i=>new{i.Description,i.Quantity,i.Notes,i.ProductId}).ToArray()});Check(legacy.Json==oldJson,"legacy outbox JSON and hash are unchanged for preparation drafts");
+            store.EnsureReady();Check(Directory.GetFiles(Database.BackupFolder,"ANTES_CONSUMO_MESAS_*.db").Length==1,"repeat schema initialization is idempotent");
+            var directDraft=Draft("Mesa 01",true,new KitchenItem("REFRIGERANTE QA",2,"GELADO",1),new KitchenItem("FEIJAO QA",1,"",3));var direct=store.Submit(identity,directDraft);
+            Check(direct.TableOnly&&direct.Status=="ENTREGUE"&&store.History(direct.Id).Single().Status=="ADICIONADO_MESA","direct consumption creates no preparation state or preparation event");
+            Check(store.ListActive().Any(o=>o.Id==direct.Id)&&KitchenTablesView.State(store.ListActive(),1)=="OCUPADA","direct-only consumption keeps table occupied until payment or cancellation");
+            Check(store.Quote(direct.Id).Total==18m&&store.Quote(direct.Id).Orders.Length==1,"direct products, decimal quantities and values are immediately billable");
+            Check(store.Submit(identity,directDraft).Id==direct.Id&&Count("SELECT COUNT(*) FROM kitchen_orders_v1 WHERE reference='Mesa 01'")==1,"direct consumption retry is idempotent without duplicate charges");
+            Reject(()=>store.Submit(identity,directDraft with{TableOnly=false}),"same operation cannot be retried with a different action");
+            var prep=store.Submit(identity,Draft("Mesa 01",false,new KitchenItem("ARROZ QA",2.5m,"SEM SAL",2),new KitchenItem("FEIJAO QA",1,"",3)));
+            var prep2=store.Submit(identity,Draft("Mesa 01",false,new KitchenItem("ARROZ QA",1,"SEGUNDO PREPARO",2)));
+            Check(!prep.TableOnly&&prep.Id!=prep2.Id&&prep.Status=="AGUARDANDO"&&store.Get(direct.Id).TableOnly,"sending creates independent preparation batches without replacing consumption");
+            Check(store.Quote(prep.Id).Orders.Length==3&&store.Quote(prep.Id).Total==68m,"table bill aggregates direct consumption and all existing preparation batches");
+            Check(prep.Items.Single(i=>i.ProductId==2).Quantity==2.5m&&prep.Items.Single(i=>i.ProductId==2).UnitPrice==12m,"preparation retains fractional quantity, notes and captured price");
+            Sql("UPDATE products SET price=99 WHERE id=2");Check(store.Quote(prep.Id).Total==68m,"registered consumption retains its price if catalog price changes later");Sql("UPDATE products SET price=12 WHERE id=2");
+            var staleBill=store.Quote(prep.Id);var operation=Guid.NewGuid();var changed=store.CancelItem(prep.Id,0,prep.Revision,"QA",operation,"Cliente desistiu somente do arroz");
+            Check(changed.Items.Length==1&&changed.Items[0].ProductId==3&&changed.Status=="AGUARDANDO","item cancellation removes only selected product and preserves remaining preparation");
+            Check(store.Quote(prep.Id).Total==38m&&store.Quote(prep.Id).Orders.Length==3,"cancellation recalculates full table bill and keeps other batches active");
+            Check(store.CancelItem(prep.Id,0,prep.Revision,"QA",operation,"Cliente desistiu somente do arroz").Revision==changed.Revision,"same cancellation retry does not cancel another product");
+            Reject(()=>store.CancelItem(prep.Id,1,prep.Revision,"QA",Guid.NewGuid()),"stale revision cannot cancel remaining product");
+            Reject(()=>store.Receive(staleBill,new[]{new KitchenPayment("PIX",staleBill.Total)},"QA"),"quote created before cancellation cannot charge removed item");
+            Check(Count("SELECT COUNT(*) FROM kitchen_items_v1 WHERE order_id='"+prep.Id+"'")==2&&Count("SELECT COUNT(*) FROM kitchen_item_cancellations_v3 WHERE order_id='"+prep.Id+"' AND position=0 AND operator='QA' AND reason='Cliente desistiu somente do arroz'")==1,"original item and detailed cancellation audit remain preserved");
+            Check(KitchenTablesView.State(store.ListActive(),1)!="LIVRE"&&Money()==before,"partial cancellation neither frees occupied table nor changes finance or stock");
+            var directChanged=store.CancelItem(direct.Id,0,direct.Revision,"QA",Guid.NewGuid());Check(directChanged.TableOnly&&directChanged.Items.Length==1&&store.Quote(prep.Id).Total==28m,"direct-consumption cancellation removes only selected line and recalculates account");
+            var p=store.ChangeStatus(prep2.Id,prep2.Revision,"PREPARANDO","QA",Guid.NewGuid());p=store.ChangeStatus(p.Id,p.Revision,"PRONTO","QA",Guid.NewGuid());p=store.ChangeStatus(p.Id,p.Revision,"ENTREGUE","QA",Guid.NewGuid());Check(store.Quote(prep.Id).Total==28m&&store.ListActive().Any(o=>o.Id==p.Id),"delivered but unpaid preparation stays in active table account");
+            var bill=store.Quote(prep.Id);long sale=store.Receive(bill,new[]{new KitchenPayment("PIX",bill.Total)},"QA");Check(sale>0&&Count("SELECT COUNT(*) FROM sales")==1&&Convert.ToDecimal(Sql("SELECT total FROM sales WHERE id="+sale))==28m,"payment charges only uncancelled table items exactly once");
+            Check(Convert.ToDecimal(Sql("SELECT stock FROM products WHERE id=1"))==100m&&Convert.ToDecimal(Sql("SELECT stock FROM products WHERE id=2"))==99m&&Convert.ToDecimal(Sql("SELECT stock FROM products WHERE id=3"))==98m,"stock deduction excludes cancelled quantities and includes active direct and preparation consumption");
+            Check(store.Receive(bill,new[]{new KitchenPayment("PIX",bill.Total)},"QA")==sale&&Count("SELECT COUNT(*) FROM sales")==1,"payment retry cannot duplicate sale or stock deduction");
+            string completed=Money();Reject(()=>store.CancelItem(direct.Id,1,store.Get(direct.Id).Revision,"QA",Guid.NewGuid()),"paid consumption cannot be cancelled");Reject(()=>store.ChangeStatus(prep.Id,store.Get(prep.Id).Revision,"CANCELADO","QA",Guid.NewGuid()),"completed sale cannot be changed by whole-order cancellation");Check(Money()==completed&&KitchenTablesView.State(store.ListActive(),1)=="LIVRE","completed finance stays unchanged and table frees only after payment");
+            // Native UI: both explicit actions, grouped table rows, clock and item cancellation.
+            InternalWorkspace.Install();PremiumGlobalTheme.Install();using var form=new KitchenForm();form.Show();var menu=Field<KitchenCatalogView>(form,"mainCatalog");var fresh=Field<Button>(form,"fresh");var panel=Field<KitchenOrderPanel>(form,"dashboardOrder");
+            Pump(()=>fresh.Enabled&&menu.Controls.Find("CatalogProduct_1",true).Length==1&&menu.Controls.Find("CatalogReload",true).OfType<Button>().Single().Enabled);Field<System.Windows.Forms.Timer>(form,"retry").Stop();
+            Call(form,"SelectDashboardTable",4);menu.Controls.Find("CatalogProduct_1",true).OfType<Button>().Single().PerformClick();Call(form,"OpenEntryForTable",4);var editor=Field<Form>(form,"entryWindow");
+            var add=All(editor).OfType<Button>().Single(b=>b.Name=="AddToTable");var send=All(editor).OfType<Button>().Single(b=>b.Name=="SendKitchenOrder");Check(add.Visible&&send.Visible&&add.Enabled&&send.Enabled,"floating editor exposes both operator-selected actions");Capture(editor,"03-two-explicit-actions");add.PerformClick();Pump(()=>fresh.Enabled&&store.ListActive().Any(o=>o.Reference=="Mesa 04"&&o.TableOnly));
+            Call(form,"OpenTableWindow",4);var floating=Field<KitchenOrderPanel>(form,"floatingTableOrder");var window=Field<Form>(form,"tableWindow");Check(panel.Rows.Rows.Count==1&&floating.Rows.Rows.Count==1&&All(floating).Single(c=>c.Name=="DashboardOrderElapsed").Text=="","direct action updates both table panels without starting preparation clock");
+            Check(Field<FlowLayoutPanel>(form,"orderCards").Controls.Cast<Control>().Where(c=>c.Tag is Guid).All(c=>!store.Get((Guid)c.Tag!).TableOnly),"direct consumption never appears as preparation card or pending preparation count");Check(All(floating).Single(c=>c.Name=="KitchenTableTotal").Text.Contains("5,00"),"table total is shown immediately after adding direct consumption");
+            Call(form,"OpenEntryForTable",4);menu.Controls.Find("CatalogProduct_2",true).OfType<Button>().Single().PerformClick();send.PerformClick();Pump(()=>fresh.Enabled&&store.ListActive().Any(o=>o.Reference=="Mesa 04"&&!o.TableOnly));
+            Check(panel.Rows.Rows.Count==2&&floating.Rows.Rows.Count==2,"sending new preparation keeps earlier direct products visible in both panels");Check(All(floating).Single(c=>c.Name=="KitchenTableTotal").Text.Contains("17,00"),"mixed table total includes previous direct product plus new preparation");Check(All(floating).Single(c=>c.Name=="DashboardOrderElapsed").Text.StartsWith("TEMPO:"),"preparation starts a clock independently of direct consumption");Capture(window,"03-mixed-consumption");
+            void CancelLine(KitchenOrderPanel view,bool directLine){
+                int row=view.Rows.Rows.Cast<DataGridViewRow>().Single(r=>((KitchenTableLine)r.Tag!).TableOnly==directLine).Index;int column=view.Rows.Columns["StatusMenu"].Index;
+                view.Rows.CurrentCell=view.Rows.Rows[row].Cells[column];var rect=view.Rows.GetCellDisplayRectangle(column,row,true);var point=new IntPtr(((rect.Top+rect.Height/2)<<16)|(rect.Left+rect.Width/2));SendMessage(view.Rows.Handle,0x0201,new IntPtr(1),point);SendMessage(view.Rows.Handle,0x0202,IntPtr.Zero,point);Application.DoEvents();
+                var states=view.Rows.ContextMenuStrip!;Check(states.Visible,"native left arrow opens menu for exact consumption line");if(directLine)Check(states.Items.Cast<ToolStripItem>().Where(i=>Convert.ToString(i.Tag)!="CANCELADO").All(i=>!i.Enabled),"direct-consumption line offers cancellation without creating preparation statuses");
+                using var yes=new System.Windows.Forms.Timer{Interval=80};yes.Tick+=(_,_)=>{var box=FindWindow(null,"Cancelar item da mesa");if(box!=IntPtr.Zero)SendMessage(box,0x0111,new IntPtr(6),IntPtr.Zero);};yes.Start();states.Items.Cast<ToolStripItem>().Single(i=>Convert.ToString(i.Tag)=="CANCELADO").PerformClick();states.Close();Pump(()=>fresh.Enabled&&view.Rows.Rows.Count==(directLine?1:0));yes.Stop();
+            }
+            CancelLine(floating,true);Check(panel.Rows.Rows.Count==1&&All(floating).Single(c=>c.Name=="KitchenTableTotal").Text.Contains("12,00"),"cancelling direct product instantly removes both panel rows and recalculates total");Check(KitchenTablesView.State(store.ListActive(),4)!="LIVRE"&&store.ListActive().Single(o=>o.Reference=="Mesa 04").Items.Single().ProductId==2,"remaining preparation is intact and keeps table occupied");Capture(window,"04-partial-cancellation");CancelLine(floating,false);
+            Check(panel.Rows.Rows.Count==0&&floating.Rows.Rows.Count==0&&KitchenTablesView.State(store.ListActive(),4)=="LIVRE","cancelling last product clears both panels and frees table immediately");Check(!Field<FlowLayoutPanel>(form,"orderCards").Controls.Cast<Control>().Any(c=>c.Tag is Guid id&&store.Get(id).Reference=="Mesa 04"),"last cancellation removes corresponding preparation card");
+            Check(All(floating).Single(c=>c.Name=="KitchenTableTotal").Text.Contains("0,00")&&Money()==completed,"last cancellation clears bill while preserving all completed payments and stock");Check(Count("SELECT COUNT(*) FROM kitchen_item_cancellations_v3 WHERE order_id IN (SELECT id FROM kitchen_orders_v1 WHERE reference='Mesa 04')")==2,"UI cancellations retain item-level operator and timestamp history");Check(floating.BackColor==KitchenPremiumStyle.Background&&panel.BackColor==KitchenPremiumStyle.Background,"premium black 3D kitchen surfaces remain preserved");Capture(window,"04-empty-table");form.Close();Check(form.IsDisposed,"targeted fixture windows dispose cleanly");
+            File.WriteAllText("corrections-evidence/results.json",JsonSerializer.Serialize(new{success=true,channel=Environment.GetEnvironmentVariable("CHANNEL"),source=Environment.GetEnvironmentVariable("APPROVED_SOURCE"),checks,nativeWindows=true,published=false}));Console.WriteLine("PASS ONLY CONSUMPTION PREPARATION CANCELLATION AND FINANCE 03 04");Environment.Exit(0);return 0;
+        }catch(Exception e){Console.Error.WriteLine(e);File.WriteAllText("corrections-evidence/failure.txt",e.ToString());return 1;}
+    }
+}

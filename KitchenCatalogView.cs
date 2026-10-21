@@ -130,6 +130,7 @@ internal sealed class KitchenCatalogView : UserControl
         while(r.Read())result.Add(new(r.GetInt64(0),r.GetString(1),r.GetString(2),Convert.ToDecimal(r.GetDouble(3)),r.GetString(4),r.GetString(5)));
         return result.ToArray();
     }
+    internal decimal? PriceOf(long? id)=>products.FirstOrDefault(p=>p.Id==id)?.Price;
     internal async Task ReloadAsync()
     {
         if(loading||IsDisposed)return;

@@ -44,7 +44,7 @@ internal sealed partial class KitchenStore
                 string id = Identity(db);
                 using var tables = Command(db, null, "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('kitchen_orders_v1','kitchen_items_v1','kitchen_events_v1')");
                 if (Convert.ToInt32(tables.ExecuteScalar()) != 3) throw new InvalidDataException("Estrutura da cozinha incompleta; nenhum reparo automático foi aplicado.");
-                return id;
+                EnsureConsumptionReady();return id;
             }
             if (!canMigrate) throw new InvalidOperationException("Abra COZINHA primeiro no computador servidor para preparar a base com backup validado.");
             using (var check = Command(db, null, "PRAGMA quick_check"))
@@ -74,12 +74,12 @@ internal sealed partial class KitchenStore
                 CREATE INDEX kitchen_orders_status_v1 ON kitchen_orders_v1(status,received_utc);
                 INSERT INTO kitchen_schema_v1(id,version,store_id) VALUES(1,1,$id);
                 """, ("$id", Guid.NewGuid().ToString("D")));
-            create.ExecuteNonQuery(); tx.Commit(); return Identity(db);
+            create.ExecuteNonQuery(); tx.Commit();EnsureConsumptionReady();return Identity(db);
         }
     }
     internal KitchenOrder Submit(string storeId, KitchenDraft draft)
     {
-        draft.Validate(); using var db = open(); using var tx = db.BeginTransaction();
+        draft.Validate(); if(draft.TableOnly&&!KitchenTablesView.TableNumber(draft.Reference).HasValue)throw new InvalidOperationException("Selecione uma mesa para adicionar consumo."); using var db = open(); using var tx = db.BeginTransaction();
         if (Identity(db, tx) != storeId) throw new InvalidOperationException("Pedido pertence a outra base. Pendência preservada.");
         string id = draft.Id.ToString("D");
         using (var prior = Command(db, tx, "SELECT payload_hash FROM kitchen_orders_v1 WHERE id=$id", ("$id", id)))
@@ -106,9 +106,9 @@ internal sealed partial class KitchenStore
         string now = Stamp(DateTimeOffset.UtcNow);
         using (var add = Command(db, tx, """
             INSERT INTO kitchen_orders_v1(id,reference,notes,operator,status,revision,created_utc,received_utc,updated_utc,payload,payload_hash)
-            VALUES($id,$reference,$notes,$operator,'AGUARDANDO',1,$created,$now,$now,$payload,$hash)
+            VALUES($id,$reference,$notes,$operator,$status,1,$created,$now,$now,$payload,$hash)
             """, ("$id", id), ("$reference", draft.Reference), ("$notes", draft.Notes), ("$operator", draft.Operator),
-            ("$created", Stamp(draft.CreatedUtc)), ("$now", now), ("$payload", draft.Json), ("$hash", draft.Hash))) add.ExecuteNonQuery();
+            ("$status",draft.TableOnly?"ENTREGUE":"AGUARDANDO"),("$created", Stamp(draft.CreatedUtc)), ("$now", now), ("$payload", draft.Json), ("$hash", draft.Hash))) add.ExecuteNonQuery();
         for (int i = 0; i < draft.Items.Length; i++)
         {
             var item = draft.Items[i];
@@ -116,9 +116,9 @@ internal sealed partial class KitchenStore
                 ("$id", id), ("$p", i), ("$d", item.Description), ("$q", item.Quantity.ToString("G29", CultureInfo.InvariantCulture)), ("$n", item.Notes), ("$product", item.ProductId));
             add.ExecuteNonQuery();
         }
-        using (var record = Command(db, tx, "INSERT INTO kitchen_events_v1(operation_id,order_id,status,at_utc,operator,request_hash) VALUES($op,$id,'AGUARDANDO',$now,$operator,$hash)",
-            ("$op", "submit:" + id), ("$id", id), ("$now", now), ("$operator", draft.Operator), ("$hash", draft.Hash))) record.ExecuteNonQuery();
-        tx.Commit(); return Get(draft.Id);
+        using (var record = Command(db, tx, "INSERT INTO kitchen_events_v1(operation_id,order_id,status,at_utc,operator,request_hash) VALUES($op,$id,$status,$now,$operator,$hash)",
+            ("$status",draft.TableOnly?"ADICIONADO_MESA":"AGUARDANDO"),("$op", "submit:" + id), ("$id", id), ("$now", now), ("$operator", draft.Operator), ("$hash", draft.Hash))) record.ExecuteNonQuery();
+        CaptureConsumption(db,tx,draft);tx.Commit(); return Get(draft.Id);
     }
     private static KitchenOrder Read(PdvConnection db, PdvTransaction? tx, Guid id)
     {
@@ -129,12 +129,16 @@ internal sealed partial class KitchenStore
             if (!r.Read()) throw new InvalidOperationException("Pedido não encontrado.");
             result = new(id, r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetInt64(4), Time(r.GetString(5)), Time(r.GetString(6)), Time(r.GetString(7)), Array.Empty<KitchenItem>());
         }
-        var items = new List<KitchenItem>();
-        using var itemCmd = Command(db, tx, "SELECT description,quantity,notes,product_id FROM kitchen_items_v1 WHERE order_id=$id ORDER BY position", ("$id", id.ToString("D")));
-        using var rows = itemCmd.ExecuteReader();
-        while (rows.Read()) items.Add(new(rows.GetString(0), decimal.Parse(rows.GetString(1), CultureInfo.InvariantCulture), rows.GetString(2), rows.IsDBNull(3) ? null : rows.GetInt64(3)));
-        return result with { Items = items.ToArray() };
+        bool enhanced=HasConsumption(db,tx);bool tableOnly=false,paid=false;
+        if(enhanced){using var mode=Command(db,tx,"SELECT table_only FROM kitchen_consumption_orders_v3 WHERE order_id=$id",("$id",id.ToString("D")));tableOnly=Convert.ToInt32(mode.ExecuteScalar()??0)==1;}
+        using(var payment=Command(db,tx,"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='kitchen_paid_orders_v1'"))if(Convert.ToInt32(payment.ExecuteScalar())==1){using var q=Command(db,tx,"SELECT COUNT(*) FROM kitchen_paid_orders_v1 WHERE order_id=$id",("$id",id.ToString("D")));paid=Convert.ToInt32(q.ExecuteScalar())>0;}
+        var items=new List<KitchenItem>();
+        string sql=enhanced?"SELECT i.description,i.quantity,i.notes,i.product_id,i.position,p.unit_price FROM kitchen_items_v1 i LEFT JOIN kitchen_consumption_prices_v3 p ON p.order_id=i.order_id AND p.position=i.position WHERE i.order_id=$id AND NOT EXISTS(SELECT 1 FROM kitchen_item_cancellations_v3 c WHERE c.order_id=i.order_id AND c.position=i.position) ORDER BY i.position":"SELECT description,quantity,notes,product_id,position,NULL FROM kitchen_items_v1 WHERE order_id=$id ORDER BY position";
+        using var itemCmd=Command(db,tx,sql,("$id",id.ToString("D")));using var rows=itemCmd.ExecuteReader();
+        while(rows.Read())items.Add(new(rows.GetString(0),decimal.Parse(rows.GetString(1),CultureInfo.InvariantCulture),rows.GetString(2),rows.IsDBNull(3)?null:rows.GetInt64(3),rows.IsDBNull(5)?null:decimal.Parse(rows.GetString(5),CultureInfo.InvariantCulture),rows.GetInt32(4)));
+        return result with{Items=items.ToArray(),TableOnly=tableOnly,Paid=paid};
     }
+
     internal KitchenOrder Get(Guid id) { using var db = open(); return Read(db, null, id); }
     internal IReadOnlyList<KitchenOrder> List()
     {
@@ -147,7 +151,7 @@ internal sealed partial class KitchenStore
     internal IReadOnlyList<KitchenOrder> ListActive()
     {
         using var db = open(); var ids = new List<Guid>();
-        using (var cmd = Command(db, null, "SELECT id FROM kitchen_orders_v1 WHERE status IN ('AGUARDANDO','PREPARANDO','PRONTO') ORDER BY received_utc,id"))
+        using (var cmd = Command(db, null, "SELECT o.id FROM kitchen_orders_v1 o LEFT JOIN kitchen_paid_orders_v1 p ON p.order_id=o.id WHERE o.status!='CANCELADO' AND p.order_id IS NULL ORDER BY o.received_utc,o.id"))
         using (var rows = cmd.ExecuteReader()) while (rows.Read()) ids.Add(Guid.Parse(rows.GetString(0)));
         return ids.Select(id => Read(db, null, id)).ToArray();
     }
@@ -174,6 +178,7 @@ internal sealed partial class KitchenStore
             }
         }
         var order = Read(db, tx, id);
+        if(order.Paid||order.TableOnly)throw new InvalidOperationException("Pedido já pago ou consumo sem preparo. Use cancelar item para consumo ativo.");
         bool allowed = (order.Status, status) is ("AGUARDANDO", "PREPARANDO") or ("PREPARANDO", "PRONTO") or ("PRONTO", "ENTREGUE") or
             ("AGUARDANDO", "CANCELADO") or ("PREPARANDO", "CANCELADO") or ("PRONTO", "CANCELADO");
         if (order.Revision != expectedRevision || !allowed) throw new InvalidOperationException("Pedido mudou ou transição inválida. Atualize a lista antes de tentar novamente.");

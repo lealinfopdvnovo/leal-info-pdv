@@ -23,7 +23,7 @@ internal sealed partial class KitchenStore
         var chosen=Read(db,tx,selected);
         if(chosen.Status=="CANCELADO")throw new InvalidOperationException("Pedido cancelado não pode ser recebido.");
         var ids=new List<Guid>();
-        using(var query=Command(db,tx,"SELECT o.id FROM kitchen_orders_v1 o LEFT JOIN kitchen_paid_orders_v1 p ON p.order_id=o.id WHERE p.order_id IS NULL AND (o.id=$id OR ($mesa=1 AND o.reference=$ref AND o.status IN ('AGUARDANDO','PREPARANDO','PRONTO'))) ORDER BY o.received_utc,o.id",("$id",selected.ToString("D")),("$ref",chosen.Reference),("$mesa",KitchenTablesView.TableNumber(chosen.Reference).HasValue?1:0)))
+        using(var query=Command(db,tx,"SELECT o.id FROM kitchen_orders_v1 o LEFT JOIN kitchen_paid_orders_v1 p ON p.order_id=o.id WHERE p.order_id IS NULL AND (o.id=$id OR ($mesa=1 AND o.reference=$ref AND o.status IN ('AGUARDANDO','PREPARANDO','PRONTO','ENTREGUE'))) ORDER BY o.received_utc,o.id",("$id",selected.ToString("D")),("$ref",chosen.Reference),("$mesa",KitchenTablesView.TableNumber(chosen.Reference).HasValue?1:0)))
         using(var r=query.ExecuteReader())while(r.Read())ids.Add(Guid.Parse(r.GetString(0)));
         if(!ids.Contains(selected))throw new InvalidOperationException("Este pedido já foi pago. Atualize as mesas.");
         var orders=ids.Select(id=>Read(db,tx,id)).ToArray();var items=new List<KitchenChargeItem>();
@@ -32,7 +32,7 @@ internal sealed partial class KitchenStore
             if(item.ProductId is not long productId){items.Add(new(null,item.Description,item.Quantity,0,false));continue;}
             using var product=Command(db,tx,"SELECT price,track_stock FROM products WHERE id=$id AND active=1",("$id",productId));using var r=product.ExecuteReader();
             if(!r.Read()||Convert.ToDecimal(r.GetDouble(0))<=0)throw new InvalidOperationException("Informe um preço válido no cadastro de "+item.Description+" antes de receber.");
-            items.Add(new(productId,item.Description,item.Quantity,Convert.ToDecimal(r.GetDouble(0)),r.GetInt32(1)==1));
+            items.Add(new(productId,item.Description,item.Quantity,item.UnitPrice??Convert.ToDecimal(r.GetDouble(0)),r.GetInt32(1)==1));
         }
         if(items.Count==0)throw new InvalidOperationException("Pedido sem itens para receber.");
         return new(chosen.Reference,orders,items.ToArray());
