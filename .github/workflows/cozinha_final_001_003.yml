@@ -1,0 +1,155 @@
+name: Finalizar Cozinha 001 e 003 - publicar pelo PDV
+on:
+  push:
+    branches: ['feature/cozinha-final-001-003']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: cozinha-final-001-003
+  cancel-in-progress: false
+jobs:
+  validar001:
+    runs-on: windows-latest
+    timeout-minutes: 14
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: '001'
+      SOURCE_REF: ${{ github.sha }}
+      APPROVED_SOURCE: ${{ github.sha }}
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: source, fetch-depth: 0}
+      - name: Preservar base e recursos exclusivos 001
+        working-directory: source
+        run: python qa/kitchen-final/scope.py
+      - uses: actions/checkout@v4
+        with: {ref: b95da478624312a5070e9ee512e156b3a9dcb858, path: controller}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.401'}
+      - name: Preparar somente 001 com dependencias da 10.422
+        working-directory: controller
+        shell: pwsh
+        run: |
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+          python scripts/distribute_channels.py plan
+          if($LASTEXITCODE -ne 0){throw 'Plan failed'}
+          $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
+          if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '001' -or $p.Entries[0].Version -ne '10.426' -or $p.Entries[0].Baseline.Version -ne '10.422'){throw 'Wrong scope'}
+          python scripts/distribute_channels.py prepare 001
+          if($LASTEXITCODE -ne 0){throw 'Preparation failed'}
+          Push-Location candidate
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          Pop-Location
+      - uses: actions/download-artifact@v4
+        with:
+          name: premium-003-validation-NOT-AUTHORIZED
+          run-id: 39504754135
+          github-token: ${{ github.token }}
+          path: original-photos
+      - name: Reutilizar fotografias e creditos ja aprovados
+        shell: pwsh
+        run: |
+          $metadata=@(Get-ChildItem original-photos -Filter candidate.json -Recurse)
+          if($metadata.Count -ne 1){throw 'Ambiguous original photo package'}
+          $original=Get-Content $metadata[0].FullName -Raw|ConvertFrom-Json
+          $zip=Join-Path $metadata[0].Directory.FullName $original.Package
+          if((Get-FileHash $zip).Hash.ToLowerInvariant() -ne '546c776f7b9f48a3462f30ba257c8120c1f7bc144d957698565efe98f246e646'){throw 'Photo source changed'}
+          Expand-Archive $zip original-photo-assembly
+          $a=[Reflection.Assembly]::LoadFile((Resolve-Path original-photo-assembly/LealInfoPDV.dll).Path)
+          $names=@($a.GetManifestResourceNames()|Where-Object{$_ -like 'ReadyKitchen.*'})
+          if($names.Count -ne 19){throw 'Missing original photos'}
+          $folder=Join-Path $PWD 'controller/candidate/ready-kitchen/generated'
+          New-Item -ItemType Directory $folder -Force|Out-Null
+          foreach($n in $names){
+            if($n -notmatch '^ReadyKitchen\.(catalog\.json|LEALMIX[0-9]{3}\.jpg)$'){throw 'Unexpected resource'}
+            $s=$a.GetManifestResourceStream($n);$o=[IO.File]::Create((Join-Path $folder $n.Substring('ReadyKitchen.'.Length)))
+            try{$s.CopyTo($o)}finally{$s.Dispose();$o.Dispose()}
+          }
+      - name: Testar Cozinha Novo Pedido e tema real 001
+        working-directory: controller
+        shell: pwsh
+        run: |
+          dotnet run --project candidate/qa/kitchen-layout/LayoutTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false 2>&1|Tee-Object layout-windows.log
+          if($LASTEXITCODE -ne 0){throw '001 Windows UI failed'}
+          $r=Get-Content layout-evidence/results.json -Raw|ConvertFrom-Json
+          if($r.success -ne $true){throw 'No UI evidence'}
+          $sdk=Get-Content sdk-version.txt
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish
+          if($LASTEXITCODE -ne 0){throw 'Compilation failed'}
+          python scripts/distribute_channels.py package 001
+          if($LASTEXITCODE -ne 0){throw 'Incremental dependencies changed'}
+      - name: Validar rollback exato da 10.422 para 10.426
+        working-directory: source
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory validated|Out-Null
+          Copy-Item ../controller/release-output validated -Recurse
+          Copy-Item ../controller/layout-evidence validated -Recurse
+          ./qa/kitchen-final/rollback.ps1 2>&1|Tee-Object validated/rollback.log
+          if($LASTEXITCODE -ne 0){throw '001 rollback failed'}
+      - uses: actions/upload-artifact@v4
+        with: {name: cozinha-final-001, path: source/validated/}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: cozinha-final-001-falha
+          path: |
+            source/validated/
+            controller/layout-evidence/
+            controller/*.log
+  validar003:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: '003'
+      APPROVED_SOURCE: c6e3eb9ff4c87fa089c55078804311ee6fb88d23
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Conferir teste Windows e candidata imutavel 003
+        shell: pwsh
+        run: |
+          $r=gh api repos/lealinfopdvnovo/leal-info-pdv/actions/runs/39539006348|ConvertFrom-Json
+          if($r.conclusion -ne 'success' -or $r.head_sha -ne $env:APPROVED_SOURCE){throw '003 UI not approved'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: cozinha-layout-003-windows
+          run-id: 39539006348
+          github-token: ${{ github.token }}
+          path: validated
+      - name: Testar pacote original 003 e rollback 10.425 para 10.426
+        shell: pwsh
+        run: |
+          ./qa/kitchen-final/rollback.ps1 2>&1|Tee-Object validated/rollback.log
+          if($LASTEXITCODE -ne 0){throw '003 rollback failed'}
+      - uses: actions/upload-artifact@v4
+        with: {name: cozinha-final-003, path: validated/}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: {name: cozinha-final-003-falha, path: validated/}
+  publicar:
+    needs: [validar001, validar003]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: cozinha-final-001, path: proof/001/validated}
+      - uses: actions/download-artifact@v4
+        with: {name: cozinha-final-003, path: proof/003/validated}
+      - name: Publicar somente 001 e 003 e verificar URLs do atualizador
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+          SOURCE_001: ${{ github.sha }}
+        run: python qa/kitchen-final/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: publicacao-cozinha-001-003-10426, path: published-001-003.json}
