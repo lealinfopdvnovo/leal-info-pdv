@@ -68,6 +68,9 @@ internal static class DashboardTests
                 var order=host.Controls.Find("KitchenDashboardOrder",true).Single();
                 foreach(var name in new[]{"DashboardSend","DashboardPrint","DashboardReady"}){var button=host.Controls.Find(name,true).Single();var bounds=order.RectangleToClient(button.RectangleToScreen(button.ClientRectangle));check(order.ClientRectangle.Contains(bounds),$"premium order action visible: {name} at {viewport}");}
                 check(host.Controls.Find("MainTables",true).Single().Controls.Count==10,"reference comparison retains ten main tables");
+                var orderGrid=host.Controls.Find("KitchenDashboardOrder",true).OfType<KitchenOrderPanel>().Single().Rows;
+                check(orderGrid.Rows.Count>0&&orderGrid.GetRowDisplayRectangle(0,false).Bottom<=orderGrid.ClientRectangle.Bottom,"selected order shows a complete first item row");
+                foreach(var timerLabel in host.Controls.Find("ActiveOrderClock",true)){check(timerLabel.Parent!.ClientRectangle.Contains(timerLabel.Bounds)&&!timerLabel.Parent.Controls.Cast<Control>().Any(c=>c!=timerLabel&&c.Bounds.IntersectsWith(timerLabel.Bounds)),"active order timer has its own unobscured area");}
                 var strip=host.Controls.Find("KitchenOrderCards",true).OfType<FlowLayoutPanel>().Single();
                 check(strip.Controls.Cast<Control>().Where(c=>c is Panel).All(c=>c.Bottom<=strip.ClientSize.Height),"active order cards and timers are fully visible vertically");
                 check(host.Controls.Find("MainTables",true).Single().Controls.Cast<Control>().All(c=>c.Height>=70),"ten main table buttons retain readable height");

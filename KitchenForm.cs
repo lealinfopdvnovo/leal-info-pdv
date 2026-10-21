@@ -440,10 +440,10 @@ internal sealed class KitchenForm : Form
         {
             var value=row.Value!;
             var card=new Panel{Width=178,Height=88,Padding=new Padding(10),Margin=new Padding(8,5,8,5),Cursor=Cursors.Hand,Tag=value.Id};
-            var title=new Label{Text=$"#{value.Id.ToString("N")[..4].ToUpperInvariant()}   {value.Referencia}",Dock=DockStyle.Top,Height=26,Font=new Font("Segoe UI",10,FontStyle.Bold)};
+            var title=new Label{Text=$"#{value.Id.ToString("N")[..4].ToUpperInvariant()}   {value.Referencia}",Bounds=new Rectangle(8,5,162,22),Font=new Font("Segoe UI",10,FontStyle.Bold)};
             var model=visibleOrders.Single(o=>o.Id==value.Id);
-            var text=new Label{Text=value.Status+"   •   "+model.Items.Length+" itens",Dock=DockStyle.Fill,AutoEllipsis=true,Font=new Font("Segoe UI",8)};
-            var ageLabel=new Label{Tag=model.ReceivedUtc,Text="00:00",Dock=DockStyle.Bottom,Height=20,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9,FontStyle.Bold)};card.Controls.Add(ageLabel);
+            var text=new Label{Text=value.Status+"   •   "+model.Items.Length+" itens",Bounds=new Rectangle(8,28,162,18),AutoEllipsis=true,Font=new Font("Segoe UI",8)};
+            var ageLabel=new Label{Tag=model.ReceivedUtc,Text="00:00",Name="ActiveOrderClock",Bounds=new Rectangle(8,49,162,22),TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9,FontStyle.Bold)};card.Controls.Add(ageLabel);
             card.Controls.Add(text);card.Controls.Add(title);KitchenPremiumStyle.Apply(card);KitchenPremiumStyle.Frame(card);var accent=KitchenTableButton.StateColor(value.Status=="PRONTO"?"PRONTA":value.Status=="AGUARDANDO"?"OCUPADA":value.Status);title.ForeColor=accent;ageLabel.ForeColor=accent;card.Paint+=(_,e)=>{using var pen=new Pen(accent,2);e.Graphics.DrawLine(pen,10,card.Height-3,card.Width-10,card.Height-3);};
             void Select(){if(send.Enabled&&items.Rows.Count>0){message.Text="Conclua o rascunho antes de selecionar outro pedido.";return;}dashboardDraft=false;orders.CurrentCell=row.Row.Cells.Cast<DataGridViewCell>().First(c=>c.Visible);row.Row.Selected=true;detail.Text=value.Details;message.Text="Pedido selecionado: "+value.Referencia+" • "+value.Status;SyncDashboard();}
             void Details(){using var dialog=new Form{Text="PEDIDO • "+value.Referencia,Size=new Size(680,480),StartPosition=FormStartPosition.CenterParent,ShowInTaskbar=false};dialog.Controls.Add(new TextBox{Multiline=true,ReadOnly=true,Dock=DockStyle.Fill,ScrollBars=ScrollBars.Vertical,Text=value.Referencia+Environment.NewLine+value.Status+Environment.NewLine+value.Details});KitchenPremiumStyle.Apply(dialog);dialog.ShowDialog(this);}

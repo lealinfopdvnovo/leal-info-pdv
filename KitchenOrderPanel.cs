@@ -24,6 +24,7 @@ internal sealed class KitchenOrderPanel : UserControl
     {
         Name="KitchenDashboardOrder";Dock=DockStyle.Fill;Padding=new Padding(10);
         var root=new TableLayoutPanel{Dock=DockStyle.Fill,RowCount=3,ColumnCount=1,Margin=Padding.Empty};
+        root.SizeChanged+=(_,_)=>{if(root.RowStyles.Count==3){bool compact=root.Height<220;root.RowStyles[0].Height=compact?42:48;root.RowStyles[2].Height=compact?58:72;}};
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));root.RowStyles.Add(new RowStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,72));
         
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,110));header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,76));header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,100));header.RowStyles.Add(new RowStyle(SizeType.Percent,100));
