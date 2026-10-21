@@ -59,7 +59,7 @@ internal sealed partial class KitchenStore
     internal KitchenSeatingSnapshot Seating() { using var db = open(); return ReadSeating(db, null); }
     private static int[] OccupiedTables(PdvConnection db, PdvTransaction tx)
     {
-        using var command = Command(db, tx, "SELECT DISTINCT reference FROM kitchen_orders_v1 WHERE status IN ('AGUARDANDO','PREPARANDO','PRONTO')");
+        using var command = Command(db, tx, "SELECT DISTINCT o.reference FROM kitchen_orders_v1 o LEFT JOIN kitchen_paid_orders_v1 p ON p.order_id=o.id WHERE o.status!='CANCELADO' AND p.order_id IS NULL");
         using var r = command.ExecuteReader(); var tables = new List<int>();
         while (r.Read()) if (KitchenTablesView.TableNumber(r.GetString(0)) is int number) tables.Add(number);
         return tables.ToArray();

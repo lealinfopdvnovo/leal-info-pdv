@@ -1,11 +1,12 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace LealInfoPDV;
 
-internal sealed record KitchenItem(string Description, decimal Quantity, string Notes, long? ProductId = null);
-internal sealed record KitchenDraft(Guid Id, string Reference, string Notes, string Operator, DateTimeOffset CreatedUtc, KitchenItem[] Items)
+internal sealed record KitchenItem(string Description, decimal Quantity, string Notes, long? ProductId = null, [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] decimal? UnitPrice=null, [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] int? Position=null);
+internal sealed record KitchenDraft(Guid Id, string Reference, string Notes, string Operator, DateTimeOffset CreatedUtc, KitchenItem[] Items, [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingDefault)] bool TableOnly=false)
 {
     internal KitchenDraft Validate()
     {
@@ -28,5 +29,5 @@ internal sealed record KitchenDraft(Guid Id, string Reference, string Notes, str
     }
 }
 internal sealed record KitchenOrder(Guid Id, string Reference, string Notes, string Operator, string Status, long Revision,
-    DateTimeOffset CreatedUtc, DateTimeOffset ReceivedUtc, DateTimeOffset UpdatedUtc, KitchenItem[] Items);
+    DateTimeOffset CreatedUtc, DateTimeOffset ReceivedUtc, DateTimeOffset UpdatedUtc, KitchenItem[] Items, bool TableOnly=false, bool Paid=false);
 internal sealed record KitchenEvent(string OperationId, string Status, DateTimeOffset AtUtc, string Operator);

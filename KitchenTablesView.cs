@@ -41,11 +41,12 @@ internal sealed class KitchenTablesView : UserControl
     }
     internal static string State(IEnumerable<KitchenOrder> orders, int table)
     {
-        var statuses = orders.Where(o => TableNumber(o.Reference) == table && o.Status is not ("ENTREGUE" or "CANCELADO")).Select(o => o.Status).ToArray();
+        var statuses = orders.Where(o => TableNumber(o.Reference) == table && o.Status!="CANCELADO"&&!o.Paid&&o.Items.Length>0).Select(o => o.Status).ToArray();
         if (statuses.Length == 0) return "LIVRE";
         if (statuses.Contains("AGUARDANDO")) return "OCUPADA";
         if (statuses.Contains("PREPARANDO")) return "PREPARANDO";
-        return "PRONTA";
+        if(statuses.Contains("PRONTO"))return "PRONTA";
+        return "OCUPADA";
     }
     internal void UpdateOrders(IEnumerable<KitchenOrder> orders)
     {
@@ -77,7 +78,7 @@ internal sealed class KitchenTablesView : UserControl
     private Button Table(int number)
     {
         string state = CurrentState(number);
-        var age = active.Where(o=>TableNumber(o.Reference)==number&&o.Status is not ("ENTREGUE" or "CANCELADO")).Select(o=>(DateTimeOffset?)o.ReceivedUtc).OrderBy(x=>x).FirstOrDefault();
+        var age = active.Where(o=>TableNumber(o.Reference)==number&&!o.TableOnly&&o.Status is ("AGUARDANDO" or "PREPARANDO" or "PRONTO")).Select(o=>(DateTimeOffset?)o.ReceivedUtc).OrderBy(x=>x).FirstOrDefault();
         var button = new KitchenTableButton(number,state,age) { Dock=DockStyle.Fill };
         void Select()
         {

@@ -13,20 +13,23 @@ internal sealed class KitchenOrderPanel : UserControl
     private readonly KitchenHeroButton send=new("DashboardSend","ENVIAR PARA COZINHA","CONFIRMAR PEDIDO",Color.FromArgb(0,226,100),"\uE8F4");
     private readonly KitchenHeroButton print=new("DashboardPrint","IMPRIMIR COMANDA","PEDIDO DA MESA",Color.FromArgb(0,163,255),"\uE749");
     private readonly KitchenHeroButton ready=new("DashboardReady","MARCAR PRONTO","FINALIZAR PREPARO",Color.FromArgb(255,200,40),"\uE7F4");
+    private readonly Label total=new(){Name="KitchenTableTotal",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,ForeColor=KitchenPremiumStyle.Gold,Font=new Font("Segoe UI",11,FontStyle.Bold)};
+    private readonly Button addToTable=new(){Name="DashboardAddToTable",Text="ADICIONAR À MESA",Dock=DockStyle.Fill};
     private readonly Button payment=new(){Name="KitchenReceivePayment",Text="RECEBER / PAGAMENTO",Dock=DockStyle.Fill,Height=44};
     private readonly TableLayoutPanel header=new(){Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,Margin=Padding.Empty};
     private DateTimeOffset? started;
     private bool persisted;
     private readonly System.Windows.Forms.Timer clock=new(){Interval=1000};
-    internal event Action? SubmitRequested,PrintRequested,ReadyRequested,ClearRequested,PaymentRequested;
+    internal event Action? AddToTableRequested,SubmitRequested,PrintRequested,ReadyRequested,ClearRequested,PaymentRequested;
     internal event Action<int>? EditRequested,RemoveRequested;
     internal event Action<string>? StatusRequested;
+    internal event Action<Guid,int,string>? ItemStatusRequested;
     internal KitchenOrderPanel()
     {
         Name="KitchenDashboardOrder";Dock=DockStyle.Fill;MinimumSize=new Size(0,284);Padding=new Padding(10);
-        var root=new TableLayoutPanel{Dock=DockStyle.Fill,RowCount=4,ColumnCount=1,Margin=Padding.Empty};
-        root.SizeChanged+=(_,_)=>{if(root.RowStyles.Count==4){bool compact=root.Height<220;root.RowStyles[0].Height=compact?42:48;root.RowStyles[2].Height=compact?58:72;}};
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));root.RowStyles.Add(new RowStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,72));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));
+        var root=new TableLayoutPanel{Dock=DockStyle.Fill,RowCount=5,ColumnCount=1,Margin=Padding.Empty};
+        root.SizeChanged+=(_,_)=>{if(root.RowStyles.Count==5){bool compact=root.Height<220;root.RowStyles[0].Height=compact?42:48;root.RowStyles[3].Height=compact?58:72;}};
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));root.RowStyles.Add(new RowStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,30));root.RowStyles.Add(new RowStyle(SizeType.Absolute,72));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));
         
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,110));header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,76));header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,100));header.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         header.Controls.Add(title,0,0);header.Controls.Add(elapsed,1,0);header.Controls.Add(clear,2,0);root.Controls.Add(header,0,0);
@@ -36,18 +39,21 @@ internal sealed class KitchenOrderPanel : UserControl
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Edit",HeaderText="",Text="✎",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Remove",HeaderText="",Text="×",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="StatusMenu",HeaderText="",Text="▼",ToolTipText="Alterar status do pedido",UseColumnTextForButtonValue=true,Width=32,MinimumWidth=32,AutoSizeMode=DataGridViewAutoSizeColumnMode.None,DisplayIndex=2});
+        Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="UnitPrice",HeaderText="UNIT. R$",FillWeight=18,DefaultCellStyle=new DataGridViewCellStyle{Format="N2"}});
+        Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="LineTotal",HeaderText="TOTAL R$",FillWeight=19,DefaultCellStyle=new DataGridViewCellStyle{Format="N2"}});
         Rows.RowTemplate.Height=34;Rows.ColumnHeadersHeight=30;Rows.ColumnHeadersHeightSizeMode=DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         Rows.CellPainting+=(_,e)=>
         {
-            if(e.RowIndex<0||e.ColumnIndex<3)return;
+            if(e.RowIndex<0||e.ColumnIndex<3||e.ColumnIndex>5)return;
             using var background=new SolidBrush(Color.FromArgb(7,13,19));e.Graphics!.FillRectangle(background,e.CellBounds);
             var box=Rectangle.Inflate(e.CellBounds,-4,-3);var accent=e.ColumnIndex==4?Color.FromArgb(255,65,65):Color.FromArgb(115,174,207);
             KitchenLighting.Surface(e.Graphics,box,accent,false);
             KitchenPremiumStyle.DrawFittedText(e.Graphics,e.ColumnIndex==5?"▼":e.ColumnIndex==4?"×":"✎",box,Color.White,17);e.Handled=true;
         };
-        var states=new ContextMenuStrip{Name="KitchenOrderStatusMenu",ShowImageMargin=false};
-        foreach(var pair in new[]{("Preparando","PREPARANDO"),("Pronto","PRONTO"),("Entregue","ENTREGUE"),("Cancelado","CANCELADO")}){var item=states.Items.Add(pair.Item1);item.Tag=pair.Item2;item.Click+=(_,_)=>{if(persisted)StatusRequested?.Invoke(pair.Item2);};}
-        states.Opening+=(_,e)=>e.Cancel=!persisted;
+        var states=new ContextMenuStrip{Name="KitchenOrderStatusMenu",ShowImageMargin=false,BackColor=KitchenPremiumStyle.Surface,ForeColor=Color.White};
+        foreach(var pair in new[]{("Preparando","PREPARANDO"),("Pronto","PRONTO"),("Entregue","ENTREGUE"),("Cancelado","CANCELADO")}){var item=states.Items.Add(pair.Item1);item.Tag=pair.Item2;item.Click+=(_,_)=>{if(!persisted)return;if(Rows.CurrentRow?.Tag is KitchenTableLine line)ItemStatusRequested?.Invoke(line.OrderId,line.Position,pair.Item2);else StatusRequested?.Invoke(pair.Item2);};}
+        states.Opening+=(_,e)=>{e.Cancel=!persisted;if(Rows.CurrentRow?.Tag is KitchenTableLine line)foreach(ToolStripItem item in states.Items){string target=Convert.ToString(item.Tag)??"";item.Enabled=target=="CANCELADO"||!line.TableOnly&&((line.Status,target) is ("AGUARDANDO","PREPARANDO") or ("AGUARDANDO","PRONTO") or ("PREPARANDO","PRONTO") or ("PRONTO","ENTREGUE"));}};
+        Rows.CellMouseDown+=(_,e)=>{if(e.RowIndex>=0&&e.ColumnIndex>=0)Rows.CurrentCell=Rows.Rows[e.RowIndex].Cells[e.ColumnIndex];};
         Rows.CellContentClick+=(_,e)=>{
             if(e.RowIndex<0)return;
             if(persisted){if(e.ColumnIndex==Rows.Columns["StatusMenu"].Index){var cell=Rows.GetCellDisplayRectangle(e.ColumnIndex,e.RowIndex,true);states.Show(Rows,new Point(cell.Left,cell.Bottom));}return;}
@@ -57,7 +63,9 @@ internal sealed class KitchenOrderPanel : UserControl
         root.Controls.Add(Rows,0,1);
         var actions=new TableLayoutPanel{Name="DashboardHeroActions",Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Margin=new Padding(0,8,0,0)};
         for(int i=0;i<3;i++)actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));actions.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        actions.Controls.Add(send,0,0);actions.Controls.Add(print,1,0);actions.Controls.Add(ready,2,0);root.Controls.Add(actions,0,2);root.Controls.Add(payment,0,3);Controls.Add(root);
+        actions.Controls.Add(send,0,0);actions.Controls.Add(print,1,0);actions.Controls.Add(ready,2,0);root.Controls.Add(total,0,2);root.Controls.Add(actions,0,3);
+        var billing=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1};billing.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));billing.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));billing.Controls.Add(addToTable,0,0);billing.Controls.Add(payment,1,0);root.Controls.Add(billing,0,4);Controls.Add(root);
+        addToTable.Click+=(_,_)=>AddToTableRequested?.Invoke();
         payment.Click+=(_,_)=>PaymentRequested?.Invoke();
         clear.Click+=(_,_)=>ClearRequested?.Invoke();send.Click+=(_,_)=>SubmitRequested?.Invoke();print.Click+=(_,_)=>PrintRequested?.Invoke();ready.Click+=(_,_)=>ReadyRequested?.Invoke();
         KitchenPremiumStyle.Apply(this);KitchenPremiumStyle.Frame(this);
@@ -66,13 +74,15 @@ internal sealed class KitchenOrderPanel : UserControl
         clock.Tick+=(_,_)=>Tick();clock.Start();Display("",Array.Empty<KitchenItem>(),false,null,false,"");
     }
     internal void AttachNewOrder(Button button){button.Dock=DockStyle.Fill;button.Margin=new Padding(2);header.Controls.Add(button,3,0);}
-    internal void Display(string reference,KitchenItem[] items,bool saved,DateTimeOffset? since,bool canSend,string status)
+    internal void Display(string reference,KitchenItem[] items,bool saved,DateTimeOffset? since,bool canSend,string status,IReadOnlyList<KitchenTableLine>? lines=null)
     {
-        persisted=saved;started=since;payment.Enabled=saved&&status!="CANCELADO";title.Text=(reference.StartsWith("Mesa ",StringComparison.OrdinalIgnoreCase)?"PEDIDO DA "+reference.ToUpperInvariant():string.IsNullOrWhiteSpace(reference)?"PEDIDO DA MESA":"PEDIDO • "+reference)+(saved?"   •   "+status:"");
-        Rows.Rows.Clear();foreach(var item in items)Rows.Rows.Add(item.Quantity.ToString("0.###",CultureInfo.GetCultureInfo("pt-BR")),item.Description,item.Notes);
+        persisted=saved;started=lines!=null?lines.Where(l=>!l.TableOnly&&l.Status is ("AGUARDANDO" or "PREPARANDO" or "PRONTO")).Any()?since:null:since;payment.Enabled=saved&&items.Length>0;addToTable.Enabled=!saved&&canSend&&items.Length>0;title.Text=(reference.StartsWith("Mesa ",StringComparison.OrdinalIgnoreCase)?"PEDIDO DA "+reference.ToUpperInvariant():string.IsNullOrWhiteSpace(reference)?"PEDIDO DA MESA":"PEDIDO • "+reference)+(saved?"   •   "+status:"");
+        Rows.Rows.Clear();decimal sum=0;
+        for(int i=0;i<items.Length;i++){var item=items[i];int index=Rows.Rows.Add(item.Quantity.ToString("0.###",CultureInfo.GetCultureInfo("pt-BR")),item.Description,item.Notes);var row=Rows.Rows[index];row.Cells["UnitPrice"].Value=item.UnitPrice;decimal value=decimal.Round(item.Quantity*(item.UnitPrice??0),2,MidpointRounding.AwayFromZero);row.Cells["LineTotal"].Value=value;sum+=value;if(lines!=null&&i<lines.Count)row.Tag=lines[i];}
+        total.Text="CONTA DA MESA: "+sum.ToString("C2",CultureInfo.GetCultureInfo("pt-BR"));
         Rows.Columns["StatusMenu"].Visible=saved;Rows.Columns["Edit"].Visible=Rows.Columns["Remove"].Visible=!saved;clear.Enabled=!saved&&canSend&&items.Length>0;send.Enabled=!saved&&canSend&&items.Length>0;print.Enabled=items.Length>0;ready.Enabled=saved&&status is ("AGUARDANDO" or "PREPARANDO");Tick();
     }
-    private void Tick(){var age=started.HasValue?DateTimeOffset.UtcNow-started.Value:TimeSpan.Zero;elapsed.Text="TEMPO: "+((int)Math.Max(0,age.TotalMinutes)).ToString("00")+":"+Math.Max(0,age.Seconds).ToString("00");}
+    private void Tick(){var age=started.HasValue?DateTimeOffset.UtcNow-started.Value:TimeSpan.Zero;elapsed.Text=(!started.HasValue?"":"TEMPO: ")+((int)Math.Max(0,age.TotalMinutes)).ToString("00")+":"+Math.Max(0,age.Seconds).ToString("00");if(!started.HasValue)elapsed.Text="";}
     protected override void Dispose(bool disposing){if(disposing)clock.Dispose();base.Dispose(disposing);}
 }
 
