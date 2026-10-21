@@ -79,7 +79,7 @@ jobs:
         working-directory: controller
         shell: pwsh
         run: |
-          dotnet run --project candidate/qa/kitchen-layout/LayoutTests.csproj -c Release 2>&1|Tee-Object layout-windows.log
+          dotnet run --project candidate/qa/kitchen-layout/LayoutTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false 2>&1|Tee-Object layout-windows.log
           if($LASTEXITCODE -ne 0){throw 'Layout Windows failed'}
           $r=Get-Content layout-evidence/results.json -Raw|ConvertFrom-Json
           if($r.success -ne $true){throw 'No layout evidence'}
