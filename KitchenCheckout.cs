@@ -4,13 +4,13 @@ using System.Text.Json;
 using System.Security.Cryptography;
 using System.Text;
 namespace LealInfoPDV;
-internal sealed record KitchenChargeItem(long ProductId,string Description,decimal Quantity,decimal UnitPrice,bool TrackStock)
+internal sealed record KitchenChargeItem(long? ProductId,string Description,decimal Quantity,decimal UnitPrice,bool TrackStock)
 { internal decimal Total=>decimal.Round(Quantity*UnitPrice,2,MidpointRounding.AwayFromZero); }
 internal sealed record KitchenPayment(string Method,decimal Amount);
 internal sealed record KitchenBill(string Reference,KitchenOrder[] Orders,KitchenChargeItem[] Items)
 {
     internal decimal Total=>Items.Sum(i=>i.Total);
-    internal string Fingerprint=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new{Reference,Orders=Orders.Select(o=>new{o.Id,o.Revision,o.Status}),Items}))));
+    internal string Fingerprint=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new{Reference,Orders=Orders.Select(o=>new{o.Id,o.Revision,o.Status}),Items=Items.Select(i=>new{i.ProductId,i.Description,i.Quantity,UnitPrice=i.ProductId.HasValue?i.UnitPrice:0,i.TrackStock})}))));
 }
 internal sealed partial class KitchenStore
 {
@@ -29,7 +29,7 @@ internal sealed partial class KitchenStore
         var orders=ids.Select(id=>Read(db,tx,id)).ToArray();var items=new List<KitchenChargeItem>();
         foreach(var item in orders.SelectMany(o=>o.Items))
         {
-            if(item.ProductId is not long productId)throw new InvalidOperationException("O item "+item.Description+" não possui produto/preço cadastrado. Regularize o pedido antes de receber.");
+            if(item.ProductId is not long productId){items.Add(new(null,item.Description,item.Quantity,0,false));continue;}
             using var product=Command(db,tx,"SELECT price,track_stock FROM products WHERE id=$id AND active=1",("$id",productId));using var r=product.ExecuteReader();
             if(!r.Read()||Convert.ToDecimal(r.GetDouble(0))<=0)throw new InvalidOperationException("Informe um preço válido no cadastro de "+item.Description+" antes de receber.");
             items.Add(new(productId,item.Description,item.Quantity,Convert.ToDecimal(r.GetDouble(0)),r.GetInt32(1)==1));
@@ -40,7 +40,7 @@ internal sealed partial class KitchenStore
     internal long Receive(KitchenBill bill,IReadOnlyList<KitchenPayment> payments,string actor)
     {
         if(!Auth.HasPermission("sales"))throw new InvalidOperationException("Sem permissão para receber pagamentos.");
-        if(string.IsNullOrWhiteSpace(actor)||bill.Orders.Length==0||bill.Total<=0||payments.Count==0||payments.Any(p=>p.Amount<=0||decimal.Round(p.Amount,2)!=p.Amount||p.Method is not ("Dinheiro" or "PIX" or "Cartão" or "Cartão - Débito" or "Cartão - Crédito"))||payments.Sum(p=>p.Amount)!=bill.Total)
+        if(string.IsNullOrWhiteSpace(actor)||bill.Orders.Length==0||bill.Total<=0||bill.Items.Any(i=>i.UnitPrice<=0||i.UnitPrice>1_000_000||decimal.Round(i.UnitPrice,2)!=i.UnitPrice)||payments.Count==0||payments.Any(p=>p.Amount<=0||decimal.Round(p.Amount,2)!=p.Amount||p.Method is not ("Dinheiro" or "PIX" or "Cartão" or "Cartão - Débito" or "Cartão - Crédito"))||payments.Sum(p=>p.Amount)!=bill.Total)
             throw new InvalidOperationException("Confira as formas de pagamento e o total da mesa.");
         using var db=open();using var tx=db.BeginTransaction();
         var paid=new List<long>();
