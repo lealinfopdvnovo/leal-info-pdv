@@ -12,8 +12,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       CHANNEL: ${{ matrix.channel }}
-      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || 'bd1365b60e50ef69ad3a66178d1eec3a6062dd74' }}
-      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || 'bd1365b60e50ef69ad3a66178d1eec3a6062dd74' }}
+      SOURCE_REF: ${{ matrix.channel == '001' && github.sha || 'bbedec1493bc1596c8f242c15a13623051324a14' }}
+      APPROVED_SOURCE: ${{ matrix.channel == '001' && github.sha || 'bbedec1493bc1596c8f242c15a13623051324a14' }}
       PYTHONUTF8: '1'
     steps:
     - uses: actions/checkout@v4
@@ -156,7 +156,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
         SOURCE_001: ${{ github.sha }}
-        SOURCE_003: bd1365b60e50ef69ad3a66178d1eec3a6062dd74
+        SOURCE_003: bbedec1493bc1596c8f242c15a13623051324a14
       run: python qa/kitchen-final/publish.py
     - uses: actions/upload-artifact@v4
       if: always()

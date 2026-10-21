@@ -80,8 +80,15 @@ internal sealed class KitchenForm : Form
         var workspace = new Panel { Dock = DockStyle.Fill,AutoScroll=true };
         var right=new TableLayoutPanel{Name="KitchenPremiumWorkspace",Dock=DockStyle.Top,Height=700,ColumnCount=1,RowCount=5,Padding=new Padding(4)};
         right.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
-        workspace.SizeChanged+=(_,_)=>right.Height=Math.Max(700,workspace.ClientSize.Height);
-        right.SizeChanged+=(_,_)=>{right.RowStyles[0].Height=right.Height<740?226:Math.Clamp((right.Height-190)*0.56f,226,365);};
+        void LayoutWorkspace()
+        {
+            if(right.RowStyles.Count<5)return;
+            float tableHeight=Math.Max(tables.MinimumSize.Height,workspace.Height<740?226:Math.Clamp((workspace.Height-190)*0.56f,226,365));
+            right.RowStyles[0].Height=tableHeight;
+            int minimum=(int)Math.Ceiling(tableHeight+right.RowStyles[2].Height+right.RowStyles[4].Height)+dashboardOrder.MinimumSize.Height+right.Padding.Vertical+32;
+            right.Height=Math.Max(minimum,workspace.ClientSize.Height);
+        }
+        workspace.SizeChanged+=(_,_)=>LayoutWorkspace();
         right.RowStyles.Add(new RowStyle(SizeType.Absolute,226));right.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         right.RowStyles.Add(new RowStyle(SizeType.Absolute,150));right.RowStyles.Add(new RowStyle(SizeType.AutoSize));right.RowStyles.Add(new RowStyle(SizeType.Absolute,32));
         tables.Dock=DockStyle.Fill;tables.MinimumSize=new Size(0,226);right.Controls.Add(tables,0,0);right.Controls.Add(dashboardOrder,0,1);
