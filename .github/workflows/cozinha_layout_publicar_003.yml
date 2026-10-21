@@ -10,8 +10,8 @@ concurrency:
   group: publicacao-exclusiva-003
   cancel-in-progress: false
 env:
-  LAYOUT_SOURCE: '7f740ac15d0ce4ea15a86b2c3bd02b2ce9974310'
-  LAYOUT_RUN: '39527135631'
+  LAYOUT_SOURCE: '66b473648998bb7f4e2f9595c72cff82157dd9be'
+  LAYOUT_RUN: '39527535881'
   CUSTOMER_CONFIRMED_VERSION: '10.422'
 jobs:
   rollback:
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: cozinha-layout-003-windows
-          run-id: 39527135631
+          run-id: 39527535881
           github-token: ${{ github.token }}
           path: validated
       - uses: actions/download-artifact@v4
