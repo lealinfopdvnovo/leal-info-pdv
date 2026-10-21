@@ -347,7 +347,7 @@ internal sealed class KitchenForm : Form
     {
                 if (!Auth.HasPermission("sales")) throw new InvalidOperationException("Sem permissão de operação.");
                 if(dashboardDraft)throw new InvalidOperationException("Selecione um pedido enviado para alterar seu estado.");
-                if (orders.CurrentRow?.DataBoundItem is not OrderRow selected) throw new InvalidOperationException("Selecione um pedido.");
+                var selected=SelectedOrder()??throw new InvalidOperationException("Selecione um pedido.");
                 if (status == "CANCELADO" && MessageBox.Show(this, "Cancelar somente este pedido da cozinha? Isso não cancela vendas nem estorna pagamentos.", "Cozinha", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
                 string actor = Auth.OperatorName;
                 await Task.Run(() =>
@@ -379,17 +379,25 @@ internal sealed class KitchenForm : Form
     {
         if(IsDisposed||dashboardOrder.IsDisposed)return;
         var selected=SelectedOrder();
-        dashboardOrder.Display(selected?.Reference??reference.Text,selected?.Items??DraftItems(),selected!=null,selected?.ReceivedUtc??draftStarted,send.Enabled&&gate.CurrentCount==1,selected?.Status??"");
+        string shownReference=dashboardDraft?reference.Text:selected?.Reference??"";
+        var shownItems=dashboardDraft?DraftItems():selected?.Items??Array.Empty<KitchenItem>();
+        dashboardOrder.Display(shownReference,shownItems,selected!=null,selected?.ReceivedUtc??draftStarted,send.Enabled&&gate.CurrentCount==1,selected?.Status??"");
         if (tableWindow is { IsDisposed: false } && floatingTableOrder is { IsDisposed: false })
         {
-            tableWindow.Text="PEDIDO — "+(selected?.Reference??reference.Text).ToUpperInvariant();
-            floatingTableOrder.Display(selected?.Reference??reference.Text,selected?.Items??DraftItems(),selected!=null,selected?.ReceivedUtc??draftStarted,send.Enabled&&gate.CurrentCount==1,selected?.Status??"");
+            tableWindow.Text="PEDIDO — "+shownReference.ToUpperInvariant();
+            floatingTableOrder.Display(shownReference,shownItems,selected!=null,selected?.ReceivedUtc??draftStarted,send.Enabled&&gate.CurrentCount==1,selected?.Status??"");
         }
     }
     private void SelectSavedOrder(Guid id)
     {
-        selectedOrderId=id;
-        foreach(DataGridViewRow row in orders.Rows)if(row.DataBoundItem is OrderRow order&&order.Id==id){orders.CurrentCell=row.Cells.Cast<DataGridViewCell>().First(c=>c.Visible);row.Selected=true;break;}
+        // CurrentCell/Selected raise SelectionChanged while the hidden grid is rebinding.
+        // Keep the confirmed order identity authoritative until selection is complete.
+        bool previousBinding=rebindingOrders;rebindingOrders=true;
+        try {
+            orders.ClearSelection();
+            foreach(DataGridViewRow row in orders.Rows)if(row.DataBoundItem is OrderRow order&&order.Id==id){orders.CurrentCell=row.Cells.Cast<DataGridViewCell>().First(c=>c.Visible);row.Selected=true;detail.Text=order.Details;break;}
+            selectedOrderId=visibleOrders.Any(o=>o.Id==id)?id:null;
+        } finally {rebindingOrders=previousBinding;}
         SyncDashboard();
     }
     private void SelectDashboardTable(int number)
@@ -437,7 +445,7 @@ internal sealed class KitchenForm : Form
         add.Click+=(_,_)=> { int? table=KitchenTablesView.TableNumber(SelectedOrder()?.Reference??reference.Text);if(table.HasValue)OpenEntryForTable(table.Value); };
         floatingTableOrder.AttachNewOrder(add);
         tableWindow.Controls.Add(floatingTableOrder);
-        var hint=new Label{Text="ADICIONAR ITENS abre o editor. Botão direito nos itens enviados: preparar, pronto, entregue ou cancelar o pedido.",Dock=DockStyle.Bottom,Height=44,Padding=new Padding(10),AutoEllipsis=true};
+        var hint=new Label{Text="ADICIONAR ITENS abre o editor. Seta ▼ ou botão direito nos itens enviados: preparar, pronto, entregue ou cancelar o pedido.",Dock=DockStyle.Bottom,Height=44,Padding=new Padding(10),AutoEllipsis=true};
         tableWindow.Controls.Add(hint);
         KitchenPremiumStyle.Apply(tableWindow);KitchenPremiumStyle.Frame(tableWindow);
         tableWindow.FormClosed+=(_,_)=>{floatingTableOrder=null;tableWindow=null;};
