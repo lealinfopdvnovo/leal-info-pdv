@@ -65,7 +65,7 @@ internal static class DashboardTests
         using var visual=new KitchenForm();visual.Show();
         pump(()=>Field<Label>(visual,"message").Text.Contains("Cozinha conectada")&&Field<Button>(visual,"fresh").Enabled);
         Field<System.Windows.Forms.Timer>(visual,"retry").Stop();
-        var visualMenu=Field<KitchenCatalogView>(visual,"mainCatalog");pump(()=>visualMenu.Controls.Find("CatalogProduct_1",true).Length==1);
+        var visualMenu=Field<KitchenCatalogView>(visual,"mainCatalog");pump(()=>Field<KitchenCatalogProduct[]>(visualMenu,"products").Any(p=>p.Id==1));
         Field<KitchenTablesView>(visual,"tables").Controls.Find("KitchenTable_1",true).OfType<Button>().Single().PerformClick();
         foreach(var viewport in new[]{new Size(1672,941),new Size(1920,1000),new Size(1366,720)})
         {
@@ -85,7 +85,13 @@ internal static class DashboardTests
             });
         }
         Field<KitchenTablesView>(visual,"tables").Controls.Find("KitchenTable_4",true).OfType<Button>().Single().PerformClick();
-        foreach(int id in new[]{3,4,5})visualMenu.Controls.Find("CatalogProduct_"+id,true).OfType<Button>().Single().PerformClick();
+        foreach(int id in new[]{3,4,5}){
+            var product=Field<KitchenCatalogProduct[]>(visualMenu,"products").Single(p=>p.Id==id);
+            visualMenu.Controls.Find("CatalogSearch",true).OfType<TextBox>().Single().Text=product.Name;
+            pump(()=>visualMenu.Controls.Find("CatalogProduct_"+id,true).Length==1);
+            visualMenu.Controls.Find("CatalogProduct_"+id,true).OfType<Button>().Single().PerformClick();
+        }
+        visualMenu.Controls.Find("CatalogSearch",true).OfType<TextBox>().Single().Clear();
         render(visual,new Size(1672,941),Path.Combine(evidence,"referencia-rascunho-1672.png"),host=>{check(host.Controls.Find("DashboardSend",true).Single().Enabled,"reference-sized draft retains functional send action");});
         check(Field<FlowLayoutPanel>(form,"orderCards").FlowDirection==FlowDirection.LeftToRight,"active orders use the reference horizontal composition");
     }
