@@ -101,6 +101,11 @@ internal static class KitchenPremiumStyle
 internal sealed class KitchenCenteredLabel : Label
 {
     internal KitchenCenteredLabel() { TextAlign=ContentAlignment.MiddleCenter; DoubleBuffered=true; }
+    public override Size GetPreferredSize(Size proposedSize)
+    {
+        var measured=TextRenderer.MeasureText(Text,Font);
+        return new Size(proposedSize.Width>0?proposedSize.Width:measured.Width,TextRenderer.MeasureText("Ag",Font).Height+6);
+    }
     protected override void OnPaint(PaintEventArgs e)
     {
         e.Graphics.Clear(BackColor);

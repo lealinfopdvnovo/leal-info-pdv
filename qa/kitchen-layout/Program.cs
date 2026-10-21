@@ -117,6 +117,13 @@ static class LayoutTests
                             Check(host.ClientRectangle.Contains(bounds),$"floating order title/actions fit complete client: {c.Name} {viewport} text {textScale}");
                             if(c is Label label)Check(label.Height>=TextRenderer.MeasureText(label.Text,label.Font).Height,$"complete title glyph height at text scale {textScale}");
                         }
+                        var review=host.Controls.Find("KitchenEntryReview",true).Single();
+                        Check(review.Height>=100,$"order review remains visible at {viewport} text {textScale}");
+                        foreach(var action in Children(host).OfType<Button>().Where(b=>b.Name is "AddItem" or "RemoveItem"))
+                        {
+                            var bounds=host.RectangleToClient(action.RectangleToScreen(action.ClientRectangle));
+                            Check(host.ClientRectangle.Contains(bounds)&&action.Height<140,$"item action fits without consuming review area: {action.Name} at {viewport} text {textScale}");
+                        }
                         var actions=host.Controls.Find("KitchenEntryActions",true).Single();
                         foreach(var action in actions.Controls.Cast<Control>())Check(actions.ClientRectangle.Contains(action.Bounds),$"order footer child fits its own row {action.Name} text {textScale}");
                         var title=host.Controls.Find("KitchenEntryTitle",true).OfType<Label>().Single();
