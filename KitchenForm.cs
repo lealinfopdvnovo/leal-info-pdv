@@ -338,13 +338,19 @@ internal sealed class KitchenForm : Form
         grid.RowTemplate.Height = 40; grid.AllowUserToResizeRows = false; grid.AllowUserToResizeColumns = false;
         grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect; grid.MultiSelect = false; grid.GridColor = Color.FromArgb(232, 239, 245);
     }
+    private bool shuttingDown;
+    private void ApplyUi(Action action){
+        if(shuttingDown||IsDisposed||Disposing)return;
+        if(InvokeRequired){if(IsHandleCreated)Invoke((Action)(()=>{if(!shuttingDown&&!IsDisposed&&!Disposing)action();}));}
+        else action();
+    }
     private async Task Run(Func<Task> action)
     {
         if (!await gate.WaitAsync(0)) return;
-        fresh.Enabled = false;
+        ApplyUi(()=>fresh.Enabled=false);
         try { await action(); }
-        catch (Exception e) { if (!IsDisposed) message.Text = e.Message + " • Pendências preservadas; a tentativa será repetida ao reconectar."; }
-        finally { gate.Release(); if (!IsDisposed) { fresh.Enabled = true; SyncDashboard(); } }
+        catch (Exception e) { ApplyUi(()=>message.Text=e.Message+" • Pendências preservadas; a tentativa será repetida ao reconectar."); }
+        finally { gate.Release();ApplyUi(()=>{fresh.Enabled=true;SyncDashboard();}); }
     }
     private Task AdvanceOrder(string status)=>Run(async()=>
     {
@@ -382,7 +388,8 @@ internal sealed class KitchenForm : Form
     private bool rebindingOrders;
     private void SyncDashboard()
     {
-        if(IsDisposed||dashboardOrder.IsDisposed)return;
+        if(shuttingDown||IsDisposed||Disposing||dashboardOrder.IsDisposed)return;
+        if(InvokeRequired){ApplyUi(SyncDashboard);return;}
         var selected=SelectedOrder();
         string shownReference=dashboardDraft?reference.Text:selected?.Reference??"";
         var lines=dashboardDraft?null:TableLines(selected);
@@ -406,13 +413,17 @@ internal sealed class KitchenForm : Form
             var item=order.Items.SingleOrDefault(i=>i.Position==position)??throw new InvalidOperationException("Item não está mais ativo.");
             if(MessageBox.Show(tableWindow is{Visible:true}?tableWindow:this,"Cancelar somente "+item.Quantity.ToString("0.###")+" × "+item.Description+"? Os outros produtos serão preservados.","Cancelar item da mesa",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
             await Task.Run(()=>store.CancelItem(id,position,order.Revision,Auth.OperatorName,Guid.NewGuid()));
-            await RefreshOrders();var next=visibleOrders.FirstOrDefault(o=>o.Reference==order.Reference&&!o.Paid&&o.Status!="CANCELADO"&&o.Items.Length>0);
-            if(next!=null){dashboardDraft=false;SelectSavedOrder(next.Id);}else{selectedOrderId=null;dashboardDraft=false;items.Rows.Clear();reference.Text=order.Reference;SyncDashboard();}
+            await RefreshOrders();ApplyUi(()=>{
+                var next=visibleOrders.FirstOrDefault(o=>o.Reference==order.Reference&&!o.Paid&&o.Status!="CANCELADO"&&o.Items.Length>0);
+                if(next!=null){dashboardDraft=false;SelectSavedOrder(next.Id);}else{selectedOrderId=null;dashboardDraft=false;items.Rows.Clear();reference.Text=order.Reference;SyncDashboard();}
+            });
         });
     }
 
     private void SelectSavedOrder(Guid id)
     {
+        if(shuttingDown||IsDisposed||Disposing)return;
+        if(InvokeRequired){ApplyUi(()=>SelectSavedOrder(id));return;}
         // CurrentCell/Selected raise SelectionChanged while the hidden grid is rebinding.
         // Keep the confirmed order identity authoritative until selection is complete.
         bool previousBinding=rebindingOrders;rebindingOrders=true;
@@ -530,7 +541,7 @@ internal sealed class KitchenForm : Form
     private sealed record OrderRow(Guid Id, string Referencia, string Status, long Revision, string Operador, string Recebido, string Details);
     private async Task RefreshOrders()
     {
-        var result = await Task.Run(() => (Recent: store.List(), Active: store.ListActive(), Seating: store.Seating())); if (IsDisposed) return;
+        var result = await Task.Run(() => (Recent: store.List(), Active: store.ListActive(), Seating: store.Seating())); if (shuttingDown||IsDisposed||Disposing) return;
         void ApplyResult()
         {
         var list = result.Active.Concat(result.Recent).DistinctBy(o=>o.Id).OrderByDescending(o=>o.ReceivedUtc).ThenBy(o=>o.Id).ToArray(); tables.UpdateOrders(result.Active);tables.UpdateSeating(result.Seating);visibleOrders=list;
@@ -550,8 +561,8 @@ internal sealed class KitchenForm : Form
     }
     private void UpdateOrderCards()
     {
-        if(IsDisposed)return;
-        if(InvokeRequired){Invoke((Action)UpdateOrderCards);return;}
+        if(shuttingDown||IsDisposed||Disposing)return;
+        if(InvokeRequired){ApplyUi(UpdateOrderCards);return;}
         var selected=(orders.CurrentRow?.DataBoundItem as OrderRow)?.Id;
         foreach(Control card in orderCards.Controls.Cast<Control>().ToArray()){orderCards.Controls.Remove(card);card.Dispose();}
         var rows=orders.Rows.Cast<DataGridViewRow>().Select(r=>(Row:r,Value:r.DataBoundItem as OrderRow)).Where(r=>r.Value!=null&&r.Value.Status is not ("ENTREGUE" or "CANCELADO")&&visibleOrders.Any(o=>o.Id==r.Value.Id&&!o.TableOnly&&!o.Paid&&o.Items.Length>0)).ToArray();
@@ -573,7 +584,7 @@ internal sealed class KitchenForm : Form
         }
         if(rows.Length==0)orderCards.Controls.Add(new Label{Text="Nenhum pedido em andamento. Selecione uma mesa para iniciar.",ForeColor=Color.Silver,Width=Math.Max(160,orderCards.ClientSize.Width-28),Height=64,TextAlign=ContentAlignment.MiddleCenter});
     }
-    protected override void Dispose(bool disposing) { if (disposing) { retry.Dispose(); dashboardClock.Dispose(); dashboardOrder.Dispose(); tableWindow?.Dispose(); entryWindow?.Dispose(); catalog.Dispose(); mainCatalog.Dispose(); tables.Dispose(); } base.Dispose(disposing); }
+    protected override void Dispose(bool disposing) { if (disposing) { shuttingDown=true;retry.Dispose(); dashboardClock.Dispose(); dashboardOrder.Dispose(); tableWindow?.Dispose(); entryWindow?.Dispose(); catalog.Dispose(); mainCatalog.Dispose(); tables.Dispose(); } base.Dispose(disposing); }
 }
 
 

@@ -76,6 +76,8 @@ internal sealed class KitchenOrderPanel : UserControl
     internal void AttachNewOrder(Button button){button.Dock=DockStyle.Fill;button.Margin=new Padding(2);header.Controls.Add(button,3,0);}
     internal void Display(string reference,KitchenItem[] items,bool saved,DateTimeOffset? since,bool canSend,string status,IReadOnlyList<KitchenTableLine>? lines=null)
     {
+        if(IsDisposed||Disposing)return;
+        if(InvokeRequired){if(IsHandleCreated)BeginInvoke((Action)(()=>Display(reference,items,saved,since,canSend,status,lines)));return;}
         persisted=saved;started=lines!=null?lines.Where(l=>!l.TableOnly&&l.Status is ("AGUARDANDO" or "PREPARANDO" or "PRONTO")).Any()?since:null:since;payment.Enabled=saved&&items.Length>0;addToTable.Enabled=!saved&&canSend&&items.Length>0;title.Text=(reference.StartsWith("Mesa ",StringComparison.OrdinalIgnoreCase)?"PEDIDO DA "+reference.ToUpperInvariant():string.IsNullOrWhiteSpace(reference)?"PEDIDO DA MESA":"PEDIDO • "+reference)+(saved?"   •   "+status:"");
         Rows.Rows.Clear();decimal sum=0;
         for(int i=0;i<items.Length;i++){var item=items[i];int index=Rows.Rows.Add(item.Quantity.ToString("0.###",CultureInfo.GetCultureInfo("pt-BR")),item.Description,item.Notes);var row=Rows.Rows[index];row.Cells["UnitPrice"].Value=item.UnitPrice;decimal value=decimal.Round(item.Quantity*(item.UnitPrice??0),2,MidpointRounding.AwayFromZero);row.Cells["LineTotal"].Value=value;sum+=value;if(lines!=null&&i<lines.Count)row.Tag=lines[i];}
