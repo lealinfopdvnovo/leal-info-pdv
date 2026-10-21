@@ -38,25 +38,22 @@ internal sealed class KitchenProductCard : TableLayoutPanel
     {e.Graphics.Clear(KitchenPremiumStyle.Background);KitchenLighting.Surface(e.Graphics,new Rectangle(5,5,Math.Max(1,Width-11),Math.Max(1,Height-11)),KitchenPremiumStyle.Gold,false);}
 }
 
-// Painted face over the existing native combo; its items, selection and popup remain unchanged.
-internal sealed class KitchenCategoryFace : Control
+// Native combo behavior is preserved; repaint its closed face for both screen and Windows print captures.
+internal sealed class KitchenCategoryCombo : ComboBox
 {
-    private readonly ComboBox combo;
-    internal KitchenCategoryFace(ComboBox combo)
+    protected override void WndProc(ref Message m)
     {
-        this.combo=combo;Name="KitchenCategoryFace";Dock=DockStyle.Fill;TabStop=false;Cursor=Cursors.Hand;
-        SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,true);
-        combo.SelectedIndexChanged+=Changed;combo.TextChanged+=Changed;
+        base.WndProc(ref m);
+        if(IsDisposed||!IsHandleCreated||Width<4||Height<4)return;
+        if(m.Msg==0x000F){using var g=Graphics.FromHwnd(Handle);PaintFace(g);}
+        else if((m.Msg==0x0317||m.Msg==0x0318)&&m.WParam!=IntPtr.Zero){using var g=Graphics.FromHdc(m.WParam);PaintFace(g);}
     }
-    private void Changed(object? sender,EventArgs e)=>Invalidate();
-    protected override void OnClick(EventArgs e){base.OnClick(e);if(!combo.IsDisposed&&combo.Enabled){combo.Focus();combo.DroppedDown=true;}}
-    protected override void OnPaint(PaintEventArgs e)
+    private void PaintFace(Graphics g)
     {
-        var g=e.Graphics;g.Clear(KitchenPremiumStyle.Background);
-        KitchenLighting.Surface(g,new Rectangle(2,2,Math.Max(1,Width-5),Math.Max(1,Height-5)),Color.FromArgb(90,111,130),false);
-        string selected=Convert.ToString(combo.SelectedItem)??"TODOS";if(selected=="Todas as categorias")selected="TODOS";
-        KitchenPremiumStyle.DrawFittedText(g,selected,new Rectangle(6,3,Math.Max(1,Width-31),Math.Max(1,Height-6)),Color.White,12);
-        KitchenPremiumStyle.DrawFittedText(g,"⌄",new Rectangle(Width-25,3,20,Math.Max(1,Height-6)),KitchenPremiumStyle.Gold,18);
+        g.Clear(KitchenPremiumStyle.Surface);
+        KitchenLighting.Surface(g,new Rectangle(1,1,Math.Max(1,Width-3),Math.Max(1,Height-3)),Color.FromArgb(90,111,130),false);
+        string selected=Convert.ToString(SelectedItem)??"TODOS";if(selected=="Todas as categorias")selected="TODOS";
+        KitchenPremiumStyle.DrawFittedText(g,selected,new Rectangle(5,2,Math.Max(1,Width-30),Math.Max(1,Height-4)),Color.White,12);
+        KitchenPremiumStyle.DrawFittedText(g,"⌄",new Rectangle(Width-25,2,20,Math.Max(1,Height-4)),KitchenPremiumStyle.Gold,18);
     }
-    protected override void Dispose(bool disposing){if(disposing){combo.SelectedIndexChanged-=Changed;combo.TextChanged-=Changed;}base.Dispose(disposing);}
 }

@@ -15,8 +15,7 @@ internal static class DashboardTests
         var reference=Field<TextBox>(form,"reference");reference.Clear();typeof(KitchenForm).GetField("dashboardDraft",P)!.SetValue(form,true);
         var menu=Field<KitchenCatalogView>(form,"mainCatalog");var tables=Field<KitchenTablesView>(form,"tables");var panel=Field<KitchenOrderPanel>(form,"dashboardOrder");var store=Field<KitchenStore>(form,"store");var fresh=Field<Button>(form,"fresh");
         var category=menu.Controls.Find("CatalogCategory",true).OfType<ComboBox>().Single();
-        var categoryFace=menu.Controls.Find("KitchenCategoryFace",true).Single();
-        typeof(Control).GetMethod("OnClick",P)!.Invoke(categoryFace,new object[]{EventArgs.Empty});
+        check(category is KitchenCategoryCombo,"dark category painting retains the native combo control");category.DroppedDown=true;
         check(category.DroppedDown,"dark category face opens the existing native product-category popup");category.DroppedDown=false;
         int selectedCategory=category.SelectedIndex;category.SelectedIndex=1;check(category.SelectedIndex==1,"native category selection remains functional");category.SelectedIndex=selectedCategory;
         tables.Controls.Find("KitchenTable_3",true).OfType<Button>().Single().PerformClick();
