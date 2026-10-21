@@ -4815,13 +4815,22 @@ private void ApplyFloatingTheme(Form f)
     {
         if(!Auth.HasPermission("sales"))throw new InvalidOperationException("Sem permissão para receber pagamentos.");
         var bill=store.Quote(selected);
+        var priced=bill.Items.ToArray();
+        for(int index=0;index<priced.Length;index++)if(!priced[index].ProductId.HasValue){
+            using var priceDialog=new Form{Name="KitchenManualPrice",Text="PREÇO DO ITEM AVULSO — "+bill.Reference,Size=new Size(540,260),StartPosition=FormStartPosition.CenterParent,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false};
+            var amount=new NumericUpDown{Name="KitchenManualUnitPrice",DecimalPlaces=2,Maximum=1_000_000,Minimum=0,Dock=DockStyle.Top,Font=new Font("Segoe UI",16)};
+            var confirm=new Button{Text="CONFIRMAR PREÇO UNITÁRIO",Dock=DockStyle.Bottom,Height=48};confirm.Click+=(_,_)=>{if(amount.Value<=0){MessageBox.Show(priceDialog,"Informe um preço unitário positivo para este item.","Preço obrigatório");return;}priceDialog.DialogResult=DialogResult.OK;};
+            priceDialog.Controls.Add(amount);priceDialog.Controls.Add(new Label{Text=$"{priced[index].Quantity:0.###} × {priced[index].Description}\nInforme o preço UNITÁRIO (R$).",Dock=DockStyle.Top,Height=82,Padding=new Padding(12)});priceDialog.Controls.Add(confirm);KitchenPremiumStyle.Apply(priceDialog);
+            if(priceDialog.ShowDialog(owner)!=DialogResult.OK)return false;priced[index]=priced[index] with{UnitPrice=amount.Value};
+        }
+        bill=bill with{Items=priced};
         string summary=bill.Reference.ToUpperInvariant()+" — "+bill.Orders.Length+" pedido(s)\n\n"+string.Join("\n",bill.Items.Select(i=>$"{i.Quantity:0.###} × {i.Description}: {i.Total:C2}"))+ $"\n\nTOTAL: {bill.Total:C2}\nConferir os itens e prosseguir para o pagamento?";
         if(MessageBox.Show(owner,summary,"CONFERIR CONTA DA MESA",MessageBoxButtons.OKCancel,MessageBoxIcon.Information)!=DialogResult.OK)return false;
         var parts=SelectPayment((double)bill.Total,0,owner,"RECEBER / PAGAMENTO — "+bill.Reference.ToUpperInvariant());
         if(parts==null||parts.Count==0)return false;
         long id=store.Receive(bill,parts.Select(p=>new KitchenPayment(p.Method,decimal.Round((decimal)p.Amount,2))).ToArray(),Auth.OperatorName);
         try {
-            var receipt=BuildReceipt(id,DateTime.Now,bill.Items.Select(i=>new CartItem{ProductId=i.ProductId,Description=i.Description,Qty=(double)i.Quantity,UnitPrice=(double)i.UnitPrice}),parts,(double)bill.Total);
+            var receipt=BuildReceipt(id,DateTime.Now,bill.Items.Select(i=>new CartItem{ProductId=i.ProductId??0,Description=i.Description,Qty=(double)i.Quantity,UnitPrice=(double)i.UnitPrice}),parts,(double)bill.Total);
             RefreshDashboard();ShowReceipt(receipt);ThermalPrinterService.PrintAutomaticallyIfEnabled(receipt,this);
         }catch(Exception e){MessageBox.Show(owner,"Pagamento registrado na venda #"+id+". Não foi possível exibir/imprimir o comprovante: "+e.Message,"Pagamento registrado");}
         return true;

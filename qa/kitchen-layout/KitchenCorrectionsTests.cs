@@ -43,6 +43,13 @@ internal static class KitchenCorrectionsTests
         var stale=Add("Mesa 98",new KitchenItem("QA COZINHA",1,"",7002));var old=store.Quote(stale.Id);Add("Mesa 98",new KitchenItem("QA COZINHA",1,"",7002));
         invalid=false;try{store.Receive(old,new[]{new KitchenPayment("PIX",old.Total)},"QA LAYOUT");}catch(InvalidOperationException){invalid=true;}check(invalid&&Count("SELECT COUNT(*) FROM sales")==sales+1,"new order during payment invalidates quote atomically");
         var noStock=Add("Mesa 97",new KitchenItem("QA COZINHA",100,"",7002));var unavailable=store.Quote(noStock.Id);invalid=false;try{store.Receive(unavailable,new[]{new KitchenPayment("Dinheiro",unavailable.Total)},"QA LAYOUT");}catch(InvalidOperationException){invalid=true;}check(invalid&&Count("SELECT COUNT(*) FROM sales")==sales+1&&Count("SELECT stock FROM products WHERE id=7002")==48,"insufficient stock rolls back full payment");
+        var manual=Add("Mesa 95",new KitchenItem("ITEM DIGITADO",2.5m,"SEM CEBOLA"));var manualBill=store.Quote(manual.Id);
+        invalid=false;try{store.Receive(manualBill,new[]{new KitchenPayment("Dinheiro",1)},"QA LAYOUT");}catch(InvalidOperationException){invalid=true;}
+        check(invalid&&manualBill.Items.Single().UnitPrice==0,"manual order requires explicit unit price before payment");
+        manualBill=manualBill with{Items=manualBill.Items.Select(i=>i with{UnitPrice=12.34m}).ToArray()};
+        long manualSale=store.Receive(manualBill,new[]{new KitchenPayment("Dinheiro",30.85m)},"QA LAYOUT");
+        check(Count("SELECT COUNT(*) FROM sale_items WHERE sale_id="+manualSale+" AND product_id IS NULL AND qty=2.5 AND unit_price=12.34 AND total=30.85")==1,"manual item payment stores entered price and fractional quantity without a fake product");
+        check(Count("SELECT stock FROM products WHERE id=7002")==48,"manual item payment does not change unrelated stock");
         // Timers must retain the explicitly selected order even when a newer order arrives.
         var draft=Field<DataGridView>(form,"items");draft.Rows.Clear();Call(form,"SetEntryEnabled",false);
         var task=(Task)Call(form,"RefreshOrders")!;pump(()=>task.IsCompleted);task.GetAwaiter().GetResult();
