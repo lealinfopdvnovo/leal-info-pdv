@@ -50,8 +50,9 @@ internal sealed class KitchenTableButton : Button
         if(state=="RESERVADA")KitchenPremiumStyle.DrawFittedText(g,"R",new Rectangle(Width-28,6,22,22),accent,18);
         bool showAge=since.HasValue && Height>150;
         int titleY = (int)(Height * (showAge ? .55f : .62f));
-        int numberHeight = Math.Max(1,(int)(Height*(showAge ? .18f : .20f)));
-        int stateHeight = Math.Max(1,(int)(Height*(showAge ? .13f : .14f)));
+        int numberHeight = Math.Max(18,(int)(Height*(showAge ? .18f : .20f)));
+        int stateHeight = Math.Max(14,(int)(Height*(showAge ? .13f : .14f)));
+        if(!showAge)titleY=Math.Min(titleY,Height-numberHeight-stateHeight-5);
         KitchenPremiumStyle.DrawFittedText(g,number.ToString("00"),new Rectangle(6,titleY,Width-12,numberHeight),Color.White,numberHeight*.86f);
         KitchenPremiumStyle.DrawFittedText(g,state,new Rectangle(6,titleY+numberHeight,Width-12,stateHeight),accent,stateHeight*.82f);
         if (showAge)
