@@ -70,6 +70,22 @@ internal static class KitchenCorrectionsTests
             check(import.DialogResult==DialogResult.OK,"actual select-all and import button completes with OK after releasing busy guard");
         }
         check(Count("SELECT COUNT(*) FROM products WHERE barcode LIKE 'LEALMIX%' AND kitchen_preparation=1")==18&&Count("SELECT stock FROM products WHERE id=7001")==50,"ready kitchen import preserves existing store catalog and stock");
+        bool sawConfiguration=false;
+        using(var timer=new System.Windows.Forms.Timer{Interval=30}){
+            timer.Tick+=(_,_)=>{var config=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Name=="KitchenConfiguration");if(config==null)return;timer.Stop();sawConfiguration=true;config.Controls.OfType<Button>().Single(b=>b.Text.StartsWith("QUANTIDADE")).PerformClick();};
+            timer.Start();form.Controls.Find("KitchenHeaderAction_2",true).OfType<Button>().Single().PerformClick();timer.Stop();
+        }
+        var all=Application.OpenForms.Cast<Form>().SingleOrDefault(f=>f.Name=="AllKitchenTables");check(sawConfiguration&&all is {Visible:true,Enabled:true},"configuration opens usable table count and reservation window");all?.Close();
+        bool sawPrinter=false;
+        using(var timer=new System.Windows.Forms.Timer{Interval=30}){
+            timer.Tick+=(_,_)=>{var config=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Name=="KitchenPrinterConfiguration");if(config==null)return;timer.Stop();var paper=config.Controls.Find("ComandaPaper",true).OfType<ComboBox>().Single();sawPrinter=paper.Items.Count==3&&paper.Items[0]!.ToString()!.Contains("80")&&paper.Items[1]!.ToString()!.Contains("58")&&paper.Items[2]!.ToString()!.Contains("A4");config.Close();};
+            timer.Start();bool configured=KitchenComanda.Configure(form);timer.Stop();check(!configured&&sawPrinter,"printer chooser exposes thermal 80mm, thermal 58mm and nonthermal A4 and permits cancel");
+        }
+        foreach(int width in new[]{228,315}){
+            using var page=new Bitmap(width,250);using var graphics=Graphics.FromImage(page);string text=string.Join("\n",Enumerable.Repeat("2,5 × PRODUTO COM NOME EXTENSO — SEM CEBOLA",40));int position=0,pages=0;
+            while(position<text.Length&&pages++<100){int next=KitchenComanda.DrawPage(graphics,new Rectangle(12,12,width-24,220),text,position,9);if(next<=position)break;position=next;}
+            check(position==text.Length,$"thermal comanda paginates all items within {width} hundredths-inch width");
+        }
         // Restore empty UI draft for subsequent double-click tests; historical fixtures stay auditable.
         typeof(KitchenForm).GetField("dashboardDraft",P)!.SetValue(form,true);Call(form,"SetEntryEnabled",true);Call(form,"SyncDashboard");
     }
