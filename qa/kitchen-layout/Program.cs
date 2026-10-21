@@ -32,6 +32,7 @@ static class LayoutTests
     [STAThread] static int Main()
     {
         if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true"||!OperatingSystem.IsWindows())throw new Exception("Disposable Windows runner only");
+        using var watchdog=new System.Threading.Timer(_=>{Console.Error.WriteLine("FAIL layout timeout");Environment.Exit(93);},null,90000,Timeout.Infinite);
         Directory.CreateDirectory("layout-evidence");
         try
         {

@@ -23,7 +23,11 @@ internal static class InternalWorkspace
 
     internal static void Apply(Form f)
     {
-        if (KitchenPremiumStyle.Owns(f)) { Fit(f); return; }
+        if (KitchenPremiumStyle.Owns(f))
+        {
+            if (!f.IsDisposed && !Ready.TryGetValue(f, out _)) { Ready.Add(f, new object()); Fit(f); }
+            return;
+        }
         if (f.IsDisposed || f is MainForm or LoginForm || f.GetType().Name.Contains("Splash", StringComparison.Ordinal) ||
             f.Text.Contains("TELA DE VENDA", StringComparison.OrdinalIgnoreCase) || Ready.TryGetValue(f, out _)) return;
         Ready.Add(f, new object());
