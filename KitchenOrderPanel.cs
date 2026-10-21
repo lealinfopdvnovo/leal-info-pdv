@@ -23,7 +23,7 @@ internal sealed class KitchenOrderPanel : UserControl
     internal event Action<string>? StatusRequested;
     internal KitchenOrderPanel()
     {
-        Name="KitchenDashboardOrder";Dock=DockStyle.Fill;Padding=new Padding(10);
+        Name="KitchenDashboardOrder";Dock=DockStyle.Fill;MinimumSize=new Size(0,284);Padding=new Padding(10);
         var root=new TableLayoutPanel{Dock=DockStyle.Fill,RowCount=4,ColumnCount=1,Margin=Padding.Empty};
         root.SizeChanged+=(_,_)=>{if(root.RowStyles.Count==4){bool compact=root.Height<220;root.RowStyles[0].Height=compact?42:48;root.RowStyles[2].Height=compact?58:72;}};
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));root.RowStyles.Add(new RowStyle(SizeType.Percent,100));root.RowStyles.Add(new RowStyle(SizeType.Absolute,72));root.RowStyles.Add(new RowStyle(SizeType.Absolute,48));

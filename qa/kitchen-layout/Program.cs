@@ -58,6 +58,8 @@ static class LayoutTests
                 foreach(var viewport in new[]{new Size(1366,720),new Size(1600,850),new Size(1909,970)})
                 {
                     form.MinimumSize=Size.Empty;form.ClientSize=viewport;form.PerformLayout();Application.DoEvents();
+                    var orderPanel=Field<KitchenOrderPanel>(form,"dashboardOrder");
+                    Check(orderPanel.Rows.ClientSize.Height>=orderPanel.Rows.ColumnHeadersHeight+34,$"order item area retains a full row at {viewport} scale {scale}");
                     var header=Field<KitchenPremiumHeader>(form,"premiumHeader");
                     foreach(var action in Children(header).OfType<Button>())
                     {
