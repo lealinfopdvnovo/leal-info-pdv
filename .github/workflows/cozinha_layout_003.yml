@@ -75,6 +75,7 @@ jobs:
           }
           Write-Output 'PASS immutable 18 photos and attribution catalog preserved without new download or import'
       - name: Compilar e conferir layout com o shell real do PDV
+        timeout-minutes: 4
         working-directory: controller
         shell: pwsh
         run: |
