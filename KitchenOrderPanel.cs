@@ -35,6 +35,14 @@ internal sealed class KitchenOrderPanel : UserControl
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Edit",HeaderText="",Text="✎",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Remove",HeaderText="",Text="×",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
         Rows.RowTemplate.Height=34;Rows.ColumnHeadersHeight=30;Rows.ColumnHeadersHeightSizeMode=DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+        Rows.CellPainting+=(_,e)=>
+        {
+            if(e.RowIndex<0||e.ColumnIndex<3)return;
+            using var background=new SolidBrush(Color.FromArgb(7,13,19));e.Graphics!.FillRectangle(background,e.CellBounds);
+            var box=Rectangle.Inflate(e.CellBounds,-4,-3);var accent=e.ColumnIndex==4?Color.FromArgb(255,65,65):Color.FromArgb(115,174,207);
+            KitchenLighting.Surface(e.Graphics,box,accent,false);
+            KitchenPremiumStyle.DrawFittedText(e.Graphics,e.ColumnIndex==4?"×":"✎",box,Color.White,17);e.Handled=true;
+        };
         Rows.CellContentClick+=(_,e)=>{if(persisted||e.RowIndex<0)return;if(e.ColumnIndex==3)EditRequested?.Invoke(e.RowIndex);if(e.ColumnIndex==4)RemoveRequested?.Invoke(e.RowIndex);};
         var states=new ContextMenuStrip();
         foreach(string status in new[]{"PREPARANDO","PRONTO","ENTREGUE","CANCELADO"}){var item=states.Items.Add(status);item.Click+=(_,_)=>{if(persisted)StatusRequested?.Invoke(status);};}
