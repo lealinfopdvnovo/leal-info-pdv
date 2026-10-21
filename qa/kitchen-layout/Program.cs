@@ -37,7 +37,7 @@ static class LayoutTests
         try
         {
             Check(!File.Exists(Database.DbPath),"empty disposable profile");
-            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);Application.EnableVisualStyles();
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);Application.EnableVisualStyles();
             Database.Initialize();Auth.CreateUser("QA LAYOUT","layoutqa","QA-layout-123!","ADMINISTRADOR","qa@example.invalid","");Auth.Login("layoutqa","QA-layout-123!");
             using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="INSERT INTO products(id,barcode,name,category,price,stock,active,photo_path,kitchen_preparation) VALUES(1,'LAYOUT1','Produto com nome extenso','CONDIMENTOS',7.99,10,1,'',1),(2,'LAYOUT2','Produto sem categoria','',.50,20,1,'',1)";q.ExecuteNonQuery();}
             InternalWorkspace.Install();PremiumGlobalTheme.Install();
@@ -153,6 +153,7 @@ static class LayoutTests
             TableDoubleClickTests.Run(Check,Pump);
             using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="SELECT COUNT(*) FROM products WHERE (id=1 AND price=7.99 AND stock=10) OR (id=2 AND price=.50 AND stock=20)";Check(Convert.ToInt32(q.ExecuteScalar())==2,"layout checks preserve product prices and stock");}
             form.Close();form.Dispose();
+            FinanceReportTests.Run(Check);
             Check(form.IsDisposed&&Application.OpenForms.Count==0,"all tested windows close and dispose before successful runner shutdown");
             File.WriteAllText("layout-evidence/results.json",JsonSerializer.Serialize(new{success=true,checks,physicalDpiTest=false,nativeWindows=true}));
             Console.WriteLine("PASS Windows fixture disposed; terminating isolated harness");

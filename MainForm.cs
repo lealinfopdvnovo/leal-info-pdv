@@ -2875,7 +2875,7 @@ private void ApplyFloatingTheme(Form f)
                 SELECT m.id AS Código, datetime(m.occurred_at) AS Data,
                        CASE WHEN upper(m.type) LIKE '%SAÍDA%' THEN 'SAÍDA' ELSE 'ENTRADA' END AS Tipo,
                        m.description AS Descrição, m.amount AS Valor,
-                       COALESCE(m.sale_id,'') AS Venda
+                       COALESCE(CAST(m.sale_id AS TEXT),'') AS Venda
                 FROM cash_movements m
                 WHERE m.occurred_at >= $from AND m.occurred_at < $to
                   AND ($type='TODOS' OR ($type='ENTRADAS' AND upper(m.type) NOT LIKE '%SAÍDA%') OR ($type='SAÍDAS' AND upper(m.type) LIKE '%SAÍDA%'))
