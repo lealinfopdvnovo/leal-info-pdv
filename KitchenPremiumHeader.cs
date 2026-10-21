@@ -14,7 +14,7 @@ internal sealed class KitchenPremiumHeader : UserControl
     internal event Action? ExitRequested;
     internal KitchenPremiumHeader()
     {
-        Dock=DockStyle.Top;Height=104;
+        Dock=DockStyle.Top;Height=96;
         var root=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Padding=new Padding(8)};
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,34));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,38));root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,28));
         root.RowStyles.Add(new RowStyle(SizeType.Percent,100));
@@ -23,20 +23,20 @@ internal sealed class KitchenPremiumHeader : UserControl
             var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;
             int middle=brand.Width/2;
             int h=brand.ClientSize.Height;
-            var upper=new Rectangle(4,4,Math.Max(1,middle-8),Math.Max(1,h*55/100-4));
-            var lower=new Rectangle(4,h*55/100,Math.Max(1,middle-8),Math.Max(1,h*40/100));
+            var upper=new Rectangle(47,4,Math.Max(1,middle-51),Math.Max(1,h*55/100-4));
+            var lower=new Rectangle(47,h*55/100,Math.Max(1,middle-51),Math.Max(1,h*40/100));
             float pixels=Math.Min(h*.34f,brand.Width*.048f);
-            KitchenPremiumStyle.DrawFittedText(g,"LEAL INFO",upper,KitchenPremiumStyle.Gold,pixels);
+            KitchenGold.DrawTitle(g,"LEAL INFO",upper,pixels);KitchenGold.Icon(g,new Rectangle(5,h/2-21,38,42),false);
             KitchenPremiumStyle.DrawFittedText(g,"PDV PRO",lower,Color.White,h*.17f);
             using var edge=new Pen(Color.FromArgb(90,KitchenPremiumStyle.Gold));g.DrawLine(edge,middle,8,middle,h-8);
             upper.Offset(middle,0);lower.Offset(middle,0);
-            KitchenPremiumStyle.DrawFittedText(g,"COZINHA",upper,KitchenPremiumStyle.Gold,pixels);
+            KitchenGold.DrawTitle(g,"COZINHA",upper,pixels);KitchenGold.Icon(g,new Rectangle(middle+5,h/2-21,38,42),true);
             KitchenPremiumStyle.DrawFittedText(g,"PEDIDOS EM TEMPO REAL",lower,Color.White,h*.15f);
         };
         var stats=new TableLayoutPanel{Name="KitchenLiveCounters",Dock=DockStyle.Fill,ColumnCount=4,RowCount=1};
         for(int i=0;i<4;i++)stats.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,25));
         stats.RowStyles.Add(new RowStyle(SizeType.Percent,100));
-        Label Badge()=>new(){Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,Font=new Font("Segoe UI",11,FontStyle.Bold),Margin=new Padding(3),BorderStyle=BorderStyle.FixedSingle};
+        Label Badge()=>new KitchenCounterBadge(){Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,Font=new Font("Segoe UI",11,FontStyle.Bold),Margin=new Padding(3),BorderStyle=BorderStyle.None};
         clock=Badge();pending=Badge();preparing=Badge();ready=Badge();
         stats.Controls.Add(clock,0,0);stats.Controls.Add(pending,1,0);stats.Controls.Add(preparing,2,0);stats.Controls.Add(ready,3,0);
         var actions=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,Padding=new Padding(0,4,0,0)};
@@ -44,7 +44,9 @@ internal sealed class KitchenPremiumHeader : UserControl
         actions.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         foreach(var action in new[]{"IMPORTAR\nPDV","ATUALIZAR","MESAS /\nCONFIG.","SAIR"})
         {
-            var b=new Button{Text=action,Dock=DockStyle.Fill,Margin=new Padding(2)};
+            var color=action=="SAIR"?Color.FromArgb(255,66,66):action.StartsWith("IMPORTAR")?Color.FromArgb(0,174,255):KitchenPremiumStyle.Gold;
+            var icon=action=="SAIR"?"\uE8BB":action=="ATUALIZAR"?"\uE72C":action.StartsWith("IMPORTAR")?"\uE898":"\uE713";
+            var b=new KitchenHeroButton("KitchenHeaderAction_"+actions.Controls.Count,action=="MESAS /\nCONFIG."?"CONFIGURAÇÕES":action,"",color,icon){Margin=new Padding(2)};
             b.Click+=(_,_)=>{if(action.StartsWith("IMPORTAR"))ImportRequested?.Invoke();else if(action=="ATUALIZAR")RefreshRequested?.Invoke();else if(action=="SAIR")ExitRequested?.Invoke();else SettingsRequested?.Invoke();};
             actions.Controls.Add(b);
         }
@@ -96,3 +98,4 @@ internal sealed class KitchenHeaderBrand : Panel
     internal KitchenHeaderBrand() { DoubleBuffered=true; ResizeRedraw=true; }
     protected override void OnPaintBackground(PaintEventArgs e) => e.Graphics.Clear(KitchenPremiumStyle.Background);
 }
+

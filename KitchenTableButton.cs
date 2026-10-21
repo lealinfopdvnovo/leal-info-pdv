@@ -4,6 +4,11 @@ namespace LealInfoPDV;
 // Native drawing avoids external icon files and preserves state colors at any DPI.
 internal sealed class KitchenTableButton : Button
 {
+    private static readonly Lazy<Bitmap> Furniture=new(()=>
+    {
+        using var input=typeof(KitchenTableButton).Assembly.GetManifestResourceStream("Kitchen.TablesPremium")??throw new InvalidDataException("Ícones premium não encontrados.");
+        using var source=Image.FromStream(input);return new Bitmap(source);
+    });
     private readonly int number;
     private readonly string state;
     private readonly DateTimeOffset? since;
@@ -36,33 +41,17 @@ internal sealed class KitchenTableButton : Button
             g.DrawPath(pen, shape);
         }
         using (var border = new Pen(accent, Focused ? 2.4f : 1.3f)) g.DrawPath(border, shape);
-        float scale = Math.Min((Width - 16) / 100f, Height / 110f);
-        var saved = g.Save(); g.TranslateTransform(Width / 2f, Math.Max(9, Height * .07f)); g.ScaleTransform(scale, scale);
-        if (state == "RESERVADA")
-        {
-            using var pen = new Pen(accent, 3);
-            g.DrawRectangle(pen, -21, 2, 42, 33); g.DrawLine(pen, -21, 12, 21, 12);
-            g.DrawLine(pen, -11, -2, -11, 7); g.DrawLine(pen, 11, -2, 11, 7);
-            using var font = new Font("Segoe UI", 16, FontStyle.Bold);
-            g.DrawString("R", font, Brushes.White, new PointF(-10, 11));
-        }
-        else
-        {
-            using var chair = new SolidBrush(ControlPaint.Dark(accent, .45f));
-            using var edge = new Pen(Color.FromArgb(130, accent), 1.5f);
-            foreach (int x in new[] { -32, 22 }) { g.FillRectangle(chair, x, 4, 12, 23); g.DrawRectangle(edge, x, 4, 12, 23); }
-            foreach (int x in new[] { -30, 21 }) { g.FillRectangle(chair, x, 34, 14, 14); g.DrawRectangle(edge, x, 34, 14, 14); }
-            PointF[] top = { new(-32, 19), new(0, 7), new(34, 19), new(1, 33) };
-            using var tabletop = new LinearGradientBrush(new Rectangle(-32, 7, 66, 26), ControlPaint.Light(accent, .75f), ControlPaint.Dark(accent, .2f), 75f);
-            g.FillPolygon(tabletop, top); using var topEdge = new Pen(Color.FromArgb(210, Color.White), 1); g.DrawPolygon(topEdge, top);
-            using var legs = new Pen(ControlPaint.Light(accent, .5f), 3);
-            g.DrawLine(legs, -25, 24, -22, 44); g.DrawLine(legs, 26, 25, 23, 45); g.DrawLine(legs, 1, 33, 1, 51);
-        }
-        g.Restore(saved);
+        int slot=state switch{"OCUPADA"=>1,"PREPARANDO"=>2,"PRONTA"=>3,_=>0};
+        var image=Furniture.Value;int cell=image.Width/2;
+        int side=Math.Max(1,Math.Min(Width-8,(int)(Height*.69f)));
+        var destination=new Rectangle((Width-side)/2,1,side,side);
+        g.InterpolationMode=InterpolationMode.HighQualityBicubic;
+        g.DrawImage(image,destination,new Rectangle((slot%2)*cell,(slot/2)*cell,cell,cell),GraphicsUnit.Pixel);
+        if(state=="RESERVADA")KitchenPremiumStyle.DrawFittedText(g,"R",new Rectangle(Width-28,6,22,22),accent,18);
         bool showAge=since.HasValue && Height>150;
-        int titleY = (int)(Height * (showAge ? .43f : .49f));
-        int numberHeight = Math.Max(1,(int)(Height*(showAge ? .22f : .27f)));
-        int stateHeight = Math.Max(1,(int)(Height*(showAge ? .14f : .18f)));
+        int titleY = (int)(Height * (showAge ? .55f : .62f));
+        int numberHeight = Math.Max(1,(int)(Height*(showAge ? .18f : .20f)));
+        int stateHeight = Math.Max(1,(int)(Height*(showAge ? .13f : .14f)));
         KitchenPremiumStyle.DrawFittedText(g,number.ToString("00"),new Rectangle(6,titleY,Width-12,numberHeight),Color.White,numberHeight*.86f);
         KitchenPremiumStyle.DrawFittedText(g,state,new Rectangle(6,titleY+numberHeight,Width-12,stateHeight),accent,stateHeight*.82f);
         if (showAge)
@@ -72,4 +61,5 @@ internal sealed class KitchenTableButton : Button
         }
     }
 }
+
 

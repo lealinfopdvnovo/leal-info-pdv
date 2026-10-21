@@ -146,10 +146,12 @@ static class LayoutTests
             InternalWorkspace.Apply(popup);PremiumGlobalTheme.Apply(popup);
             Check(popup.BackColor==KitchenPremiumStyle.Background,"floating tables keep black premium palette");popup.Close();
             using(var ordinary=new Form{Name="UnrelatedForm"}){PremiumGlobalTheme.Apply(ordinary);Check(ordinary.BackColor==PremiumGlobalTheme.Background,"unrelated forms retain their existing shared theme");}
+            DashboardTests.Run(form,Check,Pump,"layout-evidence",RenderClient);
             using(var db=Database.Open())using(var q=db.CreateCommand()){q.CommandText="SELECT COUNT(*) FROM products WHERE (id=1 AND price=7.99 AND stock=10) OR (id=2 AND price=.50 AND stock=20)";Check(Convert.ToInt32(q.ExecuteScalar())==2,"layout checks preserve product prices and stock");}
             File.WriteAllText("layout-evidence/results.json",JsonSerializer.Serialize(new{success=true,checks,physicalDpiTest=false,nativeWindows=true}));return 0;
         }
         catch(Exception e){Console.Error.WriteLine(e);File.WriteAllText("layout-evidence/failure.txt",e.ToString());return 1;}
     }
 }
+
 

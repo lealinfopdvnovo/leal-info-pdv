@@ -8,9 +8,14 @@ namespace LealInfoPDV;
 internal sealed class KitchenForm : Form
 {
     private Form? entryWindow;
+    private readonly KitchenOrderPanel dashboardOrder=new();
+    private KitchenOrder[] visibleOrders=Array.Empty<KitchenOrder>();
+    private bool dashboardDraft=true;
+    private DateTimeOffset? draftStarted;
+    private readonly System.Windows.Forms.Timer dashboardClock=new(){Interval=1000};
     private readonly KitchenCatalogView mainCatalog = new();
     private readonly KitchenTablesView tables = new();
-    private readonly FlowLayoutPanel orderCards = new() { Name="KitchenOrderCards",Dock=DockStyle.Fill,AutoScroll=true,FlowDirection=FlowDirection.TopDown,WrapContents=false };
+    private readonly FlowLayoutPanel orderCards = new() { Name="KitchenOrderCards",Dock=DockStyle.Fill,AutoScroll=true,FlowDirection=FlowDirection.LeftToRight,WrapContents=false };
     private readonly KitchenPremiumHeader premiumHeader = new();
     private readonly KitchenCatalogView catalog = new();
     private long? selectedProductId;
@@ -62,15 +67,7 @@ internal sealed class KitchenForm : Form
         foreach (string status in new[] { "PREPARANDO", "PRONTO", "ENTREGUE", "CANCELADO" })
         {
             var button = new Button { Text = status, AutoSize = true }; buttons.Controls.Add(button);
-            button.Click += async (_, _) => await Run(async () =>
-            {
-                if (!Auth.HasPermission("sales")) throw new InvalidOperationException("Sem permissão de operação.");
-                if (orders.CurrentRow?.DataBoundItem is not OrderRow selected) throw new InvalidOperationException("Selecione um pedido.");
-                if (status == "CANCELADO" && MessageBox.Show(this, "Cancelar somente este pedido da cozinha? Isso não cancela vendas nem estorna pagamentos.", "Cozinha", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
-                string actor = Auth.OperatorName;
-                await Task.Run(() => store.ChangeStatus(selected.Id, selected.Revision, status, actor, Guid.NewGuid()));
-                await RefreshOrders();
-            });
+            button.Click += async (_,_) => await AdvanceOrder(status);
         }
         var refresh = new Button { Text = "ATUALIZAR / TENTAR PENDÊNCIAS", AutoSize = true }; buttons.Controls.Add(refresh);
         refresh.Click += async (_, _) => await RefreshAndRetry();
@@ -79,7 +76,20 @@ internal sealed class KitchenForm : Form
         detail.Visible=false; detail.BorderStyle = BorderStyle.None; detail.BackColor = Color.FromArgb(230, 239, 246); detail.ForeColor = Ink;
         message.Padding = new Padding(14, 4, 14, 4); message.ForeColor = Ink;
         var workspace = new Panel { Dock = DockStyle.Fill };
-        orders.Visible=false;workspace.Controls.Add(orders);workspace.Controls.Add(orderCards); workspace.Controls.Add(detail); workspace.Controls.Add(buttons); workspace.Controls.Add(message); workspace.Controls.Add(tables);
+        var right=new TableLayoutPanel{Name="KitchenPremiumWorkspace",Dock=DockStyle.Fill,ColumnCount=1,RowCount=5,Padding=new Padding(4)};
+        right.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
+        right.SizeChanged+=(_,_)=>{float top=right.Height>=740?55:45;right.RowStyles[0].Height=top;right.RowStyles[1].Height=100-top;};
+        right.RowStyles.Add(new RowStyle(SizeType.Percent,55));right.RowStyles.Add(new RowStyle(SizeType.Percent,45));
+        right.RowStyles.Add(new RowStyle(SizeType.Absolute,128));right.RowStyles.Add(new RowStyle(SizeType.AutoSize));right.RowStyles.Add(new RowStyle(SizeType.Absolute,32));
+        tables.Dock=DockStyle.Fill;tables.MinimumSize=new Size(0,172);right.Controls.Add(tables,0,0);right.Controls.Add(dashboardOrder,0,1);
+        var history=new Panel{Name="KitchenActiveOrders",Dock=DockStyle.Fill,Padding=new Padding(4,4,4,2)};
+        history.Controls.Add(orderCards);history.Controls.Add(new Label{Text="PEDIDOS EM ANDAMENTO",Dock=DockStyle.Top,Height=25,Font=new Font("Segoe UI",10,FontStyle.Bold)});
+        right.Controls.Add(history,0,2);buttons.Dock=DockStyle.Fill;buttons.Padding=new Padding(3);buttons.Margin=Padding.Empty;right.Controls.Add(buttons,0,3);buttons.Visible=false;dashboardOrder.AttachNewOrder(fresh);
+        message.Dock=DockStyle.Fill;message.Padding=new Padding(4);right.Controls.Add(message,0,4);
+        orders.Visible=false;detail.Visible=false;workspace.Controls.Add(orders);workspace.Controls.Add(detail);workspace.Controls.Add(right);
+        dashboardOrder.SubmitRequested+=async()=>await SubmitDraft();dashboardOrder.ReadyRequested+=async()=>await AdvanceOrder("PRONTO");
+        dashboardOrder.StatusRequested+=async status=>await AdvanceOrder(status);dashboardOrder.PrintRequested+=PrintCurrentOrder;dashboardOrder.EditRequested+=EditDashboardItem;dashboardOrder.RemoveRequested+=RemoveDashboardItem;dashboardOrder.ClearRequested+=()=>ClearDashboardDraft();
+        dashboardClock.Tick+=(_,_)=>{foreach(var label in orderCards.Controls.Cast<Control>().SelectMany(c=>c.Controls.OfType<Label>()).Where(l=>l.Tag is DateTimeOffset)){var age=DateTimeOffset.UtcNow-(DateTimeOffset)label.Tag!;label.Text=$"{(int)Math.Max(0,age.TotalMinutes):00}:{Math.Max(0,age.Seconds):00}";}};dashboardClock.Start();
         var dashboard = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         dashboard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50)); dashboard.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         dashboard.Controls.Add(mainCatalog, 0, 0); dashboard.Controls.Add(workspace, 1, 0); Controls.Add(dashboard);
@@ -95,15 +105,8 @@ internal sealed class KitchenForm : Form
             try { await Task.Run(()=>store.ReserveTable(number,revision,reserved,"",Auth.OperatorName)); }
             finally { await RefreshOrders(); }
         });
-        tables.TableChosen += number =>
-        {
-            if (entryWindow is { IsDisposed: false } && send.Enabled && (items.Rows.Count != 0 || !string.IsNullOrWhiteSpace(itemDescription.Text) || !string.IsNullOrWhiteSpace(reference.Text) || !string.IsNullOrWhiteSpace(notes.Text)))
-            {
-                OpenEntryWindow(); message.Text = "Conclua o pedido em edição antes de escolher outra mesa."; return;
-            }
-            OpenEntryWindow(); reference.Text = $"Mesa {number:00}";
-        };
-        mainCatalog.ProductChosen += product => { OpenEntryWindow(); ChooseProduct(product); };
+        tables.TableChosen += SelectDashboardTable;
+        mainCatalog.ProductChosen += AddDashboardProduct;
         mainCatalog.CatalogChanged += async () => await catalog.ReloadAsync();
         catalog.CatalogChanged += async () => await mainCatalog.ReloadAsync();
         premiumHeader.ImportRequested+=()=>mainCatalog.Controls.Find("KitchenImportPdv",true).OfType<Button>().Single().PerformClick();
@@ -111,11 +114,12 @@ internal sealed class KitchenForm : Form
         premiumHeader.SettingsRequested+=()=>tables.Controls.Find("MoreKitchenTables",true).OfType<Button>().Single().PerformClick();
         premiumHeader.ExitRequested+=()=>Close();
         Controls.Add(premiumHeader);
-        orderCards.SizeChanged+=(_,_)=>{foreach(Control card in orderCards.Controls)card.Width=Math.Max(160,orderCards.ClientSize.Width-28);};
+        orderCards.SizeChanged+=(_,_)=>{foreach(Control card in orderCards.Controls)card.Width=178;};
         orders.SelectionChanged += (_, _) =>
         {
             if (orders.CurrentRow?.DataBoundItem is OrderRow row)
                 detail.Text = row.Details;
+            SyncDashboard();
         };
         itemDescription.TextChanged += (_, _) =>
         {
@@ -123,19 +127,7 @@ internal sealed class KitchenForm : Form
         };
         catalog.ProductChosen += ChooseProduct;
         fresh.Click += (_, _) => OpenEntryWindow();
-        send.Click += async (_, _) => await Run(async () =>
-        {
-            if (storeId == null) throw new InvalidOperationException("Conecte uma vez à cozinha preparada no servidor antes de enviar.");
-            if (!Auth.CanSell) throw new InvalidOperationException("Entre no PDV antes de enviar.");
-            if (!string.IsNullOrWhiteSpace(itemDescription.Text) || editingRow >= 0) throw new InvalidOperationException("Adicione ou salve o item em edição antes de enviar o pedido.");
-            items.EndEdit();
-            var rows = items.Rows.Cast<DataGridViewRow>().Where(r => !r.IsNewRow).Select(r => new KitchenItem(Convert.ToString(r.Cells[0].Value) ?? "", KitchenDraft.Quantity(Convert.ToString(r.Cells[1].Value) ?? ""), Convert.ToString(r.Cells[2].Value) ?? "", r.Tag as long?)).ToArray();
-            var draft = new KitchenDraft(Guid.NewGuid(), reference.Text.Trim(), notes.Text.Trim(), Auth.OperatorName, DateTimeOffset.UtcNow, rows);
-            outbox.Queue(storeId, draft); SetEntryEnabled(false);
-            message.Text = "Pedido guardado na fila local. Aguardando confirmação do servidor.";
-            await FlushAndRefresh();
-            if (!outbox.Pending().Any(p => p.Draft.Id == draft.Id)) entryWindow?.Hide();
-        });
+        send.Click += async (_,_)=>await SubmitDraft();
         Shown += async (_, _) => { FitToDesktop(); await RefreshAndRetry(); await mainCatalog.ReloadAsync(); if (!IsDisposed) retry.Start(); };
         retry.Tick += async (_, _) => await RefreshAndRetry();
         KitchenPremiumStyle.Apply(this);
@@ -159,6 +151,7 @@ internal sealed class KitchenForm : Form
     }
     private void OpenEntryWindow()
     {
+        dashboardDraft=true;SyncDashboard();
         if (entryWindow is { IsDisposed: false, Visible: true } && send.Enabled)
         {
             entryWindow.Activate();
@@ -286,6 +279,7 @@ internal sealed class KitchenForm : Form
     {
         int count = items.Rows.Count;
         itemSummary.Text = count == 0 ? "Adicione o primeiro item" : count == 1 ? "1 item no pedido" : $"{count} itens no pedido";
+        SyncDashboard();
     }
     private static Label FieldLabel(string text) => new KitchenCenteredLabel { Text = text, AutoSize=true, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 9, FontStyle.Bold), ForeColor = Ink, TextAlign = ContentAlignment.MiddleLeft };
     private static Panel Header(string title, string subtitle, int height)
@@ -326,7 +320,84 @@ internal sealed class KitchenForm : Form
         fresh.Enabled = false;
         try { await action(); }
         catch (Exception e) { if (!IsDisposed) message.Text = e.Message + " • Pendências preservadas; a tentativa será repetida ao reconectar."; }
-        finally { gate.Release(); if (!IsDisposed) fresh.Enabled = true; }
+        finally { gate.Release(); if (!IsDisposed) { fresh.Enabled = true; SyncDashboard(); } }
+    }
+    private Task AdvanceOrder(string status)=>Run(async()=>
+    {
+                if (!Auth.HasPermission("sales")) throw new InvalidOperationException("Sem permissão de operação.");
+                if(dashboardDraft)throw new InvalidOperationException("Selecione um pedido enviado para alterar seu estado.");
+                if (orders.CurrentRow?.DataBoundItem is not OrderRow selected) throw new InvalidOperationException("Selecione um pedido.");
+                if (status == "CANCELADO" && MessageBox.Show(this, "Cancelar somente este pedido da cozinha? Isso não cancela vendas nem estorna pagamentos.", "Cozinha", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+                string actor = Auth.OperatorName;
+                await Task.Run(() =>
+                {
+                    long revision=selected.Revision;
+                    if(status=="PRONTO"&&selected.Status=="AGUARDANDO")revision=store.ChangeStatus(selected.Id,revision,"PREPARANDO",actor,Guid.NewGuid()).Revision;
+                    store.ChangeStatus(selected.Id,revision,status,actor,Guid.NewGuid());
+                });
+                await RefreshOrders();
+    });
+    private Task SubmitDraft()=>Run(async()=>
+    {
+            if (storeId == null) throw new InvalidOperationException("Conecte uma vez à cozinha preparada no servidor antes de enviar.");
+            if (!Auth.CanSell) throw new InvalidOperationException("Entre no PDV antes de enviar.");
+            if (!string.IsNullOrWhiteSpace(itemDescription.Text) || editingRow >= 0) throw new InvalidOperationException("Adicione ou salve o item em edição antes de enviar o pedido.");
+            items.EndEdit();
+            var rows = items.Rows.Cast<DataGridViewRow>().Where(r => !r.IsNewRow).Select(r => new KitchenItem(Convert.ToString(r.Cells[0].Value) ?? "", KitchenDraft.Quantity(Convert.ToString(r.Cells[1].Value) ?? ""), Convert.ToString(r.Cells[2].Value) ?? "", r.Tag as long?)).ToArray();
+            var draft = new KitchenDraft(Guid.NewGuid(), reference.Text.Trim(), notes.Text.Trim(), Auth.OperatorName, DateTimeOffset.UtcNow, rows);
+            outbox.Queue(storeId, draft); SetEntryEnabled(false);
+            message.Text = "Pedido guardado na fila local. Aguardando confirmação do servidor.";
+            await FlushAndRefresh();
+            if (!outbox.Pending().Any(p => p.Draft.Id == draft.Id)) { entryWindow?.Hide(); dashboardDraft=false;SelectSavedOrder(draft.Id); }
+    });
+    private KitchenItem[] DraftItems()=>items.Rows.Cast<DataGridViewRow>().Where(r=>!r.IsNewRow&&!string.IsNullOrWhiteSpace(Convert.ToString(r.Cells[0].Value))).Select(r=>new KitchenItem(Convert.ToString(r.Cells[0].Value)??"",KitchenDraft.Quantity(Convert.ToString(r.Cells[1].Value)??"1"),Convert.ToString(r.Cells[2].Value)??"",r.Tag as long?)).ToArray();
+    private KitchenOrder? SelectedOrder()=>!dashboardDraft&&orders.CurrentRow?.DataBoundItem is OrderRow row?visibleOrders.SingleOrDefault(o=>o.Id==row.Id):null;
+    private void SyncDashboard()
+    {
+        if(IsDisposed||dashboardOrder.IsDisposed)return;
+        var selected=SelectedOrder();
+        dashboardOrder.Display(selected?.Reference??reference.Text,selected?.Items??DraftItems(),selected!=null,selected?.ReceivedUtc??draftStarted,send.Enabled&&gate.CurrentCount==1,selected?.Status??"");
+    }
+    private void SelectSavedOrder(Guid id)
+    {
+        foreach(DataGridViewRow row in orders.Rows)if(row.DataBoundItem is OrderRow order&&order.Id==id){orders.CurrentCell=row.Cells.Cast<DataGridViewCell>().First(c=>c.Visible);row.Selected=true;break;}
+        SyncDashboard();
+    }
+    private void SelectDashboardTable(int number)
+    {
+        string target=$"Mesa {number:00}";
+        if(send.Enabled&&items.Rows.Count>0&&!reference.Text.Equals(target,StringComparison.OrdinalIgnoreCase)){message.Text="Conclua o rascunho da "+reference.Text+" antes de mudar de mesa.";return;}
+        var saved=visibleOrders.FirstOrDefault(o=>KitchenTablesView.TableNumber(o.Reference)==number&&o.Status is not ("ENTREGUE" or "CANCELADO"));
+        if(saved!=null&&!(send.Enabled&&items.Rows.Count>0)){dashboardDraft=false;SelectSavedOrder(saved.Id);}
+        else {dashboardDraft=true;reference.Text=target;if(!send.Enabled&&outbox.Pending().Count==0){items.Rows.Clear();SetEntryEnabled(true);ResetItemFields();}SyncDashboard();}
+    }
+    private void AddDashboardProduct(KitchenCatalogProduct product)
+    {
+        if(!send.Enabled)
+        {
+            if(outbox.Pending().Count!=0){message.Text="Aguarde a confirmação do pedido preservado na fila.";return;}
+            items.Rows.Clear();SetEntryEnabled(true);ResetItemFields();
+        }
+        var selected=SelectedOrder();if(selected!=null)reference.Text=selected.Reference;
+        dashboardDraft=true;draftStarted??=DateTimeOffset.UtcNow;ChooseProduct(product);SyncDashboard();
+    }
+    private void EditDashboardItem(int index)
+    {
+        if(!dashboardDraft||!send.Enabled||index<0||index>=items.Rows.Count)return;
+        OpenEntryWindow();editingRow=index;var row=items.Rows[index];selectedProductName=Convert.ToString(row.Cells[0].Value)??"";itemDescription.Text=selectedProductName;selectedProductId=row.Tag as long?;
+        itemQuantity.Value=KitchenDraft.Quantity(Convert.ToString(row.Cells[1].Value)??"1");itemNotes.Text=Convert.ToString(row.Cells[2].Value);addItem.Text="SALVAR ALTERAÇÃO";itemDescription.Focus();
+    }
+    private void RemoveDashboardItem(int index){if(!dashboardDraft||!send.Enabled||index<0||index>=items.Rows.Count)return;items.Rows.RemoveAt(index);ResetItemFields();UpdateItemSummary();}
+    private void ClearDashboardDraft()
+    {
+        if(!dashboardDraft||!send.Enabled||items.Rows.Count==0)return;
+        if(MessageBox.Show(this,"Limpar somente os itens deste rascunho?","Cozinha",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return;
+        items.Rows.Clear();notes.Clear();ResetItemFields();draftStarted=null;UpdateItemSummary();
+    }
+    private void PrintCurrentOrder()
+    {
+        var selected=SelectedOrder();var rows=selected?.Items??DraftItems();if(rows.Length==0)return;
+        KitchenComanda.Preview(this,KitchenComanda.Text(selected?.Reference??reference.Text,rows,selected?.Notes??notes.Text));
     }
     private Task RefreshAndRetry() => Run(async () =>
     {
@@ -345,13 +416,14 @@ internal sealed class KitchenForm : Form
         var result = await Task.Run(() => (Recent: store.List(), Active: store.ListActive(), Seating: store.Seating())); if (IsDisposed) return;
         void ApplyResult()
         {
-        var list = result.Active.Concat(result.Recent).DistinctBy(o=>o.Id).OrderByDescending(o=>o.ReceivedUtc).ThenBy(o=>o.Id).ToArray(); tables.UpdateOrders(result.Active);tables.UpdateSeating(result.Seating);
+        var list = result.Active.Concat(result.Recent).DistinctBy(o=>o.Id).OrderByDescending(o=>o.ReceivedUtc).ThenBy(o=>o.Id).ToArray(); tables.UpdateOrders(result.Active);tables.UpdateSeating(result.Seating);visibleOrders=list;
         var selected = (orders.CurrentRow?.DataBoundItem as OrderRow)?.Id;
         orders.DataSource = list.Select(o => new OrderRow(o.Id, o.Reference, o.Status, o.Revision, o.Operator, o.ReceivedUtc.ToLocalTime().ToString("dd/MM HH:mm:ss"),
             o.Notes + Environment.NewLine + string.Join(Environment.NewLine, o.Items.Select(i => $"{i.Quantity:0.###} × {i.Description} — {i.Notes}")))).ToArray();
         UpdateOrderCards();
         foreach (string hidden in new[] { "Id", "Revision", "Details" }) if (orders.Columns[hidden] is { } column) column.Visible = false;
         foreach (DataGridViewRow row in orders.Rows) if ((row.DataBoundItem as OrderRow)?.Id == selected) { row.Selected = true; orders.CurrentCell = row.Cells.Cast<DataGridViewCell>().First(c => c.Visible); break; }
+        SyncDashboard();
 
         }
         if(InvokeRequired)Invoke((Action)ApplyResult);else ApplyResult();
@@ -367,17 +439,20 @@ internal sealed class KitchenForm : Form
         foreach(var row in rows)
         {
             var value=row.Value!;
-            var card=new Panel{Width=Math.Max(160,orderCards.ClientSize.Width-28),Height=104,Padding=new Padding(10),Margin=new Padding(8,5,8,5),Cursor=Cursors.Hand,Tag=value.Id};
-            var title=new Label{Text=$"{value.Referencia}   •   {value.Status}   •   {value.Recebido}",Dock=DockStyle.Top,Height=26,Font=new Font("Segoe UI",10,FontStyle.Bold)};
-            var text=new Label{Text=value.Details,Dock=DockStyle.Fill,AutoEllipsis=true};
+            var card=new Panel{Width=178,Height=88,Padding=new Padding(10),Margin=new Padding(8,5,8,5),Cursor=Cursors.Hand,Tag=value.Id};
+            var title=new Label{Text=$"#{value.Id.ToString("N")[..4].ToUpperInvariant()}   {value.Referencia}",Dock=DockStyle.Top,Height=26,Font=new Font("Segoe UI",10,FontStyle.Bold)};
+            var model=visibleOrders.Single(o=>o.Id==value.Id);
+            var text=new Label{Text=value.Status+"   •   "+model.Items.Length+" itens",Dock=DockStyle.Fill,AutoEllipsis=true,Font=new Font("Segoe UI",8)};
+            var ageLabel=new Label{Tag=model.ReceivedUtc,Text="00:00",Dock=DockStyle.Bottom,Height=20,TextAlign=ContentAlignment.MiddleRight,Font=new Font("Segoe UI",9,FontStyle.Bold)};card.Controls.Add(ageLabel);
             card.Controls.Add(text);card.Controls.Add(title);KitchenPremiumStyle.Apply(card);KitchenPremiumStyle.Frame(card);title.ForeColor=value.Status=="PRONTO"?KitchenTableButton.StateColor("PRONTA"):KitchenPremiumStyle.Gold;
-            void Select(){orders.CurrentCell=row.Row.Cells.Cast<DataGridViewCell>().First(c=>c.Visible);row.Row.Selected=true;detail.Text=value.Details;message.Text="Pedido selecionado: "+value.Referencia+" • "+value.Status;}
+            void Select(){if(send.Enabled&&items.Rows.Count>0){message.Text="Conclua o rascunho antes de selecionar outro pedido.";return;}dashboardDraft=false;orders.CurrentCell=row.Row.Cells.Cast<DataGridViewCell>().First(c=>c.Visible);row.Row.Selected=true;detail.Text=value.Details;message.Text="Pedido selecionado: "+value.Referencia+" • "+value.Status;SyncDashboard();}
             void Details(){using var dialog=new Form{Text="PEDIDO • "+value.Referencia,Size=new Size(680,480),StartPosition=FormStartPosition.CenterParent,ShowInTaskbar=false};dialog.Controls.Add(new TextBox{Multiline=true,ReadOnly=true,Dock=DockStyle.Fill,ScrollBars=ScrollBars.Vertical,Text=value.Referencia+Environment.NewLine+value.Status+Environment.NewLine+value.Details});KitchenPremiumStyle.Apply(dialog);dialog.ShowDialog(this);}
             card.DoubleClick+=(_,_)=>Details();text.DoubleClick+=(_,_)=>Details();title.DoubleClick+=(_,_)=>Details();
             card.Click+=(_,_)=>Select();title.Click+=(_,_)=>Select();text.Click+=(_,_)=>Select();orderCards.Controls.Add(card);
         }
-        if(rows.Length==0)orderCards.Controls.Add(new Label{Text="NENHUM PEDIDO EM PREPARO\nSelecione uma mesa ou clique em NOVO PEDIDO.",ForeColor=Color.Silver,Width=Math.Max(160,orderCards.ClientSize.Width-28),Height=100,TextAlign=ContentAlignment.MiddleCenter});
+        if(rows.Length==0)orderCards.Controls.Add(new Label{Text="Nenhum pedido em andamento. Selecione uma mesa para iniciar.",ForeColor=Color.Silver,Width=Math.Max(160,orderCards.ClientSize.Width-28),Height=64,TextAlign=ContentAlignment.MiddleCenter});
     }
-    protected override void Dispose(bool disposing) { if (disposing) { retry.Dispose(); entryWindow?.Dispose(); catalog.Dispose(); mainCatalog.Dispose(); tables.Dispose(); } base.Dispose(disposing); }
+    protected override void Dispose(bool disposing) { if (disposing) { retry.Dispose(); dashboardClock.Dispose(); dashboardOrder.Dispose(); entryWindow?.Dispose(); catalog.Dispose(); mainCatalog.Dispose(); tables.Dispose(); } base.Dispose(disposing); }
 }
+
 

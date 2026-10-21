@@ -54,7 +54,7 @@ internal static class KitchenPremiumStyle
     }
     internal static void Apply(Control root)
     {
-        if (root is KitchenTableButton or KitchenMoreTablesButton) return;
+        if (root is KitchenTableButton or KitchenMoreTablesButton or KitchenHeroButton or KitchenCategoryButton) return;
         root.BackColor = root is TextBox or NumericUpDown or ComboBox ? Surface : Background;
         root.ForeColor = Color.FromArgb(235, 242, 249);
         if (root is Button b)
@@ -112,3 +112,4 @@ internal sealed class KitchenCenteredLabel : Label
         KitchenPremiumStyle.DrawFittedText(e.Graphics,Text,new Rectangle(2,1,Math.Max(1,Width-4),Math.Max(1,Height-2)),ForeColor,Font.SizeInPoints*e.Graphics.DpiY/72f);
     }
 }
+
