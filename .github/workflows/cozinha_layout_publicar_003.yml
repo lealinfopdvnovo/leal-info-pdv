@@ -1,0 +1,73 @@
+name: Publicar correcao Cozinha 003 pelo atualizador protegido
+on:
+  push:
+    branches: ['feature/cozinha-premium-003']
+    paths: ['qa/003-layout-release.trigger']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publicacao-exclusiva-003
+  cancel-in-progress: false
+env:
+  LAYOUT_SOURCE: '8d3ec93138ee8962700369da51bdfaf96c112b83'
+  LAYOUT_RUN: '39519486382'
+  CUSTOMER_CONFIRMED_VERSION: '10.422'
+jobs:
+  rollback:
+    runs-on: windows-latest
+    timeout-minutes: 7
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Conferir execucao Windows imutavel aprovada
+        shell: pwsh
+        run: |
+          $r=gh api repos/lealinfopdvnovo/leal-info-pdv/actions/runs/$env:LAYOUT_RUN|ConvertFrom-Json
+          if($r.conclusion -ne 'success' -or $r.head_sha -ne $env:LAYOUT_SOURCE){throw 'Layout not approved'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: cozinha-layout-003-windows
+          run-id: 39519486382
+          github-token: ${{ github.token }}
+          path: validated
+      - uses: actions/download-artifact@v4
+        with:
+          name: candidate-003-NOT-AUTHORIZED
+          run-id: 39504754135
+          github-token: ${{ github.token }}
+          path: original
+      - name: Validar pacote real e rollback exato 10.422 para 10.423
+        shell: pwsh
+        run: |
+          ./qa/kitchen-layout-release/rollback.ps1 2>&1|Tee-Object rollback-layout.log
+          if($LASTEXITCODE -ne 0){throw 'Rollback candidate failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pacote-003-10.423-validado
+          path: |
+            validated/
+            rollback-layout.log
+  publicar:
+    needs: rollback
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: pacote-003-10.423-validado
+          path: proof
+      - name: Publicar somente 003 e conferir download e manifesto do botao
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        working-directory: proof
+        run: python ../qa/kitchen-layout-release/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publicacao-003-10.423
+          path: proof/published-003.json
