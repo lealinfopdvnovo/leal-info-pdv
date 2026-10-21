@@ -47,6 +47,8 @@ static class LayoutTests
             Field<System.Windows.Forms.Timer>(form,"retry").Stop();
             var catalog=Field<KitchenCatalogView>(form,"mainCatalog");
             Pump(()=>catalog.Controls.Find("CatalogProduct_1",true).Length==1);
+            // Shown starts the retry timer after asynchronous catalog loading.
+            Field<System.Windows.Forms.Timer>(form,"retry").Stop();
             // Exercise the production shell that the original kitchen tests did not install.
             InternalWorkspace.Apply(form);PremiumGlobalTheme.Apply(form);Application.DoEvents();
             Check(form.BackColor==KitchenPremiumStyle.Background,"production idle shell preserves kitchen black premium palette");
