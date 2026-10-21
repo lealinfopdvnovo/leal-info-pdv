@@ -1,0 +1,157 @@
+name: Publicar 10.433 aprovada - somente 001 e 003
+'on':
+  push:
+    branches:
+    - release/cozinha-10.433-001-003
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: release-10433-only-001-003
+  cancel-in-progress: false
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: ${{ matrix.channel }}
+      SOURCE_REF: ${{ matrix.channel == '001' && '1076a54d560609a2bf251e0e9d1a9d104cd090fe'
+        || '1a8fd9770b6a2bf87307fa31d002d3126b22747e' }}
+      APPROVED_SOURCE: ${{ matrix.channel == '001' && '1076a54d560609a2bf251e0e9d1a9d104cd090fe'
+        || '1a8fd9770b6a2bf87307fa31d002d3126b22747e' }}
+      PYTHONUTF8: '1'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        path: release
+        fetch-depth: 0
+    - uses: actions/checkout@v4
+      with:
+        ref: b95da478624312a5070e9ee512e156b3a9dcb858
+        path: controller
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.401
+    - name: Preparar base propria 10.432 sem publicar
+      working-directory: controller
+      shell: pwsh
+      run: '''{"sdk":{"version":"10.0.401","rollForward":"disable"}}''|Set-Content
+        global.json -Encoding UTF8
+
+        python scripts/distribute_channels.py plan
+
+        if($LASTEXITCODE -ne 0){throw ''Plan failed''}
+
+        $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
+
+        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne $env:CHANNEL -or $p.Entries[0].Version
+        -ne ''10.433'' -or $p.Entries[0].Baseline.Version -ne ''10.432''){throw ''Wrong
+        scope''}
+
+        python scripts/distribute_channels.py prepare $env:CHANNEL
+
+        if($LASTEXITCODE -ne 0){throw ''Preparation failed''}
+
+        Push-Location candidate
+
+        ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+
+        ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+
+        ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+
+        ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+
+        ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+
+        ./scripts/aplicar_central_equipamentos_v10_314.ps1
+
+        Pop-Location
+
+        '
+    - uses: actions/download-artifact@v4
+      with:
+        github-token: ${{ github.token }}
+        run-id: 39680892505
+        name: cozinha-01-02-${{ matrix.channel }}
+        path: approved
+    - name: Reutilizar aprovacao Windows dos commits exatos
+      shell: pwsh
+      run: '$r=Get-Content approved/corrections-evidence/results.json -Raw|ConvertFrom-Json
+
+        if($r.success -ne $true -or $r.checks.Count -ne 33 -or $r.channel -ne $env:CHANNEL
+        -or $r.source -ne $env:APPROVED_SOURCE -or $r.published -ne $false){throw
+        ''Wrong approved artifact''}
+
+        New-Item -ItemType Directory release/validated/layout-evidence -Force|Out-Null
+
+        Copy-Item approved/corrections-evidence/* release/validated/layout-evidence/
+
+        '
+    - name: Compilar os commits aprovados e empacotar somente tres executaveis
+      working-directory: controller
+      shell: pwsh
+      run: '$sdk=Get-Content sdk-version.txt
+
+        dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained
+        true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish 2>&1 | Tee-Object
+        build-windows.log
+
+        if($LASTEXITCODE -ne 0){throw ''Windows compilation failed''}
+
+        python scripts/distribute_channels.py package $env:CHANNEL
+
+        if($LASTEXITCODE -ne 0){throw ''Incremental package or dependency validation
+        failed''}
+
+        Copy-Item release-output ../release/validated/ -Recurse
+
+        Copy-Item build-windows.log ../release/validated/
+
+        '
+    - name: Conferir backup integridade e rollback da 10.432 para 10.433
+      working-directory: release
+      shell: pwsh
+      run: './qa/release-10433/rollback.ps1 2>&1 | Tee-Object validated/rollback.log
+
+        if($LASTEXITCODE -ne 0){throw ''Protected updater compatibility failed''}
+
+        '
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pacote-10433-${{ matrix.channel }}
+        path: release/validated/
+    strategy:
+      fail-fast: false
+      matrix:
+        channel:
+        - '001'
+        - '003'
+  publicar:
+    needs:
+    - validar
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: pacote-10433-001
+        path: proof/001/validated
+    - uses: actions/download-artifact@v4
+      with:
+        name: pacote-10433-003
+        path: proof/003/validated
+    - name: Publicar exclusivamente 001 e 003 e conferir downloads e feeds
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        SOURCE_001: 1076a54d560609a2bf251e0e9d1a9d104cd090fe
+        SOURCE_003: 1a8fd9770b6a2bf87307fa31d002d3126b22747e
+      run: python qa/release-10433/publish.py
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: publicacao-10433-001-003
+        path: published-001-003.json
