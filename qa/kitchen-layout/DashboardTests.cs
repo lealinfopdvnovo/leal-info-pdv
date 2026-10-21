@@ -54,7 +54,7 @@ internal static class DashboardTests
         while(offset<large.Length&&pages<30){using var page=new Bitmap(700,900);using var g=Graphics.FromImage(page);g.Clear(Color.White);int next=KitchenComanda.DrawPage(g,new Rectangle(40,40,620,820),large,offset);check(next>offset,"comanda pagination makes progress");offset=next;if(pages++==0)page.Save(Path.Combine(evidence,"comanda-preview-windows.png"));}
         check(offset==large.Length&&pages>1&&pages<30,"production comanda renderer paginates all content without dropping lines");
         // Build the comparison screenshot only in the disposable fixture; no automatic customer catalog import.
-        var seeds=ReadyKitchenCatalog.Load();ReadyKitchenCatalog.Import(seeds.Select((p,i)=>(p.Code,Price:10m+i)).ToDictionary(x=>x.Code,x=>x.Price));
+        var seeds=ReadyKitchenCatalog.Load();ReadyKitchenCatalog.Import(seeds.ToDictionary(p=>p.Code,p=>p.Code=="LEALMIX001"?99.90m:ReadyKitchenPrices.Suggested(p)));
         var reload=menu.ReloadAsync();pump(()=>reload.IsCompleted);reload.GetAwaiter().GetResult();
         foreach(var pair in new[]{(2,"AGUARDANDO"),(5,"AGUARDANDO"),(6,"PREPARANDO"),(7,"PREPARANDO"),(8,"PRONTO"),(10,"AGUARDANDO")})
         {

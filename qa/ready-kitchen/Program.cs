@@ -34,11 +34,11 @@ static class Program
         {
             Check(File.Exists(Database.DbPath),"reuse isolated QA database only");
             Auth.Login("neworderqa","QA-isolated-123!");Check(Auth.IsAdmin,"fixture administrator authenticated");
-            var entries=ReadyKitchenCatalog.Load();Check(entries.Length==18&&entries.Select(e=>e.Category).Distinct().Count()==6,"mixed pack has 18 items across six categories");
+            var entries=ReadyKitchenCatalog.Load();Check(entries.Length>=200&&entries.Select(e=>e.Category).Distinct().Count()>=16,"expanded pack has at least 200 items across bar and kitchen categories");
             foreach(var item in entries)
             {
                 using var input=new MemoryStream(ReadyKitchenCatalog.Photo(item));using var image=Image.FromStream(input);
-                Check(image.Width>=40&&image.Height>=40&&!string.IsNullOrWhiteSpace(item.Author)&&item.SourceUrl.StartsWith("https://commons.wikimedia.org/wiki/"),"licensed real photo and author verified: "+item.Code);
+                Check(image.Width>=40&&image.Height>=40&&!string.IsNullOrWhiteSpace(item.Author)&&(item.SourceUrl.StartsWith("https://commons.wikimedia.org/wiki/")||item.CommonsFile=="LEAL_CATEGORY_ART"),"licensed photo or original category illustration verified: "+item.Code);
             }
             Sql("INSERT INTO products(barcode,name,category,price,stock,active,photo_path) VALUES('PRESERVAR_EXISTENTE','cHeEsEbUrGeR','CLIENTE',19.90,17,1,'foto-cliente-preservada.jpg'); SELECT 1");
             string before=Snapshot();int backups=BackupCount();
@@ -56,7 +56,7 @@ static class Program
             Sql("DROP TRIGGER qa_ready_abort; SELECT 1");
             var prices=entries.Select((item,i)=>(item.Code,Price:10m+i+.25m)).ToDictionary(x=>x.Code,x=>x.Price);
             var imported=ReadyKitchenCatalog.Import(prices);
-            Check(imported.Added==17&&imported.Skipped==1,"import adds selected new items and preserves same-name existing product");
+            Check(imported.Added==entries.Length-1&&imported.Skipped==1,"import adds selected new items and preserves same-name existing product");
             Check(Snapshot()==before,"existing products stock prices users settings sales payments and finances unchanged");
             using(var backup=new Microsoft.Data.Sqlite.SqliteConnection("Data Source="+imported.BackupPath+";Mode=ReadOnly;Pooling=False"))
             {
@@ -69,12 +69,12 @@ static class Program
                 Check(r.Read()&&Convert.ToDecimal(r.GetDouble(0))==prices[item.Code]&&r.GetDouble(1)==0,"operator price and zero initial stock: "+item.Code);
                 string photo=r.GetString(2);Check(File.Exists(photo)&&File.Exists(photo+".credits.json")&&Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(photo))).ToLowerInvariant()==item.ImageSha256,"persistent photo hash and credits: "+item.Code);
             }
-            var repeated=ReadyKitchenCatalog.Import(prices);Check(repeated.Added==0&&repeated.Skipped==18,"repeated import cannot duplicate or replace products");
+            var repeated=ReadyKitchenCatalog.Import(prices);Check(repeated.Added==0&&repeated.Skipped==entries.Length,"repeated import cannot duplicate or replace products");
             Parallel.For(0,2,_=>{var result=ReadyKitchenCatalog.Import(prices);if(result.Added!=0)throw new Exception("Concurrent duplicate");});
-            Check(Convert.ToInt32(Sql("SELECT COUNT(*) FROM products WHERE barcode LIKE 'LEALMIX%'"))==17,"concurrent reimports preserve exactly one copy");
+            Check(Convert.ToInt32(Sql("SELECT COUNT(*) FROM products WHERE barcode LIKE 'LEALMIX%'"))==entries.Length-1,"concurrent reimports preserve exactly one copy");
             Application.EnableVisualStyles();using var form=new ReadyKitchenImportForm();form.Show();Application.DoEvents();
             var grid=form.Controls.Find("ReadyKitchenProducts",true).OfType<DataGridView>().Single();
-            Check(grid.Rows.Count==18&&grid.Rows.Cast<DataGridViewRow>().All(r=>!Convert.ToBoolean(r.Cells["Selected"].Value)&&string.IsNullOrWhiteSpace(Convert.ToString(r.Cells["Price"].Value))),"preview requires explicit selection and operator prices");
+            Check(grid.Rows.Count==entries.Length&&grid.Rows.Cast<DataGridViewRow>().All(r=>!Convert.ToBoolean(r.Cells["Selected"].Value)&&!string.IsNullOrWhiteSpace(Convert.ToString(r.Cells["Price"].Value))),"preview requires explicit selection and prefills editable suggested prices");
             using(var shot=new Bitmap(form.Width,form.Height)){form.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save("new-order-evidence/catalogo-pronto-importacao.png");}
             form.Close();Check(Snapshot()==before,"opening and canceling preview preserves existing data");
             File.WriteAllText("new-order-evidence/ready-import.json",JsonSerializer.Serialize(new{success=true,checks},new JsonSerializerOptions{WriteIndented=true}));

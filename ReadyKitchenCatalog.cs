@@ -22,10 +22,17 @@ internal static class ReadyKitchenCatalog
         foreach(var e in entries)
             if(!Regex.IsMatch(e.Code,@"^LEALMIX[0-9]{3}$")||e.ImageFile!=e.Code+".jpg"||string.IsNullOrWhiteSpace(e.Author)||!e.SourceUrl.StartsWith("https://commons.wikimedia.org/wiki/")||!e.LicenseUrl.StartsWith("https://creativecommons.org/")&&!e.LicenseUrl.StartsWith("http://creativecommons.org/"))
                 throw new InvalidDataException("Origem de foto inválida.");
-        return entries;
+        var expanded=entries.Concat(ReadyKitchenExpanded.Entries()).ToArray();
+        if(expanded.Length<200||expanded.Select(x=>x.Code).Distinct().Count()!=expanded.Length||expanded.Select(x=>Key(x.Name)).Distinct().Count()!=expanded.Length)throw new InvalidDataException("Catálogo ampliado incompleto ou duplicado.");
+        return expanded;
     }
     internal static byte[] Photo(ReadyKitchenItem item)
     {
+        if(item.CommonsFile=="LEAL_CATEGORY_ART"){
+            var illustrationBytes=ReadyKitchenExpanded.Illustration(item.Category);
+            if(Convert.ToHexString(SHA256.HashData(illustrationBytes)).ToLowerInvariant()!=item.ImageSha256)throw new InvalidDataException("Integridade da ilustração inválida.");
+            return illustrationBytes;
+        }
         using var stream=typeof(ReadyKitchenCatalog).Assembly.GetManifestResourceStream("ReadyKitchen."+item.ImageFile)??throw new InvalidDataException("Foto não encontrada.");
         using var output=new MemoryStream();stream.CopyTo(output);var bytes=output.ToArray();
         if(bytes.Length>4_000_000||Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()!=item.ImageSha256)throw new InvalidDataException("Integridade da foto inválida.");
