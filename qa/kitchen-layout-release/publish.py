@@ -17,7 +17,7 @@ def move_ref(sha):
  Path('request.json').write_text(json.dumps(dict(sha=sha,force=False)))
  subprocess.run(['gh','api',f'repos/{repo}/git/refs/heads/main','--method','PATCH','--input','request.json'],check=True,stdout=subprocess.DEVNULL)
 e=json.loads(Path('validated/release-output/candidate.json').read_text(encoding='utf-8-sig'))
-assert e['Channel']=='003' and e['Version']=='10.424' and e['SourceCommit']==os.environ['LAYOUT_SOURCE']
+assert e['Channel']=='003' and e['Version']=='10.425' and e['SourceCommit']==os.environ['LAYOUT_SOURCE']
 assert str(e['BuildRunId'])==os.environ['LAYOUT_RUN']
 assert json.loads(Path('validated/layout-evidence/results.json').read_text())['success'] is True
 proof=json.loads(Path('validated/release-output/layout-rollback-results.json').read_text(encoding='utf-8-sig'))
@@ -32,18 +32,18 @@ channels=('GLOBAL','001','002','003','004')
 before={c:feed(c) for c in channels}
 expected=json.loads(Path('validated/layout-evidence/feeds-unchanged.json').read_text())
 assert all(before[c]['sha']==expected[c] for c in channels),'Feed changed since Windows validation'
-assert before['003']['manifest']['Version']=='10.423'
-notes='Cozinha Premium: centralização dos títulos, categorias e preços; correção do cabeçalho duplicado e dos cortes no título e rodapé do NOVO PEDIDO. Exclusivo 003. Banco, estoque, licença e configurações preservados.'
-manifest=dict(Version='10.424',TargetClientCode='003',PackageUrl=e['Url'],Sha256=e['PackageSha256'],SourceCommit=e['SourceCommit'],Mandatory=False,Notes=notes,BuildRunId=e['BuildRunId'],ValidationRunId=os.environ['GITHUB_RUN_ID'],ProtectedUpdaterRequired=True,LastUserConfirmedProtectedVersion='10.422',PublishedBaselineVersion='10.423')
+assert before['003']['manifest']['Version']=='10.424'
+notes='Cozinha Premium conforme referência: mesas 3D, pedido integrado, envio, prévia de comanda, marcação de pronto e pedidos em andamento com cronômetros. Exclusivo 003. Banco, estoque, licença e configurações preservados.'
+manifest=dict(Version='10.425',TargetClientCode='003',PackageUrl=e['Url'],Sha256=e['PackageSha256'],SourceCommit=e['SourceCommit'],Mandatory=False,Notes=notes,BuildRunId=e['BuildRunId'],ValidationRunId=os.environ['GITHUB_RUN_ID'],ProtectedUpdaterRequired=True,LastUserConfirmedProtectedVersion='10.422',PublishedBaselineVersion='10.424')
 Path('release-notes.txt').write_text(notes)
 # The existing repository token is used only after all Windows checks succeed.
 view=subprocess.run(['gh','release','view',e['Tag'],'--repo',repo],capture_output=True)
-if view.returncode:subprocess.run(['gh','release','create',e['Tag'],str(package),'--repo',repo,'--target','main','--title','PDV 003 V10.424 - Cozinha Premium','--notes-file','release-notes.txt','--latest=false'],check=True)
+if view.returncode:subprocess.run(['gh','release','create',e['Tag'],str(package),'--repo',repo,'--target','main','--title','PDV 003 V10.425 - Cozinha Premium','--notes-file','release-notes.txt','--latest=false'],check=True)
 assert hashlib.sha256(download(e['Url'])).hexdigest()==e['PackageSha256'],'Public package differs'
 head=api(f'repos/{repo}/git/ref/heads/main')['object']['sha'];old=api(f'repos/{repo}/git/commits/{head}')
 assert all(feed(c)['sha']==before[c]['sha'] for c in channels),'Concurrent feed change'
 tree=api(f'repos/{repo}/git/trees',dict(base_tree=old['tree']['sha'],tree=[dict(path='clients/003/version.json',mode='100644',type='blob',content=json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')]))
-commit=api(f'repos/{repo}/git/commits',dict(message='003 V10.424: Cozinha layout validado Windows e rollback 10.423',tree=tree['sha'],parents=[head]))
+commit=api(f'repos/{repo}/git/commits',dict(message='003 V10.425: Cozinha layout validado Windows e rollback 10.424',tree=tree['sha'],parents=[head]))
 move_ref(commit['sha'])
 try:
  detail=api(f"repos/{repo}/commits/{commit['sha']}")
@@ -57,8 +57,8 @@ try:
  assert live==manifest,'Updater URL not serving the new manifest'
  after={c:feed(c) for c in channels}
  assert all(after[c]['sha']==before[c]['sha'] for c in channels if c!='003')
- Path('published-003.json').write_text(json.dumps(dict(Published=True,Version='10.424',Client='003',Commit=commit['sha'],Manifest=manifest,OtherFeedsUnchanged=True,PublicPackageHashVerified=True,PublicManifestVerified=True,InstalledOnCustomerComputer=False),indent=2))
- print('PASS PUBLISHED ONLY 003 V10.424; exact public package and updater manifest verified; all other feeds unchanged')
+ Path('published-003.json').write_text(json.dumps(dict(Published=True,Version='10.425',Client='003',Commit=commit['sha'],Manifest=manifest,OtherFeedsUnchanged=True,PublicPackageHashVerified=True,PublicManifestVerified=True,InstalledOnCustomerComputer=False),indent=2))
+ print('PASS PUBLISHED ONLY 003 V10.425; exact public package and updater manifest verified; all other feeds unchanged')
 except Exception:
  if api(f'repos/{repo}/git/ref/heads/main')['object']['sha']==commit['sha']:
   recovery=api(f'repos/{repo}/git/commits',dict(message='Restore feeds after failed 003 verification',tree=old['tree']['sha'],parents=[commit['sha']]))

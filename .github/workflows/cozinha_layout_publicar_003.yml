@@ -10,8 +10,8 @@ concurrency:
   group: publicacao-exclusiva-003
   cancel-in-progress: false
 env:
-  LAYOUT_SOURCE: 'a6462ce82b8d55e0d2a0f9646238423038f7a5d8'
-  LAYOUT_RUN: '39521451223'
+  LAYOUT_SOURCE: '7f740ac15d0ce4ea15a86b2c3bd02b2ce9974310'
+  LAYOUT_RUN: '39527135631'
   CUSTOMER_CONFIRMED_VERSION: '10.422'
 jobs:
   rollback:
@@ -30,16 +30,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: cozinha-layout-003-windows
-          run-id: 39521451223
+          run-id: 39527135631
           github-token: ${{ github.token }}
           path: validated
       - uses: actions/download-artifact@v4
         with:
-          name: pacote-003-10.423-validado
-          run-id: 39519903363
+          name: pacote-003-10.424-validado
+          run-id: 39521805378
           github-token: ${{ github.token }}
           path: original
-      - name: Validar pacote real e rollback exato 10.423 para 10.424
+      - name: Validar pacote real e rollback exato 10.424 para 10.425
         shell: pwsh
         run: |
           ./qa/kitchen-layout-release/rollback.ps1 2>&1|Tee-Object rollback-layout.log
@@ -47,7 +47,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pacote-003-10.424-validado
+          name: pacote-003-10.425-validado
           path: |
             validated/
             rollback-layout.log
@@ -59,7 +59,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: pacote-003-10.424-validado
+          name: pacote-003-10.425-validado
           path: proof
       - name: Publicar somente 003 e conferir download e manifesto do botao
         env:
@@ -69,5 +69,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: publicacao-003-10.424
+          name: publicacao-003-10.425
           path: proof/published-003.json
