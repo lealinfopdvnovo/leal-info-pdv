@@ -30,7 +30,7 @@ jobs:
         import subprocess
         base='f2e822fbccbe07b349150a1e8997994c634f9d50'
         changed=subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines()
-        allowed={'Program.cs','LealInfoPDV.csproj','UpdateManager.cs','PetRuntime.cs','LojaPetBootstrap.cs','.github/workflows/publicar_pet_loja_v12.yml'}
+        allowed={'Program.cs','LealInfoPDV.csproj','UpdateManager.cs','PetRuntime.cs','LojaPetBootstrap.cs','.github/workflows/publicar_pet_loja_v12.yml','.github/workflows/teste_financeiro_001.yml'}
         assert all(p in allowed or p.startswith('qa/pet-loja-v12/') for p in changed),changed
         old=subprocess.check_output(['git','show',base+':Program.cs'],text=True)
         assert open('Program.cs',encoding='utf-8-sig').read()==old.replace('            Database.Initialize();','            Database.Initialize();\n            LojaPetBootstrap.Initialize();')
@@ -50,7 +50,7 @@ jobs:
         python scripts/distribute_channels.py plan
         if($LASTEXITCODE -ne 0){throw 'Plan failed'}
         $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
-        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '001' -or $p.Entries[0].Version -ne '10.439' -or $p.Entries[0].Baseline.Version -ne '10.438'){throw 'Wrong scope'}
+        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '001' -or $p.Entries[0].Version -ne '10.440' -or $p.Entries[0].Baseline.Version -ne '10.439'){throw 'Wrong scope'}
         python scripts/distribute_channels.py prepare 001
         if($LASTEXITCODE -ne 0){throw 'Preparation failed'}
         Push-Location candidate
@@ -65,7 +65,7 @@ jobs:
       working-directory: controller
       shell: pwsh
       run: |
-        dotnet build candidate/qa/pet-loja-v12/RealSalesTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        dotnet build candidate/qa/pet-loja-v12/FinanceLayoutTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
         if($LASTEXITCODE -ne 0){throw 'Test host compilation failed'}
         $payload=(Resolve-Path 'candidate/qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.001.dll').Path
         $sdk=Get-Content sdk-version.txt
@@ -73,9 +73,9 @@ jobs:
         if($LASTEXITCODE -ne 0){throw 'Windows publish compilation failed'}
         $testbin='candidate/qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0'
         Copy-Item candidate-publish/LealInfoPDV.dll $testbin/LealInfoPDV.dll -Force
-        dotnet "$testbin/RealSalesTests.dll" --bootstrap
-        if($LASTEXITCODE -ne 0){throw 'Packaged real sales and embedded PET failed'}
-        $r=Get-Content evidence/real-results.json -Raw|ConvertFrom-Json
+        dotnet "$testbin/FinanceLayoutTests.dll" --bootstrap
+        if($LASTEXITCODE -ne 0){throw 'Packaged financial report and embedded PET failed'}
+        $r=Get-Content evidence/finance-results.json -Raw|ConvertFrom-Json
         if(!$r.Success -or $r.checks.Count -lt 13){throw 'No packaged window approval'}
         python scripts/distribute_channels.py package 001
         if($LASTEXITCODE -ne 0){throw 'Package invalid'}

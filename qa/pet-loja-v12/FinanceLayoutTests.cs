@@ -23,12 +23,13 @@ static class FinanceLayoutTests
    timer.Tick+=(_,_)=>{
     var f=Application.OpenForms.Cast<Form>().FirstOrDefault(x=>x.Text=="LEAL INFO PDV • RELATÓRIO FINANCEIRO");if(f==null)return;timer.Stop();
     try{
+     typeof(MainForm).Assembly.GetType("LealInfoPDV.SalesDialogTheme")!.GetMethod("Apply",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object?[]{f,"Futurista Azul",null});
      var pet=new LojaTestExtension();pet.Customize(f);pet.Customize(f);
-     f.WindowState=FormWindowState.Normal;
+     f.WindowState=FormWindowState.Normal;f.MinimumSize=Size.Empty;
      foreach(var scale in new[]{1f,1.25f,1.5f}){
       if(scale!=1f)f.Scale(new SizeF(scale/(scale==1.25f?1f:1.25f),scale/(scale==1.25f?1f:1.25f)));
       foreach(var size in new[]{new Size(1360,680),new Size(1024,600)}){
-       f.ClientSize=size;f.PerformLayout();
+       f.ClientSize=size;f.PerformLayout();Check(f.ClientSize==size,"requested client viewport applied");
        var layout=f.Controls.OfType<TableLayoutPanel>().Single();var footer=(FlowLayoutPanel)layout.GetControlFromPosition(0,5)!;
        foreach(var b in footer.Controls.OfType<Button>())Check(footer.ClientRectangle.Contains(b.Bounds)&&f.ClientRectangle.Contains(f.RectangleToClient(b.RectangleToScreen(b.ClientRectangle))),$"complete {b.Text} at {size.Width}x{size.Height}, scale {scale}");
        var tabs=Walk(f).OfType<TabControl>().Single();Check(tabs.Height>100,"table retains usable height");
