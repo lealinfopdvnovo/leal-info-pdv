@@ -10,7 +10,7 @@ internal sealed class KitchenOrderPanel : UserControl
     private readonly Label elapsed=new KitchenCenteredLabel(){Name="DashboardOrderElapsed",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,ForeColor=Color.OrangeRed};
     private readonly Button clear=new(){Name="DashboardClearDraft",Text="LIMPAR",Dock=DockStyle.Fill};
     internal readonly DataGridView Rows=new(){Name="DashboardOrderItems",Dock=DockStyle.Fill,ReadOnly=true,AllowUserToAddRows=false,AllowUserToDeleteRows=false,RowHeadersVisible=false,AutoSizeColumnsMode=DataGridViewAutoSizeColumnsMode.Fill,SelectionMode=DataGridViewSelectionMode.FullRowSelect,MultiSelect=false,BackgroundColor=KitchenPremiumStyle.Background,BorderStyle=BorderStyle.None,EnableHeadersVisualStyles=false};
-    private readonly KitchenHeroButton send=new("DashboardSend","ENVIAR PARA COZINHA","CONFIRMAR PEDIDO",Color.FromArgb(0,226,100),"\uE8F4");
+    private readonly KitchenHeroButton send=new("DashboardSend","CONFIRMAR PEDIDO","DESTINOS POR ITEM",Color.FromArgb(0,226,100),"\uE8F4");
     private readonly KitchenHeroButton print=new("DashboardPrint","IMPRIMIR COMANDA","PEDIDO DA MESA",Color.FromArgb(0,163,255),"\uE749");
     private readonly KitchenHeroButton ready=new("DashboardReady","MARCAR PRONTO","FINALIZAR PREPARO",Color.FromArgb(255,200,40),"\uE7F4");
     private readonly Label total=new(){Name="KitchenTableTotal",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,ForeColor=KitchenPremiumStyle.Gold,Font=new Font("Segoe UI",11,FontStyle.Bold)};
