@@ -25,7 +25,7 @@ jobs:
     - name: Compilar e testar relatório real
       shell: pwsh
       run: |
-        dotnet build qa/pet-loja-v12/FinanceLayoutTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        dotnet build qa/pet-loja-v12/FinanceLayoutTests.csproj -c Release -p:Optimize=false -p:UseSharedCompilation=false -p:BuildInParallel=false
         if($LASTEXITCODE -ne 0){throw 'Build failed'}
         dotnet qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0/FinanceLayoutTests.dll
         if($LASTEXITCODE -ne 0){throw 'Financial layout failed'}

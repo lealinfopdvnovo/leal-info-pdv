@@ -9,13 +9,14 @@ internal static class FinanceReportLayout
   if(layout==null||layout.RowCount!=6)return;
   var footer=layout.GetControlFromPosition(0,5) as FlowLayoutPanel;
   if(footer==null)return;
+  Console.WriteLine($"REPORT rows={layout.RowCount} styles={layout.RowStyles.Count} footer={footer.GetType().Name}");
   Applied.Add(form,new object());
   // Preferred height includes scaled padding, margins and actual button height.
   // A fixed row can clip the controls after Windows font/DPI autoscaling.
   footer.WrapContents=false;footer.AutoSize=true;footer.AutoSizeMode=AutoSizeMode.GrowAndShrink;
   layout.RowStyles[5].SizeType=SizeType.AutoSize;
   if(layout.GetControlFromPosition(0,4) is Label status){status.AutoEllipsis=true;}
-  foreach(var grid in Walk(form).OfType<DataGridView>()){
+  foreach(var grid in Walk(form).OfType<DataGridView>().ToArray()){
    void Columns(){
     foreach(DataGridViewColumn c in grid.Columns){
      c.MinimumWidth=c.Name switch {"Código" or "Venda"=>60,"Data"=>160,"Tipo"=>90,"Descrição" or "Produto"=>220,_=>100};
