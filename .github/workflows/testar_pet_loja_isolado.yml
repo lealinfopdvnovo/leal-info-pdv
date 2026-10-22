@@ -4,6 +4,7 @@ name: Testar PET LOJA LEAL INFO V1.1 - isolado sem publicar
     branches: [qa/loja-pet-v1-1-isolado]
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: loja-pet-v1-1-isolado
   cancel-in-progress: true
@@ -37,19 +38,38 @@ jobs:
         Invoke-WebRequest $b.PackageUrl -OutFile baseline.zip
         if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne $b.Sha256){throw 'Published baseline SHA mismatch'}
         Expand-Archive baseline.zip baseline
+    - uses: actions/download-artifact@v4
+      with:
+        name: GLOBAL-core-preparado-sem-publicacao
+        run-id: 39727351628
+        github-token: ${{ github.token }}
+        path: approved-global
     - name: Compilar somente PET LOJA e base GLOBAL sem modificar seus fontes
       shell: pwsh
       run: |
         dotnet build qa/pet-organization/extension/PetDisplay.csproj -c Release -p:PetId=001 -p:UseSharedCompilation=false -p:BuildInParallel=false -o pet-loja
         if($LASTEXITCODE -ne 0){throw 'LOJA PET compile failed'}
-        dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o common -p:UseSharedCompilation=false
-        if($LASTEXITCODE -ne 0){throw 'GLOBAL fixture compile failed'}
+        $approved=Get-Content approved-global/prepared.json -Raw|ConvertFrom-Json
+        if($approved.Source -ne '4d9128cf8a64b487f836af6c12db14d6a7eb7fd3' -or $approved.Version -ne '10.443' -or $approved.Published){throw 'Wrong immutable GLOBAL artifact'}
+        New-Item -ItemType Directory common -Force|Out-Null
+        foreach($n in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){
+          $p=Join-Path approved-global/common-files $n
+          if((Get-FileHash $p).Hash.ToLowerInvariant() -ne $approved.Files.$n){throw 'Approved GLOBAL byte mismatch'}
+          Copy-Item $p common/
+        }
+        python qa/loja-pet-test/dependencies.py
+        if($LASTEXITCODE -ne 0){throw 'Dependency inspection failed'}
     - name: Testar carregador real MainForm dados isolados e inventario das personalizacoes existentes
       shell: pwsh
       run: |
         $pet=(Resolve-Path pet-loja/LealInfoPDV.Pet.001.dll).Path
         $baseline=(Resolve-Path baseline/LealInfoPDV.dll).Path
-        dotnet run --project qa/loja-pet-test/Tests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false -- $pet $baseline
+        dotnet build qa/loja-pet-test/Tests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'LOJA test compile failed'}
+        $bin='qa/loja-pet-test/bin/Release/net8.0-windows10.0.19041.0'
+        Copy-Item common/LealInfoPDV.dll $bin/LealInfoPDV.dll -Force
+        $approved=Get-Content approved-global/prepared.json -Raw|ConvertFrom-Json
+        dotnet "$bin/LealInfoPDV.NetworkTests.dll" $pet $baseline $approved.Files.'LealInfoPDV.dll'
         if($LASTEXITCODE -ne 0){throw 'LOJA test execution failed'}
     - name: Testar backup e recuperacao dos executaveis em copia descartavel
       shell: pwsh
