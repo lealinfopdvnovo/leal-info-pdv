@@ -7,6 +7,8 @@ static class Tests
  static readonly List<string> checks=new();
  const BindingFlags P=BindingFlags.NonPublic|BindingFlags.Instance;
  [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern IntPtr FindWindow(string? cls,string name);
+ [DllImport("user32.dll")]static extern IntPtr GetForegroundWindow();
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern int GetWindowText(IntPtr h,System.Text.StringBuilder text,int max);
  [DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr h,uint m,IntPtr w,IntPtr l);
  static void Check(bool b,string why){if(!b)throw new Exception(why);checks.Add(why);Console.WriteLine("PASS "+why);}
  static object? Sql(string sql){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText=sql;return q.ExecuteScalar();}
@@ -15,7 +17,7 @@ static class Tests
  static void Call(object o,string n,params object[] args)=>o.GetType().GetMethod(n,P)!.Invoke(o,args);
  static string Money()=>Convert.ToString(Sql("SELECT (SELECT group_concat(id||'/'||price||'/'||cost||'/'||stock,';') FROM products ORDER BY id)||'|'||(SELECT COUNT(*) FROM sales)||'|'||(SELECT COUNT(*) FROM sale_payments)||'|'||(SELECT COUNT(*) FROM cash_movements)"))!;
  static bool Dialog(Func<bool> action,int button){using var timer=new System.Windows.Forms.Timer{Interval=60};bool observed=false;timer.Tick+=(_,_)=>{var h=FindWindow(null,"Conferir destino dos produtos");if(h!=IntPtr.Zero){observed=true;SendMessage(h,0x0111,new IntPtr(button),IntPtr.Zero);}};timer.Start();bool result=action();timer.Stop();Check(observed,"classification mismatch asks operator confirmation");return result;}
- static void Save(object form){using var timer=new System.Windows.Forms.Timer{Interval=60};timer.Tick+=(_,_)=>{var h=FindWindow(null,"LEAL INFO PDV");if(h==IntPtr.Zero)h=FindWindow(null,"Classificação obrigatória");if(h!=IntPtr.Zero)SendMessage(h,0x0111,new IntPtr(1),IntPtr.Zero);};timer.Start();Call(form,"SaveProduct");timer.Stop();}
+ static void Save(object target){var form=(Form)target;if(!form.Visible){form.Show();Application.DoEvents();}using var timer=new System.Windows.Forms.Timer{Interval=100};int ticks=0;timer.Tick+=(_,_)=>{var h=FindWindow(null,"LEAL INFO PDV");if(h==IntPtr.Zero)h=FindWindow(null,"Classificação obrigatória");if(h!=IntPtr.Zero){Console.WriteLine("TRACE dismiss registration message");SendMessage(h,0x0111,new IntPtr(1),IntPtr.Zero);}else if(++ticks%20==0){var title=new System.Text.StringBuilder(500);GetWindowText(GetForegroundWindow(),title,500);Console.WriteLine("TRACE registration foreground: "+title);using var image=new Bitmap(Screen.PrimaryScreen!.Bounds.Width,Screen.PrimaryScreen.Bounds.Height);using var g=Graphics.FromImage(image);g.CopyFromScreen(Point.Empty,Point.Empty,image.Size);image.Save("corrections-evidence/registration-debug.png");}};timer.Start();Console.WriteLine("TRACE call SaveProduct");Call(form,"SaveProduct");Console.WriteLine("TRACE SaveProduct returned");timer.Stop();}
  [STAThread]static int Main(){
  if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true"||!OperatingSystem.IsWindows())throw new Exception("Disposable Windows only");
  Directory.CreateDirectory("corrections-evidence");Application.EnableVisualStyles();Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
