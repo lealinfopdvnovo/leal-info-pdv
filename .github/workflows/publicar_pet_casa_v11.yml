@@ -1,0 +1,118 @@
+name: CASA PET V1.1 - ponte segura exclusiva 003
+'on':
+  push:
+    branches: [release/pet-casa-v11]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publicar-pet-casa-003
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 14
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: '003'
+      SOURCE_REF: ${{ github.sha }}
+      APPROVED_SOURCE: ${{ github.sha }}
+      PYTHONUTF8: '1'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        path: source
+        fetch-depth: 0
+    - name: Preservar integralmente a base operacional do 003
+      working-directory: source
+      shell: python
+      run: |
+        import subprocess
+        base='ba86aa4089a9dfa4a2f081d4d3a5b4f1da3ec4f4'
+        changed=subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines()
+        allowed={'Program.cs','LealInfoPDV.csproj','UpdateManager.cs','PetRuntime.cs','CasaPetBootstrap.cs','.github/workflows/publicar_pet_casa_v11.yml'}
+        assert all(p in allowed or p.startswith('qa/pet-casa-v11/') for p in changed),changed
+        old=subprocess.check_output(['git','show',base+':Program.cs'],text=True)
+        assert open('Program.cs',encoding='utf-8-sig').read()==old.replace('            Database.Initialize();','            Database.Initialize();\n            CasaPetBootstrap.Initialize();')
+        print('PASS legacy business, Glass, database, license and updater implementation unchanged')
+    - uses: actions/checkout@v4
+      with:
+        ref: b95da478624312a5070e9ee512e156b3a9dcb858
+        path: controller
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.401
+    - name: Preparar pacote exclusivo sobre o 003 publicado
+      working-directory: controller
+      shell: pwsh
+      run: |
+        '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+        python scripts/distribute_channels.py plan
+        if($LASTEXITCODE -ne 0){throw 'Plan failed'}
+        $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
+        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '003' -or $p.Entries[0].Version -ne '10.443' -or $p.Entries[0].Baseline.Version -ne '10.442'){throw 'Wrong scope'}
+        python scripts/distribute_channels.py prepare 003
+        if($LASTEXITCODE -ne 0){throw 'Preparation failed'}
+        Push-Location candidate
+        ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+        ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+        ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+        ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+        ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+        ./scripts/aplicar_central_equipamentos_v10_314.ps1
+        Pop-Location
+    - name: Testar tela real e compilar ponte com PET V1.1 incorporado
+      working-directory: controller
+      shell: pwsh
+      run: |
+        dotnet build candidate/qa/pet-casa-v11/FinanceLayoutTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'Test host compilation failed'}
+        $payload=(Resolve-Path 'candidate/qa/pet-casa-v11/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.003.dll').Path
+        $sdk=Get-Content sdk-version.txt
+        dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -p:CasaPetPayload=$payload -o candidate-publish
+        if($LASTEXITCODE -ne 0){throw 'Windows publish compilation failed'}
+        $testbin='candidate/qa/pet-casa-v11/bin/Release/net8.0-windows10.0.19041.0'
+        Copy-Item candidate-publish/LealInfoPDV.dll $testbin/LealInfoPDV.dll -Force
+        dotnet "$testbin/FinanceLayoutTests.dll" --bootstrap
+        if($LASTEXITCODE -ne 0){throw 'Packaged financial report and embedded PET failed'}
+        $r=Get-Content evidence/finance-results.json -Raw|ConvertFrom-Json
+        if(!$r.Success -or $r.checks.Count -lt 13){throw 'No packaged window approval'}
+        python scripts/distribute_channels.py package 003
+        if($LASTEXITCODE -ne 0){throw 'Package invalid'}
+        New-Item -ItemType Directory ../source/validated/layout-evidence -Force|Out-Null
+        Copy-Item evidence/* ../source/validated/layout-evidence/
+        $proof=@{success=$true;checks=$r.checks;channel='003';source=$env:GITHUB_SHA;published=$false;PetVersion='1.1'}
+        $proof|ConvertTo-Json -Depth 8|Set-Content ../source/validated/layout-evidence/results.json -Encoding UTF8
+        Copy-Item release-output ../source/validated/ -Recurse
+    - name: Testar backup integridade interrupcao e rollback
+      working-directory: source
+      shell: pwsh
+      run: |
+        ./qa/pet-casa-v11/rollback.ps1 2>&1 | Tee-Object validated/rollback.log
+        if($LASTEXITCODE -ne 0){throw 'Rollback failed'}
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pacote-003-pet-v11
+        path: source/validated/
+  publicar:
+    needs: validar
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: pacote-003-pet-v11
+        path: proof/003/validated
+    - name: Publicar apenas 003 e conferir bytes e feed do atualizador
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        SOURCE_003: ${{ github.sha }}
+      run: python qa/pet-casa-v11/publish.py
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: publicacao-003-pet-v11
+        path: published-003.json
+

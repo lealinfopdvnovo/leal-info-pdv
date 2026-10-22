@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><TargetFramework>net8.0-windows10.0.19041.0</TargetFramework><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>LealInfoPDV.Pet.003</AssemblyName><Version>1.1.0</Version></PropertyGroup>
+<ItemGroup><Compile Remove="Tests.cs;RealSalesTests.cs;FinanceLayoutTests.cs"/><ProjectReference Include="../../LealInfoPDV.csproj"/><AssemblyMetadata Include="PetIdentity" Value="003"/></ItemGroup>
+</Project>
+

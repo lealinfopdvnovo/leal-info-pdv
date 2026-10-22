@@ -52,6 +52,7 @@ internal static class Program
                 ? new Network.NetworkDatabaseServer(Network.NetworkConfiguration.Current) : null;
             networkServer?.License.CheckAccess();
             Database.Initialize();
+            CasaPetBootstrap.Initialize();
             if (!Environment.GetCommandLineArgs().Contains("--manutencao")) networkServer?.Start();
             TransactionalUpdate.ReportReady();
 
