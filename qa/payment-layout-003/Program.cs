@@ -26,17 +26,17 @@ static class Tests
      if(factor!=1)f.Scale(new SizeF(factor,factor));
      for(int i=0;i<4;i++)
      {
-      tabs.SelectedIndex=i;f.PerformLayout();Application.DoEvents();var page=tabs.TabPages[i];var b=page.Controls.OfType<Button>().Single();
-      Check(Math.Abs(2*b.Left+b.Width-page.ClientSize.Width)<=1,"confirmation centered on actual page "+i+" at scale "+f.Width);
-      Check(page.ClientRectangle.Contains(b.Bounds),"confirmation fully visible without clipping "+i+" at scale "+f.Width);
-      Check(page.Controls.OfType<Label>().Where(l=>l.TextAlign==ContentAlignment.MiddleCenter).All(l=>Math.Abs(2*l.Left+l.Width-page.ClientSize.Width)<=1),"payment headings and amount share center "+i+" at scale "+f.Width);
-      if(i==0){var amount=page.Controls.OfType<NumericUpDown>().Single();amount.Value=25m;Check(page.Controls.OfType<Label>().Any(l=>l.Text.Contains("5,00")&&l.Text.StartsWith("TROCO")),"change still calculated after entering received amount");amount.Value=20m;}
+      tabs.SelectedIndex=i;f.PerformLayout();Application.DoEvents();var page=tabs.TabPages[i];var b=All(page).OfType<Button>().Single();
+      Check(Math.Abs(2*b.Left+b.Width-b.Parent!.ClientSize.Width)<=1,"confirmation centered on actual page "+i+" at scale "+f.Width);
+      Check(b.Parent!.ClientRectangle.Contains(b.Bounds) && page.RectangleToScreen(page.ClientRectangle).Contains(b.Parent.RectangleToScreen(b.Bounds)),"confirmation fully visible without clipping "+i+" at scale "+f.Width);
+      Check(All(page).OfType<Label>().Where(l=>l.TextAlign==ContentAlignment.MiddleCenter).All(l=>Math.Abs(2*l.Left+l.Width-l.Parent!.ClientSize.Width)<=1),"payment headings and amount share center "+i+" at scale "+f.Width);
+      if(i==0){var amount=All(page).OfType<NumericUpDown>().Single();amount.Value=25m;Check(All(page).OfType<Label>().Any(l=>l.Text.Contains("5,00")&&l.Text.StartsWith("TROCO")),"change still calculated after entering received amount");amount.Value=20m;}
      }
      var cancel=All(f).OfType<Button>().Single(b=>b.Text=="CANCELAR");Check(cancel.Parent!.ClientRectangle.Contains(cancel.Bounds),"cancel button remains contained at scale "+f.Width);
      using var image=new Bitmap(f.Width,f.Height);f.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save("corrections-evidence/payment-"+method+"-"+f.Width+".png");
     }
     tabs.SelectedIndex=method;
-    if(confirm)tabs.TabPages[0].Controls.OfType<Button>().Single().PerformClick();else All(f).OfType<Button>().Single(b=>b.Text=="CANCELAR").PerformClick();
+    if(confirm)All(tabs.TabPages[0]).OfType<Button>().Single().PerformClick();else All(f).OfType<Button>().Single(b=>b.Text=="CANCELAR").PerformClick();
    }catch(Exception e){failure=e;f.Close();}
   };timer.Start();var result=typeof(MainForm).GetMethod("SelectPayment",P)!.Invoke(main,new object?[]{20d,method,main,"RECEBER / PAGAMENTO — MESA 01"});timer.Stop();if(failure!=null)throw failure;Check(exercised,"actual modal payment dialog exercised");return result;
  }
