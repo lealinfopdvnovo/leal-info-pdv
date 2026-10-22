@@ -1,0 +1,63 @@
+name: Testar PET LOJA LEAL INFO V1.1 - isolado sem publicar
+'on':
+  push:
+    branches: [qa/loja-pet-v1-1-isolado]
+permissions:
+  contents: read
+concurrency:
+  group: loja-pet-v1-1-isolado
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Conferir isolamento do teste e preservar GLOBAL e demais PETs
+      run: python qa/loja-pet-test/scope.py
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.401
+    - name: Preparar compilacao existente
+      shell: pwsh
+      run: |
+        '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+        ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+        ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+        ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+        ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+        ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+        ./scripts/aplicar_central_equipamentos_v10_314.ps1
+    - name: Obter somente pacote publicado LOJA e validar integridade
+      shell: pwsh
+      run: |
+        $b=Get-Content qa/loja-pet-test/baseline.json -Raw|ConvertFrom-Json
+        Invoke-WebRequest $b.PackageUrl -OutFile baseline.zip
+        if((Get-FileHash baseline.zip).Hash.ToLowerInvariant() -ne $b.Sha256){throw 'Published baseline SHA mismatch'}
+        Expand-Archive baseline.zip baseline
+    - name: Compilar somente PET LOJA e base GLOBAL sem modificar seus fontes
+      shell: pwsh
+      run: |
+        dotnet build qa/pet-organization/extension/PetDisplay.csproj -c Release -p:PetId=001 -p:UseSharedCompilation=false -p:BuildInParallel=false -o pet-loja
+        if($LASTEXITCODE -ne 0){throw 'LOJA PET compile failed'}
+        dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o common -p:UseSharedCompilation=false
+        if($LASTEXITCODE -ne 0){throw 'GLOBAL fixture compile failed'}
+    - name: Testar carregador real MainForm dados isolados e inventario das personalizacoes existentes
+      shell: pwsh
+      run: |
+        $pet=(Resolve-Path pet-loja/LealInfoPDV.Pet.001.dll).Path
+        $baseline=(Resolve-Path baseline/LealInfoPDV.dll).Path
+        dotnet run --project qa/loja-pet-test/Tests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false -- $pet $baseline
+        if($LASTEXITCODE -ne 0){throw 'LOJA test execution failed'}
+    - name: Testar backup e recuperacao dos executaveis em copia descartavel
+      shell: pwsh
+      run: |
+        ./qa/loja-pet-test/rollback.ps1
+        if($LASTEXITCODE -ne 0){throw 'Executable recovery execution failed'}
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: LOJA-LEAL-INFO-V1-1-teste-isolado-nao-publicado
+        path: evidence/
