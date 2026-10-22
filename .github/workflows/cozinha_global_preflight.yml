@@ -1,0 +1,22 @@
+name: Verificar transicao GLOBAL Cozinha aprovada
+'on':
+  push:
+    branches: [qa/global-cozinha-10443-preflight]
+permissions:
+  contents: read
+jobs:
+  verificar:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v4
+    - name: Verificar pacotes publicados e interrupcao do aplicador legado
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: ./qa/global-kitchen-preflight/verify.ps1
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: global-cozinha-publication-preflight
+        path: evidence/
