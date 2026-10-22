@@ -1,0 +1,53 @@
+name: Diagnostico portatil PDV - Windows isolado
+on:
+  push:
+    branches: ['codex/diagnostico-portatil']
+    paths: ['qa/pdv-diagnostics/**', '.github/workflows/diagnostico_portatil.yml']
+permissions:
+  contents: read
+concurrency:
+  group: diagnostico-portatil
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Compilar aplicativo portatil independente
+        shell: pwsh
+        run: |
+          dotnet publish qa/pdv-diagnostics/Diagnostics.csproj -c Release -r win-x64 -p:UseSharedCompilation=false -o diagnostics-build
+          if($LASTEXITCODE -ne 0){throw 'Build failed'}
+      - name: Testar medicoes Windows, interface e preservacao de arquivos
+        timeout-minutes: 2
+        shell: pwsh
+        run: |
+          $p=Start-Process ./diagnostics-build/LEAL_INFO_DIAGNOSTICO.exe -ArgumentList '--self-test' -PassThru
+          if(-not $p.WaitForExit(75000)){$p.Kill();throw 'Self-test timeout'}
+          if($p.ExitCode -ne 0){if(Test-Path diagnostics-proof/failure.txt){Get-Content diagnostics-proof/failure.txt};throw 'Self-test failed'}
+          $r=Get-Content diagnostics-proof/results.json -Raw|ConvertFrom-Json
+          if($r.Success -ne $true){throw 'No successful evidence'}
+          $r.Checks
+      - name: Preparar entrega sem publicar ou instalar PDV
+        shell: pwsh
+        run: |
+          Copy-Item qa/pdv-diagnostics/README.md diagnostics-build/LEIA-ME.txt
+          (Get-FileHash diagnostics-build/LEAL_INFO_DIAGNOSTICO.exe -Algorithm SHA256).Hash.ToLowerInvariant()|Set-Content diagnostics-build/SHA256.txt
+          git diff --exit-code
+          if($LASTEXITCODE -ne 0){throw 'Source mutated'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostico-evidencias-windows
+          path: diagnostics-proof/
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: LEAL-INFO-DIAGNOSTICO-WINDOWS-X64
+          path: |
+            diagnostics-build/LEAL_INFO_DIAGNOSTICO.exe
+            diagnostics-build/LEIA-ME.txt
+            diagnostics-build/SHA256.txt
