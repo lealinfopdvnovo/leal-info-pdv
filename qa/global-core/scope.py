@@ -4,7 +4,7 @@ def git(*a):return subprocess.check_output(['git',*a]).decode('utf-8').replace('
 allowed={'UpdateManager.cs','PetRuntime.cs','TransactionalUpdate.cs','TransactionalUpdate.ps1','LealInfoPDV.csproj','Program.cs','Licensing/UpdatePayloadPolicy.cs','docs/arquitetura-global-pet.md','.github/workflows/preparar_global_core.yml'}
 changed=set(git('diff','--name-only',base,'HEAD').splitlines())
 assert all(p in allowed or p.startswith('qa/global-core/') for p in changed),changed
-for p in ['MainForm.cs','Database.cs','ProductRegistrationForm.cs','Licensing/InstallationLicense.cs','Licensing/LicenseStore.cs']:
+for p in ['MainForm.cs','Database.cs','ProductRegistrationForm.cs','Licensing/InstallationLicense.cs','Licensing/ActivationForm.cs']:
  assert git('rev-parse','HEAD:'+p)==git('rev-parse',base+':'+p),'Business or activation changed: '+p
 p=git('show','HEAD:Program.cs');old=git('show',base+':Program.cs')
 p=p.replace('        try { TransactionalUpdate.BeforeStartup(); }\n        catch(Exception ex) { Environment.ExitCode=1; System.Diagnostics.Trace.WriteLine(ex); return; }\n','').replace('            PetRuntime.Initialize(Licensing.InstallationLicense.Current?.ClientCode ?? "");\n            TransactionalUpdate.ReportReady();\n','')
