@@ -42,5 +42,5 @@ static class RealSalesTests{
  File.WriteAllText("evidence/real-results.json",JsonSerializer.Serialize(new{Success=true,checks,ActualSalesForm=true,CustomerWindowsTested=false,Published=false,PetUpdaterValidated=false,GlobalSha256=hash}));return 0;
  }catch(Exception e){File.WriteAllText("evidence/real-failure.txt",e.ToString());Console.Error.WriteLine(e);return 1;}
  }
- static void Shot(Form f,string path){using var b=new Bitmap(f.Width,f.Height);f.DrawToBitmap(b,new Rectangle(Point.Empty,b.Size));b.Save(path);}
+ static void Shot(Form f,string path){var roots=f.Controls.Cast<Control>().Where(c=>c.Visible).ToArray();int w=Math.Max(f.ClientSize.Width,roots.Select(c=>c.Right).DefaultIfEmpty(1).Max());int h=Math.Max(f.ClientSize.Height,roots.Select(c=>c.Bottom).DefaultIfEmpty(1).Max());using var b=new Bitmap(w,h);using(var g=Graphics.FromImage(b))g.Clear(f.BackColor);foreach(var root in roots)if(root.Width>0&&root.Height>0)root.DrawToBitmap(b,root.Bounds);b.Save(path);}
 }
