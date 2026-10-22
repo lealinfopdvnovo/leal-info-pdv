@@ -28,6 +28,43 @@ internal static class Program
         try
         {
             Network.NetworkConfiguration.Load();
+            IDisposable? processOwnership = null;
+            using var ownershipLifetime = new OwnershipLifetime(() => processOwnership?.Dispose());
+            // Dedicated maintenance process: wait for the operational process to leave before changing any data.
+            var argv = Environment.GetCommandLineArgs();
+            if (argv.Length == 4 && argv[1] == "--restaurar-automatico")
+            {
+                var staged = Path.GetFullPath(argv[2]);
+                var app = Path.GetFullPath(Database.AppFolder);
+                if (!staged.StartsWith(app + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                    !Path.GetFileName(staged).StartsWith("restore_pending_", StringComparison.OrdinalIgnoreCase) ||
+                    !staged.EndsWith(".db", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Solicitação de restauração inválida.");
+                if (!int.TryParse(argv[3], out var previousPid) || previousPid <= 0 || previousPid == Environment.ProcessId)
+                    throw new InvalidOperationException("Processo anterior inválido.");
+                try
+                {
+                    using var previous = System.Diagnostics.Process.GetProcessById(previousPid);
+                    if (!previous.WaitForExit(60000))
+                        throw new InvalidOperationException("O PDV não fechou. Nenhum dado foi alterado.");
+                }
+                catch (ArgumentException) { /* Process has already exited. */ }
+                var reservation = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Any, Network.NetworkConfiguration.Current.Port);
+                using var portLifetime = new OwnershipLifetime(() => reservation.Stop());
+                reservation.Start(); // Refuse if another server is still listening.
+                processOwnership = new RestoreEngine(Database.AppFolder).AcquireOwnership();
+                DatabaseBackupService.RestoreAsync(staged).GetAwaiter().GetResult();
+                File.Delete(staged);
+                processOwnership.Dispose(); processOwnership = null;
+                reservation.Stop();
+                var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "LealInfoPDV.exe");
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe)
+                {
+                    WorkingDirectory = AppContext.BaseDirectory,
+                    UseShellExecute = true
+                });
+                return;
+            }
             if (Environment.GetCommandLineArgs().Contains("--check-lia"))
             {
                 try {
@@ -43,6 +80,15 @@ internal static class Program
                 settings.ShowDialog();
                 return;
             }
+            processOwnership = new RestoreEngine(Database.AppFolder).AcquireOwnership();
+            if (new RestoreEngine(Database.AppFolder).Recover())
+                MessageBox.Show("Uma restauração foi interrompida. O banco anterior foi recuperado e verificado. Tente a restauração novamente quando desejar.", "Recuperação do PDV", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            var recoveredNotice = Path.Combine(Database.AppFolder, "restore-recovered.notice");
+            if (File.Exists(recoveredNotice))
+            {
+                MessageBox.Show("Uma restauração foi interrompida. A proteção recuperou e verificou o banco anterior automaticamente.", "Recuperação do PDV", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                File.Delete(recoveredNotice);
+            }
             if (Network.NetworkConfiguration.Current.Mode != "terminal" && !Licensing.InstallationLicense.EnsureActivated()) return;
             if (Network.NetworkConfiguration.Current.Mode == "server" && !Licensing.InstallationLicense.HasNetwork)
                 throw new InvalidOperationException("Ative a licença do servidor antes de abrir o PDV em rede.");
@@ -52,8 +98,10 @@ internal static class Program
             networkServer?.License.CheckAccess();
             Database.Initialize();
             PetRuntime.Initialize(Licensing.InstallationLicense.Current?.ClientCode ?? "");
-            TransactionalUpdate.ReportReady();
             if (!Environment.GetCommandLineArgs().Contains("--manutencao")) networkServer?.Start();
+            PetRuntime.ReportReady();
+
+            TransactionalUpdate.ReportReady();
 
             // Nunca bloqueia a abertura do caixa aguardando Internet.
             // A verificação silenciosa continua depois que a tela principal já abriu.
@@ -166,4 +214,9 @@ internal static class Program
                 MessageBoxIcon.Error);
         }
     }
+    private sealed class OwnershipLifetime(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
+    }
+
 }

@@ -14,6 +14,7 @@ public interface IPetExtension
 }
 
 public interface IPetStartup { void Initialize(); }
+public interface IPetReady { void ReportReady(); }
 
 internal static class PetRuntime
 {
@@ -47,6 +48,7 @@ internal static class PetRuntime
         if(extension is IPetStartup startup)startup.Initialize();
         Application.Idle+=Apply;
     }
+    internal static void ReportReady(){if(extension is IPetReady ready)ready.ReportReady();}
     private static void Apply(object? sender,EventArgs args)
     {
         foreach(var form in Application.OpenForms.Cast<Form>().Where(f=>f.Visible&&!f.IsDisposed).ToArray())

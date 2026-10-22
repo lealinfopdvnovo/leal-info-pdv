@@ -66,6 +66,12 @@ jobs:
           if((Get-Content (Join-Path $dbRoot 'ISOLATED-CONSOLIDATION') -Raw) -ne $env:GITHUB_RUN_ID){throw 'Fixture guard mismatch'}
           Move-Item $dbRoot (Join-Path $env:RUNNER_TEMP "preserved-fixture-$id")
         }
+    - name: Validar preservação da restauração automática já aprovada
+      shell: pwsh
+      run: |
+        dotnet run --project qa/restore-real/LealInfoPDV.RestoreTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'Approved restore integration failed'}
+        Copy-Item restore-evidence evidence/restore -Recurse
     - name: Validar backup e recuperação da base comum preservando PET
       shell: pwsh
       run: |

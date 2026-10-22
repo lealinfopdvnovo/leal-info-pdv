@@ -3561,8 +3561,12 @@ private void ApplyFloatingTheme(Form f)
         finally { UseWaitCursor = false; }
     }
 
+    private bool restoreInProgress;
     private async Task RestoreBackupAsync()
     {
+        if (restoreInProgress) return;
+        if (Application.OpenForms.Cast<Form>().Any(f => f.Name == "SalesForm" || f.Text.Contains("TELA DE VENDA")))
+        { MessageBox.Show("Feche a tela de vendas antes de restaurar o backup.", "Restauração bloqueada"); return; }
         if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode restaurar backups.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
         using var dialog = new OpenFileDialog
         {
@@ -3575,21 +3579,48 @@ private void ApplyFloatingTheme(Form f)
         if (MessageBox.Show("A restauração substituirá os dados atuais pelos dados do backup selecionado.\n\nUma cópia de segurança do banco atual será guardada antes da troca. Deseja continuar?",
             "Confirmar restauração", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
 
+        IDisposable? restoreAdmission = null;
+        var handedOff = false;
         try
         {
+            restoreInProgress = true;
+            Enabled = false;
             UseWaitCursor = true;
-            await DatabaseBackupService.RestoreAsync(dialog.FileName);
-            automaticBackupCompleted = true;
-            MessageBox.Show("Backup restaurado e validado com sucesso.\n\nO PDV será reiniciado agora para carregar os dados recuperados.",
-                "Restauração concluída", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            Application.Restart();
+            if (Network.NetworkConfiguration.Current.Mode == "terminal")
+                throw new InvalidOperationException("Faça a restauração no servidor.");
+            restoreAdmission = Network.NetworkDatabaseServer.Current?.BlockForRestore();
+            using var restoreTimeout = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            var stage = await DatabaseBackupService.PrepareAutomaticRestoreAsync(dialog.FileName, restoreTimeout.Token);
+            try
+            {
+                var exe = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "LealInfoPDV.exe");
+                var psi = new System.Diagnostics.ProcessStartInfo(exe)
+                {
+                    WorkingDirectory = AppContext.BaseDirectory,
+                    UseShellExecute = true
+                };
+                psi.ArgumentList.Add("--restaurar-automatico");
+                psi.ArgumentList.Add(stage);
+                psi.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+                MessageBox.Show("O backup foi validado. O PDV será fechado para a restauração segura e reiniciado automaticamente.\n\nMantenha todos os terminais fechados.", "Restauração automática", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                if (System.Diagnostics.Process.Start(psi) == null)
+                    throw new InvalidOperationException("Não foi possível iniciar o processo de recuperação.");
+                automaticBackupCompleted = true;
+                handedOff = true;
+                Application.Exit();
+            }
+            catch
+            {
+                if (File.Exists(stage)) File.Delete(stage);
+                throw;
+            }
         }
         catch(Exception ex)
         {
             MessageBox.Show("O banco atual não foi substituído.\n\n" + ex.Message,
                 "Falha na restauração", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { UseWaitCursor = false; }
+        finally { if (!handedOff) restoreAdmission?.Dispose(); restoreInProgress = false; Enabled = true; UseWaitCursor = false; }
     }
 
     private async void MainForm_FormClosing(object? sender, FormClosingEventArgs e)

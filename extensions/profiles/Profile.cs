@@ -2,13 +2,21 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using LealInfoPDV;
 [assembly:InternalsVisibleTo("LealInfoPDV.Pet.CompatibilityTests")]
-public sealed class ProfileExtension : IPetExtension,IPetStartup
+public sealed class ProfileExtension : IPetExtension,IPetStartup,IPetReady
 {
  internal static string Identity=>typeof(ProfileExtension).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(x=>x.Key=="PetIdentity").Value!;
  internal static string Version=>typeof(ProfileExtension).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().Single(x=>x.Key=="PetVersion").Value!;
  readonly IPetExtension presentation=ProfilePresentation.Create();
  readonly ConditionalWeakTable<Form,object> applied=new();
+ public void ReportReady(){
+#if PET_LOJA
+  UpdateProtectionReceipt.ReportReady();
+#endif
+ }
  public void Initialize(){
+#if PET_LOJA
+  PremiumGlobalTheme.Install();
+#endif
 #if HAS_BUSINESS
   InternalWorkspace.Install();
 #endif
