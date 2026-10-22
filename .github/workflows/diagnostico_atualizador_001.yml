@@ -1,0 +1,30 @@
+name: Diagnostico atualizador publicado 001
+on:
+  push:
+    branches: [fix/update-discovery-001]
+permissions:
+  contents: read
+jobs:
+  conferir:
+    runs-on: windows-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Obter e verificar DLL efetivamente publicada 10.434 do 001
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.434/LEAL_INFO_PDV_001_V10_434_UPDATE.zip -OutFile old.zip
+          if((Get-FileHash old.zip).Hash.ToLowerInvariant() -ne '101814c9a96027582feb04b3f8c666c0d970e1d66457cde38f74294c4e49a6ad'){throw 'Published 434 hash mismatch'}
+          Expand-Archive old.zip old
+          dotnet run --project qa/manifest-001/Discovery.csproj -c Release -- old/LealInfoPDV.dll 2>&1 | Tee-Object discovery.log
+          if($LASTEXITCODE -ne 0){throw 'Actual updater discovery failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: diagnostico-atualizador-001
+          path: |
+            discovery.log
+            discovery-result.json

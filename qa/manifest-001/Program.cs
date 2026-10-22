@@ -1,0 +1,26 @@
+using System.Reflection;
+using System.Net.Http;
+using System.Text.Json;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
+var assembly=Assembly.LoadFrom(Path.GetFullPath(args[0]));
+var t=assembly.GetType("LealInfoPDV.UpdateManager",true)!;
+const BindingFlags flags=BindingFlags.Static|BindingFlags.NonPublic;
+var version=(string)t.GetField("CurrentVersion",BindingFlags.Public|BindingFlags.Static)!.GetRawConstantValue()!;
+if(version!="10.434")throw new Exception("Not actual published 10.434");
+using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(8)};
+http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/10.434");
+var m=t.GetMethod("LoadManifestAsync",flags,null,new[]{typeof(HttpClient),typeof(string),typeof(string)},null)!;
+async Task<object?> Load(string code) {var task=(Task)m.Invoke(null,new object[]{http,code,"10.434"})!;await task;return task.GetType().GetProperty("Result")!.GetValue(task);}
+var result=await Load("001");
+if(result==null)throw new Exception("Published 10.434 cannot discover live 001 feed");
+string Field(string n)=>(string)result.GetType().GetProperty(n)!.GetValue(result)!;
+if(Field("Version")!="10.436"||Field("TargetClientCode")!="001")throw new Exception("Wrong live update");
+Console.WriteLine("PASS actual published 10.434 DLL discovers live 10.436 for 001 through its unchanged HttpClient and selection method");
+var bytes=await http.GetByteArrayAsync(Field("PackageUrl"));
+if(Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()!=Field("Sha256"))throw new Exception("Live hash mismatch");
+Console.WriteLine("PASS exact published 10.434 manifest accepts live package URL and SHA256");
+if(await Load("003")!=null)throw new Exception("Wrong license channel unexpectedly accepted");
+if(await Load("")!=null)throw new Exception("Missing identity unexpectedly accepted");
+Console.WriteLine("PASS mismatched 003 or missing identity reproduces no-update response on 001 executable");
+File.WriteAllText("discovery-result.json",JsonSerializer.Serialize(new{success=true,actualPublishedDll="10.434",target=Field("Version"),channel="001",customerWindowsAccess=false,installedOnCustomer=false}));
