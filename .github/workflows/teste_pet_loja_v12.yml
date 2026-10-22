@@ -33,6 +33,8 @@ jobs:
       run: |
         dotnet run --project qa/pet-loja-v12/Tests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
         if($LASTEXITCODE -ne 0){throw 'PET visual test failed'}
+        dotnet run --project qa/pet-loja-v12/RealSalesTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'Actual sales test failed'}
         $dll='qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.001.dll'
         Copy-Item $dll evidence/
         (Get-FileHash $dll -Algorithm SHA256).Hash | Set-Content evidence/PET-SHA256.txt
