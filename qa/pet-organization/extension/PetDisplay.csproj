@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><TargetFramework>net8.0-windows10.0.19041.0</TargetFramework><UseWindowsForms>true</UseWindowsForms><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><AssemblyName>LealInfoPDV.Pet.$(PetId)</AssemblyName><Version>1.1.0</Version></PropertyGroup>
+<ItemGroup><ProjectReference Include="../../../LealInfoPDV.csproj"/><EmbeddedResource Include="../../../distribution/pets/organization.json" LogicalName="PetOrganization"/><Compile Include="../Catalog.cs" Link="Catalog.cs"/><AssemblyMetadata Include="PetIdentity" Value="$(PetId)"/></ItemGroup>
+<Target Name="ValidatePetId" BeforeTargets="CoreCompile"><Error Condition="'$(PetId)' != '001' And '$(PetId)' != '002' And '$(PetId)' != '003' And '$(PetId)' != '004'" Text="An explicit existing PET identity is required."/></Target>
+</Project>

@@ -1,0 +1,12 @@
+{
+  "SchemaVersion": 1,
+  "Status": "PREPARED_NOT_PUBLISHED",
+  "GlobalReferenceVersion": "10.443",
+  "GlobalReferenceCommit": "4d9128cf8a64b487f836af6c12db14d6a7eb7fd3",
+  "Profiles": [
+    { "InternalId": "001", "DisplayName": "LOJA LEAL INFO", "PetVersion": "1.1" },
+    { "InternalId": "002", "DisplayName": "GELAMAC", "PetVersion": "1.1" },
+    { "InternalId": "003", "DisplayName": "CASA LEAL INFO", "PetVersion": "1.1" },
+    { "InternalId": "004", "DisplayName": "CASA GENILSON", "PetVersion": "1.1" }
+  ]
+}
