@@ -14,7 +14,7 @@ internal static class KitchenPaymentLayout
             actions.Controls.Add(button);
             page.Controls.Add(fields);
             page.Controls.Add(actions);
-            actions.BringToFront();
+            fields.BringToFront();
             void Align()
             {
                 if (actions.IsDisposed || button.IsDisposed) return;
@@ -31,6 +31,8 @@ internal static class KitchenPaymentLayout
             dialog.Shown += (_, _) => Align();
             Align();
         }
+        // Dock edge panels before the fill surface, reserving their space.
+        tabs.BringToFront();
         void AlignCancel()
         {
             int margin = Math.Max(12, (int)Math.Round(24 * footer.DeviceDpi / 96d));

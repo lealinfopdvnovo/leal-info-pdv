@@ -27,9 +27,14 @@ static class Tests
      for(int i=0;i<4;i++)
      {
       tabs.SelectedIndex=i;f.PerformLayout();Application.DoEvents();var page=tabs.TabPages[i];var b=All(page).OfType<Button>().Single();
+      var fields=page.Controls.OfType<Panel>().Single(p=>p.Dock==DockStyle.Fill);
+      Check(!fields.Bounds.IntersectsWith(b.Parent!.Bounds),"fields reserve button space without overlap "+i+" at scale "+f.Width);
+      var outerFooter=f.Controls.OfType<Panel>().Single(p=>p.Dock==DockStyle.Bottom);
+      Check(!tabs.Bounds.IntersectsWith(outerFooter.Bounds),"tabs reserve cancel footer space "+i+" at scale "+f.Width);
       Check(Math.Abs(2*b.Left+b.Width-b.Parent!.ClientSize.Width)<=1,"confirmation centered on actual page "+i+" at scale "+f.Width);
       Check(b.Parent!.ClientRectangle.Contains(b.Bounds) && page.RectangleToScreen(page.ClientRectangle).Contains(b.Parent.RectangleToScreen(b.Bounds)),"confirmation fully visible without clipping "+i+" at scale "+f.Width);
       Check(All(page).OfType<Label>().Where(l=>l.TextAlign==ContentAlignment.MiddleCenter).All(l=>Math.Abs(2*l.Left+l.Width-l.Parent!.ClientSize.Width)<=1),"payment headings and amount share center "+i+" at scale "+f.Width);
+      using(var shot=new Bitmap(f.Width,f.Height)){f.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save("corrections-evidence/page-"+method+"-"+i+"-"+f.Width+".png");}
       if(i==0){var amount=All(page).OfType<NumericUpDown>().Single();amount.Value=25m;Check(All(page).OfType<Label>().Any(l=>l.Text.Contains("5,00")&&l.Text.StartsWith("TROCO")),"change still calculated after entering received amount");amount.Value=20m;}
      }
      var cancel=All(f).OfType<Button>().Single(b=>b.Text=="CANCELAR");Check(cancel.Parent!.ClientRectangle.Contains(cancel.Bounds),"cancel button remains contained at scale "+f.Width);
