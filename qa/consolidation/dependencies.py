@@ -26,5 +26,6 @@ for identity in ('001','002','003','004'):
  equal=old==candidate
  results.append(dict(Identity=identity,PublishedVersion=feed['Version'],Source=feed.get('SourceCommit'),PackageSha256=digest,ExactDependencyCompatibility=equal))
  print('PASS' if equal else 'BLOCKED',identity,'published package SHA verified; dependency equality:',equal,flush=True)
+Path('evidence').mkdir(exist_ok=True)
 Path('evidence/dependencies.json').write_text(json.dumps(results,indent=2))
 assert all(r['ExactDependencyCompatibility'] for r in results),'Published dependencies differ; do not approve migration'

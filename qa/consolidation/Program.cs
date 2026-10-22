@@ -25,7 +25,7 @@ static partial class Tests
    var events=(EventHandlerList)typeof(Component).GetProperty("Events",P)!.GetValue(main)!;var shownKey=typeof(Form).GetFields(BindingFlags.Static|BindingFlags.NonPublic).Single(x=>x.Name.Contains("Shown",StringComparison.OrdinalIgnoreCase)).GetValue(null)!;var shown=events[shownKey];events.RemoveHandler(shownKey,shown);main.Show();Application.DoEvents();events.AddHandler(shownKey,shown);
    string State()=>Convert.ToString(Sql("SELECT (SELECT stock FROM products WHERE id=901)||'|'||(SELECT price FROM products WHERE id=901)||'|'||(SELECT COUNT(*) FROM sales)||'|'||(SELECT value FROM settings WHERE key='qa_keep')"))!;
    string before=State();var coreHash=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(common.Location)));
-   PetRuntime.Load(folder,id);Application.RaiseIdle(EventArgs.Empty);Application.DoEvents();Application.RaiseIdle(EventArgs.Empty);
+   ManifestChecks(folder,id,version);PetRuntime.Load(folder,id);Application.RaiseIdle(EventArgs.Empty);Application.DoEvents();Application.RaiseIdle(EventArgs.Empty);
    Check(PetRuntime.CurrentVersion==version,"PET version retained "+id+" V"+version);
    string name=id switch{"001"=>"LOJA LEAL INFO","002"=>"GELAMAC","003"=>"CASA LEAL INFO",_=>"CASA GENILSON"};
    Check(main.Text.Contains(name)&&main.Text.Contains("PET V"+version),"correct client name and independent version on real main window");
@@ -56,9 +56,13 @@ static partial class Tests
   Check(GlassOperationsStore.Appointments().Any(x=>x.Id==appointment&&x.CustomerId==901&&x.ProjectId==saved.Id),"agenda retains project and customer after module extraction");
   var receipt=GlassDocumentStore.Receipt(saved,payment);
   Check(receipt.Amount==100m&&GlassDocumentStore.Receipts(saved).Count==1,"receipt corresponds to exactly one real payment");
+  var receiptPdf=GlassLinkedDocument.PdfBytes(GlassLinkedDocument.Receipt(receipt));
+  Check(System.Text.Encoding.ASCII.GetString(receiptPdf.Take(5).ToArray())=="%PDF-","real A4 receipt remains renderable after extraction");
+  File.WriteAllBytes("evidence/"+id+"/recibo.pdf",receiptPdf);
   var contract=GlassDocumentStore.SaveContract(saved,GlassDocumentStore.NewContract(saved),0,false);
   Check(GlassDocumentStore.Contracts(saved.Id).Single().ContentHash==contract.ContentHash,"contract persists with validated content hash");
+  File.WriteAllBytes("evidence/"+id+"/contrato.pdf",GlassLinkedDocument.PdfBytes(GlassLinkedDocument.Contract(contract)));
   Check(financialBefore==Convert.ToString(Sql("SELECT COUNT(*)||'|'||SUM(amount) FROM cash_movements")),"agenda receipts and contracts create no additional cash movement");
-  using(var form=new GlassWorkshopForm(main.PetTheme)){form.Show(main);Application.DoEvents();Check(Walk(form).OfType<TabControl>().First().TabPages.Count>=7,"actual Glass workshop opens with its existing sections");using var shot=new Bitmap(form.Width,form.Height);form.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save("evidence/"+id+"/vidracaria.png");form.Close();}
+  using(var form=new GlassWorkshopForm(main.PetTheme)){form.Show(main);form.LoadSavedProject(saved.Id);Application.DoEvents();Check(JsonSerializer.Serialize(form.CaptureSavedProject())==JsonSerializer.Serialize(saved.Data),"saved project reopens through actual workshop controls");Check(Walk(form).OfType<TabControl>().First().TabPages.Count>=7,"actual Glass workshop opens with its existing sections");using var shot=new Bitmap(form.Width,form.Height);form.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save("evidence/"+id+"/vidracaria.png");form.Close();}
  }
 }

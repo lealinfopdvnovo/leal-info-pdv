@@ -67,7 +67,7 @@ jobs:
     - name: Validar backup e recuperação da base comum preservando PET
       shell: pwsh
       run: |
-        ./qa/global-core/rollback.ps1
+        ./qa/consolidation/rollback.ps1
         if($LASTEXITCODE -ne 0){throw 'Common rollback failed'}
     - name: Guardar compilação e evidências sem publicação
       shell: pwsh

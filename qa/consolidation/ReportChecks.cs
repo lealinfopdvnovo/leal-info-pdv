@@ -4,6 +4,7 @@ static partial class Tests
 {
  static void ReportChecks(MainForm main,string id){
  string State()=>Convert.ToString(Sql("SELECT COUNT(*)||'|'||COALESCE(SUM(amount),0)||'|'||(SELECT COUNT(*) FROM sales)||'|'||(SELECT stock FROM products WHERE id=901) FROM cash_movements"))!;
+ Sql("INSERT INTO sales(id,sold_at,payment,subtotal,total,operator) VALUES(901,datetime('now'),'PIX',25,25,'QA');INSERT INTO cash_movements(occurred_at,type,description,amount,sale_id) VALUES(datetime('now'),'ENTRADA','VENDA COM REFERÊNCIA NUMÉRICA',25,901)");
  var state=State();
    Exception? failure=null;bool completed=false;using var timer=new System.Windows.Forms.Timer{Interval=200};
    timer.Tick+=(_,_)=>{
@@ -27,6 +28,7 @@ static partial class Tests
      }
      var grid=Walk(f).OfType<TabControl>().Single().TabPages[0].Controls.OfType<DataGridView>().Single();
      Check(grid.Columns["Descrição"].Width>grid.Columns["Código"].Width*2,"description receives more space than identifier");
+     Check(grid.Rows.Cast<DataGridViewRow>().Any(r=>Convert.ToString(r.Cells["Venda"].Value)=="901")&&grid.Rows.Cast<DataGridViewRow>().Any(r=>Convert.ToString(r.Cells["Venda"].Value)==""),"manual and numeric sale references coexist without loading error");
      var data=grid.DataSource;var total=grid.Rows.Cast<DataGridViewRow>().Sum(r=>Convert.ToDouble(r.Cells["Valor"].Value));
      Walk(f).OfType<Button>().Single(b=>b.Text=="BUSCAR").PerformClick();Check(total==grid.Rows.Cast<DataGridViewRow>().Sum(r=>Convert.ToDouble(r.Cells["Valor"].Value)),"search reload retains financial values");
      f.Scale(new SizeF(1/1.5f,1/1.5f));f.ClientSize=new Size(1360,680);f.PerformLayout();

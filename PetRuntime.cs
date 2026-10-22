@@ -36,6 +36,10 @@ internal static class PetRuntime
         var assemblyPath=Path.Combine(folder,m.Assembly);
         if((File.GetAttributes(assemblyPath)&FileAttributes.ReparsePoint)!=0||m.Sha256?.Length!=64||!Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(assemblyPath))).Equals(m.Sha256,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Integridade PET inválida.");
         var assembly=AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath(assemblyPath));
+        var metadata=assembly.GetCustomAttributes<AssemblyMetadataAttribute>().ToArray();
+        var declaredIdentity=metadata.SingleOrDefault(x=>x.Key=="PetIdentity")?.Value;
+        var declaredVersion=metadata.SingleOrDefault(x=>x.Key=="PetVersion")?.Value;
+        if((declaredIdentity!=null&&declaredIdentity!=identity)||(declaredVersion!=null&&declaredVersion!=m.Version))throw new InvalidDataException("Biblioteca PET não corresponde à identidade/versão do manifesto.");
         var types=assembly.GetExportedTypes().Where(t=>!t.IsAbstract&&typeof(IPetExtension).IsAssignableFrom(t)).ToArray();
         if(types.Length!=1)throw new InvalidDataException("PET deve fornecer uma única extensão compatível.");
         extension=(IPetExtension?)Activator.CreateInstance(types[0])??throw new InvalidDataException("PET não inicializado.");
