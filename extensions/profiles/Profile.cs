@@ -26,6 +26,9 @@ public sealed class ProfileExtension : IPetExtension,IPetStartup,IPetReady
   if(applied.TryGetValue(form,out _))return;applied.Add(form,new object());
 #if HAS_BUSINESS
   if(form is MainForm main){
+#if PET_LOJA
+   main.PetShortcutOverflow=true;
+#endif
    main.PetTool("VIDRAÇARIA","COZINHA",GlassWorkshopIcon.Create,()=>{using var workshop=new GlassWorkshopForm(main.PetTheme);workshop.ShowDialog(main);},Color.FromArgb(27,174,217),Color.FromArgb(7,49,92));
    var sync=LealInfoPDV.Network.NetworkConfiguration.Current.Mode=="terminal"?null:AngraSyncService.TryStart();
    if(sync!=null){var alert=new AngraProjectAlert(main,sync);main.FormClosed+=(_,_)=>{alert.Dispose();sync.Dispose();};_=sync.Connect();}

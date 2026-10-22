@@ -47,6 +47,14 @@ static partial class Tests
   var available=assembly.GetTypes().Select(x=>x.Name).Concat(typeof(MainForm).Assembly.GetTypes().Select(x=>x.Name)).ToHashSet();
   Check(legacy.All(available.Contains),"all published Glass and Angra types available in PET plus GLOBAL");
   Check(Walk(main).Count(x=>x.Text=="VIDRAÇARIA")==1,"Glass entry added exactly once to actual toolbar");
+  if(id=="001"){
+   main.WindowState=FormWindowState.Normal;
+   foreach(var size in new[]{new Size(1366,768),new Size(1600,900),new Size(1920,1080)}){
+    main.ClientSize=size;Application.DoEvents();var bar=Walk(main).Single(x=>x.Text=="VIDRAÇARIA").Parent!.Parent!;
+    Check(((ScrollableControl)bar).AutoScroll||bar.Controls.Cast<Control>().All(x=>bar.ClientRectangle.Contains(x.Bounds)),"all original shortcuts accessible after PET toolbar insertion "+size.Width);
+   }
+   main.ClientSize=new Size(1366,768);
+  }
   var data=new GlassSavedProject(1,GlassProject.ModelName,"PROJETO PRESERVADO",1200,2000,"mm","mm",1,new GlassSavedQuote(901,"CLIENTE EXISTENTE","INSTALAÇÃO",100,50,0,0),Array.Empty<GlassMaterialLink>(),null,true);
   var saved=GlassProjectStore.Save(data);var restored=GlassProjectStore.Load(saved.Id);
   Check(restored.Data.WidthMm==1200&&restored.Data.HeightMm==2000&&restored.Data.Quote.CustomerId==901,"project save and reload preserve physical measures and customer link");

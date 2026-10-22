@@ -5,6 +5,8 @@ namespace LealInfoPDV;
 // Generic integration surface: GLOBAL references no client module or domain type.
 public sealed partial class MainForm
 {
+ private bool petShortcutOverflow;
+ internal bool PetShortcutOverflow { set=>petShortcutOverflow=value; }
  internal void PetRunAllowed(string permission,Action action)=>RunAllowed(permission,action);
  internal void PetCustomers(Action<long>? select)=>RunAllowed("customers",()=>ShowPersonCrud("CLIENTES","customers",select));
  internal void PetTheme(Form form){ApplyFloatingTheme(form);if(!Application.OpenForms.Cast<Form>().Any(x=>x.Name=="SalesForm"))SalesDialogTheme.Apply(form,GetSetting("sales_theme","Futurista Azul"),null);}
