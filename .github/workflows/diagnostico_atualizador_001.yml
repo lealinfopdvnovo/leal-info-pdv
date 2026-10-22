@@ -1,4 +1,4 @@
-name: Diagnostico atualizador publicado 001
+name: Verificar descoberta real 10.434 - somente 001
 on:
   push:
     branches: [fix/update-discovery-001]
