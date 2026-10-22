@@ -20,6 +20,23 @@ internal static class PetBootstrap
   while((count=source.Read(buffer))>0){if(output.Length+count>maximum)throw new InvalidDataException("Personalização excede o limite.");output.Write(buffer,0,count);}
   if(output.Length!=entry.Length)throw new InvalidDataException("Personalização incompleta.");return output.ToArray();
  }
+ static void BackupLocalData(){
+  if(Network.NetworkConfiguration.Current.Mode=="terminal"||!File.Exists(Database.DbPath))throw new InvalidOperationException("A primeira migração deve ser feita no servidor com banco local disponível.");
+  NoLink(Database.AppFolder);NoLink(Database.BackupFolder);Directory.CreateDirectory(Database.BackupFolder);
+  string folder=Path.Combine(Database.BackupFolder,"MIGRACAO_PET_"+DateTime.UtcNow.ToString("yyyyMMdd_HHmmss")+"_"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(folder);
+  string database=Path.Combine(folder,"lealinfo.db");
+  using(var source=Database.Open())using(var target=new Microsoft.Data.Sqlite.SqliteConnection("Data Source="+database+";Pooling=False")){target.Open();source.BackupDatabase(target);}
+  RestoreEngine.Validate(database);
+  var hashes=new Dictionary<string,string>{{"lealinfo.db",Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(database)))}};
+  foreach(string path in Directory.GetFiles(Database.AppFolder)){
+   if(Path.GetExtension(path).ToLowerInvariant() is not (".license" or ".config" or ".identity" or ".protected" or ".dat"))continue;
+   NoLink(path);string name=Path.GetFileName(path);byte[] bytes=File.ReadAllBytes(path);
+   using(var output=new FileStream(Path.Combine(folder,name),FileMode.CreateNew,FileAccess.Write,FileShare.None)){output.Write(bytes);output.Flush(true);}
+   hashes[name]=Convert.ToHexString(SHA256.HashData(bytes));
+  }
+  foreach(var pair in hashes)if(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Path.Combine(folder,pair.Key))))!=pair.Value)throw new InvalidDataException("A cópia anterior à migração não pôde ser verificada.");
+  using var index=new FileStream(Path.Combine(folder,"integrity.json"),FileMode.CreateNew,FileAccess.Write,FileShare.None);JsonSerializer.Serialize(index,hashes);index.Flush(true);
+ }
  internal static bool EnsurePresent(string app,string identity,Action<string>? checkpoint=null){
   if(checkpoint!=null){
    string? qaRoot=Environment.GetEnvironmentVariable("RUNNER_TEMP");
@@ -53,6 +70,7 @@ internal static class PetBootstrap
   try{
    void Write(string name,byte[] content){using var output=new FileStream(Path.Combine(stage,name),FileMode.CreateNew,FileAccess.Write,FileShare.None);output.Write(content);output.Flush(true);}
    Write("Pet.dll",module);Write("manifest.json",manifestBytes);NoLink(target);
+   BackupLocalData();
    checkpoint?.Invoke("before-activate");
    Directory.Move(stage,target); // Same-volume atomic first install; never overwrite an existing PET.
    return true;

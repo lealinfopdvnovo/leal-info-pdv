@@ -32,16 +32,21 @@ internal static class UpdateManager
  }
  private static async Task<UpdateManifest?> LoadManifestAsync(HttpClient http,string clientCode,string currentVersion)
  {
-  // GLOBAL has its own version and feed. PET updates are a separate operation.
-  var global=await TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json");
-  return SelectManifest(clientCode,currentVersion,global,null);
+  // A neutral common binary may be rolled out to one licensed installation first.
+  // This route never consumes a legacy full-client or PET manifest.
+  var globalTask=TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json");
+  var scopedTask=ClientUpdateIdentity.IsValidClientCode(clientCode)
+   ? TryLoadManifestAsync(http,"https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/clients/"+clientCode+"/global/version.json")
+   : Task.FromResult<UpdateManifest?>(null);
+  await Task.WhenAll(globalTask,scopedTask);
+  return SelectManifest(clientCode,currentVersion,await globalTask,await scopedTask);
  }
  private static UpdateManifest? SelectManifest(string clientCode,string currentVersion,UpdateManifest? global,UpdateManifest? targeted)
  {
-  // The migration of personalized legacy executables belongs to the later client stage.
-  // Only a neutral common runtime with the explicit PET contract may use this route.
-  return DistributionChannel=="GLOBAL" && global!=null && global.Component=="GLOBAL" && global.PetApiVersion==PetRuntime.ApiVersion
-   && string.IsNullOrEmpty(global.TargetClientCode) && IsSafeGlobalPackage(global) && IsNewer(global.Version,currentVersion)?global:null;
+  if(DistributionChannel!="GLOBAL")return null;
+  bool Compatible(UpdateManifest? m)=>m!=null&&m.Component=="GLOBAL"&&m.PetApiVersion==PetRuntime.ApiVersion&&IsSafeGlobalPackage(m)&&IsNewer(m.Version,currentVersion);
+  if(targeted!=null&&ClientUpdateIdentity.ManifestMatches(clientCode,targeted.TargetClientCode)&&Compatible(targeted))return targeted;
+  return global!=null&&string.IsNullOrEmpty(global.TargetClientCode)&&Compatible(global)?global:null;
  }
  private static bool IsValidManifest(UpdateManifest manifest)=>
   Version.TryParse(manifest.Version,out _) && System.Text.RegularExpressions.Regex.IsMatch(manifest.Sha256??"",@"\A[0-9a-fA-F]{64}\z");

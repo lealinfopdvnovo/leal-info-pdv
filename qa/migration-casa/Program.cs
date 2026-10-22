@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Diagnostics;
 using System.ComponentModel;
 using Microsoft.Data.Sqlite;
-static class Tests
+static partial class Tests
 {
  static readonly List<string> checks=new();
  static void Check(bool ok,string text){if(!ok)throw new Exception(text);checks.Add(text);Console.WriteLine("PASS "+text);}
@@ -16,7 +16,7 @@ static class Tests
    string root=Path.GetFullPath(args[0]);
    if(args.Contains("--crash")){PetBootstrap.EnsurePresent(root,"003",_=>Process.GetCurrentProcess().Kill());return 90;}
    Check(File.ReadAllText(Path.Combine(Database.AppFolder,"MIGRATION-QA"))==Environment.GetEnvironmentVariable("GITHUB_RUN_ID"),"database was created by verified legacy DLL in this run");
-   Directory.CreateDirectory("evidence");string before=State();byte[] identityBefore=File.ReadAllBytes(Path.Combine(Database.AppFolder,"angra-sync.identity"));
+   ChannelChecks();Directory.CreateDirectory("evidence");string before=State();byte[] identityBefore=File.ReadAllBytes(Path.Combine(Database.AppFolder,"angra-sync.identity"));
    string Fixture(string name){string p=Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP")!,"migration-"+name+"-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(p);File.WriteAllText(Path.Combine(p,"QA-ISOLATED"),"fixture");File.Copy(Path.Combine(root,"LealInfoPDV.exe"),Path.Combine(p,"LealInfoPDV.exe"));return p;}
    void Reject(Action action,string name){bool blocked=false;try{action();}catch(InvalidDataException){blocked=true;}Check(blocked,name);}
    string wrong=Fixture("wrong");Reject(()=>PetBootstrap.EnsurePresent(wrong,"002"),"wrong identity rejected before creating profile");Check(!Directory.Exists(Path.Combine(wrong,"Extensions")),"wrong identity creates no profile directory");
@@ -26,6 +26,9 @@ static class Tests
    Check(!Directory.Exists(Path.Combine(crash,"Extensions","PET")),"interrupted staging cannot expose partial active profile");Check(PetBootstrap.EnsurePresent(crash,"003"),"next start recovers from incomplete staging");
    Check(PetBootstrap.EnsurePresent(root,"003"),"first migration atomically installs separate PET from protected apphost");
    var installed=Directory.GetFiles(Path.Combine(root,"Extensions","PET")).ToDictionary(x=>x,x=>File.ReadAllBytes(x));
+   var backups=Directory.GetDirectories(Database.BackupFolder,"MIGRACAO_PET_*");
+   Check(backups.Length>=1&&backups.All(folder=>File.Exists(Path.Combine(folder,"integrity.json"))),"database license and configuration backup completed before profile activation");
+   foreach(string folder in backups){var hashes=JsonSerializer.Deserialize<Dictionary<string,string>>(File.ReadAllText(Path.Combine(folder,"integrity.json")))!;Check(hashes.All(pair=>Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(Path.Combine(folder,pair.Key))))==pair.Value),"pre-migration backup file hashes valid");RestoreEngine.Validate(Path.Combine(folder,"lealinfo.db"));}
    Check(!PetBootstrap.EnsurePresent(root,"003")&&installed.All(x=>File.ReadAllBytes(x.Key).SequenceEqual(x.Value)),"repeat startup preserves already installed independent PET");
    Database.Initialize();Check(State()==before,"new common initialization preserves every populated legacy table row");
    PetRuntime.Load(Path.Combine(root,"Extensions","PET"),"003");Check(PetRuntime.CurrentVersion=="1.1","actual independently installed PET V1.1 loads through common API");
