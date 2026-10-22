@@ -3,7 +3,7 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Text.Json;
 using System.Security.Cryptography;
-static class Tests
+static partial class Tests
 {
  const BindingFlags P=BindingFlags.Instance|BindingFlags.NonPublic;
  static readonly List<string> checks=new();
@@ -21,7 +21,7 @@ static class Tests
    Sql("INSERT INTO products(id,name,price,stock,active) VALUES(901,'PRODUTO EXISTENTE',12.5,77,1);INSERT INTO customers(id,name) VALUES(901,'CLIENTE EXISTENTE');INSERT OR REPLACE INTO settings(key,value) VALUES('qa_keep','PRESERVAR')");
    var common=typeof(MainForm).Assembly;
    Check(!common.GetTypes().Any(x=>JsonSerializer.Deserialize<string[]>(File.ReadAllText("qa/consolidation/legacy-domain-types.json"))!.Contains(x.Name)),"GLOBAL contains no Glass or Angra domain implementation");
-   using var main=new MainForm();((System.Windows.Forms.Timer)typeof(MainForm).GetField("licenseTimer",P)!.GetValue(main)!).Stop();
+   using var main=new MainForm();main.Text="LEAL INFO PDV PRO V"+UpdateManager.CurrentVersion;((System.Windows.Forms.Timer)typeof(MainForm).GetField("licenseTimer",P)!.GetValue(main)!).Stop();
    var events=(EventHandlerList)typeof(Component).GetProperty("Events",P)!.GetValue(main)!;var shownKey=typeof(Form).GetFields(BindingFlags.Static|BindingFlags.NonPublic).Single(x=>x.Name.Contains("Shown",StringComparison.OrdinalIgnoreCase)).GetValue(null)!;var shown=events[shownKey];events.RemoveHandler(shownKey,shown);main.Show();Application.DoEvents();events.AddHandler(shownKey,shown);
    string State()=>Convert.ToString(Sql("SELECT (SELECT stock FROM products WHERE id=901)||'|'||(SELECT price FROM products WHERE id=901)||'|'||(SELECT COUNT(*) FROM sales)||'|'||(SELECT value FROM settings WHERE key='qa_keep')"))!;
    string before=State();var coreHash=Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(common.Location)));
@@ -31,7 +31,7 @@ static class Tests
    Check(main.Text.Contains(name)&&main.Text.Contains("PET V"+version),"correct client name and independent version on real main window");
    Check(State()==before,"profile startup preserves stock price sales and configuration");
    Check(coreHash==Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(common.Location))),"profile loading leaves shared binary unchanged");
-   if(id is "001" or "003")BusinessChecks(main,id);
+   if(id is "001" or "003"){BusinessChecks(main,id);ReportChecks(main,id);LoginChecks(id);}
    else Check(!Walk(main).Any(x=>x.Text=="VIDRAÇARIA"),"identification profile does not acquire Glass functionality");
    using(var shot=new Bitmap(main.Width,main.Height)){main.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save("evidence/"+id+"/principal.png");}
    Check(Convert.ToString(Sql("PRAGMA quick_check"))=="ok","fixture database integrity valid");
@@ -51,6 +51,14 @@ static class Tests
   long payment=PetCash.RegisterForGlass("ENTRADA","QA SINAL",100m,origin);
   Check(PetCash.RegisterForGlass("ENTRADA","QA SINAL",100m,origin)==payment,"domain payment retry cannot duplicate receipt");
   Check(GlassOperationsStore.Read(saved).Received==100m&&Convert.ToDouble(Sql("SELECT stock FROM products WHERE id=901"))==77,"domain receipt and project balance preserve product stock");
+  string financialBefore=Convert.ToString(Sql("SELECT COUNT(*)||'|'||SUM(amount) FROM cash_movements"))!;
+  var appointment=GlassOperationsStore.Schedule(saved,"INSTALAÇÃO",DateTime.Now.AddDays(2),"PRESERVAR AGENDA");
+  Check(GlassOperationsStore.Appointments().Any(x=>x.Id==appointment&&x.CustomerId==901&&x.ProjectId==saved.Id),"agenda retains project and customer after module extraction");
+  var receipt=GlassDocumentStore.Receipt(saved,payment);
+  Check(receipt.Amount==100m&&GlassDocumentStore.Receipts(saved).Count==1,"receipt corresponds to exactly one real payment");
+  var contract=GlassDocumentStore.SaveContract(saved,GlassDocumentStore.NewContract(saved),0,false);
+  Check(GlassDocumentStore.Contracts(saved.Id).Single().ContentHash==contract.ContentHash,"contract persists with validated content hash");
+  Check(financialBefore==Convert.ToString(Sql("SELECT COUNT(*)||'|'||SUM(amount) FROM cash_movements")),"agenda receipts and contracts create no additional cash movement");
   using(var form=new GlassWorkshopForm(main.PetTheme)){form.Show(main);Application.DoEvents();Check(Walk(form).OfType<TabControl>().First().TabPages.Count>=7,"actual Glass workshop opens with its existing sections");using var shot=new Bitmap(form.Width,form.Height);form.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save("evidence/"+id+"/vidracaria.png");form.Close();}
  }
 }

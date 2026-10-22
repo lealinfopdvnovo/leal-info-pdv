@@ -45,6 +45,11 @@ jobs:
         if($LASTEXITCODE -ne 0){throw 'Compatibility host build failed'}
         dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish -p:UseSharedCompilation=false
         if($LASTEXITCODE -ne 0){throw 'GLOBAL publish compilation failed'}
+    - name: Conferir integridade e dependências das versões publicadas
+      shell: pwsh
+      run: |
+        python qa/consolidation/dependencies.py
+        if($LASTEXITCODE -ne 0){throw 'Published dependency compatibility failed'}
     - name: Validar quatro identidades e funções locais no GLOBAL real
       shell: pwsh
       run: |
