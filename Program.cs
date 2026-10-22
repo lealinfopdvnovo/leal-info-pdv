@@ -99,6 +99,7 @@ internal static class Program
                 ? new Network.NetworkDatabaseServer(Network.NetworkConfiguration.Current) : null;
             networkServer?.License.CheckAccess();
             Database.Initialize();
+            LojaPetBootstrap.Initialize();
             if (!Environment.GetCommandLineArgs().Contains("--manutencao")) networkServer?.Start();
             UpdateProtectionReceipt.ReportReady();
 

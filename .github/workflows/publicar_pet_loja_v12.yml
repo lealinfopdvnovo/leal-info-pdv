@@ -1,0 +1,117 @@
+name: LOJA PET V1.2 - ponte segura exclusiva 001
+'on':
+  push:
+    branches: [release/pet-loja-v12]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publicar-pet-loja-001
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 14
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: '001'
+      SOURCE_REF: ${{ github.sha }}
+      APPROVED_SOURCE: ${{ github.sha }}
+      PYTHONUTF8: '1'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        path: source
+        fetch-depth: 0
+    - name: Preservar integralmente a base operacional do 001
+      working-directory: source
+      shell: python
+      run: |
+        import subprocess
+        base='f2e822fbccbe07b349150a1e8997994c634f9d50'
+        changed=subprocess.check_output(['git','diff','--name-only',base,'HEAD'],text=True).splitlines()
+        allowed={'Program.cs','LealInfoPDV.csproj','UpdateManager.cs','PetRuntime.cs','LojaPetBootstrap.cs','.github/workflows/publicar_pet_loja_v12.yml'}
+        assert all(p in allowed or p.startswith('qa/pet-loja-v12/') for p in changed),changed
+        old=subprocess.check_output(['git','show',base+':Program.cs'],text=True)
+        assert open('Program.cs',encoding='utf-8-sig').read()==old.replace('            Database.Initialize();','            Database.Initialize();\n            LojaPetBootstrap.Initialize();')
+        print('PASS legacy business, Glass, database, license and updater implementation unchanged')
+    - uses: actions/checkout@v4
+      with:
+        ref: b95da478624312a5070e9ee512e156b3a9dcb858
+        path: controller
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.401
+    - name: Preparar pacote exclusivo sobre o 001 publicado
+      working-directory: controller
+      shell: pwsh
+      run: |
+        '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+        python scripts/distribute_channels.py plan
+        if($LASTEXITCODE -ne 0){throw 'Plan failed'}
+        $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
+        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '001' -or $p.Entries[0].Version -ne '10.437' -or $p.Entries[0].Baseline.Version -ne '10.436'){throw 'Wrong scope'}
+        python scripts/distribute_channels.py prepare 001
+        if($LASTEXITCODE -ne 0){throw 'Preparation failed'}
+        Push-Location candidate
+        ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+        ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+        ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+        ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+        ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+        ./scripts/aplicar_central_equipamentos_v10_314.ps1
+        Pop-Location
+    - name: Testar tela real e compilar ponte com PET V1.2 incorporado
+      working-directory: controller
+      shell: pwsh
+      run: |
+        dotnet build candidate/qa/pet-loja-v12/RealSalesTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'Test host compilation failed'}
+        $payload=(Resolve-Path 'candidate/qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.001.dll').Path
+        $sdk=Get-Content sdk-version.txt
+        dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:WindowsSdkPackageVersion=$sdk -p:LojaPetPayload=$payload -o candidate-publish
+        if($LASTEXITCODE -ne 0){throw 'Windows publish compilation failed'}
+        $testbin='candidate/qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0'
+        Copy-Item candidate-publish/LealInfoPDV.dll $testbin/LealInfoPDV.dll -Force
+        dotnet "$testbin/RealSalesTests.dll" --bootstrap
+        if($LASTEXITCODE -ne 0){throw 'Packaged real sales and embedded PET failed'}
+        $r=Get-Content evidence/real-results.json -Raw|ConvertFrom-Json
+        if(!$r.Success -or $r.checks.Count -lt 13){throw 'No packaged window approval'}
+        python scripts/distribute_channels.py package 001
+        if($LASTEXITCODE -ne 0){throw 'Package invalid'}
+        New-Item -ItemType Directory ../source/validated/layout-evidence -Force|Out-Null
+        Copy-Item evidence/* ../source/validated/layout-evidence/
+        $proof=@{success=$true;checks=$r.checks;channel='001';source=$env:GITHUB_SHA;published=$false;PetVersion='1.2'}
+        $proof|ConvertTo-Json -Depth 8|Set-Content ../source/validated/layout-evidence/results.json -Encoding UTF8
+        Copy-Item release-output ../source/validated/ -Recurse
+    - name: Testar backup integridade interrupcao e rollback
+      working-directory: source
+      shell: pwsh
+      run: |
+        ./qa/pet-loja-v12/rollback.ps1 2>&1 | Tee-Object validated/rollback.log
+        if($LASTEXITCODE -ne 0){throw 'Rollback failed'}
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pacote-001-pet-v12
+        path: source/validated/
+  publicar:
+    needs: validar
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: pacote-001-pet-v12
+        path: proof/001/validated
+    - name: Publicar apenas 001 e conferir bytes e feed do atualizador
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        SOURCE_001: ${{ github.sha }}
+      run: python qa/pet-loja-v12/publish.py
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: publicacao-001-pet-v12
+        path: published-001.json
