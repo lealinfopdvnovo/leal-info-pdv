@@ -15,7 +15,8 @@ internal static class UpdatePayloadPolicy
     internal static void Validate(string zip)
     {
         using var archive=System.IO.Compression.ZipFile.OpenRead(zip);
-        if(!archive.Entries.Any(e=>e.FullName.Equals("LealInfoPDV.exe",StringComparison.OrdinalIgnoreCase)))throw new InvalidDataException("Pacote sem o executável do PDV.");
-        foreach(var entry in archive.Entries.Where(e=>e.Name.Length>0))if(!IsProgramFile(entry.FullName))throw new InvalidDataException("O pacote contém arquivos que não pertencem ao programa. Atualização cancelada para preservar os dados locais: "+entry.FullName);
+        var common=new HashSet<string>(StringComparer.Ordinal){"LealInfoPDV.exe","LealInfoPDV.dll","LealInfoPDV.deps.json"};
+        if(archive.Entries.Count!=3 || archive.Entries.Select(e=>e.FullName).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=3 || archive.Entries.Any(e=>!common.Contains(e.FullName)))
+            throw new InvalidDataException("O pacote GLOBAL deve conter somente os três arquivos comuns do programa. PET, dados, licença e configurações devem permanecer intactos.");
     }
 }

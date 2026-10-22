@@ -38,3 +38,11 @@ A verificação Windows 39724050399 reproduziu mistura de arquivos após interru
 - Licenças, dados, estoque, pagamentos, configurações e personalizações preservados.
 - Pacotes identificados, hashes verificados, backup e recuperação da primeira transição testados.
 - Nenhum canal operacional é alterado nesta preparação.
+
+## Implementação da base comum — preparação isolada
+
+A branch prepare/global-core-runtime implementa a seleção exclusiva do manifesto Component=GLOBAL, contrato PetApiVersion=1, versão comum 10.443 candidata e carregamento opcional de PET em Extensions/PET. A extensão implementa IPetExtension e possui identidade, versão e hash próprios. Sem PET existente, nenhuma versão local é inventada. A inicialização rejeita identidade, API, caminho ou integridade inválidos.
+
+O pacote GLOBAL aceita somente EXE, DLL e deps.json comuns e não contém arquivos de PET. O aplicador com backup e recuperação externa foi adaptado para o canal neutro GLOBAL. A política de licenças, as rotinas comerciais e os clientes existentes permanecem intactos. O controlador antigo de publicação não está conectado a esta preparação.
+
+Os testes Windows desta etapa verificam seleção comum, extensão local real, preservação de arquivos, backup e recuperação da nova base. Não testam nem executam migração de executáveis legados, publicação, instalação em clientes reais, nem equivalência de todas as funções comerciais. A Cozinha 003 aprovada continua sendo referência para uma futura incorporação funcional na base comum; não foi transplantada nesta etapa de infraestrutura. A numeração candidata não constitui versão publicada.
