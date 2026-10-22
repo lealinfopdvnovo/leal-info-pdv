@@ -29,6 +29,13 @@ static class RealSalesTests{
  var sales=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Text.Contains("TELA DE VENDA"));if(sales==null)return;
  if(stage==0){stage=1;Shot(sales,"evidence/real-antes.png");if(args.Contains("--bootstrap")){typeof(MainForm).Assembly.GetType("LealInfoPDV.LojaPetBootstrap")!.GetMethod("Initialize",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,null);Check(true,"published 001 binary extracts and loads its embedded PET V1.2");}else runtime.GetMethod("Load",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{folder,"001"});Application.RaiseIdle(EventArgs.Empty);return;}
  if(stage==1){stage=2;Application.RaiseIdle(EventArgs.Empty);
+ var loaded=(IPetExtension)runtime.GetField("extension",BindingFlags.Static|BindingFlags.NonPublic)!.GetValue(null)!;
+ string[] serialBefore=Walk(owner).OfType<StatusStrip>().SelectMany(x=>x.Items.OfType<ToolStripStatusLabel>()).Where(x=>x.Text.StartsWith("Serial:")).Select(x=>x.Text).ToArray();
+ loaded.Customize(owner);loaded.Customize(owner);
+ var versionLabels=Walk(owner).OfType<StatusStrip>().SelectMany(x=>x.Items.OfType<ToolStripStatusLabel>()).Where(x=>x.Name=="loja_pet_version").ToArray();
+ Check(versionLabels.Length==1&&versionLabels[0].Text=="PDV "+UpdateManager.CurrentVersion+" | LOJA LEAL INFO • PET V1.2","actual main footer shows PDV and PET versions side by side exactly once");
+ Check(serialBefore.SequenceEqual(Walk(owner).OfType<StatusStrip>().SelectMany(x=>x.Items.OfType<ToolStripStatusLabel>()).Where(x=>x.Text.StartsWith("Serial:")).Select(x=>x.Text)),"footer keeps existing serial information");
+
  var logo=Walk(sales).OfType<PictureBox>().Single(p=>p.Name=="sales_company_logo");var style=Walk(sales).OfType<Button>().Single(b=>b.Text=="ESTILO");
  Check(!Walk(sales).OfType<Button>().Any(b=>b.Name=="pet001_test_button"||b.Text=="EM FASE DE TESTE"),"test button removed from actual sales window");Check(Equals(logo.Tag,"LOJA-PET-1.2-LOGO"),"larger logo customization applied only to header");Check(runtime.GetProperty("CurrentVersion",BindingFlags.Static|BindingFlags.NonPublic)!.GetValue(null)?.ToString()=="1.2","actual runtime reports PET V1.2");
  foreach(var width in new[]{1024,1366,1920}){sales.WindowState=FormWindowState.Normal;sales.ClientSize=new Size(width,768);sales.PerformLayout();Check(logo.Visible&&logo.Width>100&&logo.Height>40&&style.Visible,"header logo and ESTILO remain visible at "+width);}

@@ -8,6 +8,12 @@ public sealed class LojaTestExtension : IPetExtension
    const string old=" — LOJA LEAL INFO • PET V1.1",marker=" — LOJA LEAL INFO • PET V1.2";
    if(form.Text.EndsWith(old,StringComparison.Ordinal))form.Text=form.Text[..^old.Length];
    if(!form.Text.EndsWith(marker,StringComparison.Ordinal))form.Text+=marker;
+   foreach(var strip in Walk(form).OfType<StatusStrip>())
+    foreach(var label in strip.Items.OfType<ToolStripStatusLabel>().Where(l=>l.Text=="V"+UpdateManager.CurrentVersion||l.Name=="loja_pet_version")){
+     label.Name="loja_pet_version";
+     label.Text="PDV "+UpdateManager.CurrentVersion+" | LOJA LEAL INFO • PET V1.2";
+     label.AutoSize=true;label.Spring=false;label.Overflow=ToolStripItemOverflow.Never;
+    }
   }
   if(!form.Text.Contains("TELA DE VENDA",StringComparison.OrdinalIgnoreCase))return;
   var logo=Walk(form).OfType<PictureBox>().FirstOrDefault(p=>p.Name=="sales_company_logo");
