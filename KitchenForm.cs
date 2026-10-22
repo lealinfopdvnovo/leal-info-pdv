@@ -389,7 +389,8 @@ internal sealed class KitchenForm : Form
         if(!send.Enabled||index<0||index>=items.Rows.Count)return;
         destinationMenu?.Dispose();var menu=new ContextMenuStrip{Name="KitchenDraftDestinationMenu",BackColor=KitchenPremiumStyle.Surface,ForeColor=KitchenPremiumStyle.Gold};destinationMenu=menu;
         foreach(bool direct in new[]{true,false}){var option=new ToolStripMenuItem(direct?"ADICIONAR À MESA":"ENVIAR PARA PREPARO"){Name=direct?"DraftRouteDirect":"DraftRoutePreparation",Checked=(items.Rows[index].Cells["Destination"].Tag as KitchenRowDestination)?.TableOnly==direct};option.Click+=(_,_)=>{SetDestination(index,new(direct,true));UpdateItemSummary();};menu.Items.Add(option);}
-        // Retain the closed menu until the next opening; WinForms completes click handling after Closed.var bounds=items.GetCellDisplayRectangle(items.Columns["Destination"].Index,index,true);menu.Show(items,new Point(bounds.Left,bounds.Bottom));
+        // Retain the closed menu until the next opening; WinForms completes click handling after Closed.
+        var bounds=items.GetCellDisplayRectangle(items.Columns["Destination"].Index,index,true);menu.Show(items,new Point(bounds.Left,bounds.Bottom));
     }
     private Task SubmitDraft()=>SubmitConsumption(null);
     private Task SubmitConsumption(bool? tableOnly)=>Run(async()=>
