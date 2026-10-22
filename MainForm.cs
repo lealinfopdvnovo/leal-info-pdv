@@ -14,7 +14,7 @@ using System.Runtime.InteropServices;
 
 namespace LealInfoPDV;
 
-public sealed class MainForm : Form
+public sealed partial class MainForm : Form
 {
     public bool LogoutRequested { get; private set; }
     private const uint GwHwndNext = 2;
@@ -1525,7 +1525,7 @@ public sealed class MainForm : Form
         }
     }
 
-    private void AddTool(Control parent, string text, string iconFile, Action action)
+    private void AddTool(Control parent, string text, string iconFile, Action action, Func<Image>? imageFactory=null, Color? customTop=null, Color? customBottom=null)
     {
         const int cardW = 92;
         const int cardH = 104;
@@ -1563,14 +1563,14 @@ public sealed class MainForm : Form
             gp.CloseFigure();
 
             int lift = visualPulse * 5;
-            Color topColor = isProducts
+            Color topColor = customTop.HasValue ? (hover ? ControlPaint.Light(customTop.Value) : customTop.Value) : isProducts
                 ? (hover ? Color.FromArgb(255, 165, 35) : Color.FromArgb(235, 105, 10))
                 : isSales
                     ? (hover ? Color.FromArgb(240, 55, 65) : Color.FromArgb(185, 22, 38))
                     : (hover ? Color.FromArgb(22, 170, 235) : Color.FromArgb(8, 115 + lift, 180 + lift));
-            Color bottomColor = isProducts
+            Color bottomColor = customBottom ?? (isProducts
                 ? Color.FromArgb(125, 45, 0)
-                : isSales ? Color.FromArgb(85, 5, 18) : Color.FromArgb(2, 28, 66);
+                : isSales ? Color.FromArgb(85, 5, 18) : Color.FromArgb(2, 28, 66));
             using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect, topColor, bottomColor, 90f);
             e.Graphics.FillPath(bg, gp);
 
@@ -1594,9 +1594,9 @@ public sealed class MainForm : Form
 
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", iconFile);
         PictureBox? icon = null;
-        if (File.Exists(iconPath))
+        if (imageFactory!=null || File.Exists(iconPath))
         {
-            using var source = Image.FromFile(iconPath);
+            using var source = imageFactory?.Invoke() ?? Image.FromFile(iconPath);
             icon = new PictureBox
             {
                 Width = 58,
@@ -2472,13 +2472,13 @@ private void ApplyFloatingTheme(Form f)
     private void OpenCustomers() => ShowPersonCrud("CLIENTES", "customers");
     private void OpenSuppliers() => ShowPersonCrud("FORNECEDORES", "suppliers");
 
-    private void ShowPersonCrud(string title, string table)
+    private void ShowPersonCrud(string title, string table, Action<long>? select=null)
     {
         ShowCrud(title,
             $"SELECT id AS ID,name AS Nome,document AS Documento,phone AS Telefone,email AS Email,address AS Endereço FROM {table} ORDER BY name",
             () => EditPerson(table, null, title[..^1]),
             id => EditPerson(table, id, title[..^1]),
-            id => { if (Confirm("Excluir este cadastro?")) Exec($"DELETE FROM {table} WHERE id=$id", ("$id",id)); });
+            id => { if (Confirm("Excluir este cadastro?")) Exec($"DELETE FROM {table} WHERE id=$id", ("$id",id)); },select);
     }
 
     private void EditPerson(string table, long? id, string title)
@@ -2828,7 +2828,7 @@ private void ApplyFloatingTheme(Form f)
                 SELECT m.id AS Código, datetime(m.occurred_at) AS Data,
                        CASE WHEN upper(m.type) LIKE '%SAÍDA%' THEN 'SAÍDA' ELSE 'ENTRADA' END AS Tipo,
                        m.description AS Descrição, m.amount AS Valor,
-                       COALESCE(m.sale_id,'') AS Venda
+                       COALESCE(CAST(m.sale_id AS TEXT),'') AS Venda
                 FROM cash_movements m
                 WHERE m.occurred_at >= $from AND m.occurred_at < $to
                   AND ($type='TODOS' OR ($type='ENTRADAS' AND upper(m.type) NOT LIKE '%SAÍDA%') OR ($type='SAÍDAS' AND upper(m.type) LIKE '%SAÍDA%'))
@@ -6996,7 +6996,7 @@ private void ApplyFloatingTheme(Form f)
         c.Controls.Add(new Label{Text=text,Left=x,Top=y,AutoSize=true,ForeColor=Color.White,Font=new Font("Segoe UI",18,FontStyle.Bold)});
     }
 
-    private void ShowCrud(string title,string sql,Action add,Action<long>? edit,Action<long>? delete)
+    private void ShowCrud(string title,string sql,Action add,Action<long>? edit,Action<long>? delete,Action<long>? select=null)
     {
         var f=GridForm(title,sql,out var grid);
         var p=new FlowLayoutPanel{Dock=DockStyle.Bottom,Height=65,Padding=new Padding(15)};
@@ -7004,6 +7004,7 @@ private void ApplyFloatingTheme(Form f)
         p.Controls.Add(b1);
         if(edit!=null)p.Controls.Add(ActionButton("EDITAR",()=>{var id=SelectedId(grid);if(id.HasValue){edit(id.Value);ReloadGrid(grid,sql);}}));
         if(delete!=null)p.Controls.Add(ActionButton("EXCLUIR",()=>{var id=SelectedId(grid);if(id.HasValue){delete(id.Value);ReloadGrid(grid,sql);}}));
+        if(select!=null){var choose=ActionButton("SELECIONAR CLIENTE",()=>{var id=SelectedId(grid);if(!id.HasValue){Info("Escolha um cliente na lista.");return;}select(id.Value);f.DialogResult=DialogResult.OK;f.Close();});choose.Name="SelectCustomerForGlass";p.Controls.Add(choose);}
         p.Controls.Add(ActionButton("FECHAR",f.Close));
         f.Controls.Add(p);
         ApplyFloatingTheme(f);

@@ -1,0 +1,79 @@
+name: Consolidar GLOBAL e compatibilidade PET - sem publicar
+'on':
+  push:
+    branches: [prepare/global-consolidado]
+permissions:
+  contents: read
+concurrency:
+  group: consolidar-global-isolado
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.401
+    - name: Conferir isolamento e preparar compilação
+      shell: pwsh
+      run: |
+        python qa/consolidation/scope.py
+        if($LASTEXITCODE -ne 0){throw 'Unexpected scope'}
+        ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+        ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+        ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+        ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+        ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+        ./scripts/aplicar_central_equipamentos_v10_314.ps1
+    - name: Compilar GLOBAL e perfis independentes sem instalar
+      shell: pwsh
+      run: |
+        foreach($id in @('001','002','003','004')){
+          dotnet build "extensions/profiles/$id/Pet.csproj" -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+          if($LASTEXITCODE -ne 0){throw "Profile build failed $id"}
+          New-Item -ItemType Directory "profiles/$id" -Force|Out-Null
+          Copy-Item "extensions/profiles/$id/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.Profile.dll" "profiles/$id/Pet.dll"
+          $version=if($id -eq '001'){'1.2'}else{'1.1'}
+          $hash=(Get-FileHash "profiles/$id/Pet.dll").Hash.ToLowerInvariant()
+          @{Identity=$id;Version=$version;ApiVersion=1;Assembly='Pet.dll';Sha256=$hash}|ConvertTo-Json|Set-Content "profiles/$id/manifest.json" -Encoding UTF8
+        }
+        dotnet build qa/consolidation/Tests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'Compatibility host build failed'}
+        dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish -p:UseSharedCompilation=false
+        if($LASTEXITCODE -ne 0){throw 'GLOBAL publish compilation failed'}
+    - name: Validar quatro identidades e funções locais no GLOBAL real
+      shell: pwsh
+      run: |
+        $bin='qa/consolidation/bin/Release/net8.0-windows10.0.19041.0'
+        Copy-Item publish/LealInfoPDV.dll "$bin/LealInfoPDV.dll" -Force
+        foreach($id in @('001','002','003','004')){
+          Copy-Item "profiles/$id/Pet.dll" "$bin/LealInfoPDV.Pet.Profile.dll" -Force
+          $version=if($id -eq '001'){'1.2'}else{'1.1'}
+          dotnet "$bin/LealInfoPDV.Pet.CompatibilityTests.dll" $id $version "profiles/$id"
+          if($LASTEXITCODE -ne 0){throw "Compatibility failed $id"}
+          $dbRoot=Join-Path $env:LOCALAPPDATA 'LealInfoPDV'
+          if((Get-Content (Join-Path $dbRoot 'ISOLATED-CONSOLIDATION') -Raw) -ne $env:GITHUB_RUN_ID){throw 'Fixture guard mismatch'}
+          Move-Item $dbRoot (Join-Path $env:RUNNER_TEMP "preserved-fixture-$id")
+        }
+    - name: Validar backup e recuperação da base comum preservando PET
+      shell: pwsh
+      run: |
+        ./qa/global-core/rollback.ps1
+        if($LASTEXITCODE -ne 0){throw 'Common rollback failed'}
+    - name: Guardar compilação e evidências sem publicação
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory evidence/common-files -Force|Out-Null
+        $files=@{}
+        foreach($n in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){Copy-Item "publish/$n" evidence/common-files/;$files[$n]=(Get-FileHash "publish/$n").Hash.ToLowerInvariant()}
+        Copy-Item profiles evidence/profiles -Recurse
+        @{CommonCandidateValidated=$true;Published=$false;InstalledOnCustomer=$false;LegacyMigrationApproved=$false;PetSpecificUpdaterValidated=$false;Source=$env:GITHUB_SHA;Files=$files}|ConvertTo-Json -Depth 6|Set-Content evidence/consolidation.json
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: GLOBAL-consolidacao-isolada
+        path: evidence/

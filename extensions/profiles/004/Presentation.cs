@@ -1,0 +1,3 @@
+using LealInfoPDV;
+internal sealed class NamePresentation:IPetExtension{public void Customize(Form form){if(form is MainForm){const string suffix=" — CASA GENILSON • PET V1.1";if(!form.Text.EndsWith(suffix))form.Text+=suffix;foreach(var strip in form.Controls.OfType<StatusStrip>())foreach(var label in strip.Items.OfType<ToolStripStatusLabel>().Where(x=>x.Text.StartsWith("V10.")))label.Text="GLOBAL 10.443 | CASA GENILSON • PET V1.1";}}}
+internal static class ProfilePresentation{internal static IPetExtension Create()=>new NamePresentation();}

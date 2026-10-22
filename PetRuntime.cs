@@ -13,6 +13,8 @@ public interface IPetExtension
     void Customize(Form form);
 }
 
+public interface IPetStartup { void Initialize(); }
+
 internal static class PetRuntime
 {
     internal const int ApiVersion=1;
@@ -38,6 +40,7 @@ internal static class PetRuntime
         if(types.Length!=1)throw new InvalidDataException("PET deve fornecer uma única extensão compatível.");
         extension=(IPetExtension?)Activator.CreateInstance(types[0])??throw new InvalidDataException("PET não inicializado.");
         CurrentVersion=m.Version;
+        if(extension is IPetStartup startup)startup.Initialize();
         Application.Idle+=Apply;
     }
     private static void Apply(object? sender,EventArgs args)
