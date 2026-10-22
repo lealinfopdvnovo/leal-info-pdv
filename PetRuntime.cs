@@ -23,7 +23,10 @@ internal static class PetRuntime
     private static IPetExtension? extension;
     private static ConditionalWeakTable<Form,object> applied=new();
     internal static string? CurrentVersion { get; private set; }
-    internal static void Initialize(string identity)=>Load(Path.Combine(AppContext.BaseDirectory,"Extensions","PET"),identity);
+    internal static void Initialize(string identity){
+        PetBootstrap.EnsurePresent(AppContext.BaseDirectory,identity);
+        Load(Path.Combine(AppContext.BaseDirectory,"Extensions","PET"),identity);
+    }
 
     internal static void Load(string folder,string identity)
     {

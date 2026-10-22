@@ -1,0 +1,68 @@
+name: Casa do Leal - migração protegida isolada
+'on':
+  push:
+    branches: [prepare/casa-migracao-protegida]
+permissions:
+  contents: read
+concurrency:
+  group: casa-migracao-isolada
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.401
+    - name: Conferir escopo e preparar base aprovada
+      shell: pwsh
+      run: |
+        python qa/migration-casa/scope.py
+        if($LASTEXITCODE -ne 0){throw 'Unexpected scope'}
+        '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+        if((dotnet --version) -ne '10.0.401'){throw 'Unexpected SDK'}
+        ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+        ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+        ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+        ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+        ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+        ./scripts/aplicar_central_equipamentos_v10_314.ps1
+    - name: Compilar base neutra e perfil independente da Casa do Leal
+      shell: pwsh
+      run: |
+        dotnet build extensions/profiles/003/Pet.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'Profile build failed'}
+        dotnet build qa/migration-casa/Tests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'Migration host build failed'}
+        dotnet build qa/migration-casa/seeder/Seeder.csproj -c Release -p:UseSharedCompilation=false
+        if($LASTEXITCODE -ne 0){throw 'Legacy seeder build failed'}
+        dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish -p:UseSharedCompilation=false
+        if($LASTEXITCODE -ne 0){throw 'Common Windows build failed'}
+    - name: Verificar versão publicada, hashes e compatibilidade dos três arquivos
+      shell: pwsh
+      run: |
+        python qa/migration-casa/prepare.py
+        if($LASTEXITCODE -ne 0){throw 'Migration preparation failed'}
+        Copy-Item publish/LealInfoPDV.dll qa/migration-casa/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.dll -Force
+    - name: Criar banco fictício usando os arquivos reais da versão legada
+      shell: pwsh
+      run: |
+        dotnet qa/migration-casa/seeder/bin/Release/net8.0-windows10.0.19041.0/Seeder.dll (Resolve-Path legacy/LealInfoPDV.dll).Path
+        if($LASTEXITCODE -ne 0){throw 'Real legacy fixture creation failed'}
+    - name: Testar transição com o atualizador instalado, persistência e rollback
+      shell: pwsh
+      run: |
+        ./qa/migration-casa/transition.ps1
+        if($LASTEXITCODE -ne 0){throw 'Protected legacy transition failed'}
+        Copy-Item payload evidence/payload -Recurse
+        Copy-Item migration-update.zip evidence/migration-update.zip
+        @{Success=$true;Version='10.444';PetVersion='1.1';Source=$env:GITHUB_SHA;Published=$false;InstalledOnCustomer=$false;RealActivatedStartupQualified=$false;IndependentPetUpdaterCompleted=$false}|ConvertTo-Json|Set-Content evidence/validation.json
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: Casa-migracao-protegida-isolada
+        path: evidence/
