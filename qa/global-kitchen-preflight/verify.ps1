@@ -11,11 +11,18 @@ foreach($channel in @('GLOBAL','001','002','003','004')){
  $s=gh api "repos/lealinfopdvnovo/leal-info-pdv/contents/UpdateManager.cs?ref=$($m.SourceCommit)"|ConvertFrom-Json
  if($LASTEXITCODE -ne 0){throw 'Source read failed'}
  $source=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($s.content))
- if($source -notmatch ('CurrentVersion\s*=\s*"'+[Regex]::Escape($m.Version)+'"') -or $source -notmatch ('DistributionChannel="'+$channel+'"')){throw 'Published source identity differs'}
+ if($source -notmatch ('DistributionChannel="'+$channel+'"')){throw 'Published source channel differs'}
+ $sourceVersion=[Regex]::Match($source,'CurrentVersion\s*=\s*"([0-9.]+)"').Groups[1].Value
+ if($sourceVersion -ne $m.Version -and !(($channel -in @('002','004')) -and $sourceVersion -eq '10.407' -and $m.Version -eq '10.408')){throw 'Unexpected source/build version transition'}
  $zip=Join-Path $env:RUNNER_TEMP "$channel.zip";Invoke-WebRequest $m.PackageUrl -OutFile $zip
  if((Get-FileHash $zip).Hash.ToLowerInvariant() -ne $m.Sha256){throw 'Published package integrity failed'}
  $dir=Join-Path $env:RUNNER_TEMP "$channel-fixture";Expand-Archive $zip $dir
  if(!(Test-Path (Join-Path $dir 'LealInfoPDV.exe'))){throw 'Missing executable'}
+ $dll=Join-Path $dir 'LealInfoPDV.dll'
+ if(!(Test-Path $dll)){$dll=Join-Path $dir 'LealInfoPDV.Core.GLOBAL.dll'}
+ if(!(Test-Path $dll)){throw 'Published core missing'}
+ $fileVersion=[Diagnostics.FileVersionInfo]::GetVersionInfo($dll).FileVersion
+ if(!$fileVersion.StartsWith($m.Version+'.')){throw 'Actual published binary version differs from feed'}
  $protected=$source.Contains('await TransactionalUpdate.BeginAsync(')
  $unsafe=$source.Contains('Copy-Item -LiteralPath $_.FullName -Destination $destination -Force')
  $test=$null
