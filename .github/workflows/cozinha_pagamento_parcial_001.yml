@@ -41,7 +41,7 @@ jobs:
         run-id: 39706043559
         name: pacote-10435-001
         path: approved
-    - name: Preparar canal proprio sobre 10.434
+    - name: Preparar canal proprio sobre 10.435
       working-directory: controller
       shell: pwsh
       run: '''{"sdk":{"version":"10.0.401","rollForward":"disable"}}''|Set-Content
@@ -118,7 +118,7 @@ jobs:
         Copy-Item build-windows.log,corrections-windows.log ../source/validated/
 
         '
-    - name: Validar pacote backup e rollback da 10.434 para 10.435
+    - name: Validar pacote backup e rollback da 10.435 para 10.436
       working-directory: source
       shell: pwsh
       run: './qa/kitchen-partial-001/rollback.ps1 2>&1 | Tee-Object validated/rollback.log
