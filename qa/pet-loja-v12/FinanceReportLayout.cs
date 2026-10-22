@@ -9,7 +9,6 @@ internal static class FinanceReportLayout
   if(layout==null||layout.RowCount!=6)return;
   var footer=layout.GetControlFromPosition(0,5) as FlowLayoutPanel;
   if(footer==null)return;
-  Console.WriteLine($"REPORT rows={layout.RowCount} styles={layout.RowStyles.Count} footer={footer.GetType().Name}");
   Applied.Add(form,new object());
   // Preferred height includes scaled padding, margins and actual button height.
   // A fixed row can clip the controls after Windows font/DPI autoscaling.
@@ -19,7 +18,6 @@ internal static class FinanceReportLayout
   foreach(var grid in Walk(form).OfType<DataGridView>().ToArray()){
    void Columns(){
     foreach(DataGridViewColumn c in grid.Columns){
-     c.MinimumWidth=c.Name switch {"Código" or "Venda"=>60,"Data"=>160,"Tipo"=>90,"Descrição" or "Produto"=>220,_=>100};
      c.FillWeight=c.Name switch {"Descrição" or "Produto"=>300,"Data"=>160,"Código" or "Venda"=>65,_=>100};
     }
     grid.ShowCellToolTips=true;

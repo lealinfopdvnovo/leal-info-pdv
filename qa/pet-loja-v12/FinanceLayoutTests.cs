@@ -4,14 +4,18 @@ using System.Text.Json;
 static class FinanceLayoutTests
 {
  static IEnumerable<Control> Walk(Control root)=>root.Controls.Cast<Control>().SelectMany(c=>new[]{c}.Concat(Walk(c)));
- [STAThread] static int Main(){
+ [STAThread] static int Main(string[] args){
   Directory.CreateDirectory("evidence");using var guard=new System.Threading.Timer(_=>Environment.Exit(91),null,90000,Timeout.Infinite);
   var checks=new List<string>();void Check(bool ok,string text){if(!ok)throw new Exception(text);checks.Add(text);Console.WriteLine("PASS "+text);}
   try{
    Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true"&&!File.Exists(Database.DbPath),"isolated Windows, no store database");
    Application.EnableVisualStyles();Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);Database.Initialize();
    Auth.CreateUser("QA","qafinance","QA-finance-123!","ADMINISTRADOR","qa@example.invalid","");Auth.Login("qafinance","QA-finance-123!");
-   using(var db=Database.Open()){using var q=db.CreateCommand();q.CommandText="INSERT INTO cash_movements(occurred_at,type,description,amount,sale_id) VALUES(datetime('now'),'ENTRADA','DESCRIÇÃO COMPLETA DO MOVIMENTO FINANCEIRO DA LOJA',230,NULL)";q.ExecuteNonQuery();}
+   using(var db=Database.Open()){using var q=db.CreateCommand();q.CommandText="INSERT INTO cash_movements(occurred_at,type,description,amount,sale_id) VALUES(datetime('now'),'ENTRADA','DESCRIÇÃO COMPLETA DO MOVIMENTO FINANCEIRO DA LOJA',230,NULL)";q.ExecuteNonQuery();q.CommandText="INSERT OR REPLACE INTO settings(key,value) VALUES('client_update_id','001')";q.ExecuteNonQuery();}
+   if(args.Contains("--bootstrap")){
+    var assembly=typeof(MainForm).Assembly;assembly.GetType("LealInfoPDV.LojaPetBootstrap")!.GetMethod("Initialize",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,null);
+    Check(assembly.GetType("LealInfoPDV.PetRuntime")!.GetProperty("CurrentVersion",BindingFlags.Static|BindingFlags.NonPublic)!.GetValue(null)?.ToString()=="1.2","published binary loads embedded PET V1.2");
+   }
    string State(){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText="SELECT COUNT(*)||'|'||SUM(amount)||'|'||(SELECT COUNT(*) FROM sales)||'|'||(SELECT COUNT(*) FROM products) FROM cash_movements";return Convert.ToString(q.ExecuteScalar())!;}
    var state=State();using var owner=new MainForm();
    var flags=BindingFlags.Instance|BindingFlags.NonPublic;((System.Windows.Forms.Timer)typeof(MainForm).GetField("licenseTimer",flags)!.GetValue(owner)!).Stop();
