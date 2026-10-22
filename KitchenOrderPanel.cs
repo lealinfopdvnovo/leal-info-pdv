@@ -59,7 +59,7 @@ internal sealed class KitchenOrderPanel : UserControl
             if(persisted){if(e.ColumnIndex==Rows.Columns["StatusMenu"].Index){var cell=Rows.GetCellDisplayRectangle(e.ColumnIndex,e.RowIndex,true);states.Show(Rows,new Point(cell.Left,cell.Bottom));}return;}
             if(e.ColumnIndex==3)EditRequested?.Invoke(e.RowIndex);if(e.ColumnIndex==4)RemoveRequested?.Invoke(e.RowIndex);
         };
-        Rows.SelectionChanged+=(_,_)=>UpdateReadySelection();
+        Rows.CurrentCellChanged+=(_,_)=>UpdateReadySelection();
         Rows.ContextMenuStrip=states;Rows.Disposed+=(_,_)=>states.Dispose();
         root.Controls.Add(Rows,0,1);
         var actions=new TableLayoutPanel{Name="DashboardHeroActions",Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Margin=new Padding(0,8,0,0)};
