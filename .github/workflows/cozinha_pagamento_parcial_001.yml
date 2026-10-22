@@ -35,6 +35,12 @@ jobs:
     - uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.401
+    - uses: actions/download-artifact@v4
+      with:
+        github-token: ${{ github.token }}
+        run-id: 39706043559
+        name: pacote-10435-001
+        path: approved
     - name: Preparar canal proprio sobre 10.434
       working-directory: controller
       shell: pwsh
@@ -48,7 +54,7 @@ jobs:
         $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
 
         if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne $env:CHANNEL -or $p.Entries[0].Version
-        -ne ''10.435'' -or $p.Entries[0].Baseline.Version -ne ''10.434''){throw ''Wrong
+        -ne ''10.436'' -or $p.Entries[0].Baseline.Version -ne ''10.435''){throw ''Wrong
         scope''}
 
         python scripts/distribute_channels.py prepare $env:CHANNEL
@@ -75,12 +81,16 @@ jobs:
     - name: Testar consumo preparo cancelamento financeiro e compilar Windows
       working-directory: controller
       shell: pwsh
-      run: 'dotnet run --project candidate/qa/kitchen-partial-001/CorrectionsTests.csproj
+      run: 'dotnet run --project candidate/qa/kitchen-partial-001/VisualTests.csproj
         -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false 2>&1 | Tee-Object
         corrections-windows.log
 
         if($LASTEXITCODE -ne 0){throw ''Consumption cancellation or financial test
         failed''}
+
+        python candidate/qa/kitchen-partial-001/combine.py
+
+        if($LASTEXITCODE -ne 0){throw ''Approved evidence mismatch''}
 
         $r=Get-Content corrections-evidence/results.json -Raw|ConvertFrom-Json
 
@@ -119,7 +129,7 @@ jobs:
     - uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: pacote-10435-001
+        name: pacote-10436-001
         path: source/validated/
     - uses: actions/upload-artifact@v4
       if: failure()
@@ -137,7 +147,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: actions/download-artifact@v4
       with:
-        name: pacote-10435-001
+        name: pacote-10436-001
         path: proof/001/validated
     - name: Publicar exclusivamente 001 e conferir downloads e feeds
       env:
@@ -147,5 +157,5 @@ jobs:
     - uses: actions/upload-artifact@v4
       if: always()
       with:
-        name: publicacao-10435-001
+        name: publicacao-10436-001
         path: published-001.json
