@@ -48,7 +48,7 @@ internal sealed partial class KitchenStore
             if(r.GetString(1)!=request)throw new InvalidOperationException("Esta cobrança já foi registrada com outros dados.");long done=r.GetInt64(0);tx.Commit();return done;
         }
         var current=Quote(db,tx,bill.Orders[0].Id);
-        if(current.Fingerprint!=(bill.AccountFingerprint??bill.Fingerprint))throw new InvalidOperationException("A conta ou o preparo mudou. Nenhum lançamento foi feito. Atualize e confira novamente.");
+        if(bill.Reference!=current.Reference||current.Fingerprint!=(bill.AccountFingerprint??bill.Fingerprint))throw new InvalidOperationException("A conta ou o preparo mudou. Nenhum lançamento foi feito. Atualize e confira novamente.");
         var priced=current.Items.Select(i=>{
             var supplied=bill.Items.SingleOrDefault(x=>x.OrderId==i.OrderId&&x.Position==i.Position);
             return !i.ProductId.HasValue&&i.UnitPrice<=0&&supplied!=null?i with{UnitPrice=supplied.UnitPrice,TotalOverride=null}:i;
@@ -79,7 +79,7 @@ internal sealed partial class KitchenStore
             using(var update=Command(db,tx,"UPDATE kitchen_items_v1 SET quantity=$remaining WHERE order_id=$id AND position=$p",("$remaining",remaining.ToString("G29",CultureInfo.InvariantCulture)),("$id",item.OrderId.ToString("D")),("$p",item.Position)))if(update.ExecuteNonQuery()!=1)throw new InvalidOperationException("Item não encontrado para pagamento.");
             using(var price=Command(db,tx,"INSERT INTO kitchen_consumption_prices_v3(order_id,position,unit_price) VALUES($id,$p,$price) ON CONFLICT(order_id,position) DO UPDATE SET unit_price=excluded.unit_price",("$id",item.OrderId.ToString("D")),("$p",item.Position),("$price",item.UnitPrice.ToString(CultureInfo.InvariantCulture))))price.ExecuteNonQuery();
         }
-        foreach(var order in bill.Orders.Where(o=>bill.Items.Any(i=>i.OrderId==o.Id))){
+        foreach(var order in current.Orders.Where(o=>bill.Items.Any(i=>i.OrderId==o.Id))){
             bool complete=Read(db,tx,order.Id).Items.Length==0;
             using(var update=Command(db,tx,"UPDATE kitchen_orders_v1 SET status=CASE WHEN $complete=1 THEN 'ENTREGUE' ELSE status END,revision=revision+1,updated_utc=$now WHERE id=$id AND revision=$r",("$complete",complete?1:0),("$now",stamp),("$id",order.Id.ToString("D")),("$r",order.Revision)))if(update.ExecuteNonQuery()!=1)throw new InvalidOperationException("Conta alterada por outro terminal.");
             if(complete)using(var paid=Command(db,tx,"INSERT INTO kitchen_paid_orders_v1(order_id,sale_id) VALUES($id,$sale)",("$id",order.Id.ToString("D")),("$sale",saleId)))paid.ExecuteNonQuery();
