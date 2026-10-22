@@ -25,6 +25,10 @@ static class FinanceLayoutTests
     try{
      typeof(MainForm).Assembly.GetType("LealInfoPDV.SalesDialogTheme")!.GetMethod("Apply",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object?[]{f,"Futurista Azul",null});
      var pet=new LojaTestExtension();pet.Customize(f);pet.Customize(f);
+     var indicators=(TableLayoutPanel)f.Controls.OfType<TableLayoutPanel>().Single().GetControlFromPosition(0,2)!;
+     var expected=new[]{Color.FromArgb(0,125,185),Color.FromArgb(94,102,110),Color.FromArgb(0,145,92),Color.FromArgb(190,58,55),Color.FromArgb(95,72,175),Color.FromArgb(222,126,20)};
+     void Colors(){for(int i=0;i<6;i++)Check(indicators.GetControlFromPosition(i,0)!.BackColor==expected[i],"indicator color preserved "+i);}
+     Colors();typeof(MainForm).Assembly.GetType("LealInfoPDV.SalesDialogTheme")!.GetMethod("Apply",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object?[]{f,"Futurista Azul",null});Colors();
      f.WindowState=FormWindowState.Normal;f.MinimumSize=Size.Empty;
      foreach(var scale in new[]{1f,1.25f,1.5f}){
       if(scale!=1f)f.Scale(new SizeF(scale/(scale==1.25f?1f:1.25f),scale/(scale==1.25f?1f:1.25f)));
@@ -41,6 +45,7 @@ static class FinanceLayoutTests
      Walk(f).OfType<Button>().Single(b=>b.Text=="BUSCAR").PerformClick();Check(total==grid.Rows.Cast<DataGridViewRow>().Sum(r=>Convert.ToDouble(r.Cells["Valor"].Value)),"search reload retains financial values");
      f.Scale(new SizeF(1/1.5f,1/1.5f));f.ClientSize=new Size(1360,680);f.PerformLayout();
      using(var image=new Bitmap(f.ClientSize.Width,f.ClientSize.Height)){f.Controls[0].DrawToBitmap(image,f.Controls[0].Bounds);image.Save("evidence/financeiro-corrigido.png");}
+     Colors();
      Check(State()==state,"movements, sales and products unchanged");completed=true;
     }catch(Exception e){Console.Error.WriteLine(e);failure=e;}finally{f.Close();}
    };

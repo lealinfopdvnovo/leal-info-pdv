@@ -50,7 +50,7 @@ jobs:
         python scripts/distribute_channels.py plan
         if($LASTEXITCODE -ne 0){throw 'Plan failed'}
         $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
-        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '001' -or $p.Entries[0].Version -ne '10.440' -or $p.Entries[0].Baseline.Version -ne '10.439'){throw 'Wrong scope'}
+        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne '001' -or $p.Entries[0].Version -ne '10.441' -or $p.Entries[0].Baseline.Version -ne '10.440'){throw 'Wrong scope'}
         python scripts/distribute_channels.py prepare 001
         if($LASTEXITCODE -ne 0){throw 'Preparation failed'}
         Push-Location candidate

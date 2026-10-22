@@ -10,6 +10,14 @@ internal static class FinanceReportLayout
   var footer=layout.GetControlFromPosition(0,5) as FlowLayoutPanel;
   if(footer==null)return;
   Applied.Add(form,new object());
+  if(layout.GetControlFromPosition(0,2) is TableLayoutPanel indicators){
+   var colors=new[]{Color.FromArgb(0,125,185),Color.FromArgb(94,102,110),Color.FromArgb(0,145,92),Color.FromArgb(190,58,55),Color.FromArgb(95,72,175),Color.FromArgb(222,126,20)};
+   for(int i=0;i<6;i++)if(indicators.GetControlFromPosition(i,0) is Label card){
+    int index=i;
+    void Restore(){var color=index==4&&card.Text.Contains('-')?Color.FromArgb(180,45,45):colors[index];if(card.BackColor!=color)card.BackColor=color;card.ForeColor=Color.White;}
+    card.BackColorChanged+=(_,_)=>Restore();card.TextChanged+=(_,_)=>Restore();Restore();
+   }
+  }
   // Preferred height includes scaled padding, margins and actual button height.
   // A fixed row can clip the controls after Windows font/DPI autoscaling.
   footer.WrapContents=false;footer.AutoSize=true;footer.AutoSizeMode=AutoSizeMode.GrowAndShrink;
