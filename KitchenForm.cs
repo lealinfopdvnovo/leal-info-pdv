@@ -358,21 +358,12 @@ internal sealed class KitchenForm : Form
         catch (Exception e) { ApplyUi(()=>message.Text=e.Message+" • Pendências preservadas; a tentativa será repetida ao reconectar."); }
         finally { gate.Release();ApplyUi(()=>{fresh.Enabled=true;SyncDashboard();}); }
     }
-    private Task AdvanceOrder(string status)=>Run(async()=>
+    private Task AdvanceOrder(string status)
     {
-                if (!Auth.HasPermission("sales")) throw new InvalidOperationException("Sem permissão de operação.");
-                if(dashboardDraft)throw new InvalidOperationException("Selecione um pedido enviado para alterar seu estado.");
-                var selected=SelectedOrder()??throw new InvalidOperationException("Selecione um pedido.");
-                if (status == "CANCELADO" && MessageBox.Show(this, "Cancelar somente este pedido da cozinha? Isso não cancela vendas nem estorna pagamentos.", "Cozinha", MessageBoxButtons.YesNo) != DialogResult.Yes) return;
-                string actor = Auth.OperatorName;
-                await Task.Run(() =>
-                {
-                    long revision=selected.Revision;
-                    if(status=="PRONTO"&&selected.Status=="AGUARDANDO")revision=store.ChangeStatus(selected.Id,revision,"PREPARANDO",actor,Guid.NewGuid()).Revision;
-                    store.ChangeStatus(selected.Id,revision,status,actor,Guid.NewGuid());
-                });
-                await RefreshOrders();
-    });
+        var panel=tableWindow is{Visible:true}?floatingTableOrder:dashboardOrder;
+        if(panel?.Rows.CurrentRow?.Tag is KitchenTableLine line)return AdvanceLine(line.OrderId,line.Position,status);
+        message.Text="Selecione o produto que deseja alterar.";return Task.CompletedTask;
+    }
     private KitchenRowDestination SuggestedDestination(long? id,string name)
     {
         var product=id.HasValue?KitchenProductRouting.List().FirstOrDefault(p=>p.Id==id):null;
@@ -431,10 +422,12 @@ internal sealed class KitchenForm : Form
     private KitchenTableLine[] TableLines(KitchenOrder? chosen){
         if(chosen==null)return Array.Empty<KitchenTableLine>();
         bool table=KitchenTablesView.TableNumber(chosen.Reference).HasValue;
-        return visibleOrders.Where(o=>(table?o.Reference==chosen.Reference:o.Id==chosen.Id)&&!o.Paid&&o.Status!="CANCELADO").OrderBy(o=>o.ReceivedUtc).ThenBy(o=>o.Id).SelectMany(o=>o.Items.Select(i=>new KitchenTableLine(o.Id,i.Position??0,o.Status,o.TableOnly,i with{UnitPrice=i.UnitPrice??mainCatalog.PriceOf(i.ProductId)}))).ToArray();
+        return visibleOrders.Where(o=>(table?o.Reference==chosen.Reference:o.Id==chosen.Id)&&!o.Paid&&o.Status!="CANCELADO").OrderBy(o=>o.ReceivedUtc).ThenBy(o=>o.Id).SelectMany(o=>o.Items.Select(i=>new KitchenTableLine(o.Id,i.Position??0,KitchenStore.ItemStatus(o,i),o.TableOnly,i with{UnitPrice=i.UnitPrice??mainCatalog.PriceOf(i.ProductId)}))).ToArray();
     }
     private async Task AdvanceLine(Guid id,int position,string status){
-        if(status!="CANCELADO"){SelectSavedOrder(id);await AdvanceOrder(status);return;}
+        if(status!="CANCELADO"){
+            await Run(async()=>{var order=visibleOrders.SingleOrDefault(o=>o.Id==id)??throw new InvalidOperationException("Atualize a mesa.");await Task.Run(()=>store.ChangeItemStatus(id,position,order.Revision,status,Auth.OperatorName,Guid.NewGuid()));await RefreshOrders();SelectSavedOrder(id);});return;
+        }
         await Run(async()=>{
             var order=visibleOrders.SingleOrDefault(o=>o.Id==id)??throw new InvalidOperationException("Atualize a mesa.");
             if(order.Paid)throw new InvalidOperationException("Consumo já pago não pode ser cancelado.");
@@ -598,7 +591,7 @@ internal sealed class KitchenForm : Form
         var selected=(orders.CurrentRow?.DataBoundItem as OrderRow)?.Id;
         foreach(Control card in orderCards.Controls.Cast<Control>().ToArray()){orderCards.Controls.Remove(card);card.Dispose();}
         var rows=orders.Rows.Cast<DataGridViewRow>().Select(r=>(Row:r,Value:r.DataBoundItem as OrderRow)).Where(r=>r.Value!=null&&r.Value.Status is not ("ENTREGUE" or "CANCELADO")&&visibleOrders.Any(o=>o.Id==r.Value.Id&&!o.TableOnly&&!o.Paid&&o.Items.Length>0)).ToArray();
-        premiumHeader.UpdateCounts(rows.Count(r=>r.Value!.Status=="AGUARDANDO"),rows.Count(r=>r.Value!.Status=="PREPARANDO"),rows.Count(r=>r.Value!.Status=="PRONTO"));
+        var stages=visibleOrders.Where(o=>!o.TableOnly&&!o.Paid&&o.Status!="CANCELADO").SelectMany(o=>o.Items.Select(i=>KitchenStore.ItemStatus(o,i))).ToArray();premiumHeader.UpdateCounts(stages.Count(s=>s=="AGUARDANDO"),stages.Count(s=>s=="PREPARANDO"),stages.Count(s=>s=="PRONTO"));
         foreach(var row in rows)
         {
             var value=row.Value!;

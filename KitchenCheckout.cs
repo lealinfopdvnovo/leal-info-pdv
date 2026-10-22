@@ -29,10 +29,10 @@ internal sealed partial class KitchenStore
         var orders=ids.Select(id=>Read(db,tx,id)).ToArray();var items=new List<KitchenChargeItem>();
         foreach(var order in orders)foreach(var item in order.Items)
         {
-            if(item.ProductId is not long productId){items.Add(new(null,item.Description,item.Quantity,item.UnitPrice??0,false,order.Id,item.Position??0,order.TableOnly||order.Status=="ENTREGUE",item.LineBalance));continue;}
+            if(item.ProductId is not long productId){items.Add(new(null,item.Description,item.Quantity,item.UnitPrice??0,false,order.Id,item.Position??0,order.TableOnly||ItemStatus(order,item)=="ENTREGUE",item.LineBalance));continue;}
             using var product=Command(db,tx,"SELECT price,track_stock FROM products WHERE id=$id AND active=1",("$id",productId));using var r=product.ExecuteReader();
             if(!r.Read()||Convert.ToDecimal(r.GetDouble(0))<=0)throw new InvalidOperationException("Informe um preço válido no cadastro de "+item.Description+" antes de receber.");
-            items.Add(new(productId,item.Description,item.Quantity,item.UnitPrice??Convert.ToDecimal(r.GetDouble(0)),r.GetInt32(1)==1,order.Id,item.Position??0,order.TableOnly||order.Status=="ENTREGUE",item.LineBalance));
+            items.Add(new(productId,item.Description,item.Quantity,item.UnitPrice??Convert.ToDecimal(r.GetDouble(0)),r.GetInt32(1)==1,order.Id,item.Position??0,order.TableOnly||ItemStatus(order,item)=="ENTREGUE",item.LineBalance));
         }
         if(items.Count==0)throw new InvalidOperationException("Pedido sem itens para receber.");
         return new(chosen.Reference,orders,items.ToArray(),Guid.NewGuid());

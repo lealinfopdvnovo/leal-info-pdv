@@ -17,7 +17,7 @@ internal sealed class KitchenPartialPaymentForm:Form
         grid.Columns.Add(new DataGridViewTextBoxColumn{Name="Quantity",HeaderText="QTD. A PAGAR",FillWeight=19});
         grid.Columns.Add(new DataGridViewTextBoxColumn{Name="Price",HeaderText="UNIT. R$",FillWeight=19});
         grid.Columns.Add(new DataGridViewTextBoxColumn{Name="Total",HeaderText="PAGAR R$",FillWeight=19,ReadOnly=true});
-        foreach(var item in bill.Items){int n=grid.Rows.Add(false,item.Description,item.Payable?"DISPONÍVEL":bill.Orders.Single(o=>o.Id==item.OrderId).Status,item.Quantity,0m,item.UnitPrice,0m);var row=grid.Rows[n];row.Tag=item;
+        foreach(var item in bill.Items){int n=grid.Rows.Add(false,item.Description,item.Payable?"DISPONÍVEL":KitchenStore.ItemStatus(bill.Orders.Single(o=>o.Id==item.OrderId),bill.Orders.Single(o=>o.Id==item.OrderId).Items.Single(i=>i.Position==item.Position)),item.Quantity,0m,item.UnitPrice,0m);var row=grid.Rows[n];row.Tag=item;
             row.Cells["Pay"].ReadOnly=row.Cells["Quantity"].ReadOnly=!item.Payable;row.Cells["Price"].ReadOnly=!item.Payable||item.ProductId.HasValue||item.UnitPrice>0;if(!item.Payable)row.DefaultCellStyle.ForeColor=Color.Gray;
         }
         foreach(string name in new[]{"Price","Total"}){grid.Columns[name].DefaultCellStyle.Format="N2";grid.Columns[name].DefaultCellStyle.FormatProvider=CultureInfo.GetCultureInfo("pt-BR");}

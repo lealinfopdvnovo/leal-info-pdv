@@ -37,9 +37,10 @@ internal sealed class KitchenOrderPanel : UserControl
         Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="Notes",HeaderText="OBSERVAÇÃO",FillWeight=43});
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Edit",HeaderText="",Text="✎",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
         Rows.Columns.Add(new DataGridViewButtonColumn{Name="Remove",HeaderText="",Text="×",UseColumnTextForButtonValue=true,Width=36,AutoSizeMode=DataGridViewAutoSizeColumnMode.None});
-        Rows.Columns.Add(new DataGridViewButtonColumn{Name="StatusMenu",HeaderText="",Text="▼",ToolTipText="Alterar status do pedido",UseColumnTextForButtonValue=true,Width=32,MinimumWidth=32,AutoSizeMode=DataGridViewAutoSizeColumnMode.None,DisplayIndex=2});
+        Rows.Columns.Add(new DataGridViewButtonColumn{Name="StatusMenu",HeaderText="",Text="▼",ToolTipText="Alterar somente o status deste produto",UseColumnTextForButtonValue=true,Width=32,MinimumWidth=32,AutoSizeMode=DataGridViewAutoSizeColumnMode.None,DisplayIndex=2});
         Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="UnitPrice",HeaderText="UNIT. R$",FillWeight=18,DefaultCellStyle=new DataGridViewCellStyle{Format="N2",FormatProvider=CultureInfo.GetCultureInfo("pt-BR")}});
         Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="LineTotal",HeaderText="TOTAL R$",FillWeight=19,DefaultCellStyle=new DataGridViewCellStyle{Format="N2",FormatProvider=CultureInfo.GetCultureInfo("pt-BR")}});
+        Rows.Columns.Add(new DataGridViewTextBoxColumn{Name="ItemStatus",HeaderText="ESTADO",FillWeight=26});
         Rows.RowTemplate.Height=34;Rows.ColumnHeadersHeight=30;Rows.ColumnHeadersHeightSizeMode=DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
         Rows.CellPainting+=(_,e)=>
         {
@@ -58,6 +59,7 @@ internal sealed class KitchenOrderPanel : UserControl
             if(persisted){if(e.ColumnIndex==Rows.Columns["StatusMenu"].Index){var cell=Rows.GetCellDisplayRectangle(e.ColumnIndex,e.RowIndex,true);states.Show(Rows,new Point(cell.Left,cell.Bottom));}return;}
             if(e.ColumnIndex==3)EditRequested?.Invoke(e.RowIndex);if(e.ColumnIndex==4)RemoveRequested?.Invoke(e.RowIndex);
         };
+        Rows.SelectionChanged+=(_,_)=>UpdateReadySelection();
         Rows.ContextMenuStrip=states;Rows.Disposed+=(_,_)=>states.Dispose();
         root.Controls.Add(Rows,0,1);
         var actions=new TableLayoutPanel{Name="DashboardHeroActions",Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Margin=new Padding(0,8,0,0)};
@@ -78,10 +80,11 @@ internal sealed class KitchenOrderPanel : UserControl
         if(InvokeRequired){if(IsHandleCreated)BeginInvoke((Action)(()=>Display(reference,items,saved,since,canSend,status,lines)));return;}
         persisted=saved;started=lines!=null?lines.Where(l=>!l.TableOnly&&l.Status is ("AGUARDANDO" or "PREPARANDO" or "PRONTO")).Any()?since:null:since;payment.Enabled=saved&&items.Length>0;title.Text=(reference.StartsWith("Mesa ",StringComparison.OrdinalIgnoreCase)?"PEDIDO DA "+reference.ToUpperInvariant():string.IsNullOrWhiteSpace(reference)?"PEDIDO DA MESA":"PEDIDO • "+reference)+(saved?"   •   "+status:"");
         Rows.Rows.Clear();decimal sum=0;
-        for(int i=0;i<items.Length;i++){var item=items[i];int index=Rows.Rows.Add(item.Quantity.ToString("0.###",CultureInfo.GetCultureInfo("pt-BR")),item.Description,item.Notes);var row=Rows.Rows[index];row.Cells["UnitPrice"].Value=item.UnitPrice;decimal value=item.LineBalance??decimal.Round(item.Quantity*(item.UnitPrice??0),2,MidpointRounding.AwayFromZero);row.Cells["LineTotal"].Value=value;sum+=value;if(lines!=null&&i<lines.Count)row.Tag=lines[i];}
+        for(int i=0;i<items.Length;i++){var item=items[i];int index=Rows.Rows.Add(item.Quantity.ToString("0.###",CultureInfo.GetCultureInfo("pt-BR")),item.Description,item.Notes);var row=Rows.Rows[index];row.Cells["ItemStatus"].Value=lines!=null&&i<lines.Count?lines[i].Status:item.PreparationStatus??"";row.Cells["UnitPrice"].Value=item.UnitPrice;decimal value=item.LineBalance??decimal.Round(item.Quantity*(item.UnitPrice??0),2,MidpointRounding.AwayFromZero);row.Cells["LineTotal"].Value=value;sum+=value;if(lines!=null&&i<lines.Count)row.Tag=lines[i];}
         total.Text="CONTA DA MESA: "+sum.ToString("C2",CultureInfo.GetCultureInfo("pt-BR"));
-        Rows.Columns["StatusMenu"].Visible=saved;Rows.Columns["Edit"].Visible=Rows.Columns["Remove"].Visible=!saved;clear.Enabled=!saved&&canSend&&items.Length>0;send.Enabled=!saved&&canSend&&items.Length>0;print.Enabled=items.Length>0;ready.Enabled=saved&&status is ("AGUARDANDO" or "PREPARANDO");Tick();
+        Rows.Columns["ItemStatus"].Visible=saved;Rows.Columns["StatusMenu"].Visible=saved;Rows.Columns["Edit"].Visible=Rows.Columns["Remove"].Visible=!saved;clear.Enabled=!saved&&canSend&&items.Length>0;send.Enabled=!saved&&canSend&&items.Length>0;print.Enabled=items.Length>0;UpdateReadySelection();Tick();
     }
+    private void UpdateReadySelection(){ready.Enabled=persisted&&Rows.CurrentRow?.Tag is KitchenTableLine line&&!line.TableOnly&&line.Status is ("AGUARDANDO" or "PREPARANDO");}
     private void Tick(){var age=started.HasValue?DateTimeOffset.UtcNow-started.Value:TimeSpan.Zero;elapsed.Text=(!started.HasValue?"":"TEMPO: ")+((int)Math.Max(0,age.TotalMinutes)).ToString("00")+":"+Math.Max(0,age.Seconds).ToString("00");if(!started.HasValue)elapsed.Text="";}
     protected override void Dispose(bool disposing){if(disposing)clock.Dispose();base.Dispose(disposing);}
 }
