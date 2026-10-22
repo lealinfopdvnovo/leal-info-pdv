@@ -17,6 +17,7 @@ if(args.Contains("--verify-rollback")){
 }
 if(File.Exists(db))throw new Exception("Fixture cannot overwrite existing database");
 Call("Database","Initialize");File.WriteAllText(Path.Combine(Path.GetDirectoryName(db)!,"MIGRATION-QA"),Environment.GetEnvironmentVariable("GITHUB_RUN_ID"));
+File.WriteAllText(Path.Combine(Path.GetDirectoryName(db)!,"angra-sync.identity"),"INVALID-OFFLINE-QA-IDENTITY"); // Deliberately invalid fixture prevents live gateway registration; no real identity is used.
 Call("Auth","CreateUser","QA CASA","migrationqa","QA-migration-only!","ADMINISTRADOR","qa@example.invalid","",false);
 using(var cn=new SqliteConnection("Data Source="+db)){cn.Open();using var q=cn.CreateCommand();q.CommandText="INSERT INTO products(id,name,price,stock,active) VALUES(901,'PRODUTO LEGADO',12.5,77,1);INSERT INTO customers(id,name) VALUES(901,'CLIENTE LEGADO');INSERT OR REPLACE INTO settings(key,value) VALUES('client_update_id','003'),('company_trade_name','EMPRESA LEGADA'),('smtp_host','PRESERVAR SMTP')";q.ExecuteNonQuery();}
 var projectType=assembly.GetType("LealInfoPDV.GlassSavedProject",true)!;

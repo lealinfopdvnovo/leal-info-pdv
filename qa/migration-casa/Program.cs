@@ -16,7 +16,7 @@ static class Tests
    string root=Path.GetFullPath(args[0]);
    if(args.Contains("--crash")){PetBootstrap.EnsurePresent(root,"003",_=>Process.GetCurrentProcess().Kill());return 90;}
    Check(File.ReadAllText(Path.Combine(Database.AppFolder,"MIGRATION-QA"))==Environment.GetEnvironmentVariable("GITHUB_RUN_ID"),"database was created by verified legacy DLL in this run");
-   Directory.CreateDirectory("evidence");string before=State();
+   Directory.CreateDirectory("evidence");string before=State();byte[] identityBefore=File.ReadAllBytes(Path.Combine(Database.AppFolder,"angra-sync.identity"));
    string Fixture(string name){string p=Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP")!,"migration-"+name+"-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(p);File.WriteAllText(Path.Combine(p,"QA-ISOLATED"),"fixture");File.Copy(Path.Combine(root,"LealInfoPDV.exe"),Path.Combine(p,"LealInfoPDV.exe"));return p;}
    void Reject(Action action,string name){bool blocked=false;try{action();}catch(InvalidDataException){blocked=true;}Check(blocked,name);}
    string wrong=Fixture("wrong");Reject(()=>PetBootstrap.EnsurePresent(wrong,"002"),"wrong identity rejected before creating profile");Check(!Directory.Exists(Path.Combine(wrong,"Extensions")),"wrong identity creates no profile directory");
@@ -41,6 +41,7 @@ static class Tests
     Check(Walk(main).Count(x=>x.Text=="VIDRAÇARIA")==1&&main.Text.Contains("CASA LEAL INFO"),"actual native main form retains Casa profile and Glass entry");
     using var workshop=new GlassWorkshopForm(main.PetTheme);workshop.LoadSavedProject(projectId);Check(workshop.CaptureSavedProject().Description=="PROJETO LEGADO","actual workshop reopens project created by legacy binary");main.Close();
    }
+   Check(File.ReadAllBytes(Path.Combine(Database.AppFolder,"angra-sync.identity")).SequenceEqual(identityBefore),"existing application identity fixture preserved; live integration is not contacted");
    Check(State()==before,"profile installation, startup and project reopening leave all legacy records unchanged");
    using(var cn=new SqliteConnection(Database.ConnectionString))using(var backup=new SqliteConnection("Data Source="+Path.GetFullPath("evidence/legacy-restorable.db")+";Pooling=False")){cn.Open();backup.Open();cn.BackupDatabase(backup);}
    RestoreEngine.Validate(Path.GetFullPath("evidence/legacy-restorable.db"));Check(true,"populated legacy database has validated restorable online backup");
