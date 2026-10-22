@@ -4808,6 +4808,8 @@ private void ApplyFloatingTheme(Form f)
         UpdateMulti();
 
         ApplyFloatingTheme(f);
+        if (caption?.StartsWith("RECEBER / PAGAMENTO —", StringComparison.Ordinal) == true)
+            KitchenPaymentLayout.Apply(f, tabs, footer, cancel, cashConfirm, pixConfirm, cardConfirm, multiConfirm);
         return f.ShowDialog(owner ?? Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.Visible && form.Text.Contains("TELA DE VENDA")) ?? this) == DialogResult.OK ? result : null;
     }
 
