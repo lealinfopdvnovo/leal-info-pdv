@@ -25,7 +25,13 @@ internal static class FinanceReportLayout
    }
    Columns();grid.DataBindingComplete+=(_,_)=>Columns();
   }
-  form.PerformLayout();
+  void Compact(){
+   if(layout.GetControlFromPosition(0,0) is Control header)
+    layout.RowStyles[0].Height=Math.Max(42,Walk(header).OfType<Label>().Select(l=>l.Font.Height+18).DefaultIfEmpty(42).Max());
+   if(layout.GetControlFromPosition(0,2) is Control cards)
+    layout.RowStyles[2].Height=Math.Max(64,Walk(cards).OfType<Label>().Select(l=>l.Font.Height*2+24).DefaultIfEmpty(64).Max());
+  }
+  form.Resize+=(_,_)=>Compact();Compact();form.PerformLayout();
  }
  static IEnumerable<Control> Walk(Control root){foreach(Control c in root.Controls){yield return c;foreach(var n in Walk(c))yield return n;}}
 }
