@@ -30,4 +30,6 @@
     <Content Include="Assets\*.mp4"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
   </ItemGroup>
   <ItemGroup><EmbeddedResource Include="TransactionalUpdate.ps1" LogicalName="TransactionalUpdateWorker" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="ready-kitchen/photos.zip" LogicalName="ReadyKitchen.photos.zip" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Assets/KitchenTablesPremium.png" LogicalName="Kitchen.TablesPremium" /></ItemGroup>
 </Project>

@@ -23,6 +23,7 @@ internal sealed class ProductRegistrationForm : Form
     public static void Show(IWin32Window owner, long? productId)
     {
         EnsureSchema();
+        KitchenProductRouting.Ensure();
         using var form = new ProductRegistrationForm(productId);
         form.ShowDialog(owner);
     }
@@ -57,7 +58,7 @@ internal sealed class ProductRegistrationForm : Form
             "approx_price REAL NOT NULL DEFAULT 0", "track_stock INTEGER NOT NULL DEFAULT 1",
             "use_scale INTEGER NOT NULL DEFAULT 0", "fractional_sale INTEGER NOT NULL DEFAULT 0",
             "individual_sale INTEGER NOT NULL DEFAULT 1", "sell_in_grid INTEGER NOT NULL DEFAULT 0",
-            "kitchen_preparation INTEGER NOT NULL DEFAULT 0", "composition TEXT", "location TEXT",
+            "kitchen_preparation INTEGER NOT NULL DEFAULT 0", "kitchen_classified INTEGER NOT NULL DEFAULT 0", "composition TEXT", "location TEXT",
             "notes TEXT", "expiry_date TEXT", "updated_at TEXT"
         };
         foreach (var definition in columns)
@@ -149,8 +150,14 @@ internal sealed class ProductRegistrationForm : Form
         AddField(fields, "location", "Localização", new TextBox(), row, 2);
         AddField(fields, "notes", "Observação", new TextBox(), row, 3); row++;
 
+        var kitchenChoice=new ComboBox{Name="ProductKitchenChoice",DropDownStyle=ComboBoxStyle.DropDownList};
+        kitchenChoice.Items.AddRange(new object[]{"SIM — COZINHA","NÃO — LOJA"});
+        AddField(fields,"kitchen","É produto da cozinha? (obrigatório)",kitchenChoice,row,0,2);
+        var routingChoice=new ComboBox{Name="ProductKitchenRoute",DropDownStyle=ComboBoxStyle.DropDownList};routingChoice.Items.AddRange(new object[]{"EXIGE PREPARO","ENTREGA DIRETA"});
+        AddField(fields,"kitchen_route","Atendimento (sugestão pode ser revisada)",routingChoice,row,2,2);row++;
+        kitchenChoice.SelectedIndexChanged+=(_,_)=>{routingChoice.Enabled=kitchenChoice.SelectedIndex==0;};
         var checks = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(2, 8, 2, 5) };
-        foreach (var item in new[] { ("track_stock", "Controlar estoque"), ("use_scale", "Usar balança"), ("fractional", "Venda fracionada"), ("individual", "Venda individual"), ("grid", "Inserir/editar em grades"), ("kitchen", "Preparar na cozinha") })
+        foreach (var item in new[] { ("track_stock", "Controlar estoque"), ("use_scale", "Usar balança"), ("fractional", "Venda fracionada"), ("individual", "Venda individual"), ("grid", "Inserir/editar em grades") })
         {
             var cb = new CheckBox { Text = item.Item2, AutoSize = true, ForeColor = Color.White, Margin = new Padding(10, 5, 12, 5) };
             _fields[item.Item1] = cb; checks.Controls.Add(cb);
@@ -332,7 +339,7 @@ internal sealed class ProductRegistrationForm : Form
 
     private void NewProduct()
     {
-        _id = null; _photoPath = null;
+        _id = null; _photoPath = null; ((ComboBox)_fields["kitchen"]).SelectedIndex=-1; ((ComboBox)_fields["kitchen_route"]).SelectedIndex=-1;
         foreach (var c in _fields.Values) { if (c is TextBox t) t.Text = t == _fields["unit"] ? "UNID" : ""; else if (c is CheckBox cb) cb.Checked = false; else if (c is DateTimePicker dt) dt.Checked = false; }
         Set("cost", "0,00"); Set("price", "0,00"); Set("wholesale_price", "0,00"); Set("wholesale_qty", "0"); Set("approx_price", "0,00"); Set("commission", "0,00"); Set("promotion_price", "0,00"); Set("stock", "0"); Set("min_stock", "0");
         ((ComboBox)_fields["unit"]).SelectedIndex = 0; ((ComboBox)_fields["supplier"]).SelectedIndex = 0;
@@ -347,26 +354,28 @@ internal sealed class ProductRegistrationForm : Form
             SELECT COALESCE(barcode,''),name,COALESCE(category,''),cost,price,stock,min_stock,COALESCE(photo_path,''),
             COALESCE(supplier_id,0),COALESCE(unit,'UNID'),COALESCE(size,''),COALESCE(brand,''),COALESCE(product_group,''),COALESCE(subgroup,''),
             wholesale_price,wholesale_qty,promotion_price,COALESCE(promotion_start,''),COALESCE(promotion_end,''),commission_percent,approx_price,
-            track_stock,use_scale,fractional_sale,individual_sale,sell_in_grid,kitchen_preparation,COALESCE(composition,''),COALESCE(location,''),COALESCE(notes,''),COALESCE(expiry_date,'')
+            track_stock,use_scale,fractional_sale,individual_sale,sell_in_grid,kitchen_preparation,COALESCE(composition,''),COALESCE(location,''),COALESCE(notes,''),COALESCE(expiry_date,''),kitchen_classified,kitchen_route,kitchen_route_reviewed
             FROM products WHERE id=$id AND active=1
             """; cmd.Parameters.AddWithValue("$id", id); using var r = cmd.ExecuteReader(); if (!r.Read()) return;
         _id = id; Set("barcode", r.GetString(0)); Set("name", r.GetString(1)); Set("category", r.GetString(2)); Set("cost", F(r.GetDouble(3))); Set("price", F(r.GetDouble(4))); Set("stock", Q(r.GetDouble(5))); Set("min_stock", Q(r.GetDouble(6))); _photoPath = r.GetString(7);
         SelectSupplier(r.GetInt64(8)); SetCombo("unit", r.GetString(9)); Set("size", r.GetString(10)); Set("brand", r.GetString(11)); Set("group", r.GetString(12)); Set("subgroup", r.GetString(13)); Set("wholesale_price", F(r.GetDouble(14))); Set("wholesale_qty", Q(r.GetDouble(15))); Set("promotion_price", F(r.GetDouble(16))); SetDate("promotion_start", r.GetString(17)); SetDate("promotion_end", r.GetString(18)); Set("commission", F(r.GetDouble(19))); Set("approx_price", F(r.GetDouble(20)));
-        SetCheck("track_stock", r.GetInt32(21)); SetCheck("use_scale", r.GetInt32(22)); SetCheck("fractional", r.GetInt32(23)); SetCheck("individual", r.GetInt32(24)); SetCheck("grid", r.GetInt32(25)); SetCheck("kitchen", r.GetInt32(26)); Set("composition", r.GetString(27)); Set("location", r.GetString(28)); Set("notes", r.GetString(29)); SetDate("expiry", r.GetString(30));
+        SetCheck("track_stock", r.GetInt32(21)); SetCheck("use_scale", r.GetInt32(22)); SetCheck("fractional", r.GetInt32(23)); SetCheck("individual", r.GetInt32(24)); SetCheck("grid", r.GetInt32(25)); ((ComboBox)_fields["kitchen"]).SelectedIndex=r.GetInt32(26)==1?0:r.GetInt32(31)==1?1:-1; ((ComboBox)_fields["kitchen_route"]).SelectedIndex=r.IsDBNull(32)?-1:r.GetInt32(32)==1?0:1; Set("composition", r.GetString(27)); Set("location", r.GetString(28)); Set("notes", r.GetString(29)); SetDate("expiry", r.GetString(30));
         LoadPhoto(); UpdateProfit(); _status.Text = $"Editando produto #{id}";
     }
 
     private void SaveProduct()
     {
         if (string.IsNullOrWhiteSpace(TextOf("name"))) { MessageBox.Show(this, "Informe a descrição do produto."); _fields["name"].Focus(); return; }
+        if(((ComboBox)_fields["kitchen"]).SelectedIndex<0){MessageBox.Show(this,"Escolha se o produto é da COZINHA: SIM ou NÃO antes de salvar.","Classificação obrigatória",MessageBoxButtons.OK,MessageBoxIcon.Warning);_fields["kitchen"].Focus();return;}
+        if(((ComboBox)_fields["kitchen"]).SelectedIndex==0&&((ComboBox)_fields["kitchen_route"]).SelectedIndex<0){MessageBox.Show(this,"Escolha EXIGE PREPARO ou ENTREGA DIRETA antes de salvar.","Classificação obrigatória",MessageBoxButtons.OK,MessageBoxIcon.Warning);_fields["kitchen_route"].Focus();return;}
         var code = TextOf("barcode");
         using var cn = Database.Open();
         using (var duplicate = cn.CreateCommand()) { duplicate.CommandText = "SELECT COUNT(*) FROM products WHERE barcode=$b AND active=1 AND id<>COALESCE($id,-1)"; duplicate.Parameters.AddWithValue("$b", code); duplicate.Parameters.AddWithValue("$id", (object?)_id ?? DBNull.Value); if (!string.IsNullOrWhiteSpace(code) && Convert.ToInt32(duplicate.ExecuteScalar()) > 0) { MessageBox.Show(this, "Já existe um produto ativo com esse código."); return; } }
         _photoPath = CopyPhoto(_photoPath, _id);
         using var cmd = cn.CreateCommand();
-        string columns = "barcode=$barcode,name=$name,category=$category,cost=$cost,price=$price,stock=$stock,min_stock=$min_stock,photo_path=$photo,supplier_id=$supplier,unit=$unit,size=$size,brand=$brand,product_group=$group,subgroup=$subgroup,wholesale_price=$wholesale_price,wholesale_qty=$wholesale_qty,promotion_price=$promotion_price,promotion_start=$promotion_start,promotion_end=$promotion_end,commission_percent=$commission,approx_price=$approx_price,track_stock=$track_stock,use_scale=$use_scale,fractional_sale=$fractional,individual_sale=$individual,sell_in_grid=$grid,kitchen_preparation=$kitchen,composition=$composition,location=$location,notes=$notes,expiry_date=$expiry,updated_at=$updated";
+        string columns = "barcode=$barcode,name=$name,category=$category,cost=$cost,price=$price,stock=$stock,min_stock=$min_stock,photo_path=$photo,supplier_id=$supplier,unit=$unit,size=$size,brand=$brand,product_group=$group,subgroup=$subgroup,wholesale_price=$wholesale_price,wholesale_qty=$wholesale_qty,promotion_price=$promotion_price,promotion_start=$promotion_start,promotion_end=$promotion_end,commission_percent=$commission,approx_price=$approx_price,track_stock=$track_stock,use_scale=$use_scale,fractional_sale=$fractional,individual_sale=$individual,sell_in_grid=$grid,kitchen_preparation=$kitchen,kitchen_classified=$classified,kitchen_route=$route,kitchen_route_reviewed=$reviewed,kitchen_route_actor=$route_actor,composition=$composition,location=$location,notes=$notes,expiry_date=$expiry,updated_at=$updated";
         cmd.CommandText = _id.HasValue ? $"UPDATE products SET {columns} WHERE id=$id" : $"INSERT INTO products({string.Join(',', columns.Split(',').Select(x => x.Split('=')[0]))}) VALUES({string.Join(',', columns.Split(',').Select(x => x.Split('=')[1]))}); SELECT last_insert_rowid();";
-        Add(cmd, "$id", _id); Add(cmd, "$barcode", code); Add(cmd, "$name", TextOf("name")); Add(cmd, "$category", TextOf("category")); Add(cmd, "$cost", Num("cost")); Add(cmd, "$price", Num("price")); Add(cmd, "$stock", Num("stock")); Add(cmd, "$min_stock", Num("min_stock")); Add(cmd, "$photo", _photoPath); Add(cmd, "$supplier", SupplierId() == 0 ? null : SupplierId()); Add(cmd, "$unit", TextOf("unit")); Add(cmd, "$size", TextOf("size")); Add(cmd, "$brand", TextOf("brand")); Add(cmd, "$group", TextOf("group")); Add(cmd, "$subgroup", TextOf("subgroup")); Add(cmd, "$wholesale_price", Num("wholesale_price")); Add(cmd, "$wholesale_qty", Num("wholesale_qty")); Add(cmd, "$promotion_price", Num("promotion_price")); Add(cmd, "$promotion_start", DateValue("promotion_start")); Add(cmd, "$promotion_end", DateValue("promotion_end")); Add(cmd, "$commission", Num("commission")); Add(cmd, "$approx_price", Num("approx_price")); Add(cmd, "$track_stock", Bool("track_stock")); Add(cmd, "$use_scale", Bool("use_scale")); Add(cmd, "$fractional", Bool("fractional")); Add(cmd, "$individual", Bool("individual")); Add(cmd, "$grid", Bool("grid")); Add(cmd, "$kitchen", Bool("kitchen")); Add(cmd, "$composition", TextOf("composition")); Add(cmd, "$location", TextOf("location")); Add(cmd, "$notes", TextOf("notes")); Add(cmd, "$expiry", DateValue("expiry")); Add(cmd, "$updated", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+        Add(cmd, "$id", _id); Add(cmd, "$barcode", code); Add(cmd, "$name", TextOf("name")); Add(cmd, "$category", TextOf("category")); Add(cmd, "$cost", Num("cost")); Add(cmd, "$price", Num("price")); Add(cmd, "$stock", Num("stock")); Add(cmd, "$min_stock", Num("min_stock")); Add(cmd, "$photo", _photoPath); Add(cmd, "$supplier", SupplierId() == 0 ? null : SupplierId()); Add(cmd, "$unit", TextOf("unit")); Add(cmd, "$size", TextOf("size")); Add(cmd, "$brand", TextOf("brand")); Add(cmd, "$group", TextOf("group")); Add(cmd, "$subgroup", TextOf("subgroup")); Add(cmd, "$wholesale_price", Num("wholesale_price")); Add(cmd, "$wholesale_qty", Num("wholesale_qty")); Add(cmd, "$promotion_price", Num("promotion_price")); Add(cmd, "$promotion_start", DateValue("promotion_start")); Add(cmd, "$promotion_end", DateValue("promotion_end")); Add(cmd, "$commission", Num("commission")); Add(cmd, "$approx_price", Num("approx_price")); Add(cmd, "$track_stock", Bool("track_stock")); Add(cmd, "$use_scale", Bool("use_scale")); Add(cmd, "$fractional", Bool("fractional")); Add(cmd, "$individual", Bool("individual")); Add(cmd, "$grid", Bool("grid")); Add(cmd, "$kitchen", ((ComboBox)_fields["kitchen"]).SelectedIndex==0?1:0); Add(cmd,"$classified",1); Add(cmd,"$route",((ComboBox)_fields["kitchen"]).SelectedIndex==0?(object)(((ComboBox)_fields["kitchen_route"]).SelectedIndex==0?1:0):DBNull.Value); Add(cmd,"$reviewed",((ComboBox)_fields["kitchen"]).SelectedIndex==0?1:0); Add(cmd,"$route_actor",Auth.OperatorName); Add(cmd, "$composition", TextOf("composition")); Add(cmd, "$location", TextOf("location")); Add(cmd, "$notes", TextOf("notes")); Add(cmd, "$expiry", DateValue("expiry")); Add(cmd, "$updated", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
         var result = cmd.ExecuteScalar(); if (!_id.HasValue) _id = Convert.ToInt64(result); _status.Text = $"Produto #{_id} salvo com sucesso"; MessageBox.Show(this, "Produto salvo com sucesso.", "LEAL INFO PDV", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 

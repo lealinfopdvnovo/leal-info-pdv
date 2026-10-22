@@ -943,47 +943,27 @@ public sealed class MainForm : Form
             MessageBoxIcon.Warning);
     }
 
+    private KitchenForm? kitchenWindow;
     private void OpenKitchen()
     {
-        using var form = new Form
+        try
         {
-            Text = "COZINHA",
-            StartPosition = FormStartPosition.CenterParent,
-            ClientSize = new Size(460, 240),
-            FormBorderStyle = FormBorderStyle.FixedDialog,
-            MaximizeBox = false,
-            MinimizeBox = false,
-            ShowInTaskbar = false,
-            AutoScaleMode = AutoScaleMode.Dpi,
-            AutoScaleDimensions = new SizeF(96, 96),
-            KeyPreview = true
-        };
-        var layout = new TableLayoutPanel
+            RunAllowed("sales", () =>
+            {
+                if (kitchenWindow == null || kitchenWindow.IsDisposed)
+                {
+                    kitchenWindow = new KitchenForm();
+                    ApplyFloatingTheme(kitchenWindow);
+                }
+                kitchenWindow.Show(this);
+                kitchenWindow.BringToFront();
+            });
+        }
+        catch (Exception ex)
         {
-            Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3,
-            Padding = new Padding(24)
-        };
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 32));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 30));
-        layout.Controls.Add(new Label
-        {
-            Text = "COZINHA", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font("Segoe UI", 18, FontStyle.Bold)
-        }, 0, 0);
-        layout.Controls.Add(new Label
-        {
-            Text = "Em desenvolvimento para próxima atualização.",
-            Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter
-        }, 0, 1);
-        var close = ActionButton("FECHAR", form.Close);
-        close.Anchor = AnchorStyles.None;
-        close.DialogResult = DialogResult.Cancel;
-        layout.Controls.Add(close, 0, 2);
-        form.Controls.Add(layout);
-        form.CancelButton = close;
-        ApplyFloatingTheme(form);
-        form.ShowDialog(this);
+            MessageBox.Show(this, "Cozinha indisponível. Nenhum pedido foi descartado.\n\n" + ex.Message,
+                "COZINHA", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
     }
 
     private void OpenDeliveries()
@@ -4361,11 +4341,11 @@ private void ApplyFloatingTheme(Form f)
 
 
 
-    private List<PaymentPart>? SelectPayment(double total, int initialMethod = 0)
+    private List<PaymentPart>? SelectPayment(double total, int initialMethod = 0, IWin32Window? owner = null, string? caption = null)
     {
         using var f = new Form
         {
-            Text = "Finalizar Venda",
+            Text = caption ?? "Finalizar Venda",
             StartPosition = FormStartPosition.CenterParent,
             Width = 760,
             Height = 610,
@@ -4781,9 +4761,44 @@ private void ApplyFloatingTheme(Form f)
         UpdateMulti();
 
         ApplyFloatingTheme(f);
-        return f.ShowDialog(Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.Visible && form.Text.Contains("TELA DE VENDA")) ?? this) == DialogResult.OK ? result : null;
+        if (caption?.StartsWith("RECEBER / PAGAMENTO —", StringComparison.Ordinal) == true)
+            KitchenPaymentLayout.Apply(f, tabs, footer, cancel, cashConfirm, pixConfirm, cardConfirm, multiConfirm);
+        return f.ShowDialog(owner ?? Application.OpenForms.Cast<Form>().FirstOrDefault(form => form.Visible && form.Text.Contains("TELA DE VENDA")) ?? this) == DialogResult.OK ? result : null;
     }
 
+    internal bool ReceiveKitchenOrder(IWin32Window owner,KitchenStore store,Guid selected)
+    {
+        if(!Auth.HasPermission("sales"))throw new InvalidOperationException("Sem permissão para receber pagamentos.");
+        string reference=store.Get(selected).Reference;string identity=store.StoreId();
+        KitchenBill bill;List<PaymentPart> parts;long id;
+        var pending=KitchenPaymentJournal.Read(identity,reference);
+        if(pending!=null){
+            var confirmed=store.PaymentResult(pending.Bill.OperationId);
+            if(!confirmed.HasValue&&MessageBox.Show(owner,"Há uma cobrança pendente de confirmação nesta mesa. Conferir e retomar a mesma operação, sem duplicar o pagamento?","Conferir cobrança pendente",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return false;
+            bill=pending.Bill;parts=pending.Payments.Select(p=>new PaymentPart{Method=p.Method,Amount=(double)p.Amount}).ToList();
+            try{id=store.Receive(bill,pending.Payments,pending.Actor);KitchenPaymentJournal.Complete(identity,reference);}
+            catch(InvalidOperationException){if(!store.PaymentResult(bill.OperationId).HasValue)KitchenPaymentJournal.Complete(identity,reference);throw;}
+        }else{
+            using var selection=new KitchenPartialPaymentForm(store.Quote(selected));
+            if(selection.ShowDialog(owner)!=DialogResult.OK||selection.Selection==null)return false;
+            bill=selection.Selection;
+            string summary=bill.Reference.ToUpperInvariant()+" — PRODUTOS SELECIONADOS\n\n"+string.Join("\n",bill.Items.Select(i=>$"{i.Quantity:0.###} × {i.Description}: {i.Total:C2}"))+$"\n\nRECEBER: {bill.Total:C2}\nOs produtos e quantidades não selecionados permanecem na conta.";
+            if(MessageBox.Show(owner,summary,"CONFERIR PAGAMENTO DA MESA",MessageBoxButtons.OKCancel,MessageBoxIcon.Information)!=DialogResult.OK)return false;
+            var chosen=bill.Total==0?new List<PaymentPart>():SelectPayment((double)bill.Total,0,owner,"RECEBER / PAGAMENTO — "+bill.Reference.ToUpperInvariant());
+            if(chosen==null||bill.Total>0&&chosen.Count==0)return false;parts=chosen;
+            var payments=parts.Select(p=>new KitchenPayment(p.Method,decimal.Round((decimal)p.Amount,2))).ToArray();
+            KitchenPaymentJournal.Save(identity,new KitchenPaymentPending(bill,payments,Auth.OperatorName));
+            try{id=store.Receive(bill,payments,Auth.OperatorName);KitchenPaymentJournal.Complete(identity,reference);}
+            catch(InvalidOperationException){if(!store.PaymentResult(bill.OperationId).HasValue)KitchenPaymentJournal.Complete(identity,reference);throw;}
+        }
+        try {
+            var receipt=BuildReceipt(id,DateTime.Now,bill.Items.Select(i=>new CartItem{ProductId=i.ProductId??0,Description=i.Description,Qty=(double)i.Quantity,UnitPrice=(double)i.UnitPrice}),parts,(double)bill.Total);
+            decimal rounding=bill.Total-bill.Items.Sum(i=>decimal.Round(i.Quantity*i.UnitPrice,2,MidpointRounding.AwayFromZero));
+            if(rounding!=0)receipt+="\nAjuste de centavos no fechamento parcial: "+rounding.ToString("C2",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
+            RefreshDashboard();ShowReceipt(receipt);ThermalPrinterService.PrintAutomaticallyIfEnabled(receipt,this);
+        }catch(Exception e){MessageBox.Show(owner,"Pagamento registrado na venda #"+id+". Não foi possível exibir/imprimir o comprovante: "+e.Message,"Pagamento registrado");}
+        return true;
+    }
     private string BuildReceipt(long saleId, DateTime soldAt, IEnumerable<CartItem> items, IEnumerable<PaymentPart> payments, double total)
     {
         var sb = new System.Text.StringBuilder();

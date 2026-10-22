@@ -40,6 +40,14 @@ jobs:
         if($LASTEXITCODE -ne 0){throw 'GLOBAL/PET tests failed'}
         dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish -p:UseSharedCompilation=false
         if($LASTEXITCODE -ne 0){throw 'Windows build failed'}
+    - name: Validar Cozinha comum consumo preparo cancelamento e pagamento
+      shell: pwsh
+      env:
+        APPROVED_SOURCE: ${{ github.sha }}
+      run: |
+        dotnet run --project qa/global-kitchen/Tests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'GLOBAL kitchen functional checks failed'}
+        Copy-Item corrections-evidence evidence/kitchen -Recurse
     - name: Testar backup recuperacao SYSTEM e preservacao de PET sem instalar
       shell: pwsh
       run: |
