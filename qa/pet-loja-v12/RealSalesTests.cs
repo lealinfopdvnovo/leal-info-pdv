@@ -33,7 +33,7 @@ static class RealSalesTests{
  string[] serialBefore=Walk(owner).OfType<StatusStrip>().SelectMany(x=>x.Items.OfType<ToolStripStatusLabel>()).Where(x=>x.Text.StartsWith("Serial:")).Select(x=>x.Text).ToArray();
  loaded.Customize(owner);loaded.Customize(owner);
  var versionLabels=Walk(owner).OfType<StatusStrip>().SelectMany(x=>x.Items.OfType<ToolStripStatusLabel>()).Where(x=>x.Name=="loja_pet_version").ToArray();
- Check(versionLabels.Length==1&&versionLabels[0].Text=="PDV "+UpdateManager.CurrentVersion+" | LOJA LEAL INFO • PET V1.2","actual main footer shows PDV and PET versions side by side exactly once");
+ Check(versionLabels.Length==1&&versionLabels[0].Text=="PDV "+(typeof(MainForm).Assembly.GetName().Version!.Major+"."+typeof(MainForm).Assembly.GetName().Version!.Minor)+" | LOJA LEAL INFO • PET V1.2","actual main footer shows PDV and PET versions side by side exactly once");
  Check(serialBefore.SequenceEqual(Walk(owner).OfType<StatusStrip>().SelectMany(x=>x.Items.OfType<ToolStripStatusLabel>()).Where(x=>x.Text.StartsWith("Serial:")).Select(x=>x.Text)),"footer keeps existing serial information");
 
  var logo=Walk(sales).OfType<PictureBox>().Single(p=>p.Name=="sales_company_logo");var style=Walk(sales).OfType<Button>().Single(b=>b.Text=="ESTILO");

@@ -9,9 +9,9 @@ public sealed class LojaTestExtension : IPetExtension
    if(form.Text.EndsWith(old,StringComparison.Ordinal))form.Text=form.Text[..^old.Length];
    if(!form.Text.EndsWith(marker,StringComparison.Ordinal))form.Text+=marker;
    foreach(var strip in Walk(form).OfType<StatusStrip>())
-    foreach(var label in strip.Items.OfType<ToolStripStatusLabel>().Where(l=>l.Text=="V"+UpdateManager.CurrentVersion||l.Name=="loja_pet_version")){
+    foreach(var label in strip.Items.OfType<ToolStripStatusLabel>().Where(l=>l.Text=="V"+(typeof(MainForm).Assembly.GetName().Version!.Major+"."+typeof(MainForm).Assembly.GetName().Version!.Minor)||l.Name=="loja_pet_version")){
      label.Name="loja_pet_version";
-     label.Text="PDV "+UpdateManager.CurrentVersion+" | LOJA LEAL INFO • PET V1.2";
+     label.Text="PDV "+(typeof(MainForm).Assembly.GetName().Version!.Major+"."+typeof(MainForm).Assembly.GetName().Version!.Minor)+" | LOJA LEAL INFO • PET V1.2";
      label.AutoSize=true;label.Spring=false;label.Overflow=ToolStripItemOverflow.Never;
     }
   }
