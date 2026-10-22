@@ -4,7 +4,7 @@ New-Item -ItemType Directory evidence -Force|Out-Null
 $repo='lealinfopdvnovo/leal-info-pdv-updates';$records=@();$lease=@{}
 foreach($channel in @('GLOBAL','001','002','003','004')){
  $path=if($channel -eq 'GLOBAL'){'version.json'}else{"clients/$channel/version.json"}
- $f=gh api "repos/$repo/contents/$path?ref=main"|ConvertFrom-Json
+ $f=gh api "repos/$repo/contents/${path}?ref=main"|ConvertFrom-Json
  if($LASTEXITCODE -ne 0){throw 'Feed read failed'}
  $lease[$channel]=$f.sha
  $m=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($f.content))|ConvertFrom-Json
@@ -51,7 +51,7 @@ foreach($channel in @('GLOBAL','001','002','003','004')){
 }
 foreach($channel in $lease.Keys){
  $path=if($channel -eq 'GLOBAL'){'version.json'}else{"clients/$channel/version.json"}
- $r=gh api "repos/$repo/contents/$path?ref=main"|ConvertFrom-Json
+ $r=gh api "repos/$repo/contents/${path}?ref=main"|ConvertFrom-Json
  if($r.sha -ne $lease[$channel]){throw 'Concurrent feed modification'}
 }
 $blocked=@($records|Where-Object {$_.DirectCopy}|ForEach-Object {$_.Channel})
