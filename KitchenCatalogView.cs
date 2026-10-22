@@ -69,7 +69,9 @@ internal sealed class KitchenCatalogView : UserControl
         select.Click += (_, _) => SelectMenu();
 
         reload.Width = 155; reload.Height = 40; reload.Dock = DockStyle.None; reload.Text = "ATUALIZAR CARDÁPIO";
-        actions.Controls.Add(register);actions.Controls.Add(select);actions.Controls.Add(ready);actions.Controls.Add(reload);
+        var review=new Button{Name="KitchenReviewRouting",Text="REVISAR CLASSIFICAÇÃO",Width=195,Height=40};
+        review.Click+=async(_,_)=>{if(!Auth.CanManageCatalog){status.Text="Sem permissão para alterar o cadastro.";return;}using var form=new KitchenRoutingReviewForm();if(form.ShowDialog(FindForm())==DialogResult.OK){await ReloadAsync();CatalogChanged?.Invoke();}};
+        actions.Controls.Add(review);actions.Controls.Add(register);actions.Controls.Add(select);actions.Controls.Add(ready);actions.Controls.Add(reload);
         root.Controls.Add(actions,0,1);status.AutoSize=true;root.Controls.Add(status,0,2);
         var body = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute,140));body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));
@@ -124,6 +126,7 @@ internal sealed class KitchenCatalogView : UserControl
     }
     internal static KitchenCatalogProduct[] ReadProducts(Func<LealInfoPDV.Network.PdvConnection>? open = null)
     {
+        if(open==null)KitchenProductRouting.Ensure();
         using var db=(open ?? Database.Open)();using var cmd=db.CreateCommand();
         cmd.CommandText="SELECT id,name,COALESCE(NULLIF(TRIM(category),''),'Sem categoria'),price,COALESCE(photo_path,''),COALESCE(barcode,'') FROM products WHERE active=1 AND id>0 AND kitchen_preparation=1 ORDER BY name,id";
         using var r=cmd.ExecuteReader();var result=new List<KitchenCatalogProduct>();

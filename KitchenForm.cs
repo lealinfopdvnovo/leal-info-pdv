@@ -376,6 +376,7 @@ internal sealed class KitchenForm : Form
             items.EndEdit();
             var rows = items.Rows.Cast<DataGridViewRow>().Where(r => !r.IsNewRow).Select(r => new KitchenItem(Convert.ToString(r.Cells[0].Value) ?? "", KitchenDraft.Quantity(Convert.ToString(r.Cells[1].Value) ?? ""), Convert.ToString(r.Cells[2].Value) ?? "", r.Tag as long?)).ToArray();
             if(tableOnly&&!KitchenTablesView.TableNumber(reference.Text).HasValue)throw new InvalidOperationException("Selecione uma mesa para adicionar consumo.");
+            if(!KitchenProductRouting.Confirm(this,rows,tableOnly))return;
             var draft = new KitchenDraft(Guid.NewGuid(), reference.Text.Trim(), notes.Text.Trim(), Auth.OperatorName, DateTimeOffset.UtcNow, rows,tableOnly);
             outbox.Queue(storeId, draft); SetEntryEnabled(false);
             message.Text = "Pedido guardado na fila local. Aguardando confirmação do servidor.";

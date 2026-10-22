@@ -116,7 +116,7 @@ internal static partial class ReadyKitchenCatalog
                 insert.Parameters.AddWithValue("$price",pair.Value);insert.Parameters.AddWithValue("$photo",imagePath);insert.ExecuteNonQuery();
                 names.Add(Key(item.Name));codes.Add(item.Code);added++;
             }
-            tx.Commit();return new(added,skipped,backup);
+            tx.Commit();KitchenProductRouting.Ensure();return new(added,skipped,backup);
         }
     }
 }

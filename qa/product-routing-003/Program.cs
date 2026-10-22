@@ -1,0 +1,60 @@
+using LealInfoPDV;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text.Json;
+static class Tests
+{
+ static readonly List<string> checks=new();
+ const BindingFlags P=BindingFlags.NonPublic|BindingFlags.Instance;
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern IntPtr FindWindow(string? cls,string name);
+ [DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr h,uint m,IntPtr w,IntPtr l);
+ static void Check(bool b,string why){if(!b)throw new Exception(why);checks.Add(why);Console.WriteLine("PASS "+why);}
+ static object? Sql(string sql){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText=sql;return q.ExecuteScalar();}
+ static IEnumerable<Control> All(Control c)=>new[]{c}.Concat(c.Controls.Cast<Control>().SelectMany(All));
+ static T Field<T>(object o,string n)=>(T)o.GetType().GetField(n,P)!.GetValue(o)!;
+ static void Call(object o,string n,params object[] args)=>o.GetType().GetMethod(n,P)!.Invoke(o,args);
+ static string Money()=>Convert.ToString(Sql("SELECT (SELECT group_concat(id||'/'||price||'/'||cost||'/'||stock,';') FROM products ORDER BY id)||'|'||(SELECT COUNT(*) FROM sales)||'|'||(SELECT COUNT(*) FROM sale_payments)||'|'||(SELECT COUNT(*) FROM cash_movements)"))!;
+ static bool Dialog(Func<bool> action,int button){using var timer=new System.Windows.Forms.Timer{Interval=60};bool observed=false;timer.Tick+=(_,_)=>{var h=FindWindow(null,"Conferir destino dos produtos");if(h!=IntPtr.Zero){observed=true;SendMessage(h,0x0111,new IntPtr(button),IntPtr.Zero);}};timer.Start();bool result=action();timer.Stop();Check(observed,"classification mismatch asks operator confirmation");return result;}
+ static void Save(object form){using var timer=new System.Windows.Forms.Timer{Interval=60};timer.Tick+=(_,_)=>{var h=FindWindow(null,"LEAL INFO PDV");if(h==IntPtr.Zero)h=FindWindow(null,"Classificação obrigatória");if(h!=IntPtr.Zero)SendMessage(h,0x0111,new IntPtr(1),IntPtr.Zero);};timer.Start();Call(form,"SaveProduct");timer.Stop();}
+ [STAThread]static int Main(){
+ if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true"||!OperatingSystem.IsWindows())throw new Exception("Disposable Windows only");
+ Directory.CreateDirectory("corrections-evidence");Application.EnableVisualStyles();Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
+ using var watchdog=new System.Threading.Timer(_=>{File.WriteAllText("corrections-evidence/watchdog.txt","UI timed out");Environment.Exit(88);},null,150000,Timeout.Infinite);
+ try{
+ Check(!File.Exists(Database.DbPath),"isolated Windows profile has no operational data");Database.Initialize();Auth.CreateUser("QA CLASSIFICAÇÃO","qarouting","QA-routing-123!","ADMINISTRADOR","qa@example.invalid","");Auth.Login("qarouting","QA-routing-123!");
+ var catalog=ReadyKitchenCatalog.Load();Check(catalog.Length==258,"real photo catalog contains 258 distinct products");
+ using(var db=Database.Open())foreach(var p in catalog){using var q=db.CreateCommand();q.CommandText="INSERT INTO products(id,barcode,name,category,price,cost,stock,active,kitchen_preparation,kitchen_classified) VALUES($id,$code,$name,$category,19.75,3.25,100,1,1,1)";q.Parameters.AddWithValue("$id",int.Parse(p.Code[7..]));q.Parameters.AddWithValue("$code",p.Code);q.Parameters.AddWithValue("$name",p.Name);q.Parameters.AddWithValue("$category",p.Category);q.ExecuteNonQuery();}
+ Sql("INSERT INTO products(id,name,category,price,cost,stock,active,kitchen_preparation,kitchen_classified) VALUES(500,'PRODUTO DA LOJA','Bebidas',7,2,4,1,0,1)");string before=Money();
+ KitchenProductRouting.Ensure();var products=KitchenProductRouting.List();Check(products.Length==258&&products.All(p=>(p.Mode is 0 or 1)&&!p.Reviewed),"all 258 existing kitchen products receive persisted suggestions requiring individual review");
+ Check(Money()==before,"initial classification preserves every price cost stock and financial count");
+ Check(Sql("SELECT kitchen_route FROM products WHERE id=500") is DBNull,"store-only product remains outside kitchen routing");
+ Check(Directory.GetFiles(Database.BackupFolder,"ANTES_CLASSIFICACAO_COZINHA_*.db").Length==1,"verified backup created before additive classification migration");
+ int Mode(int id)=>products.Single(p=>p.Id==id).Mode;
+ Check(Mode(34)==0&&Mode(49)==1,"packaged soda direct and freshly made juice preparation");Check(Mode(75)==0&&Mode(64)==1,"same drinks category distinguishes dose from caipirinha");Check(Mode(115)==0&&Mode(113)==1,"same starters category distinguishes olives from grilled cheese");Check(Mode(220)==0&&Mode(228)==1,"same side-dishes category distinguishes ready farofa from fried egg");Check(Mode(229)==0&&Mode(237)==1,"same dessert category distinguishes pudding from petit gateau");Check(Mode(251)==0&&Mode(250)==1,"same cafeteria category distinguishes ready cheese bread from bread on grill");
+ var classification=products.Select(p=>new{p.Id,p.Name,p.Category,Classification=KitchenProductRouting.Label(p.Mode),p.Reviewed});File.WriteAllText("corrections-evidence/classificacao-258.json",JsonSerializer.Serialize(classification));
+ long history=Convert.ToInt64(Sql("SELECT COUNT(*) FROM kitchen_route_history_v1"));KitchenProductRouting.Ensure();Check(Convert.ToInt64(Sql("SELECT COUNT(*) FROM kitchen_route_history_v1"))==history&&Directory.GetFiles(Database.BackupFolder,"ANTES_CLASSIFICACAO_COZINHA_*.db").Length==1,"initial migration is idempotent and does not repeat history or backups");
+ KitchenProductRouting.Review(new Dictionary<long,int>{{49,0},{115,1}});KitchenProductRouting.Ensure();Check(Convert.ToInt32(Sql("SELECT kitchen_route FROM products WHERE id=49"))==0&&Convert.ToInt32(Sql("SELECT kitchen_route_reviewed FROM products WHERE id=49"))==1,"manual correction persists and wins over automatic suggestions");Check(Money()==before,"manual classification changes no money or stock");
+ Check(KitchenProductRouting.Suggest("Refrigerante cola lata")==0&&KitchenProductRouting.Suggest("Suco natural de caju")==1&&KitchenProductRouting.Suggest("Combo refrigerante com batata frita")==1,"future-product suggestions use names and prioritize composite prepared products");
+ var soda=new KitchenItem("Refrigerante",2,"",34);var hot=new KitchenItem("Ovo frito",1,"",228);
+ Check(KitchenProductRouting.Conflicts(new[]{soda},true).Length==0&&KitchenProductRouting.Conflicts(new[]{hot},false).Length==0,"matching direct and preparation actions need no override");Check(KitchenProductRouting.Conflicts(new[]{soda,hot},true).SequenceEqual(new[]{hot.Description})&&KitchenProductRouting.Conflicts(new[]{soda,hot},false).SequenceEqual(new[]{soda.Description}),"mixed selection flags only products contradicting the chosen action");
+ using var owner=new Form();owner.Show();Check(!Dialog(()=>KitchenProductRouting.Confirm(owner,new[]{hot},true),7),"operator NO refuses contradictory direct action");Check(Dialog(()=>KitchenProductRouting.Confirm(owner,new[]{hot},true),6),"operator YES allows manual override without changing classification");owner.Close();
+ var store=new KitchenStore();var identity=store.EnsureReady();store.EnsureSeatingReady();
+ KitchenDraft Draft(bool direct,KitchenItem item)=>new(Guid.NewGuid(),"Mesa 01","","QA",DateTimeOffset.UtcNow,new[]{item},direct);
+ var direct=store.Submit(identity,Draft(true,soda));var prep=store.Submit(identity,Draft(false,hot));Check(direct.TableOnly&&direct.Status=="ENTREGUE"&&!prep.TableOnly&&prep.Status=="AGUARDANDO","direct consumption and preparation persist independent statuses");
+ Check(store.Quote(direct.Id).Items.Single(i=>i.ProductId==34).Payable&&!store.Quote(prep.Id).Items.Single(i=>i.ProductId==228).Payable,"classification retains partial-payment eligibility and preparation block");
+ using var panel=new KitchenOrderPanel();panel.Display("Mesa 01",direct.Items,true,null,true,"CONSUMO DA MESA",new[]{new KitchenTableLine(direct.Id,0,direct.Status,true,direct.Items[0])});Check(!All(panel).OfType<Label>().Any(l=>l.Text.Contains("00:")),"direct-only panel does not start a preparation timer");
+ KitchenProductRouting.Review(new Dictionary<long,int>{{34,1}});var reopened=new KitchenStore();Check(reopened.Get(direct.Id).TableOnly&&reopened.Get(prep.Id).Status=="AGUARDANDO","reclassification never retroactively changes existing orders");
+ typeof(ProductRegistrationForm).GetMethod("EnsureSchema",BindingFlags.NonPublic|BindingFlags.Static)!.Invoke(null,null);
+ using var form=(Form)Activator.CreateInstance(typeof(ProductRegistrationForm),BindingFlags.NonPublic|BindingFlags.Instance,null,new object?[]{49L},null)!;
+ var fields=Field<Dictionary<string,Control>>(form,"_fields");Check(((ComboBox)fields["kitchen_route"]).SelectedIndex==1,"existing product registration loads corrected persistent route");((ComboBox)fields["kitchen_route"]).SelectedIndex=0;Save(form);Check(Convert.ToInt32(Sql("SELECT kitchen_route FROM products WHERE id=49"))==1,"existing product registration saves manual preparation change");
+ Call(form,"NewProduct");Check(((ComboBox)fields["kitchen_route"]).SelectedIndex==-1,"new products require explicit route selection");fields["name"].Text="NOVO PRODUTO QA";fields["barcode"].Text="QANEWROUTE";((ComboBox)fields["kitchen"]).SelectedIndex=0;Save(form);Check(Convert.ToInt64(Sql("SELECT COUNT(*) FROM products WHERE barcode='QANEWROUTE'"))==0,"registration refuses saving a kitchen product without route");((ComboBox)fields["kitchen_route"]).SelectedIndex=1;Save(form);Check(Convert.ToInt32(Sql("SELECT kitchen_route FROM products WHERE barcode='QANEWROUTE'"))==0,"new product registration persists chosen direct route");
+ using var review=new KitchenRoutingReviewForm();InternalWorkspace.Install();PremiumGlobalTheme.Install();review.Show();Application.DoEvents();PremiumGlobalTheme.Apply(review);Check(KitchenPremiumStyle.Owns(review)&&review.BackColor==KitchenPremiumStyle.Background&&review.Rows.BackgroundColor==KitchenPremiumStyle.Background,"review window preserves approved black gold premium style");
+ var row=review.Rows.Rows.Cast<DataGridViewRow>().Single(r=>((KitchenRouteProduct)r.Tag!).Id==49);row.Cells["Route"].Value=KitchenProductRouting.Label(0);All(review).OfType<Button>().Single(b=>b.Name=="KitchenSaveRouting").PerformClick();Check(Convert.ToInt32(Sql("SELECT kitchen_route FROM products WHERE id=49"))==0,"individual review grid saves changed route without editing entire category");
+ using(var image=new Bitmap(1000,700)){using var visual=new KitchenRoutingReviewForm();visual.Show();Application.DoEvents();visual.DrawToBitmap(image,new Rectangle(0,0,1000,700));image.Save("corrections-evidence/revisao-premium.png");visual.Close();}
+ var duplicate=ReadyKitchenCatalog.Import(new Dictionary<string,decimal>{{"LEALMIX034",9.99m}});Check(duplicate.Skipped==1&&Convert.ToInt32(Sql("SELECT kitchen_route FROM products WHERE id=34"))==1,"catalog reimport preserves existing manually corrected product and route");
+ Sql("DELETE FROM products WHERE id=258");var imported=ReadyKitchenCatalog.Import(new Dictionary<string,decimal>{{"LEALMIX258",25m}});Check(imported.Added==1&&Convert.ToInt32(Sql("SELECT kitchen_route FROM products WHERE barcode='LEALMIX258'"))==1,"new ready-catalog imports receive persistent item-specific preparation suggestion");
+ Check(Convert.ToString(Sql("PRAGMA quick_check"))=="ok","database integrity remains valid after classification registration and review");
+ File.WriteAllText("corrections-evidence/results.json",JsonSerializer.Serialize(new{success=true,channel="003",source=Environment.GetEnvironmentVariable("APPROVED_SOURCE"),checks,nativeWindows=true,published=false}));Console.WriteLine("PASS PRODUCT ROUTING 003 ONLY");Environment.Exit(0);return 0;
+ }catch(Exception e){Console.Error.WriteLine(e);File.WriteAllText("corrections-evidence/failure.txt",e.ToString());return 1;}
+ }
+}
