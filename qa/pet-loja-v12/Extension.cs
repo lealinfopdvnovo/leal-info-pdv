@@ -15,6 +15,7 @@ public sealed class LojaTestExtension : IPetExtension
      label.AutoSize=true;label.Spring=false;label.Overflow=ToolStripItemOverflow.Never;
     }
   }
+  if(form.Text=="LEAL INFO PDV • RELATÓRIO FINANCEIRO") FinanceReportLayout.Apply(form);
   if(!form.Text.Contains("TELA DE VENDA",StringComparison.OrdinalIgnoreCase))return;
   var logo=Walk(form).OfType<PictureBox>().FirstOrDefault(p=>p.Name=="sales_company_logo");
   if(logo==null||Equals(logo.Tag,"LOJA-PET-1.2-LOGO"))return;

@@ -1,0 +1,36 @@
+name: Financeiro 001 - layout Windows isolado
+'on':
+  push:
+    branches: [fix/financeiro-layout-001]
+permissions:
+  contents: read
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.401
+    - name: Preparar compilação existente
+      shell: pwsh
+      run: |
+        ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+        ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+        ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+        ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+        ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+        ./scripts/aplicar_central_equipamentos_v10_314.ps1
+    - name: Compilar e testar relatório real
+      shell: pwsh
+      run: |
+        dotnet build qa/pet-loja-v12/FinanceLayoutTests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+        if($LASTEXITCODE -ne 0){throw 'Build failed'}
+        dotnet qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0/FinanceLayoutTests.dll
+        if($LASTEXITCODE -ne 0){throw 'Financial layout failed'}
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: financeiro-001-layout
+        path: evidence
