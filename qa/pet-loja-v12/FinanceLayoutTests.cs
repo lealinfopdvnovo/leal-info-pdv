@@ -37,9 +37,9 @@ static class FinanceLayoutTests
      f.Scale(new SizeF(1/1.5f,1/1.5f));f.ClientSize=new Size(1360,680);f.PerformLayout();
      using(var image=new Bitmap(f.ClientSize.Width,f.ClientSize.Height)){f.Controls[0].DrawToBitmap(image,f.Controls[0].Bounds);image.Save("evidence/financeiro-corrigido.png");}
      Check(State()==state,"movements, sales and products unchanged");completed=true;
-    }catch(Exception e){failure=e;}finally{f.Close();}
+    }catch(Exception e){Console.Error.WriteLine(e);failure=e;}finally{f.Close();}
    };
-   timer.Start();typeof(MainForm).GetMethod("OpenReports",flags)!.Invoke(owner,null);timer.Stop();if(failure!=null)throw failure;Check(completed,"real report opens and closes");
+   timer.Start();typeof(MainForm).GetMethod("OpenReports",flags | BindingFlags.Public)!.Invoke(owner,null);timer.Stop();if(failure!=null)throw failure;Check(completed,"real report opens and closes");
    File.WriteAllText("evidence/finance-results.json",JsonSerializer.Serialize(new{Success=true,checks,CustomerWindowsTested=false}));return 0;
   }catch(Exception e){Console.Error.WriteLine(e);File.WriteAllText("evidence/finance-failure.txt",e.ToString());return 1;}
  }
