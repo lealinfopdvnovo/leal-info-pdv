@@ -101,7 +101,6 @@ internal sealed class KitchenForm : Form
         right.Controls.Add(history,0,2);buttons.Dock=DockStyle.Fill;buttons.Padding=new Padding(3);buttons.Margin=Padding.Empty;right.Controls.Add(buttons,0,3);buttons.Visible=false;dashboardOrder.AttachNewOrder(fresh);
         message.Dock=DockStyle.Fill;message.Padding=new Padding(4);right.Controls.Add(message,0,4);
         orders.Visible=false;detail.Visible=false;workspace.Controls.Add(orders);workspace.Controls.Add(detail);workspace.Controls.Add(right);
-        dashboardOrder.AddToTableRequested+=async()=>await SubmitConsumption(true);
         dashboardOrder.ItemStatusRequested+=async(id,position,status)=>await AdvanceLine(id,position,status);
         dashboardOrder.PaymentRequested+=async()=>await ReceiveSelected();
         dashboardOrder.SubmitRequested+=async()=>await SubmitDraft();dashboardOrder.ReadyRequested+=async()=>await AdvanceOrder("PRONTO");
@@ -273,8 +272,7 @@ internal sealed class KitchenForm : Form
         itemSummary.AutoSize=true; itemSummary.TextAlign=ContentAlignment.MiddleCenter; itemSummary.Font = new Font("Segoe UI", 11, FontStyle.Bold); itemSummary.ForeColor = Ink;
         close.Name="CloseKitchenOrder"; send.Name="SendKitchenOrder"; close.AutoSize=send.AutoSize=true;
         close.Dock = send.Dock = DockStyle.Fill; close.Margin = new Padding(0, 0, 10, 0); send.Margin = Padding.Empty;
-        actions.Controls.Add(itemSummary, 0, 0); actions.Controls.Add(close, 1, 0); var addTable=new Button{Name="AddToTable",Text="ADICIONAR À MESA",Dock=DockStyle.Fill,AutoSize=true};StyleButton(addTable,true);addTable.Click+=async(_,_)=>await SubmitConsumption(true);send.EnabledChanged+=(_,_)=>addTable.Enabled=send.Enabled;addTable.Enabled=send.Enabled;
-        var choices=new TableLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,ColumnCount=2,RowCount=1};choices.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));choices.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));choices.Controls.Add(addTable,0,0);choices.Controls.Add(send,1,0);actions.Controls.Add(choices, 2, 0); shell.Controls.Add(actions, 0, 4);
+        actions.Controls.Add(itemSummary,0,0);actions.Controls.Add(close,1,0);actions.Controls.Add(send,2,0);shell.Controls.Add(actions,0,4);
         var status = new Label { Name="KitchenEntryStatus", AutoSize=true, TextAlign=ContentAlignment.MiddleCenter, Dock = DockStyle.Fill, AutoEllipsis = false, Text = message.Text, ForeColor = Color.FromArgb(78, 98, 116), Font = new Font("Segoe UI", 9) };
         message.TextChanged += (_, _) => { if (!status.IsDisposed) status.Text = message.Text; };
         shell.Controls.Add(status, 0, 5);
@@ -392,8 +390,8 @@ internal sealed class KitchenForm : Form
         // Retain the closed menu until the next opening; WinForms completes click handling after Closed.
         var bounds=items.GetCellDisplayRectangle(items.Columns["Destination"].Index,index,true);menu.Show(items,new Point(bounds.Left,bounds.Bottom));
     }
-    private Task SubmitDraft()=>SubmitConsumption(null);
-    private Task SubmitConsumption(bool? tableOnly)=>Run(async()=>
+    private Task SubmitDraft()=>SubmitConsumption();
+    private Task SubmitConsumption()=>Run(async()=>
     {
         if(storeId==null)throw new InvalidOperationException("Conecte uma vez à cozinha preparada no servidor antes de enviar.");
         if(!Auth.CanSell)throw new InvalidOperationException("Entre no PDV antes de enviar.");
@@ -405,9 +403,7 @@ internal sealed class KitchenForm : Form
             var choice=r.Cells["Destination"].Tag as KitchenRowDestination??SuggestedDestination(item.ProductId,item.Description);
             return (Item:item,Choice:choice);
         }).ToArray();
-        // The legacy bulk action affects suggestions only. Explicit row choices always win.
-        if(tableOnly.HasValue&&!KitchenProductRouting.Confirm(this,lines.Where(l=>!l.Choice.Chosen).Select(l=>l.Item),tableOnly.Value))return;
-        var destinations=lines.Select(l=>new KitchenDraftDestination(l.Item with{UnitPrice=mainCatalog.PriceOf(l.Item.ProductId)},l.Choice.Chosen||!tableOnly.HasValue?l.Choice.TableOnly:tableOnly.Value)).ToArray();
+        var destinations=lines.Select(l=>new KitchenDraftDestination(l.Item with{UnitPrice=mainCatalog.PriceOf(l.Item.ProductId)},l.Choice.TableOnly)).ToArray();
         var drafts=KitchenDraftDestinations.Create(reference.Text.Trim(),notes.Text.Trim(),Auth.OperatorName,destinations);
         outbox.QueueBatch(storeId,drafts);SetEntryEnabled(false);
         message.Text="Pedido misto guardado na fila local. Aguardando confirmação do servidor.";
@@ -504,7 +500,6 @@ internal sealed class KitchenForm : Form
         var area=Screen.FromControl(this).WorkingArea;
         tableWindow=new Form{Name="KitchenTableOrder",Text="PEDIDO — "+target.ToUpperInvariant(),StartPosition=FormStartPosition.CenterParent,Size=new Size(Math.Min(1000,area.Width-24),Math.Min(540,area.Height-24)),MinimumSize=new Size(Math.Min(700,area.Width-24),Math.Min(380,area.Height-24)),ShowInTaskbar=false,Font=Font};
         floatingTableOrder=new KitchenOrderPanel();
-        floatingTableOrder.AddToTableRequested+=async()=>await SubmitConsumption(true);
         floatingTableOrder.ItemStatusRequested+=async(id,position,status)=>await AdvanceLine(id,position,status);
         floatingTableOrder.PaymentRequested+=async()=>await ReceiveSelected();
         floatingTableOrder.SubmitRequested+=async()=>await SubmitDraft();

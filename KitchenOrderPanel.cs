@@ -14,13 +14,12 @@ internal sealed class KitchenOrderPanel : UserControl
     private readonly KitchenHeroButton print=new("DashboardPrint","IMPRIMIR COMANDA","PEDIDO DA MESA",Color.FromArgb(0,163,255),"\uE749");
     private readonly KitchenHeroButton ready=new("DashboardReady","MARCAR PRONTO","FINALIZAR PREPARO",Color.FromArgb(255,200,40),"\uE7F4");
     private readonly Label total=new(){Name="KitchenTableTotal",Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleRight,ForeColor=KitchenPremiumStyle.Gold,Font=new Font("Segoe UI",11,FontStyle.Bold)};
-    private readonly Button addToTable=new(){Name="DashboardAddToTable",Text="ADICIONAR À MESA",Dock=DockStyle.Fill};
     private readonly Button payment=new(){Name="KitchenReceivePayment",Text="RECEBER / PAGAMENTO",Dock=DockStyle.Fill,Height=44};
     private readonly TableLayoutPanel header=new(){Dock=DockStyle.Fill,ColumnCount=4,RowCount=1,Margin=Padding.Empty};
     private DateTimeOffset? started;
     private bool persisted;
     private readonly System.Windows.Forms.Timer clock=new(){Interval=1000};
-    internal event Action? AddToTableRequested,SubmitRequested,PrintRequested,ReadyRequested,ClearRequested,PaymentRequested;
+    internal event Action? SubmitRequested,PrintRequested,ReadyRequested,ClearRequested,PaymentRequested;
     internal event Action<int>? EditRequested,RemoveRequested;
     internal event Action<string>? StatusRequested;
     internal event Action<Guid,int,string>? ItemStatusRequested;
@@ -64,8 +63,7 @@ internal sealed class KitchenOrderPanel : UserControl
         var actions=new TableLayoutPanel{Name="DashboardHeroActions",Dock=DockStyle.Fill,ColumnCount=3,RowCount=1,Margin=new Padding(0,8,0,0)};
         for(int i=0;i<3;i++)actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,100));actions.RowStyles.Add(new RowStyle(SizeType.Percent,100));
         actions.Controls.Add(send,0,0);actions.Controls.Add(print,1,0);actions.Controls.Add(ready,2,0);root.Controls.Add(total,0,2);root.Controls.Add(actions,0,3);
-        var billing=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=2,RowCount=1};billing.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));billing.ColumnStyles.Add(new ColumnStyle(SizeType.Percent,50));billing.Controls.Add(addToTable,0,0);billing.Controls.Add(payment,1,0);root.Controls.Add(billing,0,4);Controls.Add(root);
-        addToTable.Click+=(_,_)=>AddToTableRequested?.Invoke();
+        root.Controls.Add(payment,0,4);Controls.Add(root);
         payment.Click+=(_,_)=>PaymentRequested?.Invoke();
         clear.Click+=(_,_)=>ClearRequested?.Invoke();send.Click+=(_,_)=>SubmitRequested?.Invoke();print.Click+=(_,_)=>PrintRequested?.Invoke();ready.Click+=(_,_)=>ReadyRequested?.Invoke();
         KitchenPremiumStyle.Apply(this);KitchenPremiumStyle.Frame(this);
@@ -78,7 +76,7 @@ internal sealed class KitchenOrderPanel : UserControl
     {
         if(IsDisposed||Disposing)return;
         if(InvokeRequired){if(IsHandleCreated)BeginInvoke((Action)(()=>Display(reference,items,saved,since,canSend,status,lines)));return;}
-        persisted=saved;started=lines!=null?lines.Where(l=>!l.TableOnly&&l.Status is ("AGUARDANDO" or "PREPARANDO" or "PRONTO")).Any()?since:null:since;payment.Enabled=saved&&items.Length>0;addToTable.Enabled=!saved&&canSend&&items.Length>0;title.Text=(reference.StartsWith("Mesa ",StringComparison.OrdinalIgnoreCase)?"PEDIDO DA "+reference.ToUpperInvariant():string.IsNullOrWhiteSpace(reference)?"PEDIDO DA MESA":"PEDIDO • "+reference)+(saved?"   •   "+status:"");
+        persisted=saved;started=lines!=null?lines.Where(l=>!l.TableOnly&&l.Status is ("AGUARDANDO" or "PREPARANDO" or "PRONTO")).Any()?since:null:since;payment.Enabled=saved&&items.Length>0;title.Text=(reference.StartsWith("Mesa ",StringComparison.OrdinalIgnoreCase)?"PEDIDO DA "+reference.ToUpperInvariant():string.IsNullOrWhiteSpace(reference)?"PEDIDO DA MESA":"PEDIDO • "+reference)+(saved?"   •   "+status:"");
         Rows.Rows.Clear();decimal sum=0;
         for(int i=0;i<items.Length;i++){var item=items[i];int index=Rows.Rows.Add(item.Quantity.ToString("0.###",CultureInfo.GetCultureInfo("pt-BR")),item.Description,item.Notes);var row=Rows.Rows[index];row.Cells["UnitPrice"].Value=item.UnitPrice;decimal value=item.LineBalance??decimal.Round(item.Quantity*(item.UnitPrice??0),2,MidpointRounding.AwayFromZero);row.Cells["LineTotal"].Value=value;sum+=value;if(lines!=null&&i<lines.Count)row.Tag=lines[i];}
         total.Text="CONTA DA MESA: "+sum.ToString("C2",CultureInfo.GetCultureInfo("pt-BR"));
