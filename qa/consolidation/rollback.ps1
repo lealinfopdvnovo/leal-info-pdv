@@ -18,6 +18,7 @@ foreach($scenario in @('success','interruption','bad-sha')){
  foreach($n in $sentinels){$p=Join-Path $app $n;New-Item -ItemType Directory (Split-Path $p) -Force|Out-Null;[IO.File]::WriteAllText($p,'PRESERVED-'+$n)}
  Copy-Item "profiles/$identity/Pet.dll" (Join-Path $app 'Extensions/PET/Local.dll') -Force
  Copy-Item "profiles/$identity/manifest.json" (Join-Path $app 'Extensions/PET/manifest.json') -Force
+ Copy-Item "evidence/$identity/fixture-backup.db" (Join-Path $app 'lealinfo.db') -Force
  $preserved=@{};foreach($n in $sentinels){$preserved[$n]=(Get-FileHash (Join-Path $app $n)).Hash}
  try{
   $supplied=if($scenario -eq 'bad-sha'){'0'*64}else{$hash}

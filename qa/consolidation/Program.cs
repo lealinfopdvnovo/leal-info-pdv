@@ -12,6 +12,7 @@ static partial class Tests
  static object? Sql(string sql){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText=sql;return q.ExecuteScalar();}
  [STAThread]static int Main(string[] args){
   string id=args[0],version=args[1],folder=Path.GetFullPath(args[2]);Directory.CreateDirectory("evidence/"+id);
+  if(args.Contains("--reopen"))return ReopenChecks(id,version,folder,args[^1]);
   using var guard=new System.Threading.Timer(_=>Environment.Exit(91),null,120000,Timeout.Infinite);
   try{
    Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true"&&!File.Exists(Database.DbPath),"isolated Windows; no customer database");
@@ -34,6 +35,8 @@ static partial class Tests
    if(id is "001" or "003"){BusinessChecks(main,id);ReportChecks(main,id);LoginChecks(id);}
    else Check(!Walk(main).Any(x=>x.Text=="VIDRAÇARIA"),"identification profile does not acquire Glass functionality");
    using(var shot=new Bitmap(main.Width,main.Height)){main.DrawToBitmap(shot,new Rectangle(Point.Empty,shot.Size));shot.Save("evidence/"+id+"/principal.png");}
+   if(id is "001" or "003")ReopenInNewProcess(id,version,folder);
+   DatabaseChecks(id);
    Check(Convert.ToString(Sql("PRAGMA quick_check"))=="ok","fixture database integrity valid");
    File.WriteAllText("evidence/"+id+"/results.json",JsonSerializer.Serialize(new{Success=true,Identity=id,PetVersion=version,checks,Published=false,InstalledOnCustomer=false,ReadyForLegacyMigration=false,PetSpecificUpdaterValidated=false}));main.Close();return 0;
   }catch(Exception e){Console.Error.WriteLine(e);File.WriteAllText("evidence/"+id+"/failure.txt",e.ToString());return 1;}

@@ -1,5 +1,5 @@
 """Read-only comparison of exact published dependencies, never executes packages."""
-import hashlib,json,urllib.request,zipfile,io
+import difflib,hashlib,json,urllib.request,zipfile,io
 from pathlib import Path
 
 def get(url):
@@ -24,6 +24,8 @@ for identity in ('001','002','003','004'):
  assert len(deps)==1,(identity,deps)
  old=normalized(archive.read(deps[0]))
  equal=old==candidate
+ if not equal:
+  print(''.join(difflib.unified_diff(json.dumps(old,indent=2,sort_keys=True).splitlines(True),json.dumps(candidate,indent=2,sort_keys=True).splitlines(True),fromfile='published',tofile='candidate')),flush=True)
  results.append(dict(Identity=identity,PublishedVersion=feed['Version'],Source=feed.get('SourceCommit'),PackageSha256=digest,ExactDependencyCompatibility=equal))
  print('PASS' if equal else 'BLOCKED',identity,'published package SHA verified; dependency equality:',equal,flush=True)
 Path('evidence').mkdir(exist_ok=True)

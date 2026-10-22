@@ -21,6 +21,8 @@ jobs:
     - name: Conferir isolamento e preparar compilação
       shell: pwsh
       run: |
+        '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json -Encoding UTF8
+        if((dotnet --version) -ne '10.0.401'){throw 'Unexpected SDK selected'}
         python qa/consolidation/scope.py
         if($LASTEXITCODE -ne 0){throw 'Unexpected scope'}
         ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
