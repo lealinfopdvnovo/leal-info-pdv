@@ -7,6 +7,7 @@ internal static class Program
 {
     [STAThread]static int Main(string[] args)
     {
+        System.Globalization.CultureInfo.DefaultThreadCurrentCulture=System.Globalization.CultureInfo.GetCultureInfo("pt-BR");System.Globalization.CultureInfo.DefaultThreadCurrentUICulture=System.Globalization.CultureInfo.GetCultureInfo("pt-BR");
         ApplicationConfiguration.Initialize();
         if(args.Contains("--self-test"))return SelfTest.Run();
         Application.Run(new MainForm());return 0;
@@ -37,6 +38,7 @@ internal static class SelfTest
             Check(one.PdvCpu==null&&two.PdvCpu is >=0 and <=100,"first CPU sample is not fabricated; following sample is normalized and bounded");
             Check(two.ProcessAvailable&&two.WorkingSet>0&&two.PrivateBytes>0&&two.ReadBytes.HasValue,"real Windows process memory and I/O counters collected");
             Check(two.SystemCpu is >=0 and <=100,"real system CPU counter bounded");
+            Check(two.AnalyzerCpu is >=0 and <=100&&two.AnalyzerWorkingSet>0,"analyzer overhead is measured separately from PDV");
             Check(two.TcpConnections.HasValue,"IPv4 and IPv6 owner-PID TCP tables queried without collecting endpoints");
             var gone=new Collector(int.MaxValue).Take("Repouso");Check(!gone.ProcessAvailable&&gone.Note!=null,"missing process is reported without invented zeros");
             var session=new Session{Computer=machine,Files=inventory,Samples=new(){one,two,gone}};

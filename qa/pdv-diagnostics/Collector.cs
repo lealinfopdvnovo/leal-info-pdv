@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Leal.Diagnostics;
 internal sealed class Collector
 {
-    readonly Stopwatch watch=Stopwatch.StartNew();readonly int? requestedPid;int? previousPid;DateTime? previousStart;double? previousCpu;double previousTime;long oldIdle,oldKernel,oldUser;bool systemInitialized;
+    readonly Stopwatch watch=Stopwatch.StartNew();readonly int? requestedPid;int? previousPid;DateTime? previousStart;double? previousCpu;double previousTime;long oldIdle,oldKernel,oldUser;bool systemInitialized;double? oldOwnCpu;double oldOwnTime;
     internal Collector(int? pid){requestedPid=pid;}
     internal static Machine Computer(){var ram=Native.Ram();using var own=Process.GetCurrentProcess();return new(RuntimeInformation.OSDescription,RuntimeInformation.OSArchitecture.ToString(),Native.Processor(),Environment.ProcessorCount,(long)ram.TotalPhysical,own.WorkingSet64,Drives());}
     static string Drives()
@@ -35,7 +35,8 @@ internal sealed class Collector
         catch(Exception e)when(e is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
         {note="Processo encerrado ou acesso indisponível. Não foi solicitada elevação.";previousPid=null;previousCpu=null;}
         finally{process?.Dispose();}
-        return new(seconds,stage,pid,cpu,system,working,priv,(long)ram.AvailablePhysical,read,write,tcp,net.received,net.sent,pid.HasValue&&working.HasValue,note);
+        using var analyzer=Process.GetCurrentProcess();double ownTotal=analyzer.TotalProcessorTime.TotalSeconds;double? ownCpu=oldOwnCpu.HasValue&&seconds>oldOwnTime?Math.Clamp((ownTotal-oldOwnCpu.Value)/(seconds-oldOwnTime)/Environment.ProcessorCount*100,0,100):null;oldOwnCpu=ownTotal;oldOwnTime=seconds;
+        return new(seconds,stage,pid,cpu,system,working,priv,(long)ram.AvailablePhysical,read,write,tcp,net.received,net.sent,pid.HasValue&&working.HasValue,note,ownCpu,analyzer.WorkingSet64);
     }
 }
 internal static class FileInventory

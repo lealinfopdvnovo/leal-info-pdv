@@ -1,7 +1,7 @@
 using System.Diagnostics;
 namespace Leal.Diagnostics;
 internal sealed record Machine(string Windows,string Architecture,string Processor,int LogicalProcessors,long TotalRam,long ToolWorkingSet,string Drives);
-internal sealed record Sample(double Seconds,string Stage,int? Pid,double? PdvCpu,double? SystemCpu,long? WorkingSet,long? PrivateBytes,long AvailableRam,ulong? ReadBytes,ulong? WriteBytes,int? TcpConnections,long NetworkReceived,long NetworkSent,bool ProcessAvailable,string? Note);
+internal sealed record Sample(double Seconds,string Stage,int? Pid,double? PdvCpu,double? SystemCpu,long? WorkingSet,long? PrivateBytes,long AvailableRam,ulong? ReadBytes,ulong? WriteBytes,int? TcpConnections,long NetworkReceived,long NetworkSent,bool ProcessAvailable,string? Note,double? AnalyzerCpu,long AnalyzerWorkingSet);
 internal sealed record StageMark(double Seconds,string Stage);
 internal sealed record FileEntry(string RelativeName,long Bytes,string Extension);
 internal sealed record FileGroup(string Extension,int Files,long Bytes);
