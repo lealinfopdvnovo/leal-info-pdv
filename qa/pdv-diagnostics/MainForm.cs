@@ -11,7 +11,7 @@ internal sealed class MainForm : Form
     readonly Label state=new(){Text="Pronto para analisar. O PDV pode continuar aberto.",AutoSize=true,Dock=DockStyle.Fill};
     readonly TextBox log=new(){Multiline=true,ReadOnly=true,Dock=DockStyle.Fill,ScrollBars=ScrollBars.Vertical};
     readonly Label live=new(){Text="CPU · RAM · E/S · REDE",Dock=DockStyle.Fill,Font=new Font("Segoe UI",13,FontStyle.Bold)};
-    Session? session;CancellationTokenSource? cancellation;string stage="Repouso";bool running;
+    Session? session;string? sessionFolder;CancellationTokenSource? cancellation;string stage="Repouso";bool running;
     internal MainForm()
     {
         Text="LEAL INFO · DIAGNÓSTICO DO PDV 1.0";StartPosition=FormStartPosition.CenterScreen;Size=new Size(960,760);MinimumSize=new Size(760,620);BackColor=Color.FromArgb(10,15,22);ForeColor=Color.White;Font=new Font("Segoe UI",10);
@@ -42,7 +42,7 @@ internal sealed class MainForm : Form
         if(running)return;running=true;start.Enabled=save.Enabled=refresh.Enabled=browse.Enabled=processes.Enabled=duration.Enabled=false;stop.Enabled=true;log.Clear();stage=Convert.ToString(stages.SelectedItem)??"Repouso";cancellation=new();var token=cancellation.Token;
         try
         {
-            session=null;session=new(){Computer=Collector.Computer()};session.Stages.Add(new(0,stage));int seconds=(int)duration.SelectedItem!;string? selectedFolder=string.IsNullOrWhiteSpace(folder.Text)?null:folder.Text;var collector=new Collector((processes.SelectedItem as ProcessChoice)?.Pid);
+            session=null;session=new(){Computer=Collector.Computer()};session.Stages.Add(new(0,stage));int seconds=(int)duration.SelectedItem!;string? selectedFolder=string.IsNullOrWhiteSpace(folder.Text)?null:folder.Text;sessionFolder=selectedFolder;var collector=new Collector((processes.SelectedItem as ProcessChoice)?.Pid);
             var inventory=Task.Run(()=>FileInventory.Scan(selectedFolder,token));var progress=new Progress<Sample>(s=>{session.Samples.Add(s);live.Text=$"PDV CPU {Units.Metric(s.PdvCpu)}\nRAM {(s.WorkingSet.HasValue?Units.Size(s.WorkingSet.Value):"indisponível")}";state.Text=$"{s.Seconds:N0} / {seconds} s · {s.Stage} · {session.Samples.Count} amostras";if(session.Samples.Count%10==0)log.AppendText($"{s.Seconds:N0}s · {s.Stage} · CPU PC {Units.Metric(s.SystemCpu)} · RAM livre {Units.Size(s.AvailableRam)}{Environment.NewLine}");});
             var watch=Stopwatch.StartNew();
             while(watch.Elapsed.TotalSeconds<seconds&&!token.IsCancellationRequested){string currentStage=stage;var sample=await Task.Run(()=>collector.Take(currentStage));((IProgress<Sample>)progress).Report(sample);try{await Task.Delay(1000,token);}catch(OperationCanceledException){break;}}
@@ -56,6 +56,6 @@ internal sealed class MainForm : Form
     {
         if(session==null)return;using var dialog=new SaveFileDialog{Title="Salvar relatório fora da pasta do PDV",Filter="Relatório HTML|*.html",FileName="Diagnostico-PDV-"+DateTime.Now.ToString("yyyyMMdd-HHmmss")+".html",InitialDirectory=Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)};
         if(dialog.ShowDialog(this)!=DialogResult.OK)return;
-        try{Report.Save(session,dialog.FileName,string.IsNullOrWhiteSpace(folder.Text)?null:folder.Text);MessageBox.Show(this,"Relatório HTML e dados JSON salvos. Nenhum arquivo do PDV foi alterado.","Relatório salvo");}catch(Exception e){MessageBox.Show(this,e.Message,"Não foi possível salvar",MessageBoxButtons.OK,MessageBoxIcon.Information);}
+        try{Report.Save(session,dialog.FileName,sessionFolder);MessageBox.Show(this,"Relatório HTML e dados JSON salvos. Nenhum arquivo do PDV foi alterado.","Relatório salvo");}catch(Exception e){MessageBox.Show(this,e.Message,"Não foi possível salvar",MessageBoxButtons.OK,MessageBoxIcon.Information);}
     }
 }

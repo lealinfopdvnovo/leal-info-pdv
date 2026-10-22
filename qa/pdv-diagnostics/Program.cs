@@ -60,6 +60,7 @@ internal static class SelfTest
                 Check((Field<Session?>(form,"session")?.Samples.Count??0)>=3,"real start button collects process samples while UI remains responsive");
                 Field<Button>(form,"stop").PerformClick();while(Field<bool>(form,"running")&&until.ElapsedMilliseconds<25000){Application.DoEvents();Thread.Sleep(25);}
                 Check(!Field<bool>(form,"running")&&Field<Button>(form,"save").Enabled,"real stop button ends collection and enables report export");
+                Field<TextBox>(form,"folder").Text=Path.GetTempPath();Check(Field<string?>(form,"sessionFolder")==fixture,"export protection remains bound to the monitored folder even if UI folder changes");
                 form.ClientSize=new Size(940,720);form.PerformLayout();Application.DoEvents();using(var bmp=new Bitmap(form.ClientSize.Width,form.ClientSize.Height)){form.DrawToBitmap(bmp,form.ClientRectangle);bmp.Save("diagnostics-proof/diagnostico-windows.png");}
                 form.Close();
             }
