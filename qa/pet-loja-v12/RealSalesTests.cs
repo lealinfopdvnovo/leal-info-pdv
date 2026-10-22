@@ -11,6 +11,7 @@ static class RealSalesTests{
  var checks=new List<string>();void Check(bool ok,string msg){if(!ok)throw new Exception(msg);checks.Add(msg);Console.WriteLine("PASS "+msg);}
  try{
  Check(OperatingSystem.IsWindows()&&Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true"&&!File.Exists(Database.DbPath),"isolated Windows without store database");
+ using(var padded=new Bitmap(1000,1000)){using(var g=Graphics.FromImage(padded)){g.Clear(Color.Transparent);g.FillRectangle(Brushes.Cyan,350,450,300,100);}var bounds=(Rectangle)typeof(LojaTestExtension).GetMethod("ContentBounds",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{padded})!;Check(bounds.Contains(new Rectangle(350,450,300,100))&&bounds.Width<320&&bounds.Height<120,"transparent logo margins removed without clipping visible content");}
  Application.EnableVisualStyles();Application.SetUnhandledExceptionMode(UnhandledExceptionMode.ThrowException);
  Database.Initialize();Auth.CreateUser("QA","qapet","QA-pet-123!","ADMINISTRADOR","qa@example.invalid","");Auth.Login("qapet","QA-pet-123!");
  object? Sql(string sql){using var db=Database.Open();using var q=db.CreateCommand();q.CommandText=sql;return q.ExecuteScalar();}
@@ -28,11 +29,10 @@ static class RealSalesTests{
  var sales=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Text.Contains("TELA DE VENDA"));if(sales==null)return;
  if(stage==0){stage=1;Shot(sales,"evidence/real-antes.png");if(args.Contains("--bootstrap")){typeof(MainForm).Assembly.GetType("LealInfoPDV.LojaPetBootstrap")!.GetMethod("Initialize",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,null);Check(true,"published 001 binary extracts and loads its embedded PET V1.2");}else runtime.GetMethod("Load",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{folder,"001"});Application.RaiseIdle(EventArgs.Empty);return;}
  if(stage==1){stage=2;Application.RaiseIdle(EventArgs.Empty);
- var button=Walk(sales).OfType<Button>().Single(b=>b.Name=="pet001_test_button");var style=Walk(sales).OfType<Button>().Single(b=>b.Text=="ESTILO");
- Check(button.Parent==style.Parent,"actual sales window receives PET button beside ESTILO");Check(runtime.GetProperty("CurrentVersion",BindingFlags.Static|BindingFlags.NonPublic)!.GetValue(null)?.ToString()=="1.2","actual runtime reports PET V1.2");
- foreach(var width in new[]{1024,1366,1920}){sales.WindowState=FormWindowState.Normal;sales.ClientSize=new Size(width,768);sales.PerformLayout();Check(button.Visible&&button.Width>50&&button.Right<=style.Left,"real responsive layout no overlap at "+width);}
- Shot(sales,"evidence/real-depois.png");button.PerformClick();return;}
- if(stage==2){var dialog=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Name=="pet001_test_dialog");if(dialog==null)return;Check(true,"real sales button opens floating dialog");Shot(dialog,"evidence/real-janela.png");stage=3;dialog.Close();return;}
+ var logo=Walk(sales).OfType<PictureBox>().Single(p=>p.Name=="sales_company_logo");var style=Walk(sales).OfType<Button>().Single(b=>b.Text=="ESTILO");
+ Check(!Walk(sales).OfType<Button>().Any(b=>b.Name=="pet001_test_button"||b.Text=="EM FASE DE TESTE"),"test button removed from actual sales window");Check(Equals(logo.Tag,"LOJA-PET-1.2-LOGO"),"larger logo customization applied only to header");Check(runtime.GetProperty("CurrentVersion",BindingFlags.Static|BindingFlags.NonPublic)!.GetValue(null)?.ToString()=="1.2","actual runtime reports PET V1.2");
+ foreach(var width in new[]{1024,1366,1920}){sales.WindowState=FormWindowState.Normal;sales.ClientSize=new Size(width,768);sales.PerformLayout();Check(logo.Visible&&logo.Width>100&&logo.Height>40&&style.Visible,"header logo and ESTILO remain visible at "+width);}
+ Shot(sales,"evidence/real-depois.png");stage=3;return;}
  if(stage==3){stage=4;Walk(sales).OfType<Button>().Single(b=>b.Text=="ESTILO").PerformClick();return;}
  if(stage==4){var chooser=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f.Text=="Estilo da Tela de Vendas");if(chooser==null)return;Check(true,"original ESTILO still opens its actual chooser");stage=5;chooser.Close();return;}
  if(stage==5){timer.Stop();Check(State()==before,"test product stock sales and settings preserved");Check(Sha(global)==hash,"GLOBAL binary unchanged by PET customization");Check(Convert.ToString(Sql("PRAGMA quick_check"))=="ok","test database integrity valid");completed=true;sales.Close();}
