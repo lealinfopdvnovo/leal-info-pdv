@@ -452,7 +452,12 @@ internal sealed class KitchenForm : Form
             try {received=main.ReceiveKitchenOrder(tableWindow is {Visible:true}?tableWindow:this,store,selected.Id);}
             catch(Exception e){MessageBox.Show(tableWindow is {Visible:true}?tableWindow:this,e.Message,"Pagamento não concluído",MessageBoxButtons.OK,MessageBoxIcon.Warning);return;}
             if(received){
-                message.Text="Pagamento registrado. Mesa liberada.";tableWindow?.Close();await RefreshOrders();dashboardDraft=true;items.Rows.Clear();reference.Text="";draftStarted=null;SetEntryEnabled(true);SyncDashboard();
+                await RefreshOrders();ApplyUi(()=>{
+                    var remaining=visibleOrders.FirstOrDefault(o=>o.Reference==selected.Reference&&!o.Paid&&o.Status!="CANCELADO"&&o.Items.Length>0);
+                    items.Rows.Clear();
+                    if(remaining!=null){dashboardDraft=false;SelectSavedOrder(remaining.Id);message.Text="Pagamento registrado. Quantidades e saldo restantes continuam nesta mesa.";}
+                    else{message.Text="Pagamento registrado. Mesa liberada.";tableWindow?.Close();dashboardDraft=true;reference.Text="";draftStarted=null;SetEntryEnabled(true);SyncDashboard();}
+                });
             }
         });
     }

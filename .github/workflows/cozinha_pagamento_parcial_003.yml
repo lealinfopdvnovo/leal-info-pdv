@@ -1,0 +1,151 @@
+name: Pagamento parcial Cozinha - publicar somente 003
+'on':
+  push:
+    branches:
+    - fix/pagamento-parcial-003
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: pagamento-parcial-003
+  cancel-in-progress: true
+jobs:
+  validar:
+    runs-on: windows-latest
+    timeout-minutes: 14
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: '003'
+      SOURCE_REF: ${{ github.sha }}
+      APPROVED_SOURCE: ${{ github.sha }}
+      PYTHONUTF8: '1'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        path: source
+        fetch-depth: 0
+        ref: ${{ env.SOURCE_REF }}
+    - name: Conferir somente escopo e identidade do canal
+      working-directory: source
+      run: python qa/kitchen-partial-003/scope.py
+    - uses: actions/checkout@v4
+      with:
+        ref: b95da478624312a5070e9ee512e156b3a9dcb858
+        path: controller
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.401
+    - name: Preparar canal proprio sobre 10.434
+      working-directory: controller
+      shell: pwsh
+      run: '''{"sdk":{"version":"10.0.401","rollForward":"disable"}}''|Set-Content
+        global.json -Encoding UTF8
+
+        python scripts/distribute_channels.py plan
+
+        if($LASTEXITCODE -ne 0){throw ''Plan failed''}
+
+        $p=Get-Content release-plan.json -Raw|ConvertFrom-Json
+
+        if($p.Entries.Count -ne 1 -or $p.Entries[0].Channel -ne $env:CHANNEL -or $p.Entries[0].Version
+        -ne ''10.436'' -or $p.Entries[0].Baseline.Version -ne ''10.434''){throw ''Wrong
+        scope''}
+
+        python scripts/distribute_channels.py prepare $env:CHANNEL
+
+        if($LASTEXITCODE -ne 0){throw ''Preparation failed''}
+
+        Push-Location candidate
+
+        ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+
+        ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+
+        ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+
+        ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+
+        ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+
+        ./scripts/aplicar_central_equipamentos_v10_314.ps1
+
+        Pop-Location
+
+        '
+    - name: Testar consumo preparo cancelamento financeiro e compilar Windows
+      working-directory: controller
+      shell: pwsh
+      run: 'dotnet run --project candidate/qa/kitchen-partial-003/CorrectionsTests.csproj
+        -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false 2>&1 | Tee-Object
+        corrections-windows.log
+
+        if($LASTEXITCODE -ne 0){throw ''Consumption cancellation or financial test
+        failed''}
+
+        $r=Get-Content corrections-evidence/results.json -Raw|ConvertFrom-Json
+
+        if($r.success -ne $true -or $r.checks.Count -lt 45 -or $r.channel -ne $env:CHANNEL
+        -or $r.source -ne $env:APPROVED_SOURCE){throw ''Invalid targeted evidence''}
+
+        $sdk=Get-Content sdk-version.txt
+
+        dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained
+        true -p:WindowsSdkPackageVersion=$sdk -o candidate-publish 2>&1 | Tee-Object
+        build-windows.log
+
+        if($LASTEXITCODE -ne 0){throw ''Windows compilation failed''}
+
+        python scripts/distribute_channels.py package $env:CHANNEL
+
+        if($LASTEXITCODE -ne 0){throw ''Incremental package invalid''}
+
+        New-Item -ItemType Directory ../source/validated/layout-evidence -Force|Out-Null
+
+        Copy-Item corrections-evidence/* ../source/validated/layout-evidence/
+
+        Copy-Item release-output ../source/validated/ -Recurse
+
+        Copy-Item build-windows.log,corrections-windows.log ../source/validated/
+
+        '
+    - name: Validar pacote backup e rollback da 10.434 para 10.436
+      working-directory: source
+      shell: pwsh
+      run: './qa/kitchen-partial-003/rollback.ps1 2>&1 | Tee-Object validated/rollback.log
+
+        if($LASTEXITCODE -ne 0){throw ''Protected updater compatibility failed''}
+
+        '
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: pacote-10436-003
+        path: source/validated/
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: pagamento-parcial-003-falha
+        path: 'controller/corrections-evidence/
+
+          controller/*-windows.log'
+  publicar:
+    needs:
+    - validar
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: pacote-10436-003
+        path: proof/003/validated
+    - name: Publicar exclusivamente 003 e conferir downloads e feeds
+      env:
+        GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        SOURCE_003: ${{ github.sha }}
+      run: python qa/kitchen-partial-003/publish.py
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: publicacao-10436-003
+        path: published-003.json

@@ -4814,23 +4814,32 @@ private void ApplyFloatingTheme(Form f)
     internal bool ReceiveKitchenOrder(IWin32Window owner,KitchenStore store,Guid selected)
     {
         if(!Auth.HasPermission("sales"))throw new InvalidOperationException("Sem permissão para receber pagamentos.");
-        var bill=store.Quote(selected);
-        var priced=bill.Items.ToArray();
-        for(int index=0;index<priced.Length;index++)if(!priced[index].ProductId.HasValue){
-            using var priceDialog=new Form{Name="KitchenManualPrice",Text="PREÇO DO ITEM AVULSO — "+bill.Reference,Size=new Size(540,260),StartPosition=FormStartPosition.CenterParent,FormBorderStyle=FormBorderStyle.FixedDialog,MaximizeBox=false,MinimizeBox=false};
-            var amount=new NumericUpDown{Name="KitchenManualUnitPrice",DecimalPlaces=2,Maximum=1_000_000,Minimum=0,Dock=DockStyle.Top,Font=new Font("Segoe UI",16)};
-            var confirm=new Button{Text="CONFIRMAR PREÇO UNITÁRIO",Dock=DockStyle.Bottom,Height=48};confirm.Click+=(_,_)=>{if(amount.Value<=0){MessageBox.Show(priceDialog,"Informe um preço unitário positivo para este item.","Preço obrigatório");return;}priceDialog.DialogResult=DialogResult.OK;};
-            priceDialog.Controls.Add(amount);priceDialog.Controls.Add(new Label{Text=$"{priced[index].Quantity:0.###} × {priced[index].Description}\nInforme o preço UNITÁRIO (R$).",Dock=DockStyle.Top,Height=82,Padding=new Padding(12)});priceDialog.Controls.Add(confirm);KitchenPremiumStyle.Apply(priceDialog);
-            if(priceDialog.ShowDialog(owner)!=DialogResult.OK)return false;priced[index]=priced[index] with{UnitPrice=amount.Value};
+        string reference=store.Get(selected).Reference;string identity=store.StoreId();
+        KitchenBill bill;List<PaymentPart> parts;long id;
+        var pending=KitchenPaymentJournal.Read(identity,reference);
+        if(pending!=null){
+            var confirmed=store.PaymentResult(pending.Bill.OperationId);
+            if(!confirmed.HasValue&&MessageBox.Show(owner,"Há uma cobrança pendente de confirmação nesta mesa. Conferir e retomar a mesma operação, sem duplicar o pagamento?","Conferir cobrança pendente",MessageBoxButtons.YesNo,MessageBoxIcon.Question)!=DialogResult.Yes)return false;
+            bill=pending.Bill;parts=pending.Payments.Select(p=>new PaymentPart{Method=p.Method,Amount=(double)p.Amount}).ToList();
+            try{id=store.Receive(bill,pending.Payments,pending.Actor);KitchenPaymentJournal.Complete(identity,reference);}
+            catch(InvalidOperationException){if(!store.PaymentResult(bill.OperationId).HasValue)KitchenPaymentJournal.Complete(identity,reference);throw;}
+        }else{
+            using var selection=new KitchenPartialPaymentForm(store.Quote(selected));
+            if(selection.ShowDialog(owner)!=DialogResult.OK||selection.Selection==null)return false;
+            bill=selection.Selection;
+            string summary=bill.Reference.ToUpperInvariant()+" — PRODUTOS SELECIONADOS\n\n"+string.Join("\n",bill.Items.Select(i=>$"{i.Quantity:0.###} × {i.Description}: {i.Total:C2}"))+$"\n\nRECEBER: {bill.Total:C2}\nOs produtos e quantidades não selecionados permanecem na conta.";
+            if(MessageBox.Show(owner,summary,"CONFERIR PAGAMENTO DA MESA",MessageBoxButtons.OKCancel,MessageBoxIcon.Information)!=DialogResult.OK)return false;
+            var chosen=bill.Total==0?new List<PaymentPart>():SelectPayment((double)bill.Total,0,owner,"RECEBER / PAGAMENTO — "+bill.Reference.ToUpperInvariant());
+            if(chosen==null||bill.Total>0&&chosen.Count==0)return false;parts=chosen;
+            var payments=parts.Select(p=>new KitchenPayment(p.Method,decimal.Round((decimal)p.Amount,2))).ToArray();
+            KitchenPaymentJournal.Save(identity,new KitchenPaymentPending(bill,payments,Auth.OperatorName));
+            try{id=store.Receive(bill,payments,Auth.OperatorName);KitchenPaymentJournal.Complete(identity,reference);}
+            catch(InvalidOperationException){if(!store.PaymentResult(bill.OperationId).HasValue)KitchenPaymentJournal.Complete(identity,reference);throw;}
         }
-        bill=bill with{Items=priced};
-        string summary=bill.Reference.ToUpperInvariant()+" — "+bill.Orders.Length+" pedido(s)\n\n"+string.Join("\n",bill.Items.Select(i=>$"{i.Quantity:0.###} × {i.Description}: {i.Total:C2}"))+ $"\n\nTOTAL: {bill.Total:C2}\nConferir os itens e prosseguir para o pagamento?";
-        if(MessageBox.Show(owner,summary,"CONFERIR CONTA DA MESA",MessageBoxButtons.OKCancel,MessageBoxIcon.Information)!=DialogResult.OK)return false;
-        var parts=SelectPayment((double)bill.Total,0,owner,"RECEBER / PAGAMENTO — "+bill.Reference.ToUpperInvariant());
-        if(parts==null||parts.Count==0)return false;
-        long id=store.Receive(bill,parts.Select(p=>new KitchenPayment(p.Method,decimal.Round((decimal)p.Amount,2))).ToArray(),Auth.OperatorName);
         try {
             var receipt=BuildReceipt(id,DateTime.Now,bill.Items.Select(i=>new CartItem{ProductId=i.ProductId??0,Description=i.Description,Qty=(double)i.Quantity,UnitPrice=(double)i.UnitPrice}),parts,(double)bill.Total);
+            decimal rounding=bill.Total-bill.Items.Sum(i=>decimal.Round(i.Quantity*i.UnitPrice,2,MidpointRounding.AwayFromZero));
+            if(rounding!=0)receipt+="\nAjuste de centavos no fechamento parcial: "+rounding.ToString("C2",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));
             RefreshDashboard();ShowReceipt(receipt);ThermalPrinterService.PrintAutomaticallyIfEnabled(receipt,this);
         }catch(Exception e){MessageBox.Show(owner,"Pagamento registrado na venda #"+id+". Não foi possível exibir/imprimir o comprovante: "+e.Message,"Pagamento registrado");}
         return true;

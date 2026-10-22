@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 
 namespace LealInfoPDV;
 
-internal sealed record KitchenItem(string Description, decimal Quantity, string Notes, long? ProductId = null, [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] decimal? UnitPrice=null, [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] int? Position=null);
+internal sealed record KitchenItem(string Description, decimal Quantity, string Notes, long? ProductId = null, [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] decimal? UnitPrice=null, [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] int? Position=null, [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingNull)] decimal? LineBalance=null);
 internal sealed record KitchenDraft(Guid Id, string Reference, string Notes, string Operator, DateTimeOffset CreatedUtc, KitchenItem[] Items, [property:JsonIgnore(Condition=JsonIgnoreCondition.WhenWritingDefault)] bool TableOnly=false)
 {
     internal KitchenDraft Validate()
