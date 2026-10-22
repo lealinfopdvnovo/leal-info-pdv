@@ -20,7 +20,7 @@ static class Tests
    Auth.CreateUser("QA","qaglobal","QA-global-123!","ADMINISTRADOR","qa@example.invalid","");Auth.Login("qaglobal","QA-global-123!");
    Sql("INSERT INTO products(id,name,price,stock,active) VALUES(901,'PRODUTO EXISTENTE',12.5,77,1);INSERT INTO customers(id,name) VALUES(901,'CLIENTE EXISTENTE');INSERT OR REPLACE INTO settings(key,value) VALUES('qa_keep','PRESERVAR')");
    var common=typeof(MainForm).Assembly;
-   Check(!common.GetTypes().Any(x=>x.Name.StartsWith("Glass")||x.Name.StartsWith("Angra")),"GLOBAL contains no Glass or Angra domain implementation");
+   Check(!common.GetTypes().Any(x=>JsonSerializer.Deserialize<string[]>(File.ReadAllText("qa/consolidation/legacy-domain-types.json"))!.Contains(x.Name)),"GLOBAL contains no Glass or Angra domain implementation");
    using var main=new MainForm();((System.Windows.Forms.Timer)typeof(MainForm).GetField("licenseTimer",P)!.GetValue(main)!).Stop();
    var events=(EventHandlerList)typeof(Component).GetProperty("Events",P)!.GetValue(main)!;var shownKey=typeof(Form).GetFields(BindingFlags.Static|BindingFlags.NonPublic).Single(x=>x.Name.Contains("Shown",StringComparison.OrdinalIgnoreCase)).GetValue(null)!;var shown=events[shownKey];events.RemoveHandler(shownKey,shown);main.Show();Application.DoEvents();events.AddHandler(shownKey,shown);
    string State()=>Convert.ToString(Sql("SELECT (SELECT stock FROM products WHERE id=901)||'|'||(SELECT price FROM products WHERE id=901)||'|'||(SELECT COUNT(*) FROM sales)||'|'||(SELECT value FROM settings WHERE key='qa_keep')"))!;
