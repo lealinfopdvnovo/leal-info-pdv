@@ -9,7 +9,7 @@ $out=[IO.File]::Create($legacyWorker);try{$resource.CopyTo($out)}finally{$out.Di
 $core=@('LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe')
 function TaskName($app){$h=[Security.Cryptography.SHA256]::Create();try{'LealInfoPDV-Recovery-'+([BitConverter]::ToString($h.ComputeHash([Text.Encoding]::UTF8.GetBytes($app.ToUpperInvariant()))).Replace('-','').Substring(0,16))}finally{$h.Dispose()}}
 function InvokeWorker($file,$mode,$app,$package,$hash,$fault=''){
- & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $file -Mode $mode -App $app -Channel 001 -Version 10.457 -Package $package -Sha256 $hash -Fault $fault
+ & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $file -Mode $mode -App $app -Channel 001 -Version 10.459 -Package $package -Sha256 $hash -Fault $fault
  return $LASTEXITCODE
 }
 $first=(Resolve-Path bridge-first.zip).Path

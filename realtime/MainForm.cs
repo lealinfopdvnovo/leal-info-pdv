@@ -762,6 +762,20 @@ public sealed class MainForm : Form
         _voiceButton.Text = "PREPARANDO...";
         try
         {
+            if (_voiceOnly && string.IsNullOrWhiteSpace(GetGeminiApiKey()))
+            {
+                if (_realtime != null)
+                {
+                    await _realtime.StopMicrophoneAsync();
+                    await _realtime.DisconnectAsync();
+                }
+                _continuousVoiceMode = false;
+                _offlineMode = false;
+                TopMost = false;
+                await SendStatusAsync("ERROR");
+                return;
+            }
+            // Configuração visual é explícita, fora do modo da esfera.
             // Quando a LIA e aberta pelo botao do PDV, o formulario nasce oculto.
             // Exiba-o antes de pedir a chave para o dialogo nao ficar atras do PDV.
             if (string.IsNullOrWhiteSpace(GetGeminiApiKey()))
@@ -786,6 +800,7 @@ public sealed class MainForm : Form
         {
             TopMost = false;
             LiaLog("VOICE_FALLBACK_ERROR", ex.Message);
+            if (_voiceOnly) { await SendStatusAsync("ERROR"); return; }
             RevealLocalChat();
             _status.Text = "Configure a chave gratuita para usar a voz";
             _voiceButton.Text = "🎙 FALAR";
@@ -797,14 +812,9 @@ public sealed class MainForm : Form
 
     private void RevealLocalChat()
     {
-        if (!_voiceOnly) return;
-        Opacity = 1;
-        ShowInTaskbar = true;
-        WindowState = FormWindowState.Normal;
-        Show();
+        if (_voiceOnly) return;
+        if (!Visible) Show();
         Activate();
-        BringToFront();
-        _input.Focus();
     }
 
     private async Task<bool> EnsureApiKeyAsync()
@@ -828,6 +838,7 @@ public sealed class MainForm : Form
             }));
             return dispatched.Task;
         }
+        if (_voiceOnly) { _ = SendStatusAsync("ERROR"); return Task.FromResult(""); }
         if (_closing || IsDisposed) return Task.FromResult("");
         if (_keyDialog is { IsDisposed: false })
         {
@@ -872,6 +883,7 @@ public sealed class MainForm : Form
     {
         _status.Text = "A LIA encontrou um erro";
         _ = SendStatusAsync("ERROR");
+        if (_voiceOnly) { LiaLog("VOICE_ERROR_TYPE", ex.GetType().Name); return; }
         MessageBox.Show(this, ex.Message, "LIC ASSISTENTE AI", MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 

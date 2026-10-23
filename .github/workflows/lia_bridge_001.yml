@@ -1,7 +1,7 @@
 name: LIA 001 - ponte protegida - somente testes
 on:
   push:
-    branches: [prepare/lia-mobile-001]
+    branches: [prepare/lia-voice-only-001]
 permissions:
   contents: read
 jobs:
@@ -53,6 +53,8 @@ jobs:
         run: |
           dotnet run --project tests/LiaMovable/LiaMovable.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw 'Falha no teste da janela' }
+          dotnet run --project tests/LiaVoiceOnly/LiaVoiceOnly.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Voice-only UI regression' }
 
       - name: Reconstituir base operacional 10.453 exclusiva 001
         shell: pwsh
@@ -70,7 +72,7 @@ jobs:
           Pop-Location
           python controller/qa/lia-bridge/generate.py
           if($LASTEXITCODE -ne 0){throw 'Worker generation failed'}
-      - name: Compilar ponte 456 e entrega 457 sem publicar
+      - name: Compilar ponte 458 e entrega 459 sem publicar
         shell: pwsh
         run: |
           New-Item -ItemType Directory native -Force|Out-Null
@@ -91,16 +93,16 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'PET compile failed'}
           $pet=(Resolve-Path qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.001.dll).Path
           $props+=("-p:LojaPetPayload=$pet")
-          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o bridge456 @props
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o bridge458 @props
           if($LASTEXITCODE -ne 0){throw 'Bridge compilation failed'}
-          (Get-Content UpdateManager.cs -Raw).Replace('CurrentVersion="10.456"','CurrentVersion="10.457"')|Set-Content UpdateManager.cs
-          (Get-Content LealInfoPDV.csproj -Raw).Replace('10.456.0','10.457.0')|Set-Content LealInfoPDV.csproj
-          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o bridge457 @props
+          (Get-Content UpdateManager.cs -Raw).Replace('CurrentVersion="10.458"','CurrentVersion="10.459"')|Set-Content UpdateManager.cs
+          (Get-Content LealInfoPDV.csproj -Raw).Replace('10.458.0','10.459.0')|Set-Content LealInfoPDV.csproj
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o bridge459 @props
           if($LASTEXITCODE -ne 0){throw 'Delivery compilation failed'}
           Pop-Location
           dotnet build controller/qa/lia-bridge/probe/Probe.csproj -c Release
           if($LASTEXITCODE -ne 0){throw 'Delivered probe compilation failed'}
-          dotnet controller/qa/lia-bridge/probe/bin/Release/net8.0-windows/Probe.dll --route candidate/bridge456/LealInfoPDV.dll
+          dotnet controller/qa/lia-bridge/probe/bin/Release/net8.0-windows/Probe.dll --route candidate/bridge458/LealInfoPDV.dll
           if($LASTEXITCODE -ne 0){throw 'Manifest eligibility failed'}
           python controller/qa/lia-bridge/package.py
           if($LASTEXITCODE -ne 0){throw 'Package compatibility failed'}
