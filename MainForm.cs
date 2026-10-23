@@ -81,7 +81,9 @@ public sealed partial class MainForm : Form
 
             OpenFirstAccessTutorial(true);
             ShowPostLoginWelcome();
-            _ = UpdateManager.CheckForUpdatesAsync(this, true);
+            if (Environment.GetCommandLineArgs().Contains("--central-atualizacoes"))
+                _ = UpdateManager.ShowUpdateCenterAsync(this);
+            else _ = UpdateManager.CheckForUpdatesAsync(this, true);
         };
 
         FormClosed += (_, _) =>

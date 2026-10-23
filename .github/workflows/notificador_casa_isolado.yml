@@ -1,0 +1,64 @@
+name: Casa do Leal - notificador nativo Windows - sem publicar
+on:
+  push:
+    branches: [prepare/casa-notificador-windows]
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - name: Conferir escopo e compilar notificador nativo pequeno
+        shell: pwsh
+        run: |
+          python qa/notificador/scope.py
+          if($LASTEXITCODE -ne 0){throw 'Scope failed'}
+          New-Item -ItemType Directory native,evidence -Force|Out-Null
+          $vs=& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vc=Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
+          $command='"'+$vc+'" && cl /nologo /std:c++20 /O2 /MT /EHsc /W4 /utf-8 /Fo:native/notifier.obj /Fe:native/LealInfoPDV.Notificador.exe tools/UpdateNotifier/notifier.cpp /link /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT'
+          cmd.exe /d /s /c $command
+          if($LASTEXITCODE -ne 0){throw 'Native compile failed'}
+          if((Get-Item native/LealInfoPDV.Notificador.exe).Length -gt 2MB){throw 'Native component unexpectedly large'}
+      - name: Compilar PDV Windows com notificador incorporado
+        shell: pwsh
+        run: |
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json
+          $native=(Resolve-Path native/LealInfoPDV.Notificador.exe).Path
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish -p:UseSharedCompilation=false "-p:NotifierPayload=$native"
+          if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
+          dotnet build qa/notificador/Tests.csproj -c Release -p:UseSharedCompilation=false "-p:NotifierPayload=$native"
+          if($LASTEXITCODE -ne 0){throw 'Test compilation failed'}
+          $bin='qa/notificador/bin/Release/net8.0-windows10.0.19041.0'
+          Copy-Item publish/LealInfoPDV.dll "$bin/LealInfoPDV.dll" -Force
+          dotnet "$bin/Tests.dll" $native (Resolve-Path publish/LealInfoPDV.exe).Path
+          if($LASTEXITCODE -ne 0){throw 'Notifier validation failed'}
+      - name: Preservar backup e recuperação do pacote comum
+        shell: pwsh
+        run: |
+          $script=(Get-Content qa/global-core/rollback.ps1 -Raw).Replace('Version 10.444','Version 10.447')
+          Set-Content qa/global-core/rollback.ps1 $script
+          ./qa/global-core/rollback.ps1
+          if($LASTEXITCODE -ne 0){throw 'Backup or rollback failed'}
+          $files=@{}
+          foreach($n in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){$files[$n]=(Get-FileHash "publish/$n").Hash.ToLowerInvariant()}
+          @{Version='10.447';Source=$env:GITHUB_SHA;Published=$false;InstalledOnCustomer=$false;Files=$files;NativeHash=(Get-FileHash native/LealInfoPDV.Notificador.exe).Hash.ToLowerInvariant()}|ConvertTo-Json -Depth 5|Set-Content evidence/candidate.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Casa-notificador-Windows-isolado
+          path: |
+            evidence/
+            native/LealInfoPDV.Notificador.exe
+            publish/LealInfoPDV.exe
+            publish/LealInfoPDV.dll
+            publish/LealInfoPDV.deps.json

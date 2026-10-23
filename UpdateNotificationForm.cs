@@ -43,12 +43,13 @@ internal sealed class UpdateNotificationForm : Form
         {
             if (applying) return;
             applying = true; now.Enabled = later.Enabled = false; now.Text = "Preparando…";
+            Hide();
             try { await apply(); if (!IsDisposed) Close(); }
             catch (Exception ex)
             {
-                if (!IsDisposed) MessageBox.Show(this, "Não foi possível atualizar agora.\n\n" + ex.Message, "Atualização", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                if (!IsDisposed) MessageBox.Show(main, "Não foi possível atualizar agora.\n\n" + ex.Message, "Atualização", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
-            finally { if (!IsDisposed) { applying = false; now.Enabled = later.Enabled = true; now.Text = "Atualizar agora"; } }
+            finally { if (!IsDisposed) { Show(main); applying = false; now.Enabled = later.Enabled = true; now.Text = "Atualizar agora"; } }
         };
         main.LocationChanged += Reposition;
         main.SizeChanged += Reposition;
