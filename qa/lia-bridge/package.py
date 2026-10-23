@@ -7,8 +7,8 @@ def normalized(p):
   for k in list(bag):
    if k.startswith('LealInfoPDV/'):del bag[k]
  return d
-assert normalized(Path('legacy/LealInfoPDV.deps.json'))==normalized(Path('candidate/bridge454/LealInfoPDV.deps.json'))
-assert normalized(Path('legacy/LealInfoPDV.deps.json'))==normalized(Path('candidate/bridge455/LealInfoPDV.deps.json'))
+assert normalized(Path('legacy/LealInfoPDV.deps.json'))==normalized(Path('candidate/bridge456/LealInfoPDV.deps.json'))
+assert normalized(Path('legacy/LealInfoPDV.deps.json'))==normalized(Path('candidate/bridge457/LealInfoPDV.deps.json'))
 def archive(folder,name):
  with zipfile.ZipFile(name,'w',zipfile.ZIP_DEFLATED) as z:
   for p in sorted(folder.rglob('*')):
@@ -16,8 +16,8 @@ def archive(folder,name):
 first=Path('first-payload');first.mkdir(exist_ok=True)
 final=Path('final-payload');final.mkdir(exist_ok=True)
 for n in core:
- shutil.copy2(Path('candidate/bridge454')/n,first/n)
- shutil.copy2(Path('candidate/bridge455')/n,final/n)
+ shutil.copy2(Path('candidate/bridge456')/n,first/n)
+ shutil.copy2(Path('candidate/bridge457')/n,final/n)
 for n in json.loads(Path('lia-hashes.json').read_text()):
  dest=final/n;dest.parent.mkdir(parents=True,exist_ok=True)
  shutil.copy2(Path('controller/lia-candidate')/n.removeprefix('LIC-AI/'),dest)

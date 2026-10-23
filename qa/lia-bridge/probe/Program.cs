@@ -68,7 +68,7 @@ class Probe
         protected override System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request,System.Threading.CancellationToken token)
         {
             string path=request.RequestUri!.AbsolutePath;
-            bool component=path.Contains("/lia/");
+            bool component=path.Contains("/lia-mobile/");
             if(component)ComponentRequests++;
             string version=component?"10.457":"10.456";
             string target=path.Contains("/clients/")?"001":"";
