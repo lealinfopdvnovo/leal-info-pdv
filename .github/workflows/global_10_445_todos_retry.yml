@@ -1,0 +1,37 @@
+name: GLOBAL 10.445 - republicar pacotes aprovados para todos
+on:
+  push:
+    branches: [release/global-10-445-todos-retry]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir três validações Windows aprovadas
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/lealinfopdvnovo/leal-info-pdv/actions/runs/39878409513/jobs > approved-jobs.json
+          python -c "import json; j=json.load(open('approved-jobs.json')); w=[x for x in j['jobs'] if x['name'].startswith('windows (')]; assert len(w)==3 and all(x['conclusion']=='success' for x in w)"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: global-445-0*
+          run-id: 39878409513
+          github-token: ${{ github.token }}
+          merge-multiple: true
+          path: proof
+      - name: Publicar todos e aguardar propagação pública
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/global-todos/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: global-445-disponivel-todos
+          path: |
+            published-all.json
+            previous-*.json

@@ -22,7 +22,7 @@ def move(sha):api(f'repos/{REPO}/git/refs/heads/main',dict(sha=sha,force=False),
 before={c:feed(c) for c in CHANNELS};entries={};manifests={}
 check(before['GLOBAL']['manifest']['Version']=='10.445','GLOBAL approval absent')
 for id in SELECTED:
- root=Path('proof')/id;e=json.loads((root/'candidate.json').read_text());check(e['Channel']==id and e['Version']=='10.445' and e['SourceCommit']==os.environ['GITHUB_SHA'],'Wrong validated candidate')
+ root=Path('proof')/id;e=json.loads((root/'candidate.json').read_text());check(e['Channel']==id and e['Version']=='10.445' and e['SourceCommit']=='006ecad77168de93d8bf1130c7bbf401e3c4d7b7','Wrong validated candidate')
  check(e['DependenciesEqual'] and e['NotificationChecks']==22,'Missing Windows approval')
  check(before[id]['manifest']==e['Baseline'],'Published baseline changed')
  rollback=json.loads((root/'rollback.json').read_text(encoding='utf-8-sig'));check(len(rollback)==3 and all(x['Pass'] for x in rollback),'Rollback evidence absent')
@@ -46,11 +46,12 @@ try:
  detail=api(f"repos/{REPO}/commits/{commit['sha']}");check({x['filename'] for x in detail['files']}=={f'clients/{id}/version.json' for id in SELECTED},'Unexpected changed paths')
  for id in SELECTED:
   live=None
-  for _ in range(12):
+  for _ in range(60):
    try:live=json.loads(download(f'https://raw.githubusercontent.com/{REPO}/main/clients/{id}/version.json'))
    except (OSError,ValueError):pass
    if live==manifests[id]:break
    time.sleep(3)
+  print("Public feed",id,"matches",live==manifests[id],"observed",live,flush=True)
   check(live==manifests[id],'Updater manifest differs '+id)
  after={c:feed(c) for c in CHANNELS};check(all(after[c]['sha']==before[c]['sha'] for c in ('GLOBAL','003')),'Common or Casa channel changed')
  Path('published-all.json').write_text(json.dumps(dict(Published=True,Version='10.445',Channels=SELECTED,FeedCommit=commit['sha'],Manifests=manifests,PublicPackagesVerified=True,UpdaterUrlsVerified=True,InstalledOnRealComputers=False),indent=2),encoding='utf-8')
