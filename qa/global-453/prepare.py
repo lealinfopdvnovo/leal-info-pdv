@@ -16,7 +16,7 @@ Path('baseline.json').write_text(json.dumps(feed));Path('feed-path.txt').write_t
 for n in ('Auth.cs','Database.cs','Licensing/InstallationLicense.cs'):
  p=root/n
  if p.exists():
-  original=subprocess.check_output(['git','-C',str(root),'show','HEAD:'+n]);assert p.read_bytes()==original
+  original=subprocess.check_output(['git','-C',str(root),'show','HEAD:'+n],text=True,encoding='utf-8-sig');assert p.read_text(encoding='utf-8-sig')==original,n
 p=root/'UpdateManager.cs';s=p.read_text(encoding='utf-8-sig');s=re.sub(r'CurrentVersion="[^"]+"','CurrentVersion="10.453"',s)
 if 'NotifierRoute =>' not in s:s=s.replace(' private const string DistributionChannel=', ' internal static string NotifierRoute => '+('"COMMON";' if channel in ('GLOBAL','CASA') else '"CLIENT";')+'\n private const string DistributionChannel=',1)
 if 'private static bool checking;' not in s:
