@@ -9,7 +9,7 @@ namespace LicAi.Core;
 /// <summary>Conexao persistente de voz-a-voz com a OpenAI Realtime API.</summary>
 public sealed class OpenAiRealtimeConnection : IAsyncDisposable
 {
-    private const string Model = "gpt-realtime-2.1";
+    private const string Model = "gpt-realtime-2.1-mini";
     private const int OutputSampleRate = 24000;
     private const int PcmBytesPerSecond = OutputSampleRate * 2; // PCM16 mono
     // Pre-buffer curto: reduz o tempo ate a primeira fala sem remover a

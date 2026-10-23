@@ -1,0 +1,53 @@
+name: LIA - modelo economico - somente validar
+on:
+  push:
+    branches: [prepare/lia-modelo-economico]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Montar somente LIA com o fluxo existente
+        shell: pwsh
+        run: |
+          git fetch origin f0e3f579fea14a95c212c1dcaa6434730c934176
+          git restore --source=f0e3f579fea14a95c212c1dcaa6434730c934176 -- LIC-AI
+          $scripts = @('corrigir_protecao_legada_lia_v10_253.ps1','aplicar_lic_ai_conversa_v10_210.ps1','corrigir_lic_ai_resposta_v10_213.ps1','corrigir_lic_ai_ciclo_voz_v10_215.ps1','corrigir_lic_ai_captura_timeout_v10_240.ps1','corrigir_lic_ai_timeout_v10_220.ps1','corrigir_lic_ai_resposta_rapida_v10_221.ps1','expandir_inteligencia_lia_v10_225.ps1','corrigir_lic_ai_tts_openai_v10_217.ps1')
+          foreach ($script in $scripts) { & powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/$script"; if ($LASTEXITCODE -ne 0) { throw "Falha ao montar LIA" } }
+          Copy-Item realtime/OpenAiRealtimeConnection.cs LIC-AI/Core/OpenAiRealtimeConnection.cs -Force
+          Copy-Item realtime/MainForm.cs LIC-AI/MainForm.cs -Force
+          Copy-Item realtime/PdvKnowledge.cs LIC-AI/Core/PdvKnowledge.cs -Force
+          Copy-Item realtime/LocalPdvAssistant.cs LIC-AI/Core/LocalPdvAssistant.cs -Force
+          $project=Get-Content LIC-AI/LicAi.csproj -Raw
+          $project=$project.Replace('<PackageReference Include="Vosk" Version="0.3.38" />','')
+          $project=$project.Replace('</ItemGroup>','<PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.45.0" /><PackageReference Include="System.Speech" Version="8.0.0" /></ItemGroup>')
+          Set-Content LIC-AI/LicAi.csproj $project -Encoding UTF8
+          Copy-Item realtime/LiaLicenseGate.cs LIC-AI/LiaLicenseGate.cs -Force
+          $program=Get-Content LIC-AI/Program.cs -Raw
+          $program=$program.Replace('ApplicationConfiguration.Initialize();','ApplicationConfiguration.Initialize(); if(!LiaLicenseGate.Allowed()){ MessageBox.Show("LIA disponivel somente com licenca ativa Plus ou Pro."); return; }')
+          Set-Content LIC-AI/Program.cs $program -Encoding UTF8
+      - name: Verificar escopo e preservar protocolo voz comandos
+        shell: pwsh
+        run: |
+          git fetch origin 1dea48d98cf7eb1bc458e1ae719fcf7e8ede6fae
+          $before=(git show 1dea48d98cf7eb1bc458e1ae719fcf7e8ede6fae:realtime/OpenAiRealtimeConnection.cs) -join "`n"
+          $after=(Get-Content realtime/OpenAiRealtimeConnection.cs) -join "`n"
+          if($before.Replace('private const string Model = "gpt-realtime-2.1";','private const string Model = "gpt-realtime-2.1-mini";') -cne $after){throw 'Alteracao fora da constante do modelo'}
+          Write-Output 'PASS: unica alteracao funcional e o modelo; voz marin, PCM24k, VAD, comandos e eventos preservados'
+      - name: Compilar somente LIA Windows
+        run: dotnet publish LIC-AI/LicAi.csproj -c Release -r win-x64 --self-contained true -o lia-candidate
+      - name: Registrar limite de validacao
+        shell: pwsh
+        run: |
+          Write-Output 'Comunicacao real OpenAI: PENDENTE - chave nao disponibilizada para este teste. Build nao comprova homologacao de voz.'
+          Get-FileHash lia-candidate/LicAi.exe -Algorithm SHA256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lia-modelo-isolado-sem-publicacao
+          path: lia-candidate/
+          retention-days: 7
