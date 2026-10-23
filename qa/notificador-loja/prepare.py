@@ -11,8 +11,8 @@ assert 'Route={UpdateManager.NotifierRoute}' in Path('UpdateNotifierHost.cs').re
 def get(url):
  with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'Loja-Notifier-Release'}),timeout=90) as r:return r.read()
 feed=json.loads(get('https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/clients/001/version.json'))
-assert feed['Version']=='10.445' and feed['Sha256']=='503295404780e74de478a14efc82933440e85e5762854e87dcd1beaee844ae2f','Published baseline changed'
+assert feed['Version']=='10.447' and feed['Sha256']=='ce5c9f21efa1c70b395fe0bed6e1b6f7a2eb9ecd5c846803007edfd954bdfbbf','Published baseline changed'
 raw=get(feed['PackageUrl']);assert hashlib.sha256(raw).hexdigest()==feed['Sha256'];archive=zipfile.ZipFile(io.BytesIO(raw));Path('legacy').mkdir(exist_ok=True)
 for n in ('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'):Path('legacy',n).write_bytes(archive.read(n))
 deps=json.loads(Path('legacy/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'));sdk=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.Windows.SDK.NET.Ref/'));Path('sdk-version.txt').write_text(sdk)
-Path('baseline.json').write_text(json.dumps(feed,indent=2));print('PASS original Loja business database finance credentials PET and transactional updater unchanged; published 10.445 baseline SHA verified')
+Path('baseline.json').write_text(json.dumps(feed,indent=2));print('PASS original Loja business database finance credentials PET and transactional updater unchanged; published 10.447 baseline SHA verified')
