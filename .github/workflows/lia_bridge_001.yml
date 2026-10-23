@@ -1,0 +1,116 @@
+name: LIA 001 - ponte protegida - somente testes
+on:
+  push:
+    branches: [prepare/lia-bridge-001]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      CHANNEL: '001'
+      SOURCE_BASE: 7aa5d38336e94659c07f0afc6ddfe40169c41a3a
+      PYTHONUTF8: '1'
+      LEAL_NOTIFIER_ISOLATED_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: controller
+      - uses: actions/checkout@v4
+        with:
+          ref: 7aa5d38336e94659c07f0afc6ddfe40169c41a3a
+          path: candidate
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - working-directory: controller
+        name: Montar somente LIA com o fluxo existente
+        shell: pwsh
+        run: |
+          git fetch origin f0e3f579fea14a95c212c1dcaa6434730c934176
+          git restore --source=f0e3f579fea14a95c212c1dcaa6434730c934176 -- LIC-AI
+          $scripts = @('corrigir_protecao_legada_lia_v10_253.ps1','aplicar_lic_ai_conversa_v10_210.ps1','corrigir_lic_ai_resposta_v10_213.ps1','corrigir_lic_ai_ciclo_voz_v10_215.ps1','corrigir_lic_ai_captura_timeout_v10_240.ps1','corrigir_lic_ai_timeout_v10_220.ps1','corrigir_lic_ai_resposta_rapida_v10_221.ps1','expandir_inteligencia_lia_v10_225.ps1','corrigir_lic_ai_tts_openai_v10_217.ps1')
+          foreach ($script in $scripts) { & powershell -NoProfile -ExecutionPolicy Bypass -File "scripts/$script"; if ($LASTEXITCODE -ne 0) { throw "Falha ao montar LIA" } }
+          Copy-Item realtime/OpenAiRealtimeConnection.cs LIC-AI/Core/OpenAiRealtimeConnection.cs -Force
+          Copy-Item realtime/MainForm.cs LIC-AI/MainForm.cs -Force
+          Copy-Item realtime/PdvKnowledge.cs LIC-AI/Core/PdvKnowledge.cs -Force
+          Copy-Item realtime/LocalPdvAssistant.cs LIC-AI/Core/LocalPdvAssistant.cs -Force
+          $project=Get-Content LIC-AI/LicAi.csproj -Raw
+          $project=$project.Replace('<PackageReference Include="Vosk" Version="0.3.38" />','')
+          $project=$project.Replace('</ItemGroup>','<PackageReference Include="Microsoft.CognitiveServices.Speech" Version="1.45.0" /><PackageReference Include="System.Speech" Version="8.0.0" /></ItemGroup>')
+          Set-Content LIC-AI/LicAi.csproj $project -Encoding UTF8
+          Copy-Item realtime/LiaLicenseGate.cs LIC-AI/LiaLicenseGate.cs -Force
+          $program=Get-Content LIC-AI/Program.cs -Raw
+          $program=$program.Replace('ApplicationConfiguration.Initialize();','ApplicationConfiguration.Initialize(); if(!LiaLicenseGate.Allowed()){ MessageBox.Show("LIA disponivel somente com licenca ativa Plus ou Pro."); return; }')
+          Set-Content LIC-AI/Program.cs $program -Encoding UTF8
+      - working-directory: controller
+        name: Compilar somente LIA Windows
+        run: dotnet publish LIC-AI/LicAi.csproj -c Release -r win-x64 --self-contained true -o lia-candidate
+      - working-directory: controller
+        name: Testar janela modal e armazenamento protegido
+        shell: pwsh
+        run: |
+          dotnet run --project tests/LiaKeyDialog/LiaKeyDialog.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Falha no teste da janela' }
+
+      - name: Reconstituir base operacional 10.453 exclusiva 001
+        shell: pwsh
+        run: |
+          python controller/qa/lia-bridge/prepare-baseline.py
+          python controller/qa/global-453/prepare.py
+          if($LASTEXITCODE -ne 0){throw 'Baseline mismatch'}
+          Push-Location candidate
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          Pop-Location
+          python controller/qa/lia-bridge/generate.py
+          if($LASTEXITCODE -ne 0){throw 'Worker generation failed'}
+      - name: Compilar ponte 454 e entrega 455 sem publicar
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory native -Force|Out-Null
+          $vs=& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vc=Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
+          $command='"'+$vc+'" && cl /nologo /std:c++20 /O2 /MT /EHsc /utf-8 /Fo:native/notifier.obj /Fe:native/LealInfoPDV.Notificador.exe controller/qa/global-453/assets/notifier.cpp /link /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT'
+          cmd.exe /d /s /c $command
+          if($LASTEXITCODE -ne 0){throw 'Native compile failed'}
+          $native=(Resolve-Path native/LealInfoPDV.Notificador.exe).Path
+          $sdk=Get-Content sdk-version.txt
+          Push-Location candidate
+          $props=@('-p:UseSharedCompilation=false',"-p:NotifierPayload=$native","-p:WindowsSdkPackageVersion=$sdk")
+          dotnet build qa/pet-loja-v12/FinanceLayoutTests.csproj -c Release @props
+          if($LASTEXITCODE -ne 0){throw 'PET compile failed'}
+          $pet=(Resolve-Path qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.001.dll).Path
+          $props+=("-p:LojaPetPayload=$pet")
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o bridge454 @props
+          if($LASTEXITCODE -ne 0){throw 'Bridge compilation failed'}
+          (Get-Content UpdateManager.cs -Raw).Replace('CurrentVersion="10.454"','CurrentVersion="10.455"')|Set-Content UpdateManager.cs
+          (Get-Content LealInfoPDV.csproj -Raw).Replace('10.454.0','10.455.0')|Set-Content LealInfoPDV.csproj
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o bridge455 @props
+          if($LASTEXITCODE -ne 0){throw 'Delivery compilation failed'}
+          Pop-Location
+          dotnet build controller/qa/lia-bridge/probe/Probe.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Delivered probe compilation failed'}
+          python controller/qa/lia-bridge/package.py
+          if($LASTEXITCODE -ne 0){throw 'Package compatibility failed'}
+      - name: Validar ponte antiga nova integridade e recuperacao SYSTEM
+        shell: pwsh
+        run: |
+          ./controller/qa/lia-bridge/test.ps1
+          if($LASTEXITCODE -ne 0){throw 'Bridge recovery test failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LIA-001-ponte-NAO-PUBLICADA
+          path: |
+            bridge-results.json
+            bridge-packages.json
+            lia-hashes.json
+            bridge-first.zip
+            bridge-final.zip
+          retention-days: 7
