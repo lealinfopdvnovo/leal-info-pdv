@@ -674,9 +674,7 @@ public sealed class MainForm : Form
         {
             if (_offlineMode)
             {
-                var value = Microsoft.VisualBasic.Interaction.InputBox(
-                    "Cole sua chave gratuita do Google AI Studio. Ela ficará protegida neste computador.",
-                    "Configurar voz da LIA", "").Trim();
+                var value = PromptApiKey("Configurar voz da LIA", "Cole sua chave gratuita do Google AI Studio.");
                 if (value.Length >= 20)
                 {
                     SaveGeminiApiKey(value);
@@ -800,12 +798,35 @@ public sealed class MainForm : Form
         return !string.IsNullOrWhiteSpace(_secrets.GetApiKey());
     }
 
+    private bool _keyDialogOpen;
+
+    private string PromptApiKey(string title, string prompt)
+    {
+        if (_keyDialogOpen) return "";
+        _keyDialogOpen = true;
+        try
+        {
+            RevealLocalChat();
+            if (!Visible) Show();
+            using var dialog = new ApiKeyDialog(title, prompt);
+            return dialog.ShowDialog(this) == DialogResult.OK ? dialog.ApiKey : "";
+        }
+        finally { _keyDialogOpen = false; }
+    }
+
     private void ConfigureApiKey()
     {
-        var value = Microsoft.VisualBasic.Interaction.InputBox("Cole sua chave da OpenAI:", "Configurar OpenAI", "").Trim();
+        var value = PromptApiKey("Configurar OpenAI", "Cole sua chave da OpenAI:");
         if (value.Length < 20) return;
-        _secrets.SaveApiKey(value);
-        _status.Text = "Chave salva com protecao do Windows";
+        try
+        {
+            _secrets.SaveApiKey(value);
+            _status.Text = "Chave salva com protecao do Windows";
+        }
+        catch
+        {
+            MessageBox.Show(this, "Não foi possível salvar a chave neste computador. Tente novamente.", "Configurar OpenAI", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
     }
 
     private void ShowFatalError(Exception ex)
@@ -902,9 +923,7 @@ public sealed class MainForm : Form
     {
         var key = GetGeminiApiKey();
         if (!string.IsNullOrWhiteSpace(key)) return key;
-        var value = Microsoft.VisualBasic.Interaction.InputBox(
-            "Cole sua chave gratuita do Google AI Studio. Ela ficará protegida neste computador.",
-            "Configurar Gemini • LIA modo básico", "").Trim();
+        var value = PromptApiKey("Configurar Gemini • LIA modo básico", "Cole sua chave gratuita do Google AI Studio.");
         if (value.Length < 20) throw new InvalidOperationException("Chave do Gemini não configurada.");
         SaveGeminiApiKey(value);
         return value;
@@ -1017,5 +1036,37 @@ Nunca diga que executou antes da confirmação do PDV.
             await writer.WriteLineAsync(state);
         }
         catch { }
+    }
+}
+
+internal sealed class ApiKeyDialog : Form
+{
+    private readonly TextBox _key = new() { Name = "ApiKey", UseSystemPasswordChar = true, Dock = DockStyle.Top };
+    internal string ApiKey => _key.Text.Trim();
+
+    internal ApiKeyDialog(string title, string prompt)
+    {
+        Text = title;
+        StartPosition = FormStartPosition.CenterParent;
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = false;
+        MinimizeBox = false;
+        ShowInTaskbar = false;
+        ClientSize = new Size(460, 150);
+        Padding = new Padding(16);
+        var label = new Label { Text = prompt, Dock = DockStyle.Top, Height = 36 };
+        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 38, FlowDirection = FlowDirection.RightToLeft };
+        var save = new Button { Name = "Save", Text = "Salvar", AutoSize = true };
+        var cancel = new Button { Name = "Cancel", Text = "Cancelar", DialogResult = DialogResult.Cancel, AutoSize = true };
+        save.Click += (_, _) => {
+            if (ApiKey.Length < 20) { _key.Focus(); return; }
+            DialogResult = DialogResult.OK;
+        };
+        buttons.Controls.AddRange(new Control[] { cancel, save });
+        Controls.AddRange(new Control[] { _key, label, buttons });
+        AcceptButton = save;
+        CancelButton = cancel;
+        Shown += (_, _) => _key.Focus();
+
     }
 }

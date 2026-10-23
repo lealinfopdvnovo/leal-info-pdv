@@ -1,7 +1,7 @@
-name: LIA - modelo economico - somente validar
+name: LIA - corrigir janela de chave - validar Windows
 on:
   push:
-    branches: [prepare/lia-modelo-economico]
+    branches: [fix/lia-configurar-chave]
 permissions:
   contents: read
 jobs:
@@ -31,16 +31,13 @@ jobs:
           $program=Get-Content LIC-AI/Program.cs -Raw
           $program=$program.Replace('ApplicationConfiguration.Initialize();','ApplicationConfiguration.Initialize(); if(!LiaLicenseGate.Allowed()){ MessageBox.Show("LIA disponivel somente com licenca ativa Plus ou Pro."); return; }')
           Set-Content LIC-AI/Program.cs $program -Encoding UTF8
-      - name: Verificar escopo e preservar protocolo voz comandos
-        shell: pwsh
-        run: |
-          git fetch origin 1dea48d98cf7eb1bc458e1ae719fcf7e8ede6fae
-          $before=(git show 1dea48d98cf7eb1bc458e1ae719fcf7e8ede6fae:realtime/OpenAiRealtimeConnection.cs) -join "`n"
-          $after=(Get-Content realtime/OpenAiRealtimeConnection.cs) -join "`n"
-          if($before.Replace('private const string Model = "gpt-realtime-2.1";','private const string Model = "gpt-realtime-2.1-mini";') -cne $after){throw 'Alteracao fora da constante do modelo'}
-          Write-Output 'PASS: unica alteracao funcional e o modelo; voz marin, PCM24k, VAD, comandos e eventos preservados'
       - name: Compilar somente LIA Windows
         run: dotnet publish LIC-AI/LicAi.csproj -c Release -r win-x64 --self-contained true -o lia-candidate
+      - name: Testar janela modal e armazenamento protegido
+        shell: pwsh
+        run: |
+          dotnet run --project tests/LiaKeyDialog/LiaKeyDialog.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw 'Falha no teste da janela' }
       - name: Registrar limite de validacao
         shell: pwsh
         run: |
