@@ -1,0 +1,32 @@
+name: Loja 10.450 - concluir publicação do pacote validado
+on:
+  push:
+    branches: [release/loja-login450-publicar]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: df0348816e147065cdb45abea6e870a35c0d3fa1
+      - uses: actions/download-artifact@v4
+        with:
+          name: Loja-notificador-10-450-validado
+          path: proof
+          run-id: 39963940443
+          github-token: ${{ github.token }}
+      - name: Publicar pacote já aprovado sem recompilar
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+          PYTHONUTF8: '1'
+        run: env GITHUB_SHA=df0348816e147065cdb45abea6e870a35c0d3fa1 GITHUB_RUN_ID=39963940443 python qa/notificador-loja/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Loja-login-10-450-publicacao-confirmada
+          path: |
+            published-LOJA-450.json
+            previous-001.json
