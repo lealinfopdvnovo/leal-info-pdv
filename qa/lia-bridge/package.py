@@ -26,3 +26,6 @@ p=final/'LIC-AI/LicAi.dll';old=p.read_bytes();p.write_bytes(b'TAMPERED')
 archive(final,'bridge-tampered.zip');p.write_bytes(old)
 Path('bridge-packages.json').write_text(json.dumps({n:hashlib.sha256(Path(n).read_bytes()).hexdigest() for n in ('bridge-first.zip','bridge-final.zip')},indent=2))
 print('PASS: exact installed runtime dependency compatibility; separate 3-file bootstrap and pinned LIA payload')
+
+with zipfile.ZipFile('bridge-duplicate.zip','w',zipfile.ZIP_DEFLATED) as z:
+ for n in ('LealInfoPDV.dll','LealInfoPDV.dll','LealInfoPDV.exe'):z.write(first/n,n)

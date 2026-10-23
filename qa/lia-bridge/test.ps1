@@ -19,7 +19,7 @@ $finalHash=(Get-FileHash $final).Hash
 $lia=Get-Content lia-hashes.json -Raw|ConvertFrom-Json
 $names=@($core)+@($lia.PSObject.Properties.Name)
 $results=@()
-foreach($scenario in @('success','bad-sha','bad-lia-pin','interrupt-core','interrupt-lia','interrupt-new','interrupt-recovery')){
+foreach($scenario in @('success','bad-sha','bad-lia-pin','duplicate-core','interrupt-core','interrupt-lia','interrupt-new','interrupt-recovery')){
  $app=Join-Path $env:RUNNER_TEMP ('lia-bridge-'+[Guid]::NewGuid().ToString('N'))
  New-Item -ItemType Directory "$app/LIC-AI" -Force|Out-Null
  Set-Content "$app/QA-ISOLATED" 'Disposable'
@@ -42,10 +42,10 @@ foreach($scenario in @('success','bad-sha','bad-lia-pin','interrupt-core','inter
   if((Get-FileHash $worker).Hash -ne (Get-FileHash candidate/TransactionalUpdate.ps1).Hash){throw 'Delivered worker differs'}
   $before=@{}
   foreach($n in $names){$p=Join-Path $app $n;$before[$n]=if(Test-Path $p){(Get-FileHash $p).Hash}else{$null}}
-  $pkg=if($scenario -eq 'bad-lia-pin'){(Resolve-Path bridge-tampered.zip).Path}else{$final}
+  $pkg=if($scenario -eq 'bad-lia-pin'){(Resolve-Path bridge-tampered.zip).Path}elseif($scenario -eq 'duplicate-core'){(Resolve-Path bridge-duplicate.zip).Path}else{$final}
   $hash=if($scenario -eq 'bad-sha'){'0'*64}else{(Get-FileHash $pkg).Hash}
   $code=InvokeWorker $worker Prepare $app $pkg $hash
-  if($scenario -in @('bad-sha','bad-lia-pin')){
+  if($scenario -in @('bad-sha','bad-lia-pin','duplicate-core')){
    if($code -eq 0){throw 'Invalid integrity accepted'}
   }else{
    if($code -ne 0){throw 'Bridge preparation failed'}

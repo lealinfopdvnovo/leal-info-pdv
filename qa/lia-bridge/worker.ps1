@@ -21,7 +21,7 @@ $names=$coreNames
 function SelectNames($items){
  if($null -eq $items){$script:names=$coreNames;return}
  $items=@($items)
- if($items.Count -eq 3 -and @($items|Where-Object{$_ -cnotin $coreNames}).Count -eq 0){$script:names=$coreNames;return}
+ if($items.Count -eq 3 -and @($items|Where-Object{$_ -cnotin $coreNames}).Count -eq 0 -and @($items|Select-Object -Unique).Count -eq 3){$script:names=$coreNames;return}
  $expected=@($coreNames)+$liaNames
  if($Channel -ne '001' -or $items.Count -ne $expected.Count -or @($items|Where-Object{$_ -cnotin $expected}).Count -ne 0 -or @($items|Select-Object -Unique).Count -ne $expected.Count){throw 'Unsupported exact LIA payload'}
  $script:names=@('LealInfoPDV.deps.json','LealInfoPDV.dll')+$liaNames+@('LealInfoPDV.exe')
