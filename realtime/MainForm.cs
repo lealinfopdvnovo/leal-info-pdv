@@ -818,6 +818,16 @@ public sealed class MainForm : Form
 
     private Task<string> PromptApiKeyAsync(string title, string prompt)
     {
+        if (InvokeRequired)
+        {
+            var dispatched = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            BeginInvoke(new Action(async () =>
+            {
+                try { dispatched.TrySetResult(await PromptApiKeyAsync(title, prompt)); }
+                catch (Exception ex) { dispatched.TrySetException(ex); }
+            }));
+            return dispatched.Task;
+        }
         if (_closing || IsDisposed) return Task.FromResult("");
         if (_keyDialog is { IsDisposed: false })
         {

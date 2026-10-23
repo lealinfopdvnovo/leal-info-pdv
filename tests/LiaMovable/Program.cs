@@ -24,9 +24,12 @@ class Probe
   Exception? failure=null;
   form.Shown+=async (_,_)=>{
    try{
-    foreach(string action in new[]{"Save","Cancel","Close"}){
+    foreach(string action in new[]{"Save","Cancel","Close","Background"}){
      var method=typeof(MainForm).GetMethod("PromptApiKeyAsync",BindingFlags.Instance|BindingFlags.NonPublic)!;
-     var pending=(Task<string>)method.Invoke(form,new object[]{"Configurar OpenAI","Chave"})!;
+     var pending=action=="Background"
+       ? Task.Run(()=>(Task<string>)method.Invoke(form,new object[]{"Configurar OpenAI","Chave"})!)
+       : (Task<string>)method.Invoke(form,new object[]{"Configurar OpenAI","Chave"})!;
+     if(action=="Background")await Task.Delay(150);
      if(pending.IsCompleted)throw new Exception("Prompt closed prematurely");
      var dialog=form.OwnedForms.Single(x=>x.GetType().Name=="ApiKeyDialog");
      if(!IsWindowEnabled(form.Handle)||!form.Enabled||!dialog.Visible||!dialog.TopMost||dialog.Owner!=form)throw new Exception("Main window blocked or dialog hidden");
@@ -37,7 +40,7 @@ class Probe
      var input=(TextBox)dialog.Controls.Find("ApiKey",true).Single();
      if(!input.UseSystemPasswordChar)throw new Exception("Unmasked credential");
      input.Text="sk-isolated-fake-entry-123456789";
-     if(action=="Close")dialog.Close();else ((Button)dialog.Controls.Find(action,true).Single()).PerformClick();
+     if(action=="Close"||action=="Background")dialog.Close();else ((Button)dialog.Controls.Find(action,true).Single()).PerformClick();
      string result=await pending;
      if((action=="Save")!=(result.Length>=20))throw new Exception("Incorrect save/cancel result");
      Console.WriteLine("PASS: actual MainForm remains movable/enabled, editor owned/topmost/single, "+action);
