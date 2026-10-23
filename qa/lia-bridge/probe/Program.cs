@@ -12,6 +12,7 @@ class Probe
     [STAThread]
     static void Main(string[] args)
     {
+        if(args.Length==2 && args[0]=="--route"){TestRoutes(args[1]);return;}
         ApplicationConfiguration.Initialize();
         var assembly=Assembly.LoadFrom(Path.GetFullPath(args[0]));
         if (assembly.Location != Path.GetFullPath(args[0])) throw new Exception("Wrong delivered assembly");
@@ -59,5 +60,37 @@ class Probe
         }
         finally { if (File.Exists(path)) File.Delete(path); }
         owner.Close();
+    }
+
+    sealed class FeedHandler : System.Net.Http.HttpMessageHandler
+    {
+        public int ComponentRequests;
+        protected override System.Threading.Tasks.Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request,System.Threading.CancellationToken token)
+        {
+            string path=request.RequestUri!.AbsolutePath;
+            bool component=path.Contains("/lia/");
+            if(component)ComponentRequests++;
+            string version=component?"10.455":"10.454";
+            string target=path.Contains("/clients/")?"001":"";
+            string json=System.Text.Json.JsonSerializer.Serialize(new {Version=version,TargetClientCode=target,Sha256=new string('a',64),PackageUrl="https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v"+version+"/LEAL_INFO_PDV_001_UPDATE.zip"});
+            return System.Threading.Tasks.Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK){Content=new System.Net.Http.StringContent(json)});
+        }
+    }
+    static void TestRoutes(string file)
+    {
+        var assembly=Assembly.LoadFrom(Path.GetFullPath(file));
+        var type=assembly.GetType("LealInfoPDV.UpdateManager")!;
+        var method=type.GetMethods(BindingFlags.NonPublic|BindingFlags.Static).Single(x=>x.Name=="LoadManifestAsync"&&x.GetParameters().Length==3);
+        foreach(var (id,current,expected,count) in new[]{("001","10.453","10.454",0),("001","10.454","10.455",1),("001","10.455","",1),("002","10.454","",0),("003","10.454","",0),("004","10.454","",0)})
+        {
+            var handler=new FeedHandler();
+            using var http=new System.Net.Http.HttpClient(handler);
+            var task=(System.Threading.Tasks.Task)method.Invoke(null,new object[]{http,id,current})!;
+            task.GetAwaiter().GetResult();
+            var result=task.GetType().GetProperty("Result")!.GetValue(task);
+            var version=result==null?"":(string)result.GetType().GetProperty("Version")!.GetValue(result)!;
+            if(version!=expected||handler.ComponentRequests!=count)throw new Exception("Incorrect bridge feed eligibility");
+            Console.WriteLine("PASS: updater route "+id+" "+current+" -> "+expected+" component calls="+count);
+        }
     }
 }

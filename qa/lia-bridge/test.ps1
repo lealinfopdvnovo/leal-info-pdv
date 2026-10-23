@@ -1,7 +1,7 @@
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated runner only'}
 $worker=(Resolve-Path candidate/TransactionalUpdate.ps1).Path
-$oldAssembly=[Reflection.Assembly]::LoadFile((Resolve-Path legacy/LealInfoPDV.dll).Path)
+$oldAssembly=[Reflection.Assembly]::Load([IO.File]::ReadAllBytes((Resolve-Path legacy/LealInfoPDV.dll).Path))
 $resource=$oldAssembly.GetManifestResourceStream('TransactionalUpdateWorker')
 if(!$resource){throw 'Installed baseline worker missing'}
 $legacyWorker=Join-Path $env:RUNNER_TEMP 'lia-baseline-worker.ps1'
@@ -34,7 +34,7 @@ foreach($scenario in @('success','bad-sha','bad-lia-pin','interrupt-core','inter
   $code=InvokeWorker $legacyWorker Apply $app $first $firstHash
   if($code -ne 0){throw 'First hop failed'}
   if([IO.File]::ReadAllText("$app/LIC-AI/LicAi.dll").Trim() -ne 'PREVIOUS-LIA-DLL'){throw 'First hop touched LIA'}
-  $assembly=[Reflection.Assembly]::LoadFile((Join-Path $app 'LealInfoPDV.dll'))
+  $assembly=[Reflection.Assembly]::Load([IO.File]::ReadAllBytes((Join-Path $app 'LealInfoPDV.dll')))
   $resource=$assembly.GetManifestResourceStream('TransactionalUpdateWorker')
   if(!$resource){throw 'Bridge worker missing in delivered PDV'}
   $worker=Join-Path $app 'delivered-worker.ps1'

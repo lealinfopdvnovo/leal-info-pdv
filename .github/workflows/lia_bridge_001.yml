@@ -76,10 +76,14 @@ jobs:
           New-Item -ItemType Directory native -Force|Out-Null
           $vs=& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           $vc=Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
-          $command='"'+$vc+'" && cl /nologo /std:c++20 /O2 /MT /EHsc /utf-8 /Fo:native/notifier.obj /Fe:native/LealInfoPDV.Notificador.exe controller/qa/global-453/assets/notifier.cpp /link /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT'
+          $command='"'+$vc+'" && cl /nologo /std:c++20 /O2 /MT /EHsc /utf-8 /Fo:native/notifier.obj /Fe:native/LealInfoPDV.Notificador.exe controller/qa/lia-bridge/notifier.cpp /link /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT'
           cmd.exe /d /s /c $command
           if($LASTEXITCODE -ne 0){throw 'Native compile failed'}
           $native=(Resolve-Path native/LealInfoPDV.Notificador.exe).Path
+          $nativeTest=Join-Path $env:RUNNER_TEMP 'lia-native-bridge'
+          New-Item -ItemType Directory $nativeTest -Force|Out-Null
+          $nativeProcess=Start-Process -FilePath $native -ArgumentList @('--self-test',$nativeTest) -Wait -PassThru
+          if($nativeProcess.ExitCode -ne 0){throw 'Native bridge route tests failed'}
           $sdk=Get-Content sdk-version.txt
           Push-Location candidate
           $props=@('-p:UseSharedCompilation=false',"-p:NotifierPayload=$native","-p:WindowsSdkPackageVersion=$sdk")
@@ -96,6 +100,8 @@ jobs:
           Pop-Location
           dotnet build controller/qa/lia-bridge/probe/Probe.csproj -c Release
           if($LASTEXITCODE -ne 0){throw 'Delivered probe compilation failed'}
+          dotnet controller/qa/lia-bridge/probe/bin/Release/net8.0-windows/Probe.dll --route candidate/bridge454/LealInfoPDV.dll
+          if($LASTEXITCODE -ne 0){throw 'Manifest eligibility failed'}
           python controller/qa/lia-bridge/package.py
           if($LASTEXITCODE -ne 0){throw 'Package compatibility failed'}
       - name: Validar ponte antiga nova integridade e recuperacao SYSTEM
