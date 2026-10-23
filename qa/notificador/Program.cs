@@ -12,14 +12,17 @@ static class Tests
  static List<string> checks=new();
  static void Check(bool ok,string message){if(!ok)throw new Exception(message);checks.Add(message);Console.WriteLine("PASS "+message);}
  [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern IntPtr FindWindow(string c,string title);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern int GetWindowText(IntPtr h,StringBuilder text,int count);
+ [DllImport("user32.dll")]static extern bool EnumChildWindows(IntPtr h,EnumChild callback,IntPtr l);
+ delegate bool EnumChild(IntPtr h,IntPtr l);
  [DllImport("user32.dll")]static extern bool PostMessage(IntPtr h,uint m,IntPtr w,IntPtr l);
  const BindingFlags S=BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public;
  [STAThread]static void Main(string[] args){
   if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true")throw new Exception("Isolated Windows only");
   string root=Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP")!,"notifier-qa-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);Directory.CreateDirectory("evidence");
   var fixtures=new[]{"lealinfo.db","license.dat","network.config","stock.dat","cash.dat"}.ToDictionary(n=>Path.Combine(root,n),n=>Encoding.UTF8.GetBytes("PRESERVED-"+n));foreach(var p in fixtures)File.WriteAllBytes(p.Key,p.Value);
-  using(var native=Process.Start(new ProcessStartInfo(args[0]){Arguments=$"--self-test \"{root}\"",UseShellExecute=false})!){Check(native.WaitForExit(15000)&&native.ExitCode==0,"native parser identity version and persisted notification tests");}
-  var nativeProof=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"native-results.json")));Check(nativeProof.RootElement.GetProperty("Checks").GetInt32()>=16,"native checks completed without network or customer data");
+  using(var native=Process.Start(new ProcessStartInfo(args[0]){Arguments=$"--self-test \"{root}\"",UseShellExecute=false})!){Check(native.WaitForExit(45000)&&native.ExitCode==0,"native parser identity version and persisted notification tests");}
+  var nativeProof=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"native-results.json")));Check(nativeProof.RootElement.GetProperty("Checks").GetInt32()>=16,"native checks include real HTTPS feed access without customer data");
   string appFolder=Path.Combine(root,"installed");Directory.CreateDirectory(appFolder);string app=Path.Combine(appFolder,"LealInfoPDV.exe");File.Copy(args[1],app);
   var host=typeof(MainForm).Assembly.GetType("LealInfoPDV.UpdateNotifierHost",true)!;
   object Prepare()=>host.GetMethod("Prepare",S)!.Invoke(null,new object?[]{app,"001",Path.Combine(root,"agent")})!;
@@ -44,6 +47,16 @@ static class Tests
     Check(window!=IntPtr.Zero&&!running.HasExited,"real native tray message loop runs while PDV is closed");
     running.Refresh();memory=running.PrivateMemorySize64;Check(memory<64L*1024*1024,"native idle private memory below 64 MiB");
     using(var duplicate=Process.Start(new ProcessStartInfo(agent){Arguments=$"--config \"{config}\"",UseShellExecute=false})!)Check(duplicate.WaitForExit(3000)&&duplicate.ExitCode==0,"second notifier for same installation exits without duplicate icon");
+    // Exercise the actual manual command with native HTTPS and a Windows dialog.
+    for(int attempt=0;attempt<2;attempt++){
+     PostMessage(window,0x0111,(IntPtr)101,IntPtr.Zero);
+     IntPtr feedback=IntPtr.Zero;var until=DateTime.UtcNow.AddSeconds(40);
+     while(feedback==IntPtr.Zero&&DateTime.UtcNow<until){Thread.Sleep(100);feedback=FindWindow("#32770","Atualizações do LEAL INFO PDV");}
+     Check(feedback!=IntPtr.Zero,"manual check displays visible feedback on attempt "+attempt);
+     var content=new StringBuilder();EnumChildWindows(feedback,(h,l)=>{var b=new StringBuilder(2048);GetWindowText(h,b,2048);content.Append(b);return true;},IntPtr.Zero);
+     Check(content.ToString().Contains("Verificação concluída"),"real HTTPS check confirms current version instead of silently failing");
+     PostMessage(feedback,0x0111,(IntPtr)1,IntPtr.Zero);Thread.Sleep(300);
+    }
     PostMessage(window,0x0010,IntPtr.Zero,IntPtr.Zero);Check(running.WaitForExit(5000)&&running.ExitCode==0,"tray notifier exits cleanly without touching PDV");
    }finally{if(!running.HasExited)running.Kill();}
   }
