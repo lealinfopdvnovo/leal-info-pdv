@@ -24,7 +24,7 @@ internal static class UpdateManager
  private static UpdateNotificationForm? notification;
  public static async Task CheckForUpdatesAsync(IWin32Window? owner,bool silent)
  {
-  if(checking)return;
+  if(checking || notification is {IsDisposed:false, IsApplying:true})return;
   checking=true;
   try
   {

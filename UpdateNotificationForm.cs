@@ -7,6 +7,7 @@ internal sealed class UpdateNotificationForm : Form
 {
     private readonly Form main;
     private bool applying;
+    internal bool IsApplying => applying;
     private readonly Button now;
     private readonly Button later;
     protected override bool ShowWithoutActivation => true;
