@@ -1,0 +1,29 @@
+    // Login only: approved gold version highlight. No authentication or updater changes.
+    private sealed class LoginVersionBadge : Control
+    {
+        public LoginVersionBadge()
+        {
+            Name="loginVersionBadge";Text="LEAL INFO CONECTADO • VERSÃO: V"+UpdateManager.CurrentVersion;
+            Dock=DockStyle.Fill;Margin=new Padding(6,0,6,1);BackColor=Color.FromArgb(3,20,37);
+            ForeColor=Color.FromArgb(255,201,79);AccessibleName=Text;
+            SetStyle(ControlStyles.UserPaint|ControlStyles.AllPaintingInWmPaint|ControlStyles.OptimizedDoubleBuffer|ControlStyles.ResizeRedraw,true);
+        }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);if(Width<10||Height<10)return;
+            e.Graphics.SmoothingMode=SmoothingMode.AntiAlias;
+            var box=new Rectangle(3,3,Width-7,Height-7);
+            using var path=RoundedPath(box,6);
+            using(var glow=new Pen(Color.FromArgb(50,255,192,43),6))e.Graphics.DrawPath(glow,path);
+            using(var line=new Pen(Color.FromArgb(255,205,73),1.5f))e.Graphics.DrawPath(line,path);
+            string prefix="LEAL INFO CONECTADO  •  VERSÃO: ",version="V"+UpdateManager.CurrentVersion;
+            using var small=new Font("Segoe UI",9.5f,FontStyle.Bold);
+            using var large=new Font("Segoe UI",17.5f,FontStyle.Bold);
+            var flags=TextFormatFlags.NoPadding|TextFormatFlags.SingleLine|TextFormatFlags.VerticalCenter;
+            int first=TextRenderer.MeasureText(e.Graphics,prefix,small,Size.Empty,flags).Width;
+            int last=TextRenderer.MeasureText(e.Graphics,version,large,Size.Empty,flags).Width;
+            int x=Math.Max(8,(Width-first-last)/2);
+            TextRenderer.DrawText(e.Graphics,prefix,small,new Rectangle(x,2,first,Height-4),Color.FromArgb(156,231,255),flags);
+            TextRenderer.DrawText(e.Graphics,version,large,new Rectangle(x+first,1,last,Height-2),ForeColor,flags);
+        }
+    }
