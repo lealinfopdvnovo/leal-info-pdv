@@ -23,6 +23,17 @@ public sealed class LoginForm : Form
         // da identidade do sistema; o formulário antigo não fica mais "solto".
         var stage=new ChromeStagePanel{Dock=DockStyle.Fill};
         Controls.Add(stage);
+        var exit=new PremiumButton
+        {
+            Name="btnSairLogin", Text="SAIR [ESC]", ForeColor=Color.White,
+            Font=new Font("Segoe UI",10,FontStyle.Bold), CausesValidation=false,
+            AccessibleName="Sair do PDV", Anchor=AnchorStyles.Top|AnchorStyles.Right,
+            StartColor=Color.FromArgb(205,38,48), EndColor=Color.FromArgb(112,10,24)
+        };
+        exit.Click+=(_,_)=>ExitLogin();
+        stage.Controls.Add(exit);
+        CancelButton=exit;
+
 
         // Identidade à esquerda — limpa, sem usar o logotipo que não foi aprovado.
         var identity=new GlassBackdropPanel();
@@ -114,6 +125,9 @@ public sealed class LoginForm : Form
             product.BringToFront();
             tagline.BringToFront();
             accent.BringToFront();
+            int exitWidth=Math.Min(Math.Max(1,sw-32),(int)(150*DeviceDpi/96f));
+            exit.SetBounds(Math.Max(0,sw-exitWidth-16),16,exitWidth,(int)(42*DeviceDpi/96f));
+            exit.BringToFront();
         }
 
         Resize+=(_,_)=>LayoutScene(1,1);
@@ -130,6 +144,7 @@ public sealed class LoginForm : Form
             }
             cinematic.Start();
         };
+        FormClosed+=(_,_)=>{cinematic.Stop();cinematic.Dispose();};
         cinematic.Tick+=(_,_)=>
         {
             anim++;
@@ -142,6 +157,18 @@ public sealed class LoginForm : Form
             if(t>=1.0){
                 LayoutScene(1.0,1.0);cinematic.Stop();Opacity=1;LayoutScene(1,1);}
         };
+    }
+
+    internal void ExitLogin()
+    {
+        DialogResult=DialogResult.Cancel;
+        Close();
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg,Keys keyData)
+    {
+        if(keyData==Keys.Escape){ExitLogin();return true;}
+        return base.ProcessCmdKey(ref msg,keyData);
     }
 
     async Task SpeakLoginAssistAsync(string text)

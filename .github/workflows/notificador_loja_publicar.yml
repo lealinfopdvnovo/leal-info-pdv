@@ -1,7 +1,7 @@
-name: Loja do Leal 10.449 - notificador Windows exclusivo
+name: Loja do Leal 10.450 - notificador Windows exclusivo
 on:
   push:
-    branches: [release/loja-notificador-10-449]
+    branches: [release/loja-notificador-10-450]
 permissions:
   contents: read
   actions: read
@@ -9,7 +9,7 @@ env:
   PYTHONUTF8: '1'
   LEAL_NOTIFIER_ISOLATED_TEST: '1'
 concurrency:
-  group: notificador-loja-449
+  group: notificador-loja-450
   cancel-in-progress: false
 jobs:
   windows:
@@ -75,7 +75,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Loja-notificador-10-449-validado
+          name: Loja-notificador-10-450-validado
           path: validated/
   publish:
     needs: windows
@@ -84,7 +84,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: Loja-notificador-10-449-validado
+          name: Loja-notificador-10-450-validado
           path: proof
       - name: Publicar somente atualizador da Loja do Leal
         env:
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Loja-notificador-10-449-publicado
+          name: Loja-notificador-10-450-publicado
           path: |
-            published-LOJA-449.json
+            published-LOJA-450.json
             previous-001.json

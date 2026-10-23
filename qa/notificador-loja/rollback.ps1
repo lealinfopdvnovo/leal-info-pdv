@@ -17,12 +17,12 @@ foreach($scenario in @('success','interruption','bad-sha')){
  foreach($n in $sentinels){$p=Join-Path $app $n;New-Item -ItemType Directory (Split-Path $p) -Force|Out-Null;[IO.File]::WriteAllText($p,'PRESERVED-'+$n)}
  try{
   $supplied=if($scenario -eq 'bad-sha'){'0'*64}else{$hash}
-  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Prepare -App $app -Channel 001 -Version 10.449 -Package $package -Sha256 $supplied
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Prepare -App $app -Channel 001 -Version 10.450 -Package $package -Sha256 $supplied
   if($scenario -eq 'bad-sha'){if($LASTEXITCODE -eq 0){throw 'Wrong SHA accepted'}}else{
    if($LASTEXITCODE -ne 0){throw 'GLOBAL preparation failed'}
    foreach($n in $names){if((Get-FileHash (Join-Path $app ('.pdv-update/previous/'+$n))).Hash -ne $before[$n]){throw 'Backup integrity failure'}}
    $fault=if($scenario -eq 'interruption'){'copy-LealInfoPDV.dll'}else{''}
-   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Apply -App $app -Channel 001 -Version 10.449 -Package $package -Sha256 $hash -Fault $fault
+   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Apply -App $app -Channel 001 -Version 10.450 -Package $package -Sha256 $hash -Fault $fault
    if($scenario -eq 'success'){if($LASTEXITCODE -ne 0){throw 'Apply failed'}}else{
     if($LASTEXITCODE -ne 73 -or (Test-Path (Join-Path $app 'LealInfoPDV.exe'))){throw 'Interrupted executable set exposed'}
     Start-ScheduledTask -TaskName (TaskName $app);$limit=(Get-Date).AddSeconds(35)

@@ -20,8 +20,9 @@ def download(url):
  with urllib.request.urlopen(req,timeout=45) as r:return r.read()
 def move(sha):api(f'repos/{REPO}/git/refs/heads/main',dict(sha=sha,force=False),'PATCH')
 root=Path('proof');e=json.loads((root/'candidate.json').read_text());tests=json.loads((root/'notifier-results.json').read_text());native=json.loads((root/'native-results.json').read_text());finance=json.loads((root/'finance-results.json').read_text(encoding='utf-8-sig'));rollback=json.loads((root/'rollback.json').read_text(encoding='utf-8-sig'))
-check(e['Channel']=='001' and e['Version']=='10.449' and e['PetVersion']=='1.2' and e['SourceCommit']==os.environ['GITHUB_SHA'] and e['DependenciesEqual'],'Wrong candidate')
+check(e['Channel']=='001' and e['Version']=='10.450' and e['PetVersion']=='1.2' and e['SourceCommit']==os.environ['GITHUB_SHA'] and e['DependenciesEqual'],'Wrong candidate')
 check(tests['Success'] and native['Success'] and native['Checks']>=23 and finance['Success'] and len(finance['checks'])>=13,'Required Windows validation missing')
+login=json.loads((root/'login-exit-results.json').read_text());check(login['Success'] and len(login['Checks'])>=10,'Login exit tests missing')
 check(len(rollback)==3 and all(x['Pass'] for x in rollback),'Protected rollback approval missing')
 before={c:feed(c) for c in CHANNELS};check(before['001']['manifest']==e['Baseline'],'Published Loja baseline changed')
 # Preserve the independent Casa pilot manifest as well as every published legacy/GLOBAL channel.
@@ -30,18 +31,18 @@ package=root/e['Package'];check(hashlib.sha256(package.read_bytes()).hexdigest()
 with zipfile.ZipFile(package) as z:
  check(len(z.namelist())==3 and set(z.namelist())==set(e['Files']),'Unexpected payload')
  check(all(hashlib.sha256(z.read(n)).hexdigest()==e['Files'][n] for n in z.namelist()),'Binary hash mismatch')
-tag='client-001-v10.449';url=f'https://github.com/{REPO}/releases/download/{tag}/{package.name}'
-notes='Correção do notificador: Verificar atualização agora sempre mostra o resultado em uma janela, mesmo com notificações do Windows ocultas ou aviso já registrado. PET V1.2 e funções existentes preservados. Atualização protegida pelo próprio PDV.'
+tag='client-001-v10.450';url=f'https://github.com/{REPO}/releases/download/{tag}/{package.name}'
+notes='Tela de login: novo botão vermelho SAIR [ESC] e tecla Esc funcional para fechar o acesso ao PDV, incluindo login integrado à abertura. Notificador permanece ativo. PET V1.2, autenticação, dados, licença e configurações preservados.'
 Path('previous-001.json').write_text(json.dumps(before['001']['manifest'],ensure_ascii=False,indent=2),encoding='utf-8')
 exists=subprocess.run(['gh','release','view',tag,'--repo',REPO],capture_output=True)
-if exists.returncode:subprocess.run(['gh','release','create',tag,str(package),'previous-001.json','--repo',REPO,'--target','main','--title','Loja do Leal 10.449 - Notificador Windows','--notes',notes,'--prerelease','--latest=false'],check=True)
+if exists.returncode:subprocess.run(['gh','release','create',tag,str(package),'previous-001.json','--repo',REPO,'--target','main','--title','Loja do Leal 10.450 - Notificador Windows','--notes',notes,'--prerelease','--latest=false'],check=True)
 check(hashlib.sha256(download(url)).hexdigest()==e['Sha256'],'Public release package differs; feeds unchanged')
-manifest=dict(Version='10.449',TargetClientCode='001',PackageUrl=url,Sha256=e['Sha256'],SourceCommit=e['SourceCommit'],SourceBase=e['SourceBase'],PetVersion='1.2',Mandatory=False,Notes=notes,BuildRunId=os.environ['GITHUB_RUN_ID'],ValidationRunId=os.environ['GITHUB_RUN_ID'],ProtectedUpdaterRequired=True,PublishedBaselineVersion='10.448',InstalledOnRealComputers=False)
+manifest=dict(Version='10.450',TargetClientCode='001',PackageUrl=url,Sha256=e['Sha256'],SourceCommit=e['SourceCommit'],SourceBase=e['SourceBase'],PetVersion='1.2',Mandatory=False,Notes=notes,BuildRunId=os.environ['GITHUB_RUN_ID'],ValidationRunId=os.environ['GITHUB_RUN_ID'],ProtectedUpdaterRequired=True,PublishedBaselineVersion='10.449',InstalledOnRealComputers=False)
 head=api(f'repos/{REPO}/git/ref/heads/main')['object']['sha'];old=api(f'repos/{REPO}/git/commits/{head}')
 check(all(feed(c)['sha']==before[c]['sha'] for c in CHANNELS),'Concurrent feed change')
 check(next((x['sha'] for x in api(f'repos/{REPO}/git/trees/{old["tree"]["sha"]}?recursive=1')['tree'] if x['path']=='clients/003/global/version.json'),None)==casa,'Casa scoped channel changed')
 tree=api(f'repos/{REPO}/git/trees',dict(base_tree=old['tree']['sha'],tree=[dict(path='clients/001/version.json',mode='100644',type='blob',content=json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')]))
-commit=api(f'repos/{REPO}/git/commits',dict(message='Loja do Leal 10.449: piloto notificador Windows exclusivo, PET V1.2 preservado',tree=tree['sha'],parents=[head]));move(commit['sha'])
+commit=api(f'repos/{REPO}/git/commits',dict(message='Loja do Leal 10.450: piloto notificador Windows exclusivo, PET V1.2 preservado',tree=tree['sha'],parents=[head]));move(commit['sha'])
 try:
  detail=api(f"repos/{REPO}/commits/{commit['sha']}");check({x['filename'] for x in detail['files']}=={'clients/001/version.json'},'Unexpected published paths')
  live=None
@@ -53,8 +54,8 @@ try:
  check(live==manifest,'Live Loja updater manifest differs')
  after={c:feed(c) for c in CHANNELS};check(all(after[c]['sha']==before[c]['sha'] for c in CHANNELS if c!='001'),'Protected channel changed')
  newtree=api(f'repos/{REPO}/git/trees/main?recursive=1');check(next((x['sha'] for x in newtree['tree'] if x['path']=='clients/003/global/version.json'),None)==casa,'Casa scoped channel changed')
- Path('published-LOJA-449.json').write_text(json.dumps(dict(Published=True,Version='10.449',PetVersion='1.2',SourceCommit=e['SourceCommit'],FeedCommit=commit['sha'],Manifest=manifest,Files=e['Files'],PublicPackageVerified=True,UpdaterVerified=True,OtherChannelsUnchanged=True,InstalledOnRealComputers=False),indent=2),encoding='utf-8')
- print('PASS Loja-only 10.449 PUBLISHED; native notifier and original PET verified; public package and updater verified; all other channels unchanged')
+ Path('published-LOJA-450.json').write_text(json.dumps(dict(Published=True,Version='10.450',PetVersion='1.2',SourceCommit=e['SourceCommit'],FeedCommit=commit['sha'],Manifest=manifest,Files=e['Files'],PublicPackageVerified=True,UpdaterVerified=True,OtherChannelsUnchanged=True,InstalledOnRealComputers=False),indent=2),encoding='utf-8')
+ print('PASS Loja-only 10.450 PUBLISHED; native notifier and original PET verified; public package and updater verified; all other channels unchanged')
 except Exception:
  if api(f'repos/{REPO}/git/ref/heads/main')['object']['sha']==commit['sha']:
   restore=api(f'repos/{REPO}/git/commits',dict(message='Rollback Loja feed after unsuccessful notifier publication verification',tree=old['tree']['sha'],parents=[commit['sha']]));move(restore['sha'])

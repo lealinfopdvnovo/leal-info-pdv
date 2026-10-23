@@ -37,6 +37,17 @@ public sealed class SplashForm : Form
         KeyDown += (_, e) => { if (e.KeyCode == Keys.Escape && loginLoaded) FinishIntro(); };
     }
 
+    protected override bool ProcessCmdKey(ref Message msg,Keys keyData)
+    {
+        if(keyData==Keys.Escape)
+        {
+            if(introFinished && login!=null) login.ExitLogin();
+            else FinishIntro();
+            return true;
+        }
+        return base.ProcessCmdKey(ref msg,keyData);
+    }
+
     private void LayoutSplash()
     {
         introLayer.Bounds = ClientRectangle;

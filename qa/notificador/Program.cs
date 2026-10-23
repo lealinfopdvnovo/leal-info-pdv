@@ -67,6 +67,7 @@ static class Tests
    using(dialog){dialog.Show(owner);Application.DoEvents();foreach(var panel in dialog.Controls.OfType<Control>())Click(panel);Check(hidden,"update notification hides before transactional updater checks open windows");}
    owner.Close();
   }
+  LoginExitTests.Run();
   foreach(var p in fixtures)Check(File.ReadAllBytes(p.Key).SequenceEqual(p.Value),"customer file untouched "+Path.GetFileName(p.Key));
   File.Copy(Path.Combine(root,"native-results.json"),"evidence/native-results.json",true);
   File.WriteAllText("evidence/notifier-results.json",JsonSerializer.Serialize(new{Success=true,Checks=checks,NativePrivateMemoryBytes=memory,NativeSizeBytes=original.Length,Published=false,InstalledOnCustomer=false,RealWindowsHomologated=false}));
