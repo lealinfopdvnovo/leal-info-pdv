@@ -70,7 +70,7 @@ class Probe
             string path=request.RequestUri!.AbsolutePath;
             bool component=path.Contains("/lia/");
             if(component)ComponentRequests++;
-            string version=component?"10.455":"10.454";
+            string version=component?"10.457":"10.456";
             string target=path.Contains("/clients/")?"001":"";
             string json=System.Text.Json.JsonSerializer.Serialize(new {Version=version,TargetClientCode=target,Sha256=new string('a',64),PackageUrl="https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v"+version+"/LEAL_INFO_PDV_001_UPDATE.zip"});
             return System.Threading.Tasks.Task.FromResult(new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK){Content=new System.Net.Http.StringContent(json)});
@@ -81,7 +81,7 @@ class Probe
         var assembly=Assembly.LoadFrom(Path.GetFullPath(file));
         var type=assembly.GetType("LealInfoPDV.UpdateManager")!;
         var method=type.GetMethods(BindingFlags.NonPublic|BindingFlags.Static).Single(x=>x.Name=="LoadManifestAsync"&&x.GetParameters().Length==3);
-        foreach(var (id,current,expected,count) in new[]{("001","10.453","10.454",0),("001","10.454","10.455",1),("001","10.455","",1),("002","10.454","",0),("003","10.454","",0),("004","10.454","",0)})
+        foreach(var (id,current,expected,count) in new[]{("001","10.453","10.456",0),("001","10.456","10.457",1),("001","10.457","",1),("002","10.456","",0),("003","10.456","",0),("004","10.456","",0)})
         {
             var handler=new FeedHandler();
             using var http=new System.Net.Http.HttpClient(handler);
