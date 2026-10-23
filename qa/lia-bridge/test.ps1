@@ -1,7 +1,11 @@
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated runner only'}
 $worker=(Resolve-Path candidate/TransactionalUpdate.ps1).Path
-$legacyWorker=(Resolve-Path controller/qa/global-453/assets/TransactionalUpdate.ps1).Path
+$oldAssembly=[Reflection.Assembly]::LoadFile((Resolve-Path legacy/LealInfoPDV.dll).Path)
+$resource=$oldAssembly.GetManifestResourceStream('TransactionalUpdateWorker')
+if(!$resource){throw 'Installed baseline worker missing'}
+$legacyWorker=Join-Path $env:RUNNER_TEMP 'lia-baseline-worker.ps1'
+$out=[IO.File]::Create($legacyWorker);try{$resource.CopyTo($out)}finally{$out.Dispose();$resource.Dispose()}
 $core=@('LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe')
 function TaskName($app){$h=[Security.Cryptography.SHA256]::Create();try{'LealInfoPDV-Recovery-'+([BitConverter]::ToString($h.ComputeHash([Text.Encoding]::UTF8.GetBytes($app.ToUpperInvariant()))).Replace('-','').Substring(0,16))}finally{$h.Dispose()}}
 function InvokeWorker($file,$mode,$app,$package,$hash,$fault=''){

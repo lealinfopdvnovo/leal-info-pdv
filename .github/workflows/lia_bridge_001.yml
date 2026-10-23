@@ -46,7 +46,7 @@ jobs:
           Set-Content LIC-AI/Program.cs $program -Encoding UTF8
       - working-directory: controller
         name: Compilar somente LIA Windows
-        run: dotnet publish LIC-AI/LicAi.csproj -c Release -r win-x64 --self-contained true -o lia-candidate
+        run: dotnet publish LIC-AI/LicAi.csproj -c Release -r win-x64 --self-contained true -o lia-candidate -p:PublishSingleFile=false
       - working-directory: controller
         name: Testar janela modal e armazenamento protegido
         shell: pwsh
