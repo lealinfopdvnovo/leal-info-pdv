@@ -17,10 +17,11 @@ static class LoginExitTests
   timer.Start();var result=f.ShowDialog();timer.Stop();if(failure!=null)throw failure;
   Check(result==DialogResult.Cancel&&!f.Visible,"login cancellation closes "+f.GetType().Name+" without opening main window");
  }
+ static byte[] DatabaseHash(){using var stream=new FileStream(Database.DbPath,FileMode.Open,FileAccess.Read,FileShare.ReadWrite|FileShare.Delete);return SHA256.HashData(stream);}
  internal static void Run()
  {
   Check(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true","login tests restricted to isolated Windows runner");
-  byte[] before=SHA256.HashData(File.ReadAllBytes(Database.DbPath));Check(Auth.Current==null,"login tests begin without authenticated session");
+  byte[] before=DatabaseHash();Check(Auth.Current==null,"login tests begin without authenticated session");
   foreach(bool escape in new[]{false,true})using(var f=new LoginForm())
   {
    f.WindowState=FormWindowState.Normal;f.ClientSize=new System.Drawing.Size(1024,600);
@@ -44,7 +45,7 @@ static class LoginExitTests
    });
   }
   Check(Auth.Current==null,"closing login never authenticates a session");
-  Check(before.SequenceEqual(SHA256.HashData(File.ReadAllBytes(Database.DbPath))),"login exit preserves database byte for byte");
+  Check(before.SequenceEqual(DatabaseHash()),"login exit preserves database byte for byte");
   File.WriteAllText("evidence/login-exit-results.json",JsonSerializer.Serialize(new{Success=true,Checks=checks,RealCustomerWindowsTested=false}));
  }
 }
