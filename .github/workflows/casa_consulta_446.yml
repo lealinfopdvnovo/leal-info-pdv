@@ -2,6 +2,8 @@ name: Casa do Leal 10.446 - Consulta flutuante e teste de aviso
 on:
   push:
     branches: [release/casa-consulta-10-446]
+env:
+  PYTHONUTF8: '1'
 permissions:
   contents: read
   actions: read
