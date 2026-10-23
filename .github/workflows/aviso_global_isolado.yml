@@ -31,4 +31,8 @@ jobs:
         if: always()
         with:
           name: GLOBAL-aviso-atualizacao-isolado
-          path: evidence/
+          path: |
+            evidence/
+            publish/LealInfoPDV.exe
+            publish/LealInfoPDV.dll
+            publish/LealInfoPDV.deps.json
