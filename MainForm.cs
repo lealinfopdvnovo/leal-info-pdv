@@ -747,12 +747,7 @@ public sealed partial class MainForm : Form
             }
             else if (title == "Consulta")
             {
-                AddMenu("Produtos", () => RunAllowed("products", OpenProducts));
-                AddMenu("Clientes", () => RunAllowed("customers", OpenCustomers));
-                AddMenu("Histórico de vendas", () => RunAllowed("sales_history", OpenHistory));
-                AddMenu("Ordens / OS", () => RunAllowed("orders", OpenOrders));
-                AddMenu("Motoboy / Entregas", () => RunAllowed("deliveries", OpenDeliveries));
-                AddMenu("Orçamentos", () => RunAllowed("quotes", OpenQuotes));
+                item.Click += (_, _) => OpenConsultaCentral();
             }
             else if (title == "Movimentação")
             {

@@ -1,0 +1,65 @@
+name: Casa do Leal 10.446 - Consulta flutuante e teste de aviso
+on:
+  push:
+    branches: [release/casa-consulta-10-446]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - name: Testar painel de consultas e seleção exclusiva Casa
+        shell: pwsh
+        run: |
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json
+          dotnet run --project qa/consulta/Tests.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Query panel tests failed'}
+      - name: Compilar Windows e preservar dependências instaladas
+        shell: pwsh
+        run: |
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
+          python qa/consulta/package.py
+          if($LASTEXITCODE -ne 0){throw 'Package integrity or compatibility failed'}
+      - name: Validar backup e rollback preservando PET
+        shell: pwsh
+        run: |
+          $script=(Get-Content qa/global-core/rollback.ps1 -Raw).Replace('Version 10.444','Version 10.446')
+          Set-Content qa/global-core/rollback.ps1 $script
+          ./qa/global-core/rollback.ps1
+          if($LASTEXITCODE -ne 0){throw 'Rollback failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Casa-consulta-10-446-validada
+          path: |
+            evidence/
+            LEAL_INFO_PDV_CASA_V10_446_UPDATE.zip
+  publish:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: Casa-consulta-10-446-validada
+          path: proof
+      - name: Publicar teste direcionado somente para Casa do Leal
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/consulta/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Casa-consulta-10-446-publicada
+          path: published-CASA-446.json
