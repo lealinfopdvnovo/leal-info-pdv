@@ -1,0 +1,127 @@
+name: GLOBAL 10.453 - recursos aprovados para todas as instalações
+on:
+  push:
+    branches: [release/global-10-453-todos]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: global-10-453-todos
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - channel: GLOBAL
+            base: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+          - channel: CASA
+            base: 874bc1e77fc3fb9b643ed17ceb0e1e1c91ad2ac8
+          - channel: '001'
+            base: 7aa5d38336e94659c07f0afc6ddfe40169c41a3a
+          - channel: '002'
+            base: 735f3f6b0f933f25585c0c9e7e50551dae9a056d
+          - channel: '004'
+            base: 2787ea2541261bd68cf1e931ceaa6ed537ddc832
+    env:
+      CHANNEL: ${{ matrix.channel }}
+      SOURCE_BASE: ${{ matrix.base }}
+      PYTHONUTF8: '1'
+      LEAL_NOTIFIER_ISOLATED_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: controller
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.base }}
+          path: candidate
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - name: Validar base publicada e preservar funções e personalizações
+        shell: pwsh
+        run: |
+          python controller/qa/global-453/prepare.py
+          if($LASTEXITCODE -ne 0){throw 'Baseline or scope validation failed'}
+          if($env:CHANNEL -in @('001','002','004')){
+            Push-Location candidate
+            ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+            ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+            ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+            ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+            ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+            ./scripts/aplicar_central_equipamentos_v10_314.ps1
+            Pop-Location
+          }
+      - name: Compilar notificador nativo aprovado
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory native -Force|Out-Null
+          $vs=& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vc=Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
+          $command='"'+$vc+'" && cl /nologo /std:c++20 /O2 /MT /EHsc /W4 /utf-8 /Fo:native/notifier.obj /Fe:native/LealInfoPDV.Notificador.exe controller/qa/global-453/assets/notifier.cpp /link /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT'
+          cmd.exe /d /s /c $command
+          if($LASTEXITCODE -ne 0){throw 'Native compile failed'}
+      - name: Compilar Windows e validar aviso desktop e saída do login
+        shell: pwsh
+        run: |
+          $native=(Resolve-Path native/LealInfoPDV.Notificador.exe).Path
+          $sdk=Get-Content sdk-version.txt
+          Push-Location candidate
+          $props=@('-p:UseSharedCompilation=false',"-p:NotifierPayload=$native","-p:WindowsSdkPackageVersion=$sdk")
+          if($env:CHANNEL -eq '001'){
+            dotnet build qa/pet-loja-v12/FinanceLayoutTests.csproj -c Release @props
+            if($LASTEXITCODE -ne 0){throw 'Existing Loja PET build failed'}
+            $pet=(Resolve-Path qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.001.dll).Path
+            $props+=("-p:LojaPetPayload=$pet")
+          }
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish @props
+          if($LASTEXITCODE -ne 0){throw 'PDV Windows compilation failed'}
+          if($env:CHANNEL -eq '001'){
+            $finance='qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0'
+            Copy-Item publish/LealInfoPDV.dll "$finance/LealInfoPDV.dll" -Force
+            dotnet "$finance/FinanceLayoutTests.dll" --bootstrap
+            if($LASTEXITCODE -ne 0){throw 'Existing Loja financial/PET validation failed'}
+          }
+          dotnet build qa/global453/Tests.csproj -c Release @props
+          if($LASTEXITCODE -ne 0){throw 'Directed tests compilation failed'}
+          $bin='qa/global453/bin/Release/net8.0-windows10.0.19041.0'
+          Copy-Item publish/LealInfoPDV.dll "$bin/LealInfoPDV.dll" -Force
+          dotnet "$bin/Tests.dll" $native (Resolve-Path publish/LealInfoPDV.exe).Path
+          if($LASTEXITCODE -ne 0){throw 'Desktop/login/identity tests failed'}
+          ./qa/global453/rollback.ps1
+          if($LASTEXITCODE -ne 0){throw 'Backup or rollback failed'}
+          Pop-Location
+          python controller/qa/global-453/package.py
+          if($LASTEXITCODE -ne 0){throw 'Package/runtime verification failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: global-453-${{ matrix.channel }}
+          path: output/
+  publish:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: global-453-*
+          merge-multiple: true
+          path: proof
+      - name: Publicar todos os canais somente após verificar todos os pacotes públicos
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+          PYTHONUTF8: '1'
+        run: python qa/global-453/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GLOBAL-453-publicacao-confirmada
+          path: |
+            published-global453.json
+            previous-*.json

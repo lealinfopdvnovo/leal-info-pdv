@@ -1,0 +1,11 @@
+        var exit=new PremiumButton
+        {
+            Name="btnSairLogin", Text="SAIR [ESC]", ForeColor=Color.White,
+            Font=new Font("Segoe UI",10,FontStyle.Bold), CausesValidation=false,
+            AccessibleName="Sair do PDV", Anchor=AnchorStyles.Top|AnchorStyles.Right,
+            StartColor=Color.FromArgb(205,38,48), EndColor=Color.FromArgb(112,10,24)
+        };
+        exit.Click+=(_,_)=>ExitLogin();
+        stage.Controls.Add(exit);
+        CancelButton=exit;
+

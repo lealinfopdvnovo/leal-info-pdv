@@ -1,0 +1,14 @@
+ private static async Task DownloadAndApplyAsync(UpdateManifest m)
+ {
+  var work=Path.Combine(Path.GetTempPath(),"LealInfoPDV_Update_"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(work);
+  var zip=Path.Combine(work,"update.zip");
+  using(var http=new HttpClient{Timeout=TimeSpan.FromMinutes(5)})
+  {
+   http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-PDV-Updater/"+CurrentVersion);
+   var bytes=await http.GetByteArrayAsync(m.PackageUrl);await File.WriteAllBytesAsync(zip,bytes);
+  }
+  if(m.Sha256.Length!=64 || !System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(zip)).SequenceEqual(Convert.FromHexString(m.Sha256)))
+   throw new InvalidDataException("O pacote não corresponde à atualização publicada.");
+  Licensing.UpdatePayloadPolicy.Validate(zip);
+  await TransactionalUpdate.BeginAsync(zip,m.Sha256,m.Version,DistributionChannel);
+ }

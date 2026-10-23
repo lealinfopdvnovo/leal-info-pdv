@@ -1,0 +1,12 @@
+    internal void ExitLogin()
+    {
+        DialogResult=DialogResult.Cancel;
+        Close();
+    }
+
+    protected override bool ProcessCmdKey(ref Message msg,Keys keyData)
+    {
+        if(keyData==Keys.Escape){ExitLogin();return true;}
+        return base.ProcessCmdKey(ref msg,keyData);
+    }
+
