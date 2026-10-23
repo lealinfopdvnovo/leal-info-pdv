@@ -79,7 +79,7 @@ public sealed partial class MainForm : Form
             if (Auth.IsAdmin && GetSetting("security_setup_completed", "0") != "1")
                 ShowInitialSecuritySetup();
 
-            OpenFirstAccessTutorial(true);
+            // Tutorial disponível sob demanda em Ajuda, sem abrir ao entrar.
             ShowPostLoginWelcome();
             if (Environment.GetCommandLineArgs().Contains("--central-atualizacoes"))
                 _ = UpdateManager.ShowUpdateCenterAsync(this);
@@ -345,7 +345,7 @@ public sealed partial class MainForm : Form
     {
         // V10.130: guia lateral de primeiro acesso. É modeless: o PDV continua clicável.
         // Fechar antes do fim não conclui o tutorial. O botão de Produtos só libera ao fim do vídeo.
-        if (automatic && GetSetting("first_access_tutorial_completed", "0") == "1") return;
+        if (automatic) return;
         if (firstAccessTutorial != null && !firstAccessTutorial.IsDisposed)
         {
             firstAccessTutorial.Activate();
