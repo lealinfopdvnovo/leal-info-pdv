@@ -1,0 +1,70 @@
+name: Publicar GLOBAL 10.445 aprovado
+on:
+  push:
+    branches: [release/global-10-445]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publicar-global-10-445
+  cancel-in-progress: false
+jobs:
+  validate-package:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir origem aprovada
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $run=gh api repos/lealinfopdvnovo/leal-info-pdv/actions/runs/39877162683|ConvertFrom-Json
+          if($run.conclusion -ne 'success' -or $run.head_sha -ne '98915ae5a9eb02825d77f74bb179e0ce27d65bd9'){throw 'Unapproved source'}
+          $ref=gh api repos/lealinfopdvnovo/leal-info-pdv/git/ref/heads/prepare/global-aviso-atualizacao|ConvertFrom-Json
+          if($ref.object.sha -ne $run.head_sha){throw 'Candidate changed'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: GLOBAL-aviso-atualizacao-isolado
+          run-id: 39877162683
+          github-token: ${{ github.token }}
+          path: proof
+      - name: Validar integridade backup e rollback do pacote aprovado
+        shell: pwsh
+        run: |
+          $candidate=Get-Content proof/evidence/candidate.json -Raw|ConvertFrom-Json
+          if($candidate.Source -ne '98915ae5a9eb02825d77f74bb179e0ce27d65bd9'){throw 'Wrong candidate'}
+          foreach($n in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){
+            if((Get-FileHash "proof/publish/$n").Hash.ToLowerInvariant() -ne $candidate.Files.$n){throw 'Artifact hash mismatch'}
+          }
+          New-Item -ItemType Directory publish,evidence -Force|Out-Null
+          Copy-Item proof/publish/* publish/
+          $script=(Get-Content qa/global-core/rollback.ps1 -Raw).Replace('Version 10.444','Version 10.445')
+          Set-Content qa/global-core/rollback.ps1 $script
+          ./qa/global-core/rollback.ps1
+          if($LASTEXITCODE -ne 0){throw 'Rollback failed'}
+          Copy-Item evidence/rollback.json proof/rollback.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GLOBAL-10-445-publication-proof
+          path: proof/
+  publish:
+    needs: validate-package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: GLOBAL-10-445-publication-proof
+          path: proof
+      - name: Publicar somente canal GLOBAL
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/global-publicacao/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GLOBAL-10-445-published
+          path: |
+            published-GLOBAL.json
+            global-previous.json
