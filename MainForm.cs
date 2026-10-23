@@ -81,7 +81,9 @@ public sealed class MainForm : Form
 
             OpenFirstAccessTutorial(true);
             ShowPostLoginWelcome();
-            _ = UpdateManager.CheckForUpdatesAsync(this, true);
+            if (Environment.GetCommandLineArgs().Contains("--central-atualizacoes"))
+                _ = UpdateManager.ShowUpdateCenterAsync(this);
+            else _ = UpdateManager.CheckForUpdatesAsync(this, true);
         };
 
         FormClosed += (_, _) =>
@@ -1569,6 +1571,7 @@ public sealed class MainForm : Form
         bool isGlass = normalizedText == "VIDRAÇARIA";
         bool isProducts = normalizedText == "PRODUTOS";
         bool isSales = normalizedText.Replace("\n", " ") == "TELA DE VENDAS";
+        bool isRedAction = isSales || normalizedText == "SAIR";
         // Todos os atalhos ficam estaveis e usam apenas o destaque suave ao passar o mouse.
         bool shouldPulse = false;
         var pulseTimer = new System.Windows.Forms.Timer { Interval = 70 };
@@ -1592,19 +1595,19 @@ public sealed class MainForm : Form
                 ? (hover ? Color.FromArgb(72, 217, 245) : Color.FromArgb(27, 174, 217))
                 : isProducts
                 ? (hover ? Color.FromArgb(255, 165, 35) : Color.FromArgb(235, 105, 10))
-                : isSales
+                : isRedAction
                     ? (hover ? Color.FromArgb(240, 55, 65) : Color.FromArgb(185, 22, 38))
                     : (hover ? Color.FromArgb(22, 170, 235) : Color.FromArgb(8, 115 + lift, 180 + lift));
             Color bottomColor = isProducts
                 ? Color.FromArgb(125, 45, 0)
-                : isSales ? Color.FromArgb(85, 5, 18) : isGlass ? Color.FromArgb(7, 49, 92) : Color.FromArgb(2, 28, 66);
+                : isRedAction ? Color.FromArgb(85, 5, 18) : isGlass ? Color.FromArgb(7, 49, 92) : Color.FromArgb(2, 28, 66);
             using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(rect, topColor, bottomColor, 90f);
             e.Graphics.FillPath(bg, gp);
 
             int alpha = Math.Min(255, 105 + visualPulse * 18 + (hover ? 45 : 0));
             Color glowColor = isProducts
                 ? Color.FromArgb(alpha, 255, 190, 70)
-                : isSales ? Color.FromArgb(alpha, 255, 95, 105) : Color.FromArgb(alpha, 80, 225, 255);
+                : isRedAction ? Color.FromArgb(alpha, 255, 95, 105) : Color.FromArgb(alpha, 80, 225, 255);
             using var glow = new Pen(glowColor, hover ? 4.5f : 3.2f + visualPulse * 0.12f);
             e.Graphics.DrawPath(glow, gp);
 

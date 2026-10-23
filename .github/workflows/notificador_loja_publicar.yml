@@ -1,0 +1,99 @@
+name: Loja do Leal 10.447 - notificador Windows exclusivo
+on:
+  push:
+    branches: [release/loja-notificador-10-447]
+permissions:
+  contents: read
+  actions: read
+env:
+  PYTHONUTF8: '1'
+  LEAL_NOTIFIER_ISOLATED_TEST: '1'
+concurrency:
+  group: notificador-loja-447
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - name: Preservar Loja e validar base publicada
+        shell: pwsh
+        run: |
+          python qa/notificador-loja/prepare.py
+          if($LASTEXITCODE -ne 0){throw 'Baseline or source scope failed'}
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+      - name: Compilar notificador nativo compatível com canal da Loja
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory native,evidence,validated -Force|Out-Null
+          $vs=& "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vc=Join-Path $vs 'VC/Auxiliary/Build/vcvars64.bat'
+          $command='"'+$vc+'" && cl /nologo /std:c++20 /O2 /MT /EHsc /W4 /utf-8 /Fo:native/notifier.obj /Fe:native/LealInfoPDV.Notificador.exe tools/UpdateNotifier/notifier.cpp /link /SUBSYSTEM:WINDOWS /DYNAMICBASE /NXCOMPAT'
+          cmd.exe /d /s /c $command
+          if($LASTEXITCODE -ne 0){throw 'Native compile failed'}
+          if((Get-Item native/LealInfoPDV.Notificador.exe).Length -gt 2MB){throw 'Native component too large'}
+      - name: Compilar Windows preservando PET V1.2 e validar financeiro existente
+        shell: pwsh
+        run: |
+          $sdk=Get-Content sdk-version.txt
+          $native=(Resolve-Path native/LealInfoPDV.Notificador.exe).Path
+          dotnet build qa/pet-loja-v12/FinanceLayoutTests.csproj -c Release -p:UseSharedCompilation=false "-p:WindowsSdkPackageVersion=$sdk" "-p:NotifierPayload=$native"
+          if($LASTEXITCODE -ne 0){throw 'PET V1.2 compilation failed'}
+          $pet=(Resolve-Path qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.001.dll).Path
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish -p:UseSharedCompilation=false "-p:WindowsSdkPackageVersion=$sdk" "-p:NotifierPayload=$native" "-p:LojaPetPayload=$pet"
+          if($LASTEXITCODE -ne 0){throw 'Windows publish failed'}
+          $finance='qa/pet-loja-v12/bin/Release/net8.0-windows10.0.19041.0'
+          Copy-Item publish/LealInfoPDV.dll "$finance/LealInfoPDV.dll" -Force
+          dotnet "$finance/FinanceLayoutTests.dll" --bootstrap
+          if($LASTEXITCODE -ne 0){throw 'Original Loja PET financial report validation failed'}
+          dotnet build qa/notificador/Tests.csproj -c Release -p:UseSharedCompilation=false "-p:WindowsSdkPackageVersion=$sdk" "-p:NotifierPayload=$native" "-p:LojaPetPayload=$pet"
+          if($LASTEXITCODE -ne 0){throw 'Notifier test compilation failed'}
+          $bin='qa/notificador/bin/Release/net8.0-windows10.0.19041.0'
+          Copy-Item publish/LealInfoPDV.dll "$bin/LealInfoPDV.dll" -Force
+          dotnet "$bin/Tests.dll" $native (Resolve-Path publish/LealInfoPDV.exe).Path
+          if($LASTEXITCODE -ne 0){throw 'Native notifier tests failed'}
+          python qa/notificador-loja/package.py
+          if($LASTEXITCODE -ne 0){throw 'Package compatibility failed'}
+      - name: Validar backup e recuperação com proteção existente da Loja
+        shell: pwsh
+        run: |
+          ./qa/notificador-loja/rollback.ps1
+          if($LASTEXITCODE -ne 0){throw 'Rollback failed'}
+          Copy-Item evidence/* validated/ -Recurse -Force
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Loja-notificador-10-447-validado
+          path: validated/
+  publish:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Loja-notificador-10-447-validado
+          path: proof
+      - name: Publicar somente atualizador da Loja do Leal
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/notificador-loja/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Loja-notificador-10-447-publicado
+          path: |
+            published-LOJA-447.json
+            previous-001.json
