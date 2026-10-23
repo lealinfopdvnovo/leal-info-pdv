@@ -20,6 +20,8 @@ class Tests
     using var timer=new System.Windows.Forms.Timer{Interval=2500};
     timer.Tick+=(_,_)=>{timer.Stop();try{
      var badge=Walk(f).Single(x=>x.Name=="loginVersionBadge");
+     Console.WriteLine($"BADGE visible={badge.Visible} text={badge.Text} bounds={badge.Bounds} parent={badge.Parent!.Bounds} client={f.ClientRectangle} screen={f.RectangleToClient(badge.RectangleToScreen(badge.ClientRectangle))}");
+     using(var shot=new Bitmap(f.Width,f.Height)){f.DrawToBitmap(shot,f.ClientRectangle);shot.Save("evidence/login-diagnostic.png");}
      Check(badge.Visible&&badge.Text.Contains("V10.457")&&f.ClientRectangle.Contains(f.RectangleToClient(badge.RectangleToScreen(badge.ClientRectangle))),"gold version badge fully visible "+size);
      Check(Walk(f).OfType<Button>().Any(b=>b.Name=="btnSairLogin"&&b.Enabled)&&f.AcceptButton is Button enter&&enter.Text=="ENTRAR","existing login actions retained "+size);
      using var pixels=new Bitmap(badge.Width,badge.Height);badge.DrawToBitmap(pixels,badge.ClientRectangle);int gold=0;

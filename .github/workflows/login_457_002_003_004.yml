@@ -84,4 +84,6 @@ jobs:
         if: always()
         with:
           name: login457-${{ matrix.channel }}-NAO-PUBLICADO
-          path: output/
+          path: |
+            output/
+            candidate/evidence/
