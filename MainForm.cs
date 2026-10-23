@@ -14,7 +14,7 @@ using System.Runtime.InteropServices;
 
 namespace LealInfoPDV;
 
-public sealed class MainForm : Form
+public sealed partial class MainForm : Form
 {
     public bool LogoutRequested { get; private set; }
     private const uint GwHwndNext = 2;
