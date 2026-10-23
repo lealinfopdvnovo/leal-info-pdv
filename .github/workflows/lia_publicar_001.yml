@@ -1,0 +1,32 @@
+name: LOJA 001 - publicar ponte LIA 454 455 aprovada
+on:
+  push:
+    branches: [release/lia-001-454-455]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publicar-lia-001-454-455
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reusar artefato Windows aprovado e verificar SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python qa/lia-bridge/publish.py download
+      - name: Publicar somente feeds 001 apos backup rollback e hashes publicos
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/lia-bridge/publish.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LIA-001-publicacao-evidencias
+          path: |
+            published-lia-001.json
+            previous-001.json
+            validated-bridge.json
