@@ -13,14 +13,46 @@ using System.Text.Json;
 namespace LealInfoPDV;
 internal static class UpdateManager
 {
-    public const string CurrentVersion="10.444";
+    public const string CurrentVersion="10.445";
  private const string DistributionChannel="GLOBAL";
  private const string LatestReleaseApi="https://api.github.com/repos/lealinfopdvnovo/leal-info-pdv-updates/releases/latest";
  private static readonly string UpdatesFolder=Path.Combine(Database.AppFolder,"Updates");
  private sealed class UpdateManifest{public string Version{get;set;}="";public string PackageUrl{get;set;}="";public string Notes{get;set;}="";public string Sha256{get;set;}="";public string SourceCommit{get;set;}="";public string TargetClientCode{get;set;}="";public string Component{get;set;}="";public int PetApiVersion{get;set;}}
  private sealed class GitHubRelease{public string tag_name{get;set;}="";public string body{get;set;}="";public GitHubAsset[] assets{get;set;}=Array.Empty<GitHubAsset>();}
  private sealed class GitHubAsset{public string name{get;set;}="";public string browser_download_url{get;set;}="";}
- public static async Task CheckForUpdatesAsync(IWin32Window? owner,bool silent){try{Directory.CreateDirectory(UpdatesFolder);var manifest=await LoadManifestAsync();if(manifest==null){if(!silent)MessageBox.Show(owner,"Nenhuma versão publicada foi encontrada agora.","Atualizações do LEAL INFO PDV");return;}if(!IsNewer(manifest.Version,CurrentVersion)){if(!silent)MessageBox.Show(owner,$"Seu LEAL INFO PDV já está atualizado.\n\nVersão instalada: V{CurrentVersion} • {Licensing.InstallationLicense.Edition}","Atualizações do LEAL INFO PDV");return;}var result=ConfirmUpdate(owner,manifest);if(result==DialogResult.Yes)await DownloadAndApplyAsync(manifest);}catch(Exception ex){LogCheck("https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json", "Falha na verificacao: "+ex.GetType().Name);if(!silent)MessageBox.Show(owner,"Não foi possível atualizar agora.\n\n"+ex.Message,"Atualizações do LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Warning);}}
+ private static bool checking;
+ private static UpdateNotificationForm? notification;
+ public static async Task CheckForUpdatesAsync(IWin32Window? owner,bool silent)
+ {
+  if(checking)return;
+  checking=true;
+  try
+  {
+   Directory.CreateDirectory(UpdatesFolder);
+   var manifest=await LoadManifestAsync();
+   if(owner is Control control && (control.IsDisposed||control.Disposing))return;
+   if(manifest==null||!IsNewer(manifest.Version,CurrentVersion))
+   {
+    if(!silent)MessageBox.Show(owner,"Nenhuma atualização compatível disponível.\nVersão instalada: V"+CurrentVersion,"Atualizações do LEAL INFO PDV");
+    return;
+   }
+   if(silent && owner is Form main)
+   {
+    if(notification is {IsDisposed:false})return;
+    notification=new UpdateNotificationForm(main,manifest.Version,()=>DownloadAndApplyAsync(manifest));
+    notification.Show(main);
+    return;
+   }
+   if(notification is {IsDisposed:false})notification.Close();
+   if(ConfirmUpdate(owner,manifest)==DialogResult.Yes)await DownloadAndApplyAsync(manifest);
+  }
+  catch(Exception ex)
+  {
+   LogCheck("https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json","Falha na verificacao: "+ex.GetType().Name);
+   if(!silent)MessageBox.Show(owner,"Não foi possível atualizar agora.\n\n"+ex.Message,"Atualizações do LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Warning);
+  }
+  finally{checking=false;}
+ }
  private static DialogResult ConfirmUpdate(IWin32Window? owner,UpdateManifest manifest)=>MessageBox.Show(owner,$"NOVA ATUALIZAÇÃO DISPONÍVEL\n\nVersão instalada: V{CurrentVersion} • {Licensing.InstallationLicense.Edition}\nNova versão: V{manifest.Version}\n\n{manifest.Notes}\n\nDeseja atualizar agora?","Atualização disponível",MessageBoxButtons.YesNo,MessageBoxIcon.Information);
  public static async Task ShowUpdateCenterAsync(IWin32Window owner){await CheckForUpdatesAsync(owner,false);}
  public static void ShowUpdateCenter(IWin32Window owner){_ = ShowUpdateCenterAsync(owner);}

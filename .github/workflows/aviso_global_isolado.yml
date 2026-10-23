@@ -1,0 +1,34 @@
+name: GLOBAL - aviso de atualização após login - isolado
+on:
+  push:
+    branches: [prepare/global-aviso-atualizacao]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - name: Compilar e testar aviso flutuante
+        shell: pwsh
+        run: |
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}' | Set-Content global.json
+          dotnet run --project qa/update-notification/Tests.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Notification tests failed'}
+      - name: Compilar Windows sem publicar
+        shell: pwsh
+        run: |
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Windows compilation failed'}
+          $files=@{}
+          foreach($n in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){$files[$n]=(Get-FileHash "publish/$n").Hash.ToLowerInvariant()}
+          @{Version='10.445';Source=$env:GITHUB_SHA;Published=$false;InstalledOnCustomer=$false;Files=$files}|ConvertTo-Json -Depth 5|Set-Content evidence/candidate.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GLOBAL-aviso-atualizacao-isolado
+          path: evidence/
