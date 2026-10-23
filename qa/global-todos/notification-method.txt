@@ -1,0 +1,33 @@
+ private static bool checking;
+ private static UpdateNotificationForm? notification;
+ public static async Task CheckForUpdatesAsync(IWin32Window? owner,bool silent)
+ {
+  if(checking || notification is {IsDisposed:false, IsApplying:true})return;
+  checking=true;
+  try
+  {
+   Directory.CreateDirectory(UpdatesFolder);
+   var manifest=await LoadManifestAsync();
+   if(owner is Control control && (control.IsDisposed||control.Disposing))return;
+   if(manifest==null||!IsNewer(manifest.Version,CurrentVersion))
+   {
+    if(!silent)MessageBox.Show(owner,"Nenhuma atualização compatível disponível.\nVersão instalada: V"+CurrentVersion,"Atualizações do LEAL INFO PDV");
+    return;
+   }
+   if(silent && owner is Form main)
+   {
+    if(notification is {IsDisposed:false})return;
+    notification=new UpdateNotificationForm(main,manifest.Version,()=>DownloadAndApplyAsync(manifest));
+    notification.Show(main);
+    return;
+   }
+   if(notification is {IsDisposed:false})notification.Close();
+   if(ConfirmUpdate(owner,manifest)==DialogResult.Yes)await DownloadAndApplyAsync(manifest);
+  }
+  catch(Exception ex)
+  {
+   LogCheck("https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/version.json","Falha na verificacao: "+ex.GetType().Name);
+   if(!silent)MessageBox.Show(owner,"Não foi possível atualizar agora.\n\n"+ex.Message,"Atualizações do LEAL INFO PDV",MessageBoxButtons.OK,MessageBoxIcon.Warning);
+  }
+  finally{checking=false;}
+ }
