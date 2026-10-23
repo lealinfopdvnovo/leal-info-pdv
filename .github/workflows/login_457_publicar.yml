@@ -1,0 +1,31 @@
+name: GLOBAL 10.457 - publicar somente login 002 003 004
+on:
+  push:
+    branches: [release/login-457-002-003-004]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publicar-login-457-002-003-004
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reusar somente pacotes e testes Windows aprovados
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python qa/login457/publish.py download
+      - name: Publicar feeds 002 003 004 sem tocar 001 PETs ou atualizador GLOBAL
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/login457/publish.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LOGIN-457-PUBLICACAO-EVIDENCIAS
+          path: |
+            published-login457.json
+            previous-*.json
