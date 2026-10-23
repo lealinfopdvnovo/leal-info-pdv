@@ -1,7 +1,7 @@
 name: LIA - corrigir janela de chave - validar Windows
 on:
   push:
-    branches: [fix/lia-configurar-chave]
+    branches: [fix/lia-janela-movel]
 permissions:
   contents: read
 jobs:
@@ -36,7 +36,7 @@ jobs:
       - name: Testar janela modal e armazenamento protegido
         shell: pwsh
         run: |
-          dotnet run --project tests/LiaKeyDialog/LiaKeyDialog.csproj -c Release
+          dotnet run --project tests/LiaMovable/LiaMovable.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw 'Falha no teste da janela' }
       - name: Registrar limite de validacao
         shell: pwsh
@@ -45,6 +45,6 @@ jobs:
           Get-FileHash lia-candidate/LicAi.exe -Algorithm SHA256
       - uses: actions/upload-artifact@v4
         with:
-          name: lia-modelo-isolado-sem-publicacao
+          name: lia-janela-movel-sem-publicacao
           path: lia-candidate/
           retention-days: 7

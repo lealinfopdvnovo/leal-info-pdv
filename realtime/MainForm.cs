@@ -413,7 +413,7 @@ public sealed class MainForm : Form
 
     private async Task<string> SendGeminiAudioAsync(byte[] wav, CancellationToken cancellationToken)
     {
-        var key = EnsureGeminiApiKey();
+        var key = await EnsureGeminiApiKeyAsync();
         var endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiModel}:generateContent";
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
         request.Headers.Add("x-goog-api-key", key);
@@ -580,7 +580,7 @@ public sealed class MainForm : Form
         LiaLog("TTS_REQUEST", $"chars={text.Length}");
         try
         {
-            var key = EnsureGeminiApiKey();
+            var key = await EnsureGeminiApiKeyAsync();
             LiaLog("TTS_GEMINI_STREAM_REQUEST", $"ms={sw.ElapsedMilliseconds}");
             await SpeakGeminiNaturalAsync(text, key, cancellationToken);
             LiaLog("TTS_PLAY_END", $"ms={sw.ElapsedMilliseconds}; engine=gemini-natural");
@@ -632,7 +632,7 @@ public sealed class MainForm : Form
             finally { _send.Enabled = true; }
             return;
         }
-        if (!EnsureApiKey()) return;
+        if (!await EnsureApiKeyAsync()) return;
         CreateRealtimeConnection();
         _input.Clear();
         Append("Voce", text);
@@ -659,10 +659,26 @@ public sealed class MainForm : Form
         _ = SendStatusAsync(state);
     }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr handle, int message, IntPtr wParam, IntPtr lParam);
+    private static void EnableWindowDrag(Control control, Form window)
+    {
+        control.MouseDown += (_, e) => {
+            if(e.Button != MouseButtons.Left) return;
+            ReleaseCapture();
+            SendMessage(window.Handle, 0x00A1, (IntPtr)2, IntPtr.Zero);
+        };
+    }
+
     private void BuildUi()
     {
         var top = new Panel { Dock = DockStyle.Top, Height = 74, Padding = new Padding(18, 12, 18, 8) };
-        top.Controls.Add(new Label { Text = "LIC AI REALTIME", AutoSize = true, Font = new Font("Segoe UI Semibold", 22F, FontStyle.Bold), ForeColor = Color.White, Location = new Point(18, 10) });
+        var title = new Label { Text = "LIC AI REALTIME", AutoSize = true, Font = new Font("Segoe UI Semibold", 22F, FontStyle.Bold), ForeColor = Color.White, Location = new Point(18, 10) };
+        top.Controls.Add(title);
+        EnableWindowDrag(top, this);
+        EnableWindowDrag(title, this);
         _status.Text = "Pronta para conversar";
         _status.AutoSize = true;
         _status.ForeColor = Color.FromArgb(165, 185, 220);
@@ -670,18 +686,18 @@ public sealed class MainForm : Form
         _keyButton.Text = "Configurar chave";
         _keyButton.Size = new Size(140, 34);
         _keyButton.Location = new Point(Width - 185, 20);
-        _keyButton.Click += (_, _) =>
+        _keyButton.Click += async (_, _) =>
         {
             if (_offlineMode)
             {
-                var value = PromptApiKey("Configurar voz da LIA", "Cole sua chave gratuita do Google AI Studio.");
+                var value = await PromptApiKeyAsync("Configurar voz da LIA", "Cole sua chave gratuita do Google AI Studio.");
                 if (value.Length >= 20)
                 {
                     SaveGeminiApiKey(value);
                     _status.Text = "Chave de voz salva";
                 }
             }
-            else ConfigureApiKey();
+            else await ConfigureApiKeyAsync();
         };
         top.Controls.AddRange(new Control[] { _status, _keyButton });
         top.Resize += (_, _) => _keyButton.Left = top.ClientSize.Width - _keyButton.Width - 18;
@@ -756,7 +772,7 @@ public sealed class MainForm : Form
                 BringToFront();
                 await Task.Delay(180);
             }
-            _ = EnsureGeminiApiKey();
+            _ = await EnsureGeminiApiKeyAsync();
             TopMost = false;
             if (_realtime != null)
             {
@@ -791,32 +807,45 @@ public sealed class MainForm : Form
         _input.Focus();
     }
 
-    private bool EnsureApiKey()
+    private async Task<bool> EnsureApiKeyAsync()
     {
         if (!string.IsNullOrWhiteSpace(_secrets.GetApiKey())) return true;
-        ConfigureApiKey();
+        await ConfigureApiKeyAsync();
         return !string.IsNullOrWhiteSpace(_secrets.GetApiKey());
     }
 
-    private bool _keyDialogOpen;
+    private ApiKeyDialog? _keyDialog;
 
-    private string PromptApiKey(string title, string prompt)
+    private Task<string> PromptApiKeyAsync(string title, string prompt)
     {
-        if (_keyDialogOpen) return "";
-        _keyDialogOpen = true;
-        try
+        if (_closing || IsDisposed) return Task.FromResult("");
+        if (_keyDialog is { IsDisposed: false })
         {
-            RevealLocalChat();
-            if (!Visible) Show();
-            using var dialog = new ApiKeyDialog(title, prompt);
-            return dialog.ShowDialog(this) == DialogResult.OK ? dialog.ApiKey : "";
+            _keyDialog.WindowState = FormWindowState.Normal;
+            _keyDialog.BringToFront();
+            _keyDialog.Activate();
+            return Task.FromResult("");
         }
-        finally { _keyDialogOpen = false; }
+        RevealLocalChat();
+        if (!Visible) Show();
+        var dialog = new ApiKeyDialog(title, prompt) { TopMost = TopMost };
+        var completion = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _keyDialog = dialog;
+        dialog.FormClosed += (_, _) =>
+        {
+            string value = dialog.DialogResult == DialogResult.OK ? dialog.ApiKey : "";
+            _keyDialog = null;
+            completion.TrySetResult(value);
+        };
+        dialog.Show(this);
+        dialog.BringToFront();
+        dialog.Activate();
+        return completion.Task;
     }
 
-    private void ConfigureApiKey()
+    private async Task ConfigureApiKeyAsync()
     {
-        var value = PromptApiKey("Configurar OpenAI", "Cole sua chave da OpenAI:");
+        var value = await PromptApiKeyAsync("Configurar OpenAI", "Cole sua chave da OpenAI:");
         if (value.Length < 20) return;
         try
         {
@@ -919,11 +948,11 @@ public sealed class MainForm : Form
         File.WriteAllBytes(GeminiKeyPath, encrypted);
     }
 
-    private string EnsureGeminiApiKey()
+    private async Task<string> EnsureGeminiApiKeyAsync()
     {
         var key = GetGeminiApiKey();
         if (!string.IsNullOrWhiteSpace(key)) return key;
-        var value = PromptApiKey("Configurar Gemini • LIA modo básico", "Cole sua chave gratuita do Google AI Studio.");
+        var value = await PromptApiKeyAsync("Configurar Gemini • LIA modo básico", "Cole sua chave gratuita do Google AI Studio.");
         if (value.Length < 20) throw new InvalidOperationException("Chave do Gemini não configurada.");
         SaveGeminiApiKey(value);
         return value;
@@ -931,7 +960,7 @@ public sealed class MainForm : Form
 
     private async Task<string> SendGeminiAsync(string userText, CancellationToken cancellationToken)
     {
-        var key = EnsureGeminiApiKey();
+        var key = await EnsureGeminiApiKeyAsync();
         var endpoint = $"https://generativelanguage.googleapis.com/v1beta/models/{GeminiModel}:generateContent";
         using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
         request.Headers.Add("x-goog-api-key", key);
@@ -1061,12 +1090,14 @@ internal sealed class ApiKeyDialog : Form
         save.Click += (_, _) => {
             if (ApiKey.Length < 20) { _key.Focus(); return; }
             DialogResult = DialogResult.OK;
+            Close();
         };
+        cancel.Click += (_, _) => Close();
         buttons.Controls.AddRange(new Control[] { cancel, save });
         Controls.AddRange(new Control[] { _key, label, buttons });
         AcceptButton = save;
         CancelButton = cancel;
-        Shown += (_, _) => _key.Focus();
+        Shown += (_, _) => { BringToFront(); Activate(); _key.Focus(); };
 
     }
 }
