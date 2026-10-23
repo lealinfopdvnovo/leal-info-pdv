@@ -12,8 +12,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - channel: '002'
-            base: 735f3f6b0f933f25585c0c9e7e50551dae9a056d
           - channel: CASA
             base: 874bc1e77fc3fb9b643ed17ceb0e1e1c91ad2ac8
           - channel: '004'

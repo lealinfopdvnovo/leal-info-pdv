@@ -5,6 +5,10 @@ def finish():
  r=Path('candidate');before={str(p.relative_to(r)):hashlib.sha256(p.read_bytes()).hexdigest() for p in r.rglob('*') if p.is_file() and '.git' not in p.parts and 'bin' not in p.parts and 'obj' not in p.parts}
  p=r/'LoginForm.cs';s=p.read_text(encoding='utf-8-sig');a=s.index('        card.Controls.Add(new Label{Text="LEAL INFO CONECTADO  •  ACESSO SEGURO');b=s.index('\n',s.index('},0,2);',a))
  s=s[:a]+'        card.Controls.Add(new LoginVersionBadge(),0,2);'+s[b:]
+ if c in ('CASA','004'):
+  marker='            int y=(int)(targetY+'
+  assert marker in s
+  s=s.replace(marker,'            targetY=Math.Min(targetY,Math.Max(12,sh-finalH-12));\n'+marker,1)
  marker='    private sealed class ChromeStagePanel';assert marker in s
  s=s.replace(marker,Path('controller/qa/login457/VersionBadge.txt').read_text()+'\n'+marker,1);p.write_text(s)
  p=r/'UpdateManager.cs';s=p.read_text();assert 'CurrentVersion="10.453"' in s;p.write_text(s.replace('CurrentVersion="10.453"','CurrentVersion="10.457"'))
