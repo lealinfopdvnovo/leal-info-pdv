@@ -42,7 +42,6 @@ class Probe
      if((action=="Save")!=(result.Length>=20))throw new Exception("Incorrect save/cancel result");
      Console.WriteLine("PASS: actual MainForm remains movable/enabled, editor owned/topmost/single, "+action);
     }
-    var button=form.Controls.Find("",true).OfType<Button>().FirstOrDefault();
     Console.WriteLine("PASS: no API requests, real key or operational PDV data used");
    }catch(Exception ex){failure=ex;}
    finally{form.Close();}
