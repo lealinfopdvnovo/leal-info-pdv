@@ -7,6 +7,8 @@ using LicAi.Security;
 
 class Probe
 {
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern bool IsWindowEnabled(IntPtr hwnd);
     [STAThread]
     static void Main()
     {
@@ -25,7 +27,7 @@ class Probe
                 timer.Stop();
                 try
                 {
-                    if (dialog.Owner != owner || owner.Enabled || !dialog.Visible) throw new Exception("Modal owner failed");
+                    if (dialog.Owner != owner || IsWindowEnabled(owner.Handle) || !dialog.Visible) throw new Exception("Modal owner failed");
                     var key = (TextBox)dialog.Controls.Find("ApiKey", true).Single();
                     if (!key.UseSystemPasswordChar) throw new Exception("Unmasked key");
                     key.Text = dummy;
@@ -37,7 +39,7 @@ class Probe
             timer.Start();
             var result = dialog.ShowDialog(owner);
             if (failure != null) throw failure;
-            if (!owner.Enabled) throw new Exception("Owner remains disabled");
+            if (!IsWindowEnabled(owner.Handle)) throw new Exception("Owner remains disabled");
             if (action == "Save" && (result != DialogResult.OK || (string)type.GetProperty("ApiKey", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(dialog)! != dummy)) throw new Exception("Save failed");
             if (action != "Save" && result == DialogResult.OK) throw new Exception("Cancel failed");
             Console.WriteLine("PASS: modal owned, masked, responsive: " + action);
