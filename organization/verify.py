@@ -2,7 +2,8 @@ import hashlib,json,re,subprocess,xml.etree.ElementTree as ET
 from pathlib import Path
 root=Path(__file__).resolve().parents[1];lock=json.loads((root/'organization/lineage.lock.json').read_text())
 def blob(p):
- data=p.read_bytes();return hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+ # Respect Git's Windows checkout line-ending filters while checking the actual working file.
+ return subprocess.check_output(['git','hash-object','--path',str(p.relative_to(root)),str(p)],cwd=root,text=True).strip()
 checks=[]
 for old,item in lock['PreservedFiles'].items():
  p=root/item['Path'];assert p.is_file(),item['Path']
