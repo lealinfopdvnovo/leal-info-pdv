@@ -15,7 +15,7 @@ jobs:
         run: |
           New-Item -ItemType Directory output -Force|Out-Null
           $csc="$env:WINDIR/Microsoft.NET/Framework64/v4.0.30319/csc.exe"
-          & $csc /nologo /target:winexe /optimize+ /out:output/LEAL_INFO_PDV_Testes_003.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Net.Http.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Web.Extensions.dll /resource:tools/Testes003/Worker.ps1,Worker tools/Testes003/Program.cs tools/Testes003/Test.cs
+          & $csc /nologo /target:winexe /optimize+ /out:output/LEAL_INFO_PDV_Testes_003.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Net.Http.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Web.Extensions.dll '/resource:tools\Testes003\Worker.ps1,Worker' 'tools\Testes003\Program.cs' 'tools\Testes003\Test.cs'
           if($LASTEXITCODE -ne 0){throw 'Compile failed'}
       - name: Validate closed-PDV preparation without injecting faults
         shell: pwsh
