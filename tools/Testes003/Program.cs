@@ -80,7 +80,7 @@ class Window:Form {
   path=new TextBox{Left=20,Top=65,Width=485,Text=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),"LEAL INFO PDV")};
   var choose=new Button{Text="Localizar",Left=515,Top=62,Width=100};choose.Click+=delegate{using(var f=new FolderBrowserDialog()){f.Description="Selecione exclusivamente o PDV da CASA DO ADRIANO (003).";if(f.ShowDialog()==DialogResult.OK)path.Text=f.SelectedPath;}};
   status=new Label{Text="Programa separado. O atualizador atual permanece preservado.\nPrepare e confira a cópia com o PDV fechado. Nenhuma falha será provocada.",Left=20,Top=110,Width=590,Height=75};
-  prepare=new Button{Text="Preparar cópia anterior",Left=20,Top=200,Width=190,Height=40};verify=new Button{Text="Verificar recuperação",Left=220,Top=200,Width=185,Height=40};restore=new Button{Text="Recuperar anterior",Left=415,Top=200,Width=195,Height=40};
+  prepare=new Button{Text="Preparar cópia anterior",Left=20,Top=200,Width=190,Height=40};verify=new Button{Text="Verificar recuperação",CausesValidation=false,Left=220,Top=200,Width=185,Height=40};restore=new Button{Text="Recuperar anterior",Left=415,Top=200,Width=195,Height=40};
   prepare.Click+=async delegate{if(busy)return;busy=true;Toggle(false);try{await Core.Prepare(path.Text);status.Text="PREPARADO: versão anterior 003 10.457 preservada e verificada.\nNão foi feita instalação nem restauração do PDV.";}catch(Exception e){status.Text=e.Message;}finally{busy=false;Toggle(true);}};
   verify.Click+=async delegate{await VerifyAsync();};
   restore.Click+=async delegate{if(busy)return;if(MessageBox.Show(this,"RECUPERAÇÃO EXCLUSIVA DO 003.\nRestaurar os três arquivos do programa para a cópia preservada 10.457?\nBanco, licença e configurações não serão substituídos.","TESTE 003 — confirmação",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes)return;busy=true;Toggle(false);try{var app=Path.GetFullPath(path.Text).TrimEnd(Path.DirectorySeparatorChar);var nonce=Guid.NewGuid().ToString("N");using(var p=Core.Recover(app,nonce)){var deadline=DateTime.UtcNow.AddSeconds(60);while(DateTime.UtcNow<deadline){if(p.HasExited)throw new IOException("A proteção recusou a recuperação. O PDV não foi fechado por este programa.");var ready=Path.Combine(app,".pdv-update","prepared.ready");if(File.Exists(ready)&&File.ReadAllText(ready)==nonce){tray.Visible=false;Application.Exit();return;}await Task.Delay(200);}throw new IOException("Preparação não confirmada. Não foi autorizado substituir o PDV.");}}catch(Exception e){status.Text=e.Message;}finally{busy=false;Toggle(true);}};
@@ -92,6 +92,7 @@ class Window:Form {
  internal bool VerificationBusy { get { return busy; } }
  internal void SetVerificationPath(string value){path.Text=value;}
  internal void ClickVerify(){verify.PerformClick();}
+ internal string ButtonState { get { return "enabled="+verify.Enabled+" select="+verify.CanSelect+" visible="+verify.Visible+" active="+(ActiveControl==null?"null":ActiveControl.GetType().Name); } }
  internal async Task VerifyAsync(){
   if(busy)return;
   var selected=path.Text;
