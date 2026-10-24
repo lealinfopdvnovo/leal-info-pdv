@@ -1,0 +1,91 @@
+name: Gelamaq PET V1.1 - Windows actual 002 base - no publication
+on:
+  push:
+    branches: [fix/gelamaq-pet-finance-delivery]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      CHANNEL: '002'
+      SOURCE_BASE: 735f3f6b0f933f25585c0c9e7e50551dae9a056d
+      PYTHONUTF8: '1'
+      LEAL_NOTIFIER_ISOLATED_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: controller
+      - uses: actions/checkout@v4
+        with:
+          ref: 735f3f6b0f933f25585c0c9e7e50551dae9a056d
+          path: candidate
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - name: Reconstruct published Gelamaq base and apply only PET finance bridge
+        shell: pwsh
+        run: |
+          python controller/qa/login457/prepare.py
+          if($LASTEXITCODE -ne 0){throw 'Baseline preparation failed'}
+          Push-Location candidate
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          Pop-Location
+          python controller/qa/login457/finish.py
+          if($LASTEXITCODE -ne 0){throw 'Published login reconstruction failed'}
+          python controller/qa/gelamaq-delivery/prepare.py
+          if($LASTEXITCODE -ne 0){throw 'Gelamaq-only patch scope failed'}
+      - name: Reuse published native notifier and compile standalone PET
+        shell: pwsh
+        run: |
+          $a=[Reflection.Assembly]::Load([IO.File]::ReadAllBytes((Resolve-Path published002/LealInfoPDV.dll).Path))
+          $stream=$a.GetManifestResourceStream('LealInfoPDV.UpdateNotifier.Native')
+          if(!$stream){throw 'Published notifier missing'}
+          New-Item -ItemType Directory native -Force|Out-Null
+          $dest=[IO.File]::Create((Join-Path $pwd 'native/LealInfoPDV.Notificador.exe'))
+          try{$stream.CopyTo($dest)}finally{$stream.Dispose();$dest.Dispose()}
+          $native=(Resolve-Path native/LealInfoPDV.Notificador.exe).Path
+          $sdk=Get-Content sdk-version.txt
+          Push-Location candidate
+          dotnet build qa/gelamaq-pet/GelamaqPet.csproj -c Release -p:UseSharedCompilation=false "-p:NotifierPayload=$native" "-p:WindowsSdkPackageVersion=$sdk"
+          if($LASTEXITCODE -ne 0){throw 'PDV/PET build failed'}
+          $pet=(Resolve-Path qa/gelamaq-pet/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.002.dll).Path
+          @{Identity='002';Version='1.1';ApiVersion=1;Assembly='LealInfoPDV.Pet.002.dll';Sha256=(Get-FileHash $pet).Hash}|ConvertTo-Json|Set-Content pet-manifest.json
+          $manifest=(Resolve-Path pet-manifest.json).Path
+          $props=@('-p:UseSharedCompilation=false',"-p:NotifierPayload=$native","-p:WindowsSdkPackageVersion=$sdk","-p:GelamaqPetPayload=$pet","-p:GelamaqPetManifest=$manifest")
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish @props
+          if($LASTEXITCODE -ne 0){throw 'Protected host/PET publish failed'}
+          dotnet build qa/gelamaq-delivery/Tests.csproj -c Release @props
+          if($LASTEXITCODE -ne 0){throw 'Tests build failed'}
+          Copy-Item publish/LealInfoPDV.dll qa/gelamaq-delivery/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.dll -Force
+          Pop-Location
+      - name: Test embedded PET loading actual finance screen and customer isolation
+        shell: pwsh
+        run: |
+          Push-Location candidate
+          dotnet qa/gelamaq-delivery/bin/Release/net8.0-windows10.0.19041.0/GelamaqDeliveryTests.dll
+          if($LASTEXITCODE -ne 0){throw 'Financial screen or isolation failed'}
+          Pop-Location
+      - name: Test protected individual update integrity interruption and SYSTEM rollback
+        shell: pwsh
+        run: |
+          Push-Location candidate
+          ./qa/gelamaq-delivery/rollback.ps1
+          if($LASTEXITCODE -ne 0){throw 'Update or rollback failed'}
+          Pop-Location
+          python controller/qa/gelamaq-delivery/package.py
+          if($LASTEXITCODE -ne 0){throw 'Payload compatibility failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GELAMAQ-PET-V1_1-VALIDACAO
+          path: |
+            output/
+            candidate/evidence/
+            gelamaq-scope.json
