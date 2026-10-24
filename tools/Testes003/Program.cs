@@ -16,7 +16,7 @@ class Core {
  public const string PackageHash="869871bdb0065cbc7fc00f2d3cba61194ecea32a9dbbaae0367c3ec717a65ed8";
  public static string[] Names={"LealInfoPDV.exe","LealInfoPDV.dll","LealInfoPDV.deps.json"};
  public static string Hash(byte[] b){using(var h=SHA256.Create())return BitConverter.ToString(h.ComputeHash(b)).Replace("-","").ToLowerInvariant();}
- public static string HashFile(string p){return Hash(File.ReadAllBytes(p));}
+ public static string HashFile(string p){using(var h=SHA256.Create())using(var stream=File.OpenRead(p))return BitConverter.ToString(h.ComputeHash(stream)).Replace("-","").ToLowerInvariant();}
  public static void NoLinks(string path){for(var p=Path.GetFullPath(path);!String.IsNullOrEmpty(p);p=Path.GetDirectoryName(p)){if((Directory.Exists(p)||File.Exists(p))&&(File.GetAttributes(p)&FileAttributes.ReparsePoint)!=0)throw new IOException("Pasta redirecionada recusada.");}}
  public static void Closed(string app){foreach(var p in Process.GetProcessesByName("LealInfoPDV"))using(p){string exe;try{exe=p.MainModule.FileName;}catch{throw new IOException("Não foi possível verificar se o PDV está fechado.");}if(String.Equals(Path.GetFullPath(exe),Path.Combine(app,"LealInfoPDV.exe"),StringComparison.OrdinalIgnoreCase))throw new IOException("Feche o PDV antes de preparar ou recuperar.");}}
  public static Dictionary<string,string> Validate(string zip){
@@ -82,11 +82,30 @@ class Window:Form {
   status=new Label{Text="Programa separado. O atualizador atual permanece preservado.\nPrepare e confira a cópia com o PDV fechado. Nenhuma falha será provocada.",Left=20,Top=110,Width=590,Height=75};
   prepare=new Button{Text="Preparar cópia anterior",Left=20,Top=200,Width=190,Height=40};verify=new Button{Text="Verificar recuperação",Left=220,Top=200,Width=185,Height=40};restore=new Button{Text="Recuperar anterior",Left=415,Top=200,Width=195,Height=40};
   prepare.Click+=async delegate{if(busy)return;busy=true;Toggle(false);try{await Core.Prepare(path.Text);status.Text="PREPARADO: versão anterior 003 10.457 preservada e verificada.\nNão foi feita instalação nem restauração do PDV.";}catch(Exception e){status.Text=e.Message;}finally{busy=false;Toggle(true);}};
-  verify.Click+=delegate{try{Core.Ready(path.Text);status.Text="CÓPIA ÍNTEGRA • 003 10.457 • PDV FECHADO.\nO programa de recuperação está aberto sem iniciar o PDV.";}catch(Exception e){status.Text=e.Message;}};
+  verify.Click+=async delegate{await VerifyAsync();};
   restore.Click+=async delegate{if(busy)return;if(MessageBox.Show(this,"RECUPERAÇÃO EXCLUSIVA DO 003.\nRestaurar os três arquivos do programa para a cópia preservada 10.457?\nBanco, licença e configurações não serão substituídos.","TESTE 003 — confirmação",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes)return;busy=true;Toggle(false);try{var app=Path.GetFullPath(path.Text).TrimEnd(Path.DirectorySeparatorChar);var nonce=Guid.NewGuid().ToString("N");using(var p=Core.Recover(app,nonce)){var deadline=DateTime.UtcNow.AddSeconds(60);while(DateTime.UtcNow<deadline){if(p.HasExited)throw new IOException("A proteção recusou a recuperação. O PDV não foi fechado por este programa.");var ready=Path.Combine(app,".pdv-update","prepared.ready");if(File.Exists(ready)&&File.ReadAllText(ready)==nonce){tray.Visible=false;Application.Exit();return;}await Task.Delay(200);}throw new IOException("Preparação não confirmada. Não foi autorizado substituir o PDV.");}}catch(Exception e){status.Text=e.Message;}finally{busy=false;Toggle(true);}};
   Controls.AddRange(new Control[]{title,path,choose,status,prepare,verify,restore});
   tray=new NotifyIcon{Icon=SystemIcons.Information,Text="LEAL INFO PDV Testes — 003",Visible=true};var menu=new ContextMenuStrip();menu.Items.Add("Abrir TESTES 003",null,delegate{Show();WindowState=FormWindowState.Normal;Activate();});menu.Items.Add("Sair de TESTES",null,delegate{if(!busy)Application.Exit();});tray.ContextMenuStrip=menu;tray.DoubleClick+=delegate{Show();Activate();};
   FormClosing+=delegate(object sender,FormClosingEventArgs e){if(e.CloseReason==CloseReason.UserClosing){e.Cancel=true;Hide();tray.ShowBalloonTip(2500,"TESTES 003","O programa continua perto do relógio. O PDV não precisa abrir.",ToolTipIcon.Info);}};FormClosed+=delegate{tray.Dispose();};
+ }
+ internal string VerificationStatus { get { return status.Text; } }
+ internal bool VerificationBusy { get { return busy; } }
+ internal void SetVerificationPath(string value){path.Text=value;}
+ internal void ClickVerify(){verify.PerformClick();}
+ internal async Task VerifyAsync(){
+  if(busy)return;
+  var selected=path.Text;
+  busy=true;Toggle(false);UseWaitCursor=true;
+  status.Text="VERIFICANDO A CÓPIA ANTERIOR... Aguarde a conferência de integridade.";
+  status.Refresh();
+  try{
+   await Task.Run(delegate{Core.Ready(selected);});
+   status.Text="CÓPIA ÍNTEGRA • 003 10.457 • PDV FECHADO.\nVerificação concluída. Nenhum arquivo do PDV foi alterado.";
+   status.ForeColor=Color.LightGreen;
+  }catch(Exception e){
+   status.Text="VERIFICAÇÃO NÃO APROVADA: "+e.Message;
+   status.ForeColor=Color.Salmon;
+  }finally{busy=false;UseWaitCursor=false;Toggle(true);status.Refresh();}
  }
  void Toggle(bool value){prepare.Enabled=verify.Enabled=restore.Enabled=path.Enabled=value;}
 }

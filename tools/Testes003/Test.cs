@@ -24,7 +24,24 @@ class Test {
   }
   foreach(var n in Core.Names)if(Core.HashFile(Path.Combine(app,n))!=hashes[n]||Core.HashFile(Path.Combine(app,".pdv-update","previous",n))!=hashes[n])throw new Exception("Restore or previous bytes differ");
   foreach(var n in new[]{"customer.db","license.dat","settings.json"})if(File.ReadAllText(Path.Combine(app,n))!="PRESERVED")throw new Exception("Customer files changed");
-  using(var f=new Window()){f.Show();Application.DoEvents();using(var image=new Bitmap(f.Width,f.Height)){f.DrawToBitmap(image,f.ClientRectangle);image.Save("evidence/Testes003.png");}f.Dispose();}
+  using(var f=new Window()){
+   f.SetVerificationPath(app);f.Show();Application.DoEvents();
+   f.ClickVerify();
+   if(!f.VerificationBusy || !f.VerificationStatus.StartsWith("VERIFICANDO"))throw new Exception("Click did not show immediate feedback");
+   int ticks=0;using(var timer=new System.Windows.Forms.Timer()){timer.Interval=1;timer.Tick+=delegate{ticks++;};timer.Start();
+    var deadline=DateTime.UtcNow.AddSeconds(60);
+    while(f.VerificationBusy && DateTime.UtcNow<deadline){Application.DoEvents();System.Threading.Thread.Sleep(5);}
+   }
+   if(f.VerificationBusy || !f.VerificationStatus.StartsWith("CÓPIA ÍNTEGRA") || ticks==0)throw new Exception("Click completion or UI responsiveness failed: "+f.VerificationStatus);
+   File.WriteAllText("evidence/verification-click.txt",f.VerificationStatus+" UI ticks="+ticks);
+   f.SetVerificationPath(Path.Combine(root,"Missing"));
+   f.ClickVerify();var failureDeadline=DateTime.UtcNow.AddSeconds(20);
+   while(f.VerificationBusy && DateTime.UtcNow<failureDeadline){Application.DoEvents();System.Threading.Thread.Sleep(5);}
+   if(f.VerificationBusy || !f.VerificationStatus.StartsWith("VERIFICAÇÃO NÃO APROVADA"))throw new Exception("Missing backup has no visible failure");
+   f.SetVerificationPath(app);f.ClickVerify();var repeatDeadline=DateTime.UtcNow.AddSeconds(60);
+   while(f.VerificationBusy && DateTime.UtcNow<repeatDeadline){Application.DoEvents();System.Threading.Thread.Sleep(5);}
+   if(f.VerificationBusy || !f.VerificationStatus.StartsWith("CÓPIA ÍNTEGRA"))throw new Exception("Repeat after error failed");
+   Application.DoEvents();using(var image=new Bitmap(f.Width,f.Height)){f.DrawToBitmap(image,f.ClientRectangle);image.Save("evidence/Testes003.png");}f.Dispose();}
   File.WriteAllText("evidence/results.json",new JavaScriptSerializer().Serialize(new{Client="003",Program="LEAL INFO PDV Testes",IndependentWindow=true,PDVClosed=true,Published003BaselineVerified=true,PreviousPreserved=true,IntactFixtureRestore=true,CustomerFilesPreserved=true,FaultInjected=false,ExistingUpdaterModified=false,RealComputerInstalled=false,HealthHandoffRealComputerValidated=false}));
   Console.WriteLine("PASS TESTES 003: standalone window; actual approved baseline; closed PDV; verified previous copy; intact fixture restore; no fault injection; customer sentinels unchanged");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
