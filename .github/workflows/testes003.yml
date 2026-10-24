@@ -1,0 +1,32 @@
+name: TESTES 003 - standalone tray recovery preparation
+on:
+  push:
+    branches: [feature/testes003-standalone]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build small independent Windows executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory output -Force|Out-Null
+          $csc="$env:WINDIR/Microsoft.NET/Framework64/v4.0.30319/csc.exe"
+          & $csc /nologo /target:winexe /optimize+ /out:output/LEAL_INFO_PDV_Testes_003.exe /reference:System.Windows.Forms.dll /reference:System.Drawing.dll /reference:System.Net.Http.dll /reference:System.IO.Compression.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Web.Extensions.dll /resource:tools/Testes003/Worker.ps1,Worker tools/Testes003/Program.cs tools/Testes003/Test.cs
+          if($LASTEXITCODE -ne 0){throw 'Compile failed'}
+      - name: Validate closed-PDV preparation without injecting faults
+        shell: pwsh
+        run: |
+          $p=Start-Process output/LEAL_INFO_PDV_Testes_003.exe -ArgumentList '--self-test' -Wait -PassThru
+          if($p.ExitCode -ne 0){throw 'Isolated test failed'}
+          Get-FileHash output/LEAL_INFO_PDV_Testes_003.exe -Algorithm SHA256|Format-List|Out-File output/SHA256.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: LEAL-INFO-PDV-TESTES-003
+          path: |
+            output/
+            evidence/
