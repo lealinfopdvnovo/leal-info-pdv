@@ -2850,6 +2850,8 @@ private void ApplyFloatingTheme(Form f)
 
         DataTable QueryTable(SqliteConnection cn, string sql, DateTime start, DateTime endExclusive, string term, bool includeMovementType = false)
         {
+            var petReport = includeMovementType ? PetRuntime.FinancialMovements : null;
+            if (petReport != null) sql = petReport.PrepareSql(sql);
             using var cmd = cn.CreateCommand();
             cmd.CommandText = sql;
             cmd.Parameters.AddWithValue("$from", start.ToString("yyyy-MM-dd HH:mm:ss"));
@@ -2857,7 +2859,7 @@ private void ApplyFloatingTheme(Form f)
             cmd.Parameters.AddWithValue("$q", "%" + term.Trim() + "%");
             if (includeMovementType) cmd.Parameters.AddWithValue("$type", movementType.SelectedItem?.ToString() ?? "TODOS");
             using var reader = cmd.ExecuteReader();
-            var table = new DataTable(); table.Load(reader); return table;
+            var table = petReport?.CreateTable() ?? new DataTable(); table.Load(reader); return table;
         }
 
         double QueryValue(SqliteConnection cn, string sql, DateTime start, DateTime endExclusive)

@@ -15,6 +15,8 @@ public interface IPetExtension
 
 internal static class PetRuntime
 {
+    private static string? loadedIdentity;
+    internal static IFinancialMovementsPet? FinancialMovements => loadedIdentity == "002" ? extension as IFinancialMovementsPet : null;
     internal const int ApiVersion=1;
     private sealed record Manifest(string Identity,string Version,int ApiVersion,string Assembly,string Sha256);
     private static IPetExtension? extension;
@@ -37,6 +39,7 @@ internal static class PetRuntime
         var types=assembly.GetExportedTypes().Where(t=>!t.IsAbstract&&typeof(IPetExtension).IsAssignableFrom(t)).ToArray();
         if(types.Length!=1)throw new InvalidDataException("PET deve fornecer uma única extensão compatível.");
         extension=(IPetExtension?)Activator.CreateInstance(types[0])??throw new InvalidDataException("PET não inicializado.");
+        loadedIdentity=identity;
         CurrentVersion=m.Version;
         Application.Idle+=Apply;
     }
