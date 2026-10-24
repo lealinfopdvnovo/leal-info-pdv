@@ -1,0 +1,32 @@
+name: TESTES003 - legacy notifier discovery compatibility
+on:
+  push:
+    branches: [release/testes003-legacy-discovery]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VALIDATION_RUN: '40115849974'
+      VALIDATION_COMMIT: 381ce177ba57384255e41d45c2b573fbb529cf33
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reuse identical Windows approved package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python qa/testes003-delivery/legacy-publish.py download
+      - name: Activate only legacy 003 discovery feed
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/testes003-delivery/legacy-publish.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TESTES003-LEGACY-DISCOVERY
+          path: |
+            previous003-feed.json
+            published-testes003.json
