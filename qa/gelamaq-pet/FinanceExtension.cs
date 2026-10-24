@@ -14,7 +14,7 @@ public sealed class FinanceExtension : IPetExtension, IFinancialMovementsPet
  {
   var table=new DataTable();
   for(int i=0;i<reader.FieldCount;i++)
-   table.Columns.Add(reader.GetName(i),reader.GetName(i)=="Venda"?typeof(long):reader.GetFieldType(i)).AllowDBNull=true;
+   table.Columns.Add(reader.GetName(i),reader.GetName(i)=="Venda"?typeof(long):reader.GetName(i)=="Valor"?typeof(object):reader.GetFieldType(i)).AllowDBNull=true;
   while(reader.Read()) {
    var values=new object[reader.FieldCount];reader.GetValues(values);table.Rows.Add(values);
   }

@@ -24,10 +24,12 @@ foreach($scenario in @('success','interruption-hidden','interruption-deps','inte
    foreach($n in $names){if((Get-FileHash (Join-Path $app ('.pdv-update/previous/'+$n))).Hash -ne $before[$n]){throw 'Backup hash differs from actual published 002 package'}}
    $fault=switch($scenario){'interruption-hidden'{'hidden'}'interruption-deps'{'copy-LealInfoPDV.deps.json'}'interruption-dll'{'copy-LealInfoPDV.dll'}'interruption-exe'{'copy-LealInfoPDV.exe'}default{''}}
    if($scenario -eq 'health-failure'){
-    # Set a real awaiting-health transaction without a health receipt, then invoke the SYSTEM recovery.
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Apply -App $app -Channel 002
-    if($LASTEXITCODE -ne 0){throw 'Apply failed before unhealthy recovery test'}
-    $path=Join-Path $app '.pdv-update/journal.json';$state=Get-Content $path -Raw|ConvertFrom-Json;$state.Phase='AwaitingHealth';$state|ConvertTo-Json -Depth 12|Set-Content $path
+    # Launch the actual updated PDV in the disposable unlicensed runner. It cannot
+    # confirm readiness; the unchanged worker must detect this and restore 10.457.
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode PrepareApply -App $app -Channel 002 -Version 10.458 -Package $package -Sha256 $hash -PreviousPid 2147483000 -PreviousStarted 1 -Nonce 'isolated-health-failure' -HealthTimeoutSeconds 2
+    if($LASTEXITCODE -eq 0){throw 'Unexpected startup readiness in unlicensed fixture'}
+    $state=Get-Content (Join-Path $app '.pdv-update/journal.json') -Raw|ConvertFrom-Json
+    if($state.Phase -ne 'Recovered'){throw 'Automatic unhealthy startup rollback failed'}
    }else{
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Apply -App $app -Channel 002 -Fault $fault
     if($scenario -eq 'success'){if($LASTEXITCODE -ne 0){throw 'Apply failed'}}elseif($LASTEXITCODE -ne 73){throw 'Fault did not interrupt worker'}
