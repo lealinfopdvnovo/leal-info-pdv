@@ -4,5 +4,5 @@ namespace LealInfoPDV;
 public interface IFinancialMovementsPet
 {
  string PrepareSql(string originalSql);
- DataTable CreateTable();
+ DataTable ReadTable(IDataReader reader);
 }

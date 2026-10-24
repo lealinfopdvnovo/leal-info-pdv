@@ -2859,7 +2859,8 @@ private void ApplyFloatingTheme(Form f)
             cmd.Parameters.AddWithValue("$q", "%" + term.Trim() + "%");
             if (includeMovementType) cmd.Parameters.AddWithValue("$type", movementType.SelectedItem?.ToString() ?? "TODOS");
             using var reader = cmd.ExecuteReader();
-            var table = petReport?.CreateTable() ?? new DataTable(); table.Load(reader); return table;
+            if (petReport != null) return petReport.ReadTable(reader);
+            var table = new DataTable(); table.Load(reader); return table;
         }
 
         double QueryValue(SqliteConnection cn, string sql, DateTime start, DateTime endExclusive)

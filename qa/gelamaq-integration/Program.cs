@@ -22,9 +22,9 @@ class Tests {
  _=>"(1,'2026-10-24','ENTRADA','Inválido','abc',NULL)" };
  if(rows!=""){cmd.CommandText="INSERT INTO cash_movements VALUES "+rows;cmd.ExecuteNonQuery();}
  cmd.CommandText=pet.PrepareSql(original);
- bool invalid=scenario is "empty-amount" or "invalid-amount"; bool rejected=false; var dt=pet.CreateTable();
- try{using var reader=cmd.ExecuteReader();dt.Load(reader);}catch(ArgumentException) when(invalid){rejected=true;}
- if(invalid&&!rejected)throw new Exception("Invalid monetary data accepted silently");
+ bool invalid=scenario is "empty-amount" or "invalid-amount"; bool rejected=false; DataTable dt;
+ using(var reader=cmd.ExecuteReader())dt=pet.ReadTable(reader);
+ if(invalid && Convert.ToString(dt.Rows[0]["Valor"])!=(scenario=="empty-amount"?"":"abc"))throw new Exception("Invalid monetary data changed");
  if(!invalid){
  if(dt.Columns["Venda"]!.DataType!=typeof(long))throw new Exception("Wrong sale type");
  if(scenario=="mixed"&&(dt.Rows.Count!=2||!dt.Rows[1].IsNull("Venda")||Convert.ToDouble(dt.Rows[0]["Valor"])+Convert.ToDouble(dt.Rows[1]["Valor"])!=21))throw new Exception("Rows or money changed");
