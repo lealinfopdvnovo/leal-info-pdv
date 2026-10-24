@@ -40,7 +40,7 @@ class Test {
    if(f.VerificationBusy || !f.VerificationStatus.StartsWith("VERIFICAÇÃO NÃO APROVADA"))throw new Exception("Missing backup has no visible failure");
    f.SetVerificationPath(app);f.ClickVerify();var repeatDeadline=DateTime.UtcNow.AddSeconds(60);
    while(f.VerificationBusy && DateTime.UtcNow<repeatDeadline){Application.DoEvents();System.Threading.Thread.Sleep(5);}
-   if(f.VerificationBusy || !f.VerificationStatus.StartsWith("CÓPIA ÍNTEGRA"))throw new Exception("Repeat after error failed");
+   if(f.VerificationBusy || !f.VerificationStatus.StartsWith("CÓPIA ÍNTEGRA"))throw new Exception("Repeat after error failed: "+f.VerificationStatus+" busy="+f.VerificationBusy);
    Application.DoEvents();using(var image=new Bitmap(f.Width,f.Height)){f.DrawToBitmap(image,f.ClientRectangle);image.Save("evidence/Testes003.png");}f.Dispose();}
   File.WriteAllText("evidence/results.json",new JavaScriptSerializer().Serialize(new{Client="003",Program="LEAL INFO PDV Testes",IndependentWindow=true,PDVClosed=true,Published003BaselineVerified=true,PreviousPreserved=true,IntactFixtureRestore=true,CustomerFilesPreserved=true,FaultInjected=false,ExistingUpdaterModified=false,RealComputerInstalled=false,HealthHandoffRealComputerValidated=false}));
   Console.WriteLine("PASS TESTES 003: standalone window; actual approved baseline; closed PDV; verified previous copy; intact fixture restore; no fault injection; customer sentinels unchanged");return 0;
