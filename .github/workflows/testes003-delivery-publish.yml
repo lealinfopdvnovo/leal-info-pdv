@@ -1,0 +1,35 @@
+name: TESTES 003 - publish approved delivery only
+on:
+  push:
+    branches: [release/testes003-delivery]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: testes003-delivery-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VALIDATION_RUN: '40115849974'
+      VALIDATION_COMMIT: 381ce177ba57384255e41d45c2b573fbb529cf33
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reuse approved Windows package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python qa/testes003-delivery/publish.py download
+      - name: Publish only Casa 003 targeted feed
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/testes003-delivery/publish.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TESTES003-PUBLICACAO
+          path: |
+            previous003-feed.json
+            published-testes003.json
