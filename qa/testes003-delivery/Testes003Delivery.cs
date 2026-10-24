@@ -7,6 +7,7 @@ namespace LealInfoPDV;
 internal static class Testes003Delivery
 {
  const string PreviousHash="869871bdb0065cbc7fc00f2d3cba61194ecea32a9dbbaae0367c3ec717a65ed8";
+ static readonly Dictionary<string,string> DeliveryPrevious=JsonSerializer.Deserialize<Dictionary<string,string>>("__DELIVERY_PREVIOUS_HASHES__")!;
  static string Hash(byte[] bytes)=>Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
  static void NoLinks(string path){for(string? p=Path.GetFullPath(path);p!=null;p=Path.GetDirectoryName(p))if((Directory.Exists(p)||File.Exists(p))&&(File.GetAttributes(p)&FileAttributes.ReparsePoint)!=0)throw new IOException("Pasta de testes redirecionada.");}
  static byte[] Resource(string name){using var s=typeof(Testes003Delivery).Assembly.GetManifestResourceStream(name)??throw new IOException("Componente de testes ausente.");using var b=new MemoryStream();s.CopyTo(b);return b.ToArray();}
@@ -20,12 +21,16 @@ internal static class Testes003Delivery
   if(zip.Entries.Count!=3||zip.Entries.Any(x=>!names.Contains(x.FullName)))throw new IOException("Cópia fora do escopo.");
   var hashes=new Dictionary<string,string>();
   foreach(var n in names){using var s=zip.GetEntry(n)!.Open();using var b=new MemoryStream();s.CopyTo(b);hashes[n]=Hash(b.ToArray());}
-  // The existing protected updater must have preserved the exact current 003 baseline.
-  foreach(var n in names){var previous=Path.Combine(app,".pdv-update","previous",n);NoLinks(previous);if(!File.Exists(previous)||Hash(File.ReadAllBytes(previous))!=hashes[n])throw new IOException("Backup protegido do 003 10.457 não confirmado. Preparação de testes recusada.");}
+  // Accept the two explicitly approved 003 predecessors; never a sibling/client build.
+  var actual=new Dictionary<string,string>();
+  foreach(var n in names){var previous=Path.Combine(app,".pdv-update","previous",n);NoLinks(previous);if(!File.Exists(previous))throw new IOException("Backup protegido do 003 ausente.");actual[n]=Hash(File.ReadAllBytes(previous));}
+  if(!names.All(n=>actual[n]==hashes[n])&&!names.All(n=>actual[n]==DeliveryPrevious[n]))throw new IOException("Backup protegido do 003 não corresponde às versões aprovadas. Preparação recusada.");
   var root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LEAL INFO PDV Testes","003",Hash(Encoding.UTF8.GetBytes(app.ToUpperInvariant())).Substring(0,16));
   NoLinks(root);Directory.CreateDirectory(root);
   void Store(string name,byte[] bytes){var path=Path.Combine(root,name);NoLinks(path);var tmp=path+"."+Guid.NewGuid().ToString("N")+".tmp";using(var f=new FileStream(tmp,FileMode.CreateNew,FileAccess.Write,FileShare.None)){f.Write(bytes);f.Flush(true);}File.Move(tmp,path,true);}
-  Store("previous-003-10.457.zip",archive);
+  var preserved=Path.Combine(root,"previous-003-10.457.zip");NoLinks(preserved);
+  if(File.Exists(preserved)){if(Hash(File.ReadAllBytes(preserved))!=PreviousHash)throw new IOException("Cópia preservada do 003 inválida.");}
+  else Store("previous-003-10.457.zip",archive);
   Store("prepared.json",JsonSerializer.SerializeToUtf8Bytes(new{Client="003",App=app,Version="10.457",PackageSha256=PreviousHash,Files=hashes,PreparedUtc=DateTime.UtcNow.ToString("o")}));
   var exe=Resource("Testes003.Agent");var exeHash=Hash(exe);
   var expected=Encoding.ASCII.GetString(Resource("Testes003.AgentHash")).Trim();if(exeHash!=expected)throw new IOException("Integridade do programa de testes inválida.");

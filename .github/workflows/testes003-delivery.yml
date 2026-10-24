@@ -34,14 +34,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          gh run download 40115164625 --repo lealinfopdvnovo/leal-info-pdv --name LEAL-INFO-PDV-TESTES-003 --dir approvedagent
+          $run=gh api repos/lealinfopdvnovo/leal-info-pdv/actions/runs/40122015436 | ConvertFrom-Json
+          if($run.conclusion -ne 'success' -or $run.head_sha -ne 'fe80ccf9bdb670d2fd3853621f9bff29c87e6160'){throw 'Click validation not approved'}
+          gh run download 40122015436 --repo lealinfopdvnovo/leal-info-pdv --name LEAL-INFO-PDV-TESTES-003 --dir approvedagent
           if($LASTEXITCODE -ne 0){throw 'Approved artifact not downloaded'}
           New-Item -ItemType Directory agent -Force|Out-Null
           $exe=@(Get-ChildItem approvedagent -Recurse -Filter LEAL_INFO_PDV_Testes_003.exe)
           if($exe.Count -ne 1){throw 'Ambiguous artifact'}
           Copy-Item $exe[0].FullName agent/LEAL_INFO_PDV_Testes_003.exe
           $hash=(Get-FileHash agent/LEAL_INFO_PDV_Testes_003.exe).Hash.ToLowerInvariant()
-          if($hash -ne 'c5c81948322aece80c9dd87e248cd69c45fefe9b287b6241fc37c5abe92de95b'){throw 'Approved EXE integrity mismatch'}
+          if($hash -ne 'bc94ca6fffa87957e73d2d83f48fa931c5576b4dcb5e76ced0584f2f2bfbda22'){throw 'Approved EXE integrity mismatch'}
           [IO.File]::WriteAllText((Join-Path $pwd 'agent/hash.txt'),$hash,[Text.Encoding]::ASCII)
           python controller/qa/login457/prepare.py
           if($LASTEXITCODE -ne 0){throw 'Baseline failed'}
