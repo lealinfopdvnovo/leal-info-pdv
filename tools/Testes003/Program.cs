@@ -106,7 +106,7 @@ class Window:Form {
   }catch(Exception e){
    status.Text="VERIFICAÇÃO NÃO APROVADA: "+e.Message;
    status.ForeColor=Color.Salmon;
-  }finally{busy=false;UseWaitCursor=false;Toggle(true);status.Refresh();}
+  }finally{UseWaitCursor=false;Toggle(true);status.Refresh();busy=false;}
  }
  void Toggle(bool value){prepare.Enabled=verify.Enabled=restore.Enabled=path.Enabled=value;}
 }
