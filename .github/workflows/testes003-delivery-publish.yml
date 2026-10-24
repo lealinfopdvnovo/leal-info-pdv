@@ -1,0 +1,35 @@
+name: TESTES 003 - publish verified button fix only
+on:
+  push:
+    branches: [release/testes003-verification]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: testes003-delivery-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      VALIDATION_RUN: '40123236906'
+      VALIDATION_COMMIT: 6ab6d19ad8208fbca51f8148d4fed338ccea51a3
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reuse approved Windows package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python qa/testes003-delivery/publish.py download
+      - name: Publish only Casa 003 targeted feed
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/testes003-delivery/publish.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TESTES003-PUBLICACAO
+          path: |
+            previous003-feeds.json
+            published-testes003.json
