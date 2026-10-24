@@ -1,0 +1,78 @@
+name: Deliver TESTES 003 by existing protected updater - validate
+on:
+  push:
+    branches: [delivery/testes003]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    env:
+      CHANNEL: CASA
+      SOURCE_BASE: 874bc1e77fc3fb9b643ed17ceb0e1e1c91ad2ac8
+      PYTHONUTF8: '1'
+      LEAL_NOTIFIER_ISOLATED_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: delivery
+      - uses: actions/checkout@v4
+        with:
+          ref: e691d9e8d548ce30c54653698a98370e0a2838e8
+          path: controller
+      - uses: actions/checkout@v4
+        with:
+          ref: 874bc1e77fc3fb9b643ed17ceb0e1e1c91ad2ac8
+          path: candidate
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - name: Reuse approved independent EXE and published Casa baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh run download 40115164625 --repo lealinfopdvnovo/leal-info-pdv --name LEAL-INFO-PDV-TESTES-003 --dir approvedagent
+          if($LASTEXITCODE -ne 0){throw 'Approved artifact not downloaded'}
+          New-Item -ItemType Directory agent -Force|Out-Null
+          $exe=@(Get-ChildItem approvedagent -Recurse -Filter LEAL_INFO_PDV_Testes_003.exe)
+          if($exe.Count -ne 1){throw 'Ambiguous artifact'}
+          Copy-Item $exe[0].FullName agent/LEAL_INFO_PDV_Testes_003.exe
+          $hash=(Get-FileHash agent/LEAL_INFO_PDV_Testes_003.exe).Hash.ToLowerInvariant()
+          if($hash -ne 'c5c81948322aece80c9dd87e248cd69c45fefe9b287b6241fc37c5abe92de95b'){throw 'Approved EXE integrity mismatch'}
+          [IO.File]::WriteAllText((Join-Path $pwd 'agent/hash.txt'),$hash,[Text.Encoding]::ASCII)
+          python controller/qa/login457/prepare.py
+          if($LASTEXITCODE -ne 0){throw 'Baseline failed'}
+          python controller/qa/login457/finish.py
+          if($LASTEXITCODE -ne 0){throw 'Login baseline failed'}
+          python delivery/qa/testes003-delivery/prepare.py
+          if($LASTEXITCODE -ne 0){throw '003-only integration failed'}
+      - name: Compile compatible protected package
+        shell: pwsh
+        run: |
+          $a=[Reflection.Assembly]::Load([IO.File]::ReadAllBytes((Resolve-Path previous003/LealInfoPDV.dll).Path));$stream=$a.GetManifestResourceStream('LealInfoPDV.UpdateNotifier.Native')
+          if(!$stream){throw 'Published notifier missing'}
+          $file=[IO.File]::Create((Join-Path $pwd 'agent/notifier.exe'));try{$stream.CopyTo($file)}finally{$stream.Dispose();$file.Dispose()}
+          $props=@('-p:UseSharedCompilation=false',"-p:WindowsSdkPackageVersion=$(Get-Content sdk-version.txt)","-p:NotifierPayload=$((Resolve-Path agent/notifier.exe).Path)","-p:TestsAgent=$((Resolve-Path agent/LEAL_INFO_PDV_Testes_003.exe).Path)","-p:TestsAgentHash=$((Resolve-Path agent/hash.txt).Path)","-p:TestsPrevious=$((Resolve-Path previous003.zip).Path)")
+          Push-Location candidate
+          dotnet publish LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o publish @props
+          if($LASTEXITCODE -ne 0){throw 'PDV build failed'}
+          dotnet build qa/testes003-delivery/Tests.csproj -c Release @props
+          if($LASTEXITCODE -ne 0){throw 'Tests build failed'}
+          Copy-Item publish/LealInfoPDV.dll qa/testes003-delivery/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.dll -Force
+          dotnet qa/testes003-delivery/bin/Release/net8.0-windows10.0.19041.0/Tests.dll
+          if($LASTEXITCODE -ne 0){throw 'Independent delivery or identity failed'}
+          ./qa/testes003-delivery/rollback.ps1
+          if($LASTEXITCODE -ne 0){throw 'Update/rollback failed'}
+          Pop-Location
+          python delivery/qa/testes003-delivery/package.py
+          if($LASTEXITCODE -ne 0){throw 'Package gate failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: TESTES003-DELIVERY-VALIDACAO
+          path: |
+            output/
+            candidate/evidence/
