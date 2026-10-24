@@ -37,7 +37,7 @@ class Test {
    f.SetVerificationPath(Path.Combine(root,"Missing"));
    f.ClickVerify();var failureDeadline=DateTime.UtcNow.AddSeconds(20);
    while(f.VerificationBusy && DateTime.UtcNow<failureDeadline){Application.DoEvents();System.Threading.Thread.Sleep(5);}
-   if(f.VerificationBusy || !f.VerificationStatus.StartsWith("VERIFICAÇÃO NÃO APROVADA"))throw new Exception("Missing backup has no visible failure");
+   if(f.VerificationBusy || !f.VerificationStatus.StartsWith("VERIFICAÇÃO NÃO APROVADA"))throw new Exception("Missing backup has no visible failure: "+f.VerificationStatus+" busy="+f.VerificationBusy);
    f.SetVerificationPath(app);f.ClickVerify();var repeatDeadline=DateTime.UtcNow.AddSeconds(60);
    while(f.VerificationBusy && DateTime.UtcNow<repeatDeadline){Application.DoEvents();System.Threading.Thread.Sleep(5);}
    if(f.VerificationBusy || !f.VerificationStatus.StartsWith("CÓPIA ÍNTEGRA"))throw new Exception("Repeat after error failed: "+f.VerificationStatus+" busy="+f.VerificationBusy);
