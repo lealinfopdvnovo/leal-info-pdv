@@ -44,5 +44,5 @@ class Test {
    Application.DoEvents();using(var image=new Bitmap(f.Width,f.Height)){f.DrawToBitmap(image,f.ClientRectangle);image.Save("evidence/Testes003.png");}f.Dispose();}
   File.WriteAllText("evidence/results.json",new JavaScriptSerializer().Serialize(new{Client="003",Program="LEAL INFO PDV Testes",IndependentWindow=true,PDVClosed=true,Published003BaselineVerified=true,PreviousPreserved=true,IntactFixtureRestore=true,CustomerFilesPreserved=true,FaultInjected=false,ExistingUpdaterModified=false,RealComputerInstalled=false,HealthHandoffRealComputerValidated=false}));
   Console.WriteLine("PASS TESTES 003: standalone window; actual approved baseline; closed PDV; verified previous copy; intact fixture restore; no fault injection; customer sentinels unchanged");return 0;
- }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
+ }catch(Exception e){Directory.CreateDirectory("evidence");File.WriteAllText("evidence/failure.txt",e.ToString());Console.Error.WriteLine(e);return 1;}}
 }
