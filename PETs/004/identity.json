@@ -1,0 +1,28 @@
+{
+  "Identity": "004",
+  "Name": "Casa do Genilson",
+  "GlobalProject": "../../GLOBAL/LealInfoPDV.csproj",
+  "Version": "1.1",
+  "PublishedReference": {
+    "Version": "10.457",
+    "TargetClientCode": "004",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-004-v10.457/LEAL_INFO_PDV_004_V10_457_UPDATE.zip",
+    "Sha256": "13a526b90aaafe82b6088528ea20e411c82dccd6e54552f687165fe6e3451331",
+    "SourceCommit": "e691d9e8d548ce30c54653698a98370e0a2838e8",
+    "SourceBase": "2787ea2541261bd68cf1e931ceaa6ed537ddc832",
+    "Mandatory": false,
+    "Notes": "GLOBAL 10.457: somente destaque dourado e legível da versão na tela de login. Preserva PET, funções, banco, licença, estoque e configurações. Atualizador existente sem alteração. Loja 001 intocada.",
+    "BuildRunId": "40027170070",
+    "ValidationRunId": "40027170070",
+    "GlobalFeatureVersion": "10.457",
+    "PublishedBaselineVersion": "10.453",
+    "InstalledOnRealComputers": false,
+    "DesktopNotifier": true,
+    "PollSeconds": 60,
+    "DeferredMinutes": 30,
+    "PackagesVerifiedBeforeFeed": true,
+    "LegacyFirstHop": true,
+    "PublicationRunId": "40036089203"
+  },
+  "ProductionModified": false
+}

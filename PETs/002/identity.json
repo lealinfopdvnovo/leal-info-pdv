@@ -1,0 +1,31 @@
+{
+  "Identity": "002",
+  "Name": "Gelamac",
+  "GlobalProject": "../../GLOBAL/LealInfoPDV.csproj",
+  "Version": "1.1",
+  "PublishedReference": {
+    "Version": "10.458",
+    "TargetClientCode": "002",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-002-v10.458-pet1.1/LEAL_INFO_PDV_GELAMAQ_PET_V1_1_UPDATE.zip",
+    "Sha256": "5836ea9c12aeecc2de0776a45e7dbd68c4c5f793a2c13dc79b4db9acd8d0284c",
+    "SourceCommit": "f6a1a5bebb826f33be77f26ce5ff277a78e9c409",
+    "SourceBase": "735f3f6b0f933f25585c0c9e7e50551dae9a056d",
+    "Mandatory": false,
+    "Notes": "PET GELAMAQ V1.1: correção do relatório financeiro para movimentos sem venda vinculada. GLOBAL permanece 10.457. Revisão técnica de entrega 10.458 exclusiva do canal 002, para compatibilidade com o atualizador existente. PET compilado em DLL própria e transportado no pacote protegido de três arquivos; backup e rollback incluem o PET. Não altera bancos, licenças, estoque, configurações ou outros clientes. Instalação no Windows real ainda não confirmada.",
+    "BuildRunId": "40108751561",
+    "ValidationRunId": "40108751561",
+    "GlobalFeatureVersion": "10.457",
+    "PublishedBaselineVersion": "10.457",
+    "InstalledOnRealComputers": false,
+    "DesktopNotifier": true,
+    "PollSeconds": 60,
+    "DeferredMinutes": 30,
+    "PackagesVerifiedBeforeFeed": true,
+    "LegacyFirstHop": true,
+    "PublicationRunId": "40109022745",
+    "Component": "PET",
+    "PetVersion": "1.1",
+    "ProtectedWorkerUnchanged": true
+  },
+  "ProductionModified": false
+}

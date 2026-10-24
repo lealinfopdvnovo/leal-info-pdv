@@ -1,0 +1,30 @@
+{
+  "Identity": "001",
+  "Name": "Loja do Leal",
+  "GlobalProject": "../../GLOBAL/LealInfoPDV.csproj",
+  "Version": "1.2",
+  "PublishedReference": {
+    "Version": "10.457",
+    "TargetClientCode": "001",
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.457/LEAL_INFO_PDV_001_V10_457_UPDATE.zip",
+    "Sha256": "94880de1cbd6470c3604ddf4e4c4e42e3270311c83b863b917c91675cbcb6991",
+    "SourceCommit": "78ec019b04561c28fa5e7c7bfd3fcc4a740f6833",
+    "SourceBase": "7aa5d38336e94659c07f0afc6ddfe40169c41a3a",
+    "PetVersion": "1.2",
+    "Mandatory": false,
+    "Notes": "LIA - etapa 2 de 2: janela principal móvel com configuração de chave aberta, sem bloquear o acesso ao campo; permite colar, salvar e fechar. Chave protegida pelo Windows. Preserva GLOBAL, PET e dados.",
+    "BuildRunId": "40020787688",
+    "ValidationRunId": "40020787688",
+    "ProtectedUpdaterRequired": true,
+    "PublishedBaselineVersion": "10.456",
+    "InstalledOnRealComputers": false,
+    "GlobalFeatureVersion": "10.453",
+    "DesktopNotifier": true,
+    "PollSeconds": 60,
+    "DeferredMinutes": 30,
+    "PackagesVerifiedBeforeFeed": true,
+    "BridgeStage": 2,
+    "MinimumInstalledVersion": "10.456"
+  },
+  "ProductionModified": false
+}

@@ -1,0 +1,1361 @@
+{
+  "Source": "599e308d7ee7534914ef9a0225096f5440955cc8",
+  "PriorWindowsValidation": 39868216661,
+  "Kind": "source organization only; not a runtime migration",
+  "Published": false,
+  "ProductionModified": false,
+  "CommonProject": "GLOBAL/LealInfoPDV.csproj",
+  "Children": [
+    "001",
+    "002",
+    "003",
+    "004"
+  ],
+  "AdjustedProjectPaths": [
+    "GLOBAL/LealInfoPDV.csproj",
+    "PETs/001/Pet.csproj",
+    "PETs/002/Pet.csproj",
+    "PETs/003/Pet.csproj",
+    "PETs/004/Pet.csproj",
+    "qa/alert/LealInfoPDV.AlertTests.csproj",
+    "qa/cash-flow/LealInfoPDV.CashTests.csproj",
+    "qa/channel-isolation/LealInfoPDV.ChannelTests.csproj",
+    "qa/company-cep/LealInfoPDV.CompanyCepTests.csproj",
+    "qa/consolidation/Tests.csproj",
+    "qa/delivery-address/LealInfoPDV.AddressTests.csproj",
+    "qa/delivery-delete/LealInfoPDV.DeleteTests.csproj",
+    "qa/driver-phone/LealInfoPDV.DriverTests.csproj",
+    "qa/global-core/Tests.csproj",
+    "qa/global-core/fixture/Pet.csproj",
+    "qa/global-kitchen/Tests.csproj",
+    "qa/kitchen/LealInfoPDV.KitchenTests.csproj",
+    "qa/network/LealInfoPDV.NetworkTests.csproj",
+    "qa/restore-real/LealInfoPDV.RestoreTests.csproj",
+    "qa/sales-logo/LealInfoPDV.SalesLogoTests.csproj",
+    "qa/speedfood/LealInfoPDV.SpeedFoodTests.csproj",
+    "qa/update-selection/LealInfoPDV.UpdateTests.csproj"
+  ],
+  "PreservedFiles": {
+    ".github/workflows/atualizacao_cliente.yml": {
+      "Path": "archive/workflows/atualizacao_cliente.yml",
+      "Sha": "62bb1282648844927c649a2cea85dad9fd7ed233"
+    },
+    ".github/workflows/consolidar_global.yml": {
+      "Path": "archive/workflows/consolidar_global.yml",
+      "Sha": "fa09baf47601ce895d9c288bea269789ce4586bd"
+    },
+    ".github/workflows/deploy_license_cloud.yml": {
+      "Path": "archive/workflows/deploy_license_cloud.yml",
+      "Sha": "2ba30c1888279c6362e73c2e36f876acc18360f4"
+    },
+    ".github/workflows/gerar_setup_v10_130.yml": {
+      "Path": "archive/workflows/gerar_setup_v10_130.yml",
+      "Sha": "df5be4eab6e72e11a32a097a327e6f2495d7c724"
+    },
+    ".github/workflows/gerar_vendedor_exe.yml": {
+      "Path": "archive/workflows/gerar_vendedor_exe.yml",
+      "Sha": "dafc9bcfeb0efe2ced643fbd47af2b943e590fda"
+    },
+    ".github/workflows/preparar_global_core.yml": {
+      "Path": "archive/workflows/preparar_global_core.yml",
+      "Sha": "dc0586ef656ec8fe42c3eea5bf914b59f3f284a6"
+    },
+    ".github/workflows/publicar_global_motoboy_v10_371.yml": {
+      "Path": "archive/workflows/publicar_global_motoboy_v10_371.yml",
+      "Sha": "fc150ba7805e2f2629ceb31c754b0b23f28298c4"
+    },
+    ".github/workflows/release_update_v10_359.yml": {
+      "Path": "archive/workflows/release_update_v10_359.yml",
+      "Sha": "5fa2ca7ac4591e81b15baf65f7b65cd6e3e08e82"
+    },
+    ".github/workflows/release_update_v10_360.yml": {
+      "Path": "archive/workflows/release_update_v10_360.yml",
+      "Sha": "bfcf17b9e0603ce9164171074c9d2836a9ab2b37"
+    },
+    ".github/workflows/release_update_v10_361.yml": {
+      "Path": "archive/workflows/release_update_v10_361.yml",
+      "Sha": "49144d79264fc77516304e4608443b4f86e8c94f"
+    },
+    ".github/workflows/release_update_v10_362.yml": {
+      "Path": "archive/workflows/release_update_v10_362.yml",
+      "Sha": "81fe0ef417144b2133c53a68f8319afb461a935f"
+    },
+    ".github/workflows/release_update_v10_363.yml": {
+      "Path": "archive/workflows/release_update_v10_363.yml",
+      "Sha": "bfae078d3084a1987689835a294987a1c449308b"
+    },
+    ".github/workflows/release_update_v10_364.yml": {
+      "Path": "archive/workflows/release_update_v10_364.yml",
+      "Sha": "441729d80f53d71eff978a57dc9eab8f8e1805b4"
+    },
+    ".github/workflows/validar_alerta_tipografia.yml": {
+      "Path": "archive/workflows/validar_alerta_tipografia.yml",
+      "Sha": "a17a9049781cbe94e1fe07abbb0b92a94878a9d8"
+    },
+    ".github/workflows/validar_cep_empresa.yml": {
+      "Path": "archive/workflows/validar_cep_empresa.yml",
+      "Sha": "33c3a62c905fe48f044769a0ec4c28df60b99057"
+    },
+    ".github/workflows/validar_cozinha_global.yml": {
+      "Path": "archive/workflows/validar_cozinha_global.yml",
+      "Sha": "9e1721daa6cb17f2a33ef97564f253804011d23e"
+    },
+    ".github/workflows/validar_endereco_entrega.yml": {
+      "Path": "archive/workflows/validar_endereco_entrega.yml",
+      "Sha": "fa63c4ab802c2be3fbc8c1a44f14bbab6ed73248"
+    },
+    ".github/workflows/validar_exclusao_pedido.yml": {
+      "Path": "archive/workflows/validar_exclusao_pedido.yml",
+      "Sha": "8f7ac176d4b6961b85115fef9cee8bf49a5ed270"
+    },
+    ".github/workflows/validar_fluxo_caixa.yml": {
+      "Path": "archive/workflows/validar_fluxo_caixa.yml",
+      "Sha": "83cffb39537ef28fc33ccb00de0396470d9f935c"
+    },
+    ".github/workflows/validar_global_motoboy.yml": {
+      "Path": "archive/workflows/validar_global_motoboy.yml",
+      "Sha": "d5e866d85180d48fbd2964fb5cd7925ed8f638d3"
+    },
+    ".github/workflows/validar_icone_cozinha.yml": {
+      "Path": "archive/workflows/validar_icone_cozinha.yml",
+      "Sha": "94b13c98fed06d36c87188a5941962dbd6d94f56"
+    },
+    ".github/workflows/validar_logo_pdv.yml": {
+      "Path": "archive/workflows/validar_logo_pdv.yml",
+      "Sha": "77f74c7f0dc050bb4c2c4184d22cc42aa34932b6"
+    },
+    ".github/workflows/validar_rede_licencas.yml": {
+      "Path": "archive/workflows/validar_rede_licencas.yml",
+      "Sha": "b05968891554b415b002855efcb5b07e9c93c9c0"
+    },
+    ".github/workflows/validar_speedfood_firebase.yml": {
+      "Path": "archive/workflows/validar_speedfood_firebase.yml",
+      "Sha": "2658c9e3b7e7d1c76c2e51a44ebe2cec05dbfe37"
+    },
+    ".github/workflows/validar_speedfood_tracking.yml": {
+      "Path": "archive/workflows/validar_speedfood_tracking.yml",
+      "Sha": "aabb98d288be7c918235c750fdd3b45467166000"
+    },
+    ".github/workflows/validar_tela_venda.yml": {
+      "Path": "archive/workflows/validar_tela_venda.yml",
+      "Sha": "e4799c1cfe254145d0004b0b28a8991346234307"
+    },
+    ".gitignore": {
+      "Path": ".gitignore",
+      "Sha": "9794914f3ca4ec3b170a9a3b0cba93e77bfc95f3"
+    },
+    "ATUALIZACOES_POR_CLIENTE.md": {
+      "Path": "ATUALIZACOES_POR_CLIENTE.md",
+      "Sha": "f847ef25b40b518296fa9d26c99ef8e392c69c1a"
+    },
+    "Assets/.gitkeep": {
+      "Path": "GLOBAL/Assets/.gitkeep",
+      "Sha": "8b137891791fe96927ad78e64b0aad7bded08bdc"
+    },
+    "Assets/KitchenTablesPremium.png": {
+      "Path": "GLOBAL/Assets/KitchenTablesPremium.png",
+      "Sha": "a82389271de0f1e3449c693cdc62239501f40c32"
+    },
+    "Assets/abertura.mp4": {
+      "Path": "GLOBAL/Assets/abertura.mp4",
+      "Sha": "3637042c999c0c2fef3512577830648325c5419c"
+    },
+    "Assets/backup.png": {
+      "Path": "GLOBAL/Assets/backup.png",
+      "Sha": "9aa71353831ea1b4be21af9a7366acc32b937e9a"
+    },
+    "Assets/customers.png": {
+      "Path": "GLOBAL/Assets/customers.png",
+      "Sha": "afb63c7ca52a67b530ddbe48b62bb0b193d13c3c"
+    },
+    "Assets/exit.png": {
+      "Path": "GLOBAL/Assets/exit.png",
+      "Sha": "571d10888d692bc547218a80990965c9400fe345"
+    },
+    "Assets/finance.png": {
+      "Path": "GLOBAL/Assets/finance.png",
+      "Sha": "7ca2d5ee72e35d22e6b1e98b559a93ebf2f80422"
+    },
+    "Assets/history.png": {
+      "Path": "GLOBAL/Assets/history.png",
+      "Sha": "0374b8483246b546b94e57f92c4200878ed6967e"
+    },
+    "Assets/kitchen.png": {
+      "Path": "GLOBAL/Assets/kitchen.png",
+      "Sha": "8ed71139ee3eeed7e313d179ba3c216eda445c25"
+    },
+    "Assets/lealinfo.ico": {
+      "Path": "GLOBAL/Assets/lealinfo.ico",
+      "Sha": "9c722457efcdfd907c42769150478ff6a7dcb8fd"
+    },
+    "Assets/lealinfo_app_icon.png": {
+      "Path": "GLOBAL/Assets/lealinfo_app_icon.png",
+      "Sha": "3a2f24d28218777cb433327b7f3536c8bfd33560"
+    },
+    "Assets/logo.png": {
+      "Path": "GLOBAL/Assets/logo.png",
+      "Sha": "57d6bff2cb498d19c54f2751fa66792c97f12b36"
+    },
+    "Assets/orders.png": {
+      "Path": "GLOBAL/Assets/orders.png",
+      "Sha": "9fd38370f88b9dcbb3bfcb5b80e577c1728e69e9"
+    },
+    "Assets/products.png": {
+      "Path": "GLOBAL/Assets/products.png",
+      "Sha": "3a5289733d8deedf1b715ffbdb07444f4ae3101e"
+    },
+    "Assets/quotes.png": {
+      "Path": "GLOBAL/Assets/quotes.png",
+      "Sha": "d8705db133dbb8715215add7b2af66fdffbcf8a6"
+    },
+    "Assets/reports.png": {
+      "Path": "GLOBAL/Assets/reports.png",
+      "Sha": "a72b15b22c3ac7f91fca061b5adc1872b34708f2"
+    },
+    "Assets/restore.png": {
+      "Path": "GLOBAL/Assets/restore.png",
+      "Sha": "449d3fe9655fef9096f9c334506ad38a5d246d35"
+    },
+    "Assets/sales.png": {
+      "Path": "GLOBAL/Assets/sales.png",
+      "Sha": "96536337f55c93a39a68e48a9b83c30152f24a84"
+    },
+    "Assets/sales_brand_header.png": {
+      "Path": "GLOBAL/Assets/sales_brand_header.png",
+      "Sha": "400272e76bcebac624791a8d2ab38a546f743402"
+    },
+    "Assets/sales_brand_product.png": {
+      "Path": "GLOBAL/Assets/sales_brand_product.png",
+      "Sha": "020618c70def63416e85d224749ffbb114826367"
+    },
+    "Assets/sales_city.png": {
+      "Path": "GLOBAL/Assets/sales_city.png",
+      "Sha": "bfc98bf6f5a55866a8a27b54074fa94c215dc3d9"
+    },
+    "Assets/services.png": {
+      "Path": "GLOBAL/Assets/services.png",
+      "Sha": "55c50b4d7af3f5a2ec340901018cb8b7fb6cf877"
+    },
+    "Assets/settings.png": {
+      "Path": "GLOBAL/Assets/settings.png",
+      "Sha": "45487bff2ddb97131a4faacbb28ee0cb2550844e"
+    },
+    "Assets/suppliers.png": {
+      "Path": "GLOBAL/Assets/suppliers.png",
+      "Sha": "5627bad17e0bd77e769a7ec9db25afab6de9a8c4"
+    },
+    "Assets/tela_principal.png": {
+      "Path": "GLOBAL/Assets/tela_principal.png",
+      "Sha": "266b6285023f51fc9fedd3ee2441e00d924f7638"
+    },
+    "Assets/tema_azul_texturizado.jpg": {
+      "Path": "GLOBAL/Assets/tema_azul_texturizado.jpg",
+      "Sha": "c841b9860baffc481f847eae7f6fc63cfcec154c"
+    },
+    "Assets/transicao_cortina.mp4": {
+      "Path": "GLOBAL/Assets/transicao_cortina.mp4",
+      "Sha": "32313a1266f188ee76e0bbd1ca474074ca12b6a1"
+    },
+    "Assets/tutorial_primeiro_acesso.mp4": {
+      "Path": "GLOBAL/Assets/tutorial_primeiro_acesso.mp4",
+      "Sha": "353f7c26034ee3e60ed68fca93ab4d5c54f3d1d7"
+    },
+    "Auth.cs": {
+      "Path": "GLOBAL/Auth.cs",
+      "Sha": "a88980cf7ed826bca05221c34f6fc0b02bb6166f"
+    },
+    "CashFlow.cs": {
+      "Path": "GLOBAL/CashFlow.cs",
+      "Sha": "28ef527b5d5173116136813e592e5513989a9200"
+    },
+    "ClientUpdateIdentity.cs": {
+      "Path": "GLOBAL/ClientUpdateIdentity.cs",
+      "Sha": "a45c894407a69e5b5c03b438ee352a3bf5acc546"
+    },
+    "CompanyCepLookup.cs": {
+      "Path": "GLOBAL/CompanyCepLookup.cs",
+      "Sha": "afeae796fbf794fbf80b220797289df240d5aa57"
+    },
+    "Database.cs": {
+      "Path": "GLOBAL/Database.cs",
+      "Sha": "7822f210b5a0ee171b910143bb8267ab77c59320"
+    },
+    "DatabaseBackupService.cs": {
+      "Path": "GLOBAL/DatabaseBackupService.cs",
+      "Sha": "de9e2504571d64c9e42d909371602c6de965e4bb"
+    },
+    "DeliveryAddress.cs": {
+      "Path": "GLOBAL/DeliveryAddress.cs",
+      "Sha": "37a8e88207d50cffd890f1529d98ba3d7396eb04"
+    },
+    "DeliveryManagementForm.cs": {
+      "Path": "GLOBAL/DeliveryManagementForm.cs",
+      "Sha": "243b90149c831369d0a0367281ffe58217c2e046"
+    },
+    "EmailRecovery.cs": {
+      "Path": "GLOBAL/EmailRecovery.cs",
+      "Sha": "af646c9824655eee96e0e58716d11bbf13206896"
+    },
+    "EquipmentSettingsForm.cs": {
+      "Path": "GLOBAL/EquipmentSettingsForm.cs",
+      "Sha": "36b69c2d8a560ee913a367a7645ca40b87ca265b"
+    },
+    "FirebaseDeliverySync.cs": {
+      "Path": "GLOBAL/FirebaseDeliverySync.cs",
+      "Sha": "5bd58fc86f19ca0be521c2dbb77183c8ef2d86ba"
+    },
+    "GlobalEscapeCloseFilter.cs": {
+      "Path": "GLOBAL/GlobalEscapeCloseFilter.cs",
+      "Sha": "14378658342fdc22ef6f326de47631062ff58a2e"
+    },
+    "INSTALADOR_LEAL_INFO_PDV_V10_130.iss": {
+      "Path": "INSTALADOR_LEAL_INFO_PDV_V10_130.iss",
+      "Sha": "dc92aa0c5138c69a8fc1a986ad5bf7810ac6a9ea"
+    },
+    "KitchenCatalogView.cs": {
+      "Path": "GLOBAL/KitchenCatalogView.cs",
+      "Sha": "222fd64e53fd7aebdad550aa73ed65f1eddc4102"
+    },
+    "KitchenCategoryButton.cs": {
+      "Path": "GLOBAL/KitchenCategoryButton.cs",
+      "Sha": "ce8e4983d077427eb3bda09a7f6816ab41d89973"
+    },
+    "KitchenCheckout.cs": {
+      "Path": "GLOBAL/KitchenCheckout.cs",
+      "Sha": "7fae7a50607cb00d5bd5d52355b495b1d00787e4"
+    },
+    "KitchenConsumption.cs": {
+      "Path": "GLOBAL/KitchenConsumption.cs",
+      "Sha": "1f4600120e6eacedc6d686b0be3ed8866801ba65"
+    },
+    "KitchenDraftDestinations.cs": {
+      "Path": "GLOBAL/KitchenDraftDestinations.cs",
+      "Sha": "fe24a29813e62c476495a2edf5f06c85fe36c6e3"
+    },
+    "KitchenForm.cs": {
+      "Path": "GLOBAL/KitchenForm.cs",
+      "Sha": "657745fca9d7af09332b26a05b7152c815db39bb"
+    },
+    "KitchenGold.cs": {
+      "Path": "GLOBAL/KitchenGold.cs",
+      "Sha": "7b05da2a0073b65dd586d3560e64cce17a3577e9"
+    },
+    "KitchenItemStatuses.cs": {
+      "Path": "GLOBAL/KitchenItemStatuses.cs",
+      "Sha": "029c13ba6221bfcb8aad73ad55c5705879fc532f"
+    },
+    "KitchenLighting.cs": {
+      "Path": "GLOBAL/KitchenLighting.cs",
+      "Sha": "578488d429f21be659e90389f9297aa235b29a24"
+    },
+    "KitchenOrder.cs": {
+      "Path": "GLOBAL/KitchenOrder.cs",
+      "Sha": "a17dff343a1e1a353f88767eefecd46f6b425aa9"
+    },
+    "KitchenOrderPanel.cs": {
+      "Path": "GLOBAL/KitchenOrderPanel.cs",
+      "Sha": "3faaa2aa96e74ff0739f6702a60041007edf589e"
+    },
+    "KitchenOutbox.cs": {
+      "Path": "GLOBAL/KitchenOutbox.cs",
+      "Sha": "088fab305087dedb28bf873589714224ab21cc63"
+    },
+    "KitchenPartialPaymentForm.cs": {
+      "Path": "GLOBAL/KitchenPartialPaymentForm.cs",
+      "Sha": "6ad71188fb6686345a322b7652bc09afe45d06a8"
+    },
+    "KitchenPartialPayments.cs": {
+      "Path": "GLOBAL/KitchenPartialPayments.cs",
+      "Sha": "bd70d494992730ad90d756e4a2f2fc98d58bd1cd"
+    },
+    "KitchenPaymentLayout.cs": {
+      "Path": "GLOBAL/KitchenPaymentLayout.cs",
+      "Sha": "5856a02ec0da0f5847ac72ee54364d13f74085c9"
+    },
+    "KitchenPremiumHeader.cs": {
+      "Path": "GLOBAL/KitchenPremiumHeader.cs",
+      "Sha": "cb04ecff40462bec38917816e1213b52aee3ac8f"
+    },
+    "KitchenPremiumStyle.cs": {
+      "Path": "GLOBAL/KitchenPremiumStyle.cs",
+      "Sha": "6ceade60bb8f9660cf0c60c38400db127ca7f144"
+    },
+    "KitchenProductPhoto.cs": {
+      "Path": "GLOBAL/KitchenProductPhoto.cs",
+      "Sha": "46e339403c6f7b7573d4f484d33c7966eb0011d6"
+    },
+    "KitchenProductRouting.cs": {
+      "Path": "GLOBAL/KitchenProductRouting.cs",
+      "Sha": "e6c8a9ed90a079a4b9eb75f1c360665d3e22bb7f"
+    },
+    "KitchenRoutingReviewForm.cs": {
+      "Path": "GLOBAL/KitchenRoutingReviewForm.cs",
+      "Sha": "0ada0a6c91920e93ccf7d52d8888e1a3179ccfb9"
+    },
+    "KitchenSeatingStore.cs": {
+      "Path": "GLOBAL/KitchenSeatingStore.cs",
+      "Sha": "7873b370daf580aef0b9b4716176abaed24ef623"
+    },
+    "KitchenStore.cs": {
+      "Path": "GLOBAL/KitchenStore.cs",
+      "Sha": "f2ad237048a1c6c088811c215ebab879941470cd"
+    },
+    "KitchenTableButton.cs": {
+      "Path": "GLOBAL/KitchenTableButton.cs",
+      "Sha": "f63d4b59d6e7c451b0f42a0b2e2e7bea9fa25d66"
+    },
+    "KitchenTablesView.cs": {
+      "Path": "GLOBAL/KitchenTablesView.cs",
+      "Sha": "66bbea0e2463b53605f9832b10fcc323cc86c038"
+    },
+    "LICENCIAMENTO.md": {
+      "Path": "LICENCIAMENTO.md",
+      "Sha": "a35e4c08cf7f91e36b543409bcc4d4cc3a51a5f4"
+    },
+    "LealInfoPDV.csproj": {
+      "Path": "GLOBAL/LealInfoPDV.csproj",
+      "Sha": "5b76f103ccdb30c5167608ff14f47c53601c4999"
+    },
+    "Licensing/ActivationForm.cs": {
+      "Path": "GLOBAL/Licensing/ActivationForm.cs",
+      "Sha": "7f0735680e7cff2cc75fa0f631335167d5b958bf"
+    },
+    "Licensing/BrandSplashForm.cs": {
+      "Path": "GLOBAL/Licensing/BrandSplashForm.cs",
+      "Sha": "51860acdddcf12cbbddae35534a149e4adcddc27"
+    },
+    "Licensing/CompanyBranding.cs": {
+      "Path": "GLOBAL/Licensing/CompanyBranding.cs",
+      "Sha": "449b24ace6605a20afc03bf2865b0ffba600094a"
+    },
+    "Licensing/InstallationLicense.cs": {
+      "Path": "GLOBAL/Licensing/InstallationLicense.cs",
+      "Sha": "8b779c10fb247a3a7a36c29b874284e1f41ab179"
+    },
+    "Licensing/UpdatePayloadPolicy.cs": {
+      "Path": "GLOBAL/Licensing/UpdatePayloadPolicy.cs",
+      "Sha": "c401e79b12ac093884d8c0c634038282ff7f6807"
+    },
+    "LoginForm.cs": {
+      "Path": "GLOBAL/LoginForm.cs",
+      "Sha": "bbc58ae563db0a27e1d7788ab0465bb7ddf36112"
+    },
+    "MainForm.cs": {
+      "Path": "GLOBAL/MainForm.cs",
+      "Sha": "738084f4015d21d8b133c38dd214abe2fd969366"
+    },
+    "Network/NetworkConfiguration.cs": {
+      "Path": "GLOBAL/Network/NetworkConfiguration.cs",
+      "Sha": "a6c8bf75236563d191d4577d06712e65cb562f1b"
+    },
+    "Network/NetworkDataReader.cs": {
+      "Path": "GLOBAL/Network/NetworkDataReader.cs",
+      "Sha": "acb818db90ad4004067af05c61ce5ab29e0be385"
+    },
+    "Network/NetworkDatabaseClient.cs": {
+      "Path": "GLOBAL/Network/NetworkDatabaseClient.cs",
+      "Sha": "a5781a3a7a541bbd8daad7f24f3a63d3c74b6c90"
+    },
+    "Network/NetworkDatabaseServer.cs": {
+      "Path": "GLOBAL/Network/NetworkDatabaseServer.cs",
+      "Sha": "c85140de34cb2f09d2e619279e6c6f3924c48f2d"
+    },
+    "Network/NetworkLicense.cs": {
+      "Path": "GLOBAL/Network/NetworkLicense.cs",
+      "Sha": "6372f5c06f4336b3cf861bd3c6d2424d25df1dcf"
+    },
+    "Network/NetworkProtocol.cs": {
+      "Path": "GLOBAL/Network/NetworkProtocol.cs",
+      "Sha": "fea14822d4d5f4d87a9bb0ea8a44241871cd769d"
+    },
+    "Network/NetworkSettingsForm.cs": {
+      "Path": "GLOBAL/Network/NetworkSettingsForm.cs",
+      "Sha": "b9f4a6f03731f2a31d609f2272ed2e058711ee77"
+    },
+    "Network/PdvConnection.cs": {
+      "Path": "GLOBAL/Network/PdvConnection.cs",
+      "Sha": "4972475502b843289ed202991f6fb6097d0b266e"
+    },
+    "Network/README.md": {
+      "Path": "GLOBAL/Network/README.md",
+      "Sha": "77849250d46cde4b20a898a54bd60839bbe0f884"
+    },
+    "Network/SellerPublicKey.cs": {
+      "Path": "GLOBAL/Network/SellerPublicKey.cs",
+      "Sha": "3924f4024cc5cf768740b8bf0b93f531e04457d1"
+    },
+    "Network/TestVisibility.cs": {
+      "Path": "GLOBAL/Network/TestVisibility.cs",
+      "Sha": "c417d1de4f555c1a17196d8c727aed16c58b6289"
+    },
+    "Payments/AsaasPixService.cs": {
+      "Path": "GLOBAL/Payments/AsaasPixService.cs",
+      "Sha": "8a5cec0c477f78ff159faec931cd4ba4cccca3bc"
+    },
+    "Payments/MercadoPagoPixForm.cs": {
+      "Path": "GLOBAL/Payments/MercadoPagoPixForm.cs",
+      "Sha": "85810b9147a8219737ff4474e23bb129c9cbf80d"
+    },
+    "Payments/MercadoPagoPixService.cs": {
+      "Path": "GLOBAL/Payments/MercadoPagoPixService.cs",
+      "Sha": "7c4cf235437ebe2c447cfd211df6e3838b586ddd"
+    },
+    "Payments/PixEmv.cs": {
+      "Path": "GLOBAL/Payments/PixEmv.cs",
+      "Sha": "b339b0dd5ddaff9410f54e55a63b2ea258dc9112"
+    },
+    "Payments/PixPaymentForm.cs": {
+      "Path": "GLOBAL/Payments/PixPaymentForm.cs",
+      "Sha": "3def111c05371d00f2577726b8d74ddb8b1a822d"
+    },
+    "Payments/PixSecureSettings.cs": {
+      "Path": "GLOBAL/Payments/PixSecureSettings.cs",
+      "Sha": "b4382f2c1956d73c64c485231e55f6c15deb5b3d"
+    },
+    "Payments/SimplePixPaymentForm.cs": {
+      "Path": "GLOBAL/Payments/SimplePixPaymentForm.cs",
+      "Sha": "c5bfa30070ff02868b77087bad0f143364f14c56"
+    },
+    "PetHost.cs": {
+      "Path": "GLOBAL/PetHost.cs",
+      "Sha": "127210e8606f6f0ea2fab782762f6a7cf7be1f82"
+    },
+    "PetRuntime.cs": {
+      "Path": "GLOBAL/PetRuntime.cs",
+      "Sha": "6001e723617f707591318e0c4111da9c7389a3c1"
+    },
+    "ProductRegistrationForm.cs": {
+      "Path": "GLOBAL/ProductRegistrationForm.cs",
+      "Sha": "8d6a87160446c8414ebbd5ba920c5c5e984d56ec"
+    },
+    "Program.cs": {
+      "Path": "GLOBAL/Program.cs",
+      "Sha": "14f2270cad6b5201250dc5d8bf5de622f74d6f04"
+    },
+    "RELEASE_GLOBAL_MOTOBOY_V10_371.trigger": {
+      "Path": "RELEASE_GLOBAL_MOTOBOY_V10_371.trigger",
+      "Sha": "f3d02ea9de5f9a30f63e734124efdc632a06cb37"
+    },
+    "RELEASE_V10_359.trigger": {
+      "Path": "RELEASE_V10_359.trigger",
+      "Sha": "306d7c327490396b2b614289d96e471c87839749"
+    },
+    "RELEASE_V10_360.trigger": {
+      "Path": "RELEASE_V10_360.trigger",
+      "Sha": "7cc934e6c38eba34b7bd394ff7255661b1c4674c"
+    },
+    "RELEASE_V10_361.trigger": {
+      "Path": "RELEASE_V10_361.trigger",
+      "Sha": "8526d6ba2edac24fd8a1aecfbd84b3c07b3958eb"
+    },
+    "RELEASE_V10_362.trigger": {
+      "Path": "RELEASE_V10_362.trigger",
+      "Sha": "803dabf3a5137ffb12b5aaad9079a1df8eba5393"
+    },
+    "RELEASE_V10_363.trigger": {
+      "Path": "RELEASE_V10_363.trigger",
+      "Sha": "209d6ef4d45e4e05a2e0c0043269f324640756a5"
+    },
+    "RELEASE_V10_364.trigger": {
+      "Path": "RELEASE_V10_364.trigger",
+      "Sha": "e5f8af2a906632ca9581eacf36a09e96ce5c5ed0"
+    },
+    "ReadyKitchenCatalog.cs": {
+      "Path": "GLOBAL/ReadyKitchenCatalog.cs",
+      "Sha": "77ae7d540b6c47133cea9cc9728f7785f8a662e6"
+    },
+    "ReadyKitchenExpanded.cs": {
+      "Path": "GLOBAL/ReadyKitchenExpanded.cs",
+      "Sha": "c9012acd504ce5d12612affa9b158a73cfc6f2e1"
+    },
+    "ReadyKitchenImportForm.cs": {
+      "Path": "GLOBAL/ReadyKitchenImportForm.cs",
+      "Sha": "7e2820a9c9f8139c4315facfb4dc834f6ddf4510"
+    },
+    "ReadyKitchenPhotoSync.cs": {
+      "Path": "GLOBAL/ReadyKitchenPhotoSync.cs",
+      "Sha": "ea54d543443f994a3331a8080ea30fb659451cc7"
+    },
+    "ReadyKitchenPrices.cs": {
+      "Path": "GLOBAL/ReadyKitchenPrices.cs",
+      "Sha": "1c8c7e705306599055e644d2b9e5a4871b65fdbd"
+    },
+    "RestoreEngine.cs": {
+      "Path": "GLOBAL/RestoreEngine.cs",
+      "Sha": "b1d6e96097ee6d1c338053719d25666437153010"
+    },
+    "SalesDialogTheme.cs": {
+      "Path": "GLOBAL/SalesDialogTheme.cs",
+      "Sha": "d979f16aae5f70c48075e0458cc52deec023e9ab"
+    },
+    "SalesResponsiveLayout.cs": {
+      "Path": "GLOBAL/SalesResponsiveLayout.cs",
+      "Sha": "d2ca89d90a1f851ef02ca6343f97d55b17d7a943"
+    },
+    "SalesVisuals.cs": {
+      "Path": "GLOBAL/SalesVisuals.cs",
+      "Sha": "d8396d081f878366762975c4ea9d50cf91f79af6"
+    },
+    "SalesWeather.cs": {
+      "Path": "GLOBAL/SalesWeather.cs",
+      "Sha": "b356e00d45f9895082fdf2dfd3ff417ff16cba5f"
+    },
+    "ScaleLoadForm.cs": {
+      "Path": "GLOBAL/ScaleLoadForm.cs",
+      "Sha": "b4c9ba2f69c40309678547e63cd12b8ee673ceb2"
+    },
+    "ShortcutBackgroundAccent.cs": {
+      "Path": "GLOBAL/ShortcutBackgroundAccent.cs",
+      "Sha": "e109f15da4a00a30589134e1b2f4a10c5c8771f5"
+    },
+    "SplashForm.cs": {
+      "Path": "GLOBAL/SplashForm.cs",
+      "Sha": "f7272b4e940a319d6399549cd6dcfd75322f1a3d"
+    },
+    "SystemClockSync.cs": {
+      "Path": "GLOBAL/SystemClockSync.cs",
+      "Sha": "685dd9134cdcc35f0c26efc0188ff7b8c963c6c8"
+    },
+    "TESTE_ROSA_TEXTURIZADO_V10_130.txt": {
+      "Path": "TESTE_ROSA_TEXTURIZADO_V10_130.txt",
+      "Sha": "4430b587e1c8ab01ba3f9cdd8132faca9585b3c3"
+    },
+    "TESTE_ROSA_V10_130.txt": {
+      "Path": "TESTE_ROSA_V10_130.txt",
+      "Sha": "f88b4055b8610550f8592e046bf8b58e06f2dee3"
+    },
+    "TransactionalUpdate.cs": {
+      "Path": "GLOBAL/TransactionalUpdate.cs",
+      "Sha": "d0e786a8b1dac08bef0dabd9ec4da68add66c2c2"
+    },
+    "TransactionalUpdate.ps1": {
+      "Path": "TransactionalUpdate.ps1",
+      "Sha": "cffe11a440b826e65c356cf241a68e916241e450"
+    },
+    "UpdateManager.cs": {
+      "Path": "GLOBAL/UpdateManager.cs",
+      "Sha": "977c52c14b8f56b6af61bb9eb0a088f5d1be72a4"
+    },
+    "UpdateService.cs": {
+      "Path": "GLOBAL/UpdateService.cs",
+      "Sha": "9e7127dfe81830b1233dd018e4212a5796742472"
+    },
+    "app.manifest": {
+      "Path": "GLOBAL/app.manifest",
+      "Sha": "dfc0ee7d9025d72ff4c52a754bbfdaa3c4b23b0a"
+    },
+    "docs/arquitetura-global-pet.md": {
+      "Path": "docs/arquitetura-global-pet.md",
+      "Sha": "d9c66dadd1c257536751f7e8e4d56e25b15e652f"
+    },
+    "docs/consolidacao-global.md": {
+      "Path": "docs/consolidacao-global.md",
+      "Sha": "f8b26e585d8c389df4fbe490ae71e33d59b641c4"
+    },
+    "extensions/business/AngraPairing.cs": {
+      "Path": "PETs/Shared/business/AngraPairing.cs",
+      "Sha": "56195fd7b3919394cacab9980430d7e0e0a43027"
+    },
+    "extensions/business/AngraPairingForm.cs": {
+      "Path": "PETs/Shared/business/AngraPairingForm.cs",
+      "Sha": "6b560e56a20b3b8fbc7bd5289895e4f55c1d96f8"
+    },
+    "extensions/business/AngraPairingTestAccess.cs": {
+      "Path": "PETs/Shared/business/AngraPairingTestAccess.cs",
+      "Sha": "14fd22efb75b1085654c2339e15ae9ffbed05cf2"
+    },
+    "extensions/business/AngraProjectAlert.cs": {
+      "Path": "PETs/Shared/business/AngraProjectAlert.cs",
+      "Sha": "e6fe633b310f80ef26c0fcd33d21cf950ac973e4"
+    },
+    "extensions/business/AngraProjectData.cs": {
+      "Path": "PETs/Shared/business/AngraProjectData.cs",
+      "Sha": "ede84b99f906025fa451ef3734deb885f26a212d"
+    },
+    "extensions/business/AngraProjectForm.cs": {
+      "Path": "PETs/Shared/business/AngraProjectForm.cs",
+      "Sha": "37c1c6bf1adb95b178ea31ee9a34b0b1cbdd7557"
+    },
+    "extensions/business/AngraProjectNotifications.cs": {
+      "Path": "PETs/Shared/business/AngraProjectNotifications.cs",
+      "Sha": "142fbdf54e8e91dad9e967c58f53525ccb343a33"
+    },
+    "extensions/business/AngraSyncForm.cs": {
+      "Path": "PETs/Shared/business/AngraSyncForm.cs",
+      "Sha": "c803bca6819599b5252fe1a3a8490578e3c91771"
+    },
+    "extensions/business/AngraSyncService.cs": {
+      "Path": "PETs/Shared/business/AngraSyncService.cs",
+      "Sha": "04070779eb339b476ee839df7c72984feee3f8d2"
+    },
+    "extensions/business/AngraSyncStore.cs": {
+      "Path": "PETs/Shared/business/AngraSyncStore.cs",
+      "Sha": "96156d9723eb86d61a79cf1d2e07d0adb1cb293b"
+    },
+    "extensions/business/AngraSyncTestAccess.cs": {
+      "Path": "PETs/Shared/business/AngraSyncTestAccess.cs",
+      "Sha": "e094fb9ba4c63700df878b37965daa17be04db6d"
+    },
+    "extensions/business/AngraSyncTransport.cs": {
+      "Path": "PETs/Shared/business/AngraSyncTransport.cs",
+      "Sha": "b45975223de89d3551c34fb892f15eb7bb78e990"
+    },
+    "extensions/business/FinanceReportLayout.cs": {
+      "Path": "PETs/Shared/business/FinanceReportLayout.cs",
+      "Sha": "68f8a3d29da59a02da92afb9ce6be0856c076dd5"
+    },
+    "extensions/business/Glass3DTechnicalOverlay.cs": {
+      "Path": "PETs/Shared/business/Glass3DTechnicalOverlay.cs",
+      "Sha": "4f58721ce9aa2ad069d7d9dae2bb6037c50c62dc"
+    },
+    "extensions/business/GlassAgendaForm.cs": {
+      "Path": "PETs/Shared/business/GlassAgendaForm.cs",
+      "Sha": "03296b5db79e2dc0b568cebea7ceed1bcfe4af81"
+    },
+    "extensions/business/GlassBox3DView.cs": {
+      "Path": "PETs/Shared/business/GlassBox3DView.cs",
+      "Sha": "9f401c10f640dbf61191b53937c93161358334de"
+    },
+    "extensions/business/GlassBrazilianMoney.cs": {
+      "Path": "PETs/Shared/business/GlassBrazilianMoney.cs",
+      "Sha": "bf9f473439ebdcfe0b529cae8a71fd2ecde82e45"
+    },
+    "extensions/business/GlassCommercialDocument.cs": {
+      "Path": "PETs/Shared/business/GlassCommercialDocument.cs",
+      "Sha": "2fda5143702140521d398ac43852c765238dc3b4"
+    },
+    "extensions/business/GlassContractForm.cs": {
+      "Path": "PETs/Shared/business/GlassContractForm.cs",
+      "Sha": "50fd32717775ac5f9fb9f7489abce3f177bf7dea"
+    },
+    "extensions/business/GlassCutDrawingView.cs": {
+      "Path": "PETs/Shared/business/GlassCutDrawingView.cs",
+      "Sha": "956d2125e853221709888337a1080a4954fa1fbd"
+    },
+    "extensions/business/GlassCutPieceEditor.cs": {
+      "Path": "PETs/Shared/business/GlassCutPieceEditor.cs",
+      "Sha": "3dd2509709abe3689eee875e3bd72dcbd836b5a4"
+    },
+    "extensions/business/GlassCutPlan.cs": {
+      "Path": "PETs/Shared/business/GlassCutPlan.cs",
+      "Sha": "621d7eb284b2780c3521300b9052e3fd9d3f988e"
+    },
+    "extensions/business/GlassCutPlanForm.cs": {
+      "Path": "PETs/Shared/business/GlassCutPlanForm.cs",
+      "Sha": "004e932997db82787cd9b4a0877f0b4dab56a021"
+    },
+    "extensions/business/GlassCutPlanPrint.cs": {
+      "Path": "PETs/Shared/business/GlassCutPlanPrint.cs",
+      "Sha": "11bd8d8e9eff477ab6c1e03017b7d8a13e8cd92f"
+    },
+    "extensions/business/GlassDimensionField.cs": {
+      "Path": "PETs/Shared/business/GlassDimensionField.cs",
+      "Sha": "5d159f6a95ebf24e77579221efd3c9409975b93a"
+    },
+    "extensions/business/GlassDimensionUnits.cs": {
+      "Path": "PETs/Shared/business/GlassDimensionUnits.cs",
+      "Sha": "f4d469d2d1b2fa547aabff8295b9253b035dee31"
+    },
+    "extensions/business/GlassDocumentEditors.cs": {
+      "Path": "PETs/Shared/business/GlassDocumentEditors.cs",
+      "Sha": "6305c4731ca5397cdf3d1b92909285de6c808877"
+    },
+    "extensions/business/GlassDocumentStore.cs": {
+      "Path": "PETs/Shared/business/GlassDocumentStore.cs",
+      "Sha": "9bbc29f612aa2623c93b7dc515ebf685de69af95"
+    },
+    "extensions/business/GlassDocumentTemplates.cs": {
+      "Path": "PETs/Shared/business/GlassDocumentTemplates.cs",
+      "Sha": "c475f1e319731b1305e927297461848d087c32a1"
+    },
+    "extensions/business/GlassHost.cs": {
+      "Path": "PETs/Shared/business/GlassHost.cs",
+      "Sha": "3bb05a86d6ad2a9c152b31b8cbf2057e34542d40"
+    },
+    "extensions/business/GlassLinkedDocument.cs": {
+      "Path": "PETs/Shared/business/GlassLinkedDocument.cs",
+      "Sha": "313edc976b670e753267301022c88af6e82eada0"
+    },
+    "extensions/business/GlassMaterialSelection.cs": {
+      "Path": "PETs/Shared/business/GlassMaterialSelection.cs",
+      "Sha": "d4fbdee3444b8d6f111f6e8411b95a3da6874012"
+    },
+    "extensions/business/GlassOperationsStore.cs": {
+      "Path": "PETs/Shared/business/GlassOperationsStore.cs",
+      "Sha": "aabee82af66ecfe33b4c9f5b3f1b7629881a6f3a"
+    },
+    "extensions/business/GlassProject.cs": {
+      "Path": "PETs/Shared/business/GlassProject.cs",
+      "Sha": "e68c14815bf333afb7592ee4e5fa76511e48e815"
+    },
+    "extensions/business/GlassProjectForm.cs": {
+      "Path": "PETs/Shared/business/GlassProjectForm.cs",
+      "Sha": "5b9caffac922a0f60304a878180de20b41e068ef"
+    },
+    "extensions/business/GlassProjectPrint.cs": {
+      "Path": "PETs/Shared/business/GlassProjectPrint.cs",
+      "Sha": "958192a97f75ed5b1a5a7f9a357cb98dc4750881"
+    },
+    "extensions/business/GlassProjectStore.cs": {
+      "Path": "PETs/Shared/business/GlassProjectStore.cs",
+      "Sha": "e6138fcad8143cb64d15370b1ed0faa50f736a04"
+    },
+    "extensions/business/GlassQuote.cs": {
+      "Path": "PETs/Shared/business/GlassQuote.cs",
+      "Sha": "afe9977ae7b4fbfbf74135c53c4b31e7609539f0"
+    },
+    "extensions/business/GlassQuoteForm.cs": {
+      "Path": "PETs/Shared/business/GlassQuoteForm.cs",
+      "Sha": "dad05d3688e192d568fd364e506cb39ea74375fd"
+    },
+    "extensions/business/GlassReceiptForm.cs": {
+      "Path": "PETs/Shared/business/GlassReceiptForm.cs",
+      "Sha": "39a12b46a5ee68f13fe5ffb5cb6c66eefd173d0f"
+    },
+    "extensions/business/GlassSavedProjectBrowser.cs": {
+      "Path": "PETs/Shared/business/GlassSavedProjectBrowser.cs",
+      "Sha": "d1369bda487de456a2cb795c27c4171d609e2eed"
+    },
+    "extensions/business/GlassWindowRenderer.cs": {
+      "Path": "PETs/Shared/business/GlassWindowRenderer.cs",
+      "Sha": "40a0267eb2553191d84cf4e4b0250464dc7ac45c"
+    },
+    "extensions/business/GlassWorkshopForm.cs": {
+      "Path": "PETs/Shared/business/GlassWorkshopForm.cs",
+      "Sha": "b611d8b3859f4ccd6ebdf3ae80550a38313c4be2"
+    },
+    "extensions/business/GlassWorkshopIcon.cs": {
+      "Path": "PETs/Shared/business/GlassWorkshopIcon.cs",
+      "Sha": "e4bcd2f3db2ff17248a6b4ea5dafd88fa6d93405"
+    },
+    "extensions/business/GlassWorkshopVisuals.cs": {
+      "Path": "PETs/Shared/business/GlassWorkshopVisuals.cs",
+      "Sha": "0ac653365c63a2ca5ae49540aa9489c9b316b1fa"
+    },
+    "extensions/business/InternalWorkspace.cs": {
+      "Path": "PETs/Shared/business/InternalWorkspace.cs",
+      "Sha": "dc62e154b6a1b3d7738f5ca4abecaed341a970c6"
+    },
+    "extensions/business/PetCash.cs": {
+      "Path": "PETs/Shared/business/PetCash.cs",
+      "Sha": "9c0d521b3bd017c94d8a3aa0fdeda7dc54bf09d2"
+    },
+    "extensions/business/PremiumGlobalTheme.cs": {
+      "Path": "PETs/Shared/business/PremiumGlobalTheme.cs",
+      "Sha": "861e2d017ddba2ef6e5dd85d58c143d0a70a2828"
+    },
+    "extensions/business/source-provenance.json": {
+      "Path": "PETs/Shared/business/source-provenance.json",
+      "Sha": "4ac6309c42956f32b6cf860b9556776104ba6cc7"
+    },
+    "extensions/profiles/001/Pet.csproj": {
+      "Path": "PETs/001/Pet.csproj",
+      "Sha": "5ebb7b82b4a59a5251fc588348e6e1c6221c52a5"
+    },
+    "extensions/profiles/001/Presentation.cs": {
+      "Path": "PETs/001/Presentation.cs",
+      "Sha": "80bbad63e688b989ff2a7dab79cf804cdce3a4c3"
+    },
+    "extensions/profiles/001/UpdateProtectionReceipt.cs": {
+      "Path": "PETs/001/UpdateProtectionReceipt.cs",
+      "Sha": "7735540ffc00027749f3e279cf8eb35dd120cade"
+    },
+    "extensions/profiles/002/Pet.csproj": {
+      "Path": "PETs/002/Pet.csproj",
+      "Sha": "a47f48e92f4688a16d13dbec0d1fbe398c49fd4a"
+    },
+    "extensions/profiles/002/Presentation.cs": {
+      "Path": "PETs/002/Presentation.cs",
+      "Sha": "d42c8dbb2b6af06ca2ec6c2d622710ca44b9aa04"
+    },
+    "extensions/profiles/003/Pet.csproj": {
+      "Path": "PETs/003/Pet.csproj",
+      "Sha": "ab17b4899e4b3b42b9a717f89cedb365ccd76f13"
+    },
+    "extensions/profiles/003/Presentation.cs": {
+      "Path": "PETs/003/Presentation.cs",
+      "Sha": "1b5f31a82ea23442e6cd40137fb6d41fce0fb8f9"
+    },
+    "extensions/profiles/004/Pet.csproj": {
+      "Path": "PETs/004/Pet.csproj",
+      "Sha": "2d1fdb084a5f531e1fe2c9967d34015fc48798bc"
+    },
+    "extensions/profiles/004/Presentation.cs": {
+      "Path": "PETs/004/Presentation.cs",
+      "Sha": "5c27dc9ae93083fa4043119d86b0990c04df7880"
+    },
+    "extensions/profiles/Profile.cs": {
+      "Path": "PETs/Shared/Profile.cs",
+      "Sha": "c5601edf2a861bc806d60b974fbcb44c7a0c9736"
+    },
+    "pdv-manifest.json": {
+      "Path": "pdv-manifest.json",
+      "Sha": "30516c05c3d108304874d67bb4ac16725d78886c"
+    },
+    "politica-de-privacidade.html": {
+      "Path": "politica-de-privacidade.html",
+      "Sha": "d52ae450480ee3bbb4b8418b62fafa63ea132680"
+    },
+    "qa/ActivationCapture.cs.txt": {
+      "Path": "qa/ActivationCapture.cs.txt",
+      "Sha": "690434519c87fde33b9a775cf2a65ced49d6dc56"
+    },
+    "qa/SalesCapture.cs.txt": {
+      "Path": "qa/SalesCapture.cs.txt",
+      "Sha": "08463631a1b3f0243b4c13bd94f55e80312fe2ed"
+    },
+    "qa/alert/LealInfoPDV.AlertTests.csproj": {
+      "Path": "qa/alert/LealInfoPDV.AlertTests.csproj",
+      "Sha": "da7066b1c6804212a47b15487f618c14ce1799a4"
+    },
+    "qa/alert/Program.cs": {
+      "Path": "qa/alert/Program.cs",
+      "Sha": "9f04a3f7dcba7383789bbf284f88062ce9c8702c"
+    },
+    "qa/cash-flow/LealInfoPDV.CashTests.csproj": {
+      "Path": "qa/cash-flow/LealInfoPDV.CashTests.csproj",
+      "Sha": "32517e7a4ec5f10fa9d50618294e9c00738c754c"
+    },
+    "qa/cash-flow/Program.cs": {
+      "Path": "qa/cash-flow/Program.cs",
+      "Sha": "b579ce3e88eefd17a7e83ccf0092a059ffeb2758"
+    },
+    "qa/channel-isolation/LealInfoPDV.ChannelTests.csproj": {
+      "Path": "qa/channel-isolation/LealInfoPDV.ChannelTests.csproj",
+      "Sha": "da7066b1c6804212a47b15487f618c14ce1799a4"
+    },
+    "qa/channel-isolation/Program.cs": {
+      "Path": "qa/channel-isolation/Program.cs",
+      "Sha": "9f5e782930261ed9714ba9f514b8218f108c3d71"
+    },
+    "qa/company-cep/LealInfoPDV.CompanyCepTests.csproj": {
+      "Path": "qa/company-cep/LealInfoPDV.CompanyCepTests.csproj",
+      "Sha": "a99698ae6ab1de81a1368435021e758a0d740d41"
+    },
+    "qa/company-cep/Program.cs": {
+      "Path": "qa/company-cep/Program.cs",
+      "Sha": "187d9c933b0743a366a6f4a51f1845109d8b7fc9"
+    },
+    "qa/consolidation/DatabaseChecks.cs": {
+      "Path": "qa/consolidation/DatabaseChecks.cs",
+      "Sha": "a9f3eb14af27efcc8e9c1769a3c1913ac67b9fca"
+    },
+    "qa/consolidation/LoginChecks.cs": {
+      "Path": "qa/consolidation/LoginChecks.cs",
+      "Sha": "be2cad49b094accf162f71da6c1849516610eb92"
+    },
+    "qa/consolidation/ManifestChecks.cs": {
+      "Path": "qa/consolidation/ManifestChecks.cs",
+      "Sha": "ffa8463cfbd193a597e5ad0be8474692104a197f"
+    },
+    "qa/consolidation/Program.cs": {
+      "Path": "qa/consolidation/Program.cs",
+      "Sha": "64c77c1b2a4a38557d7896843ed1428c614da724"
+    },
+    "qa/consolidation/ReopenChecks.cs": {
+      "Path": "qa/consolidation/ReopenChecks.cs",
+      "Sha": "ac7f90a523edd4462f62778e9738800dc3141d47"
+    },
+    "qa/consolidation/ReportChecks.cs": {
+      "Path": "qa/consolidation/ReportChecks.cs",
+      "Sha": "318528b8ed585f402a227cf032044ef7d5774bd2"
+    },
+    "qa/consolidation/Tests.csproj": {
+      "Path": "qa/consolidation/Tests.csproj",
+      "Sha": "5860f7ecc5efcf3e6abb54dabf0195712d330810"
+    },
+    "qa/consolidation/dependencies.py": {
+      "Path": "qa/consolidation/dependencies.py",
+      "Sha": "cd376fd9124c2ca2d0179edda82ddc661e239f84"
+    },
+    "qa/consolidation/legacy-domain-types.json": {
+      "Path": "qa/consolidation/legacy-domain-types.json",
+      "Sha": "7524b29e5e14a2b9a83a87400d2c245950d31565"
+    },
+    "qa/consolidation/rollback.ps1": {
+      "Path": "qa/consolidation/rollback.ps1",
+      "Sha": "cde4d317563de761d2b22c4d585402bd905bed15"
+    },
+    "qa/consolidation/scope.py": {
+      "Path": "qa/consolidation/scope.py",
+      "Sha": "57fbbd29658d3690e86bbb9b9e335a0aff492b29"
+    },
+    "qa/delivery-address/LealInfoPDV.AddressTests.csproj": {
+      "Path": "qa/delivery-address/LealInfoPDV.AddressTests.csproj",
+      "Sha": "32517e7a4ec5f10fa9d50618294e9c00738c754c"
+    },
+    "qa/delivery-address/Program.cs": {
+      "Path": "qa/delivery-address/Program.cs",
+      "Sha": "358ab1933001ec0df13dc936fb034787abb59cac"
+    },
+    "qa/delivery-delete/LealInfoPDV.DeleteTests.csproj": {
+      "Path": "qa/delivery-delete/LealInfoPDV.DeleteTests.csproj",
+      "Sha": "32517e7a4ec5f10fa9d50618294e9c00738c754c"
+    },
+    "qa/delivery-delete/Program.cs": {
+      "Path": "qa/delivery-delete/Program.cs",
+      "Sha": "299025bf08cc9b54e87e18586f9282af48e4c9b6"
+    },
+    "qa/driver-phone/LealInfoPDV.DriverTests.csproj": {
+      "Path": "qa/driver-phone/LealInfoPDV.DriverTests.csproj",
+      "Sha": "da7066b1c6804212a47b15487f618c14ce1799a4"
+    },
+    "qa/driver-phone/Program.cs": {
+      "Path": "qa/driver-phone/Program.cs",
+      "Sha": "e90663f49cceb9d2fbc39d1e7ef2621ded592c65"
+    },
+    "qa/global-core/Program.cs": {
+      "Path": "qa/global-core/Program.cs",
+      "Sha": "d364a2142033836b3d3994968c56314331fede38"
+    },
+    "qa/global-core/Tests.csproj": {
+      "Path": "qa/global-core/Tests.csproj",
+      "Sha": "c38575e2f8c3edea3c778788079c8ff5191a2333"
+    },
+    "qa/global-core/fixture/Extension.cs": {
+      "Path": "qa/global-core/fixture/Extension.cs",
+      "Sha": "636ab60e6a1b89b2534b3e6c337139bb9463e364"
+    },
+    "qa/global-core/fixture/Pet.csproj": {
+      "Path": "qa/global-core/fixture/Pet.csproj",
+      "Sha": "054d0be7464df098af6b86998ae7705664421dfd"
+    },
+    "qa/global-core/rollback.ps1": {
+      "Path": "qa/global-core/rollback.ps1",
+      "Sha": "b8c98078197f0ad94ae7386208177c4c6cf42626"
+    },
+    "qa/global-core/scope.py": {
+      "Path": "qa/global-core/scope.py",
+      "Sha": "99ce18561a3107f60b706412ba18b24729b66472"
+    },
+    "qa/global-kitchen/Program.cs": {
+      "Path": "qa/global-kitchen/Program.cs",
+      "Sha": "7ba908b3edfb809859190d1f94f5d4f46a2cf72a"
+    },
+    "qa/global-kitchen/Tests.csproj": {
+      "Path": "qa/global-kitchen/Tests.csproj",
+      "Sha": "03dcac9bcfafab217e5586b717430329dc9f7107"
+    },
+    "qa/global-pet-plan/plan_global_pet.py": {
+      "Path": "qa/global-pet-plan/plan_global_pet.py",
+      "Sha": "42db521a100258c9b4d3747a3f94a2b991de8102"
+    },
+    "qa/global-pet-plan/test_plan.py": {
+      "Path": "qa/global-pet-plan/test_plan.py",
+      "Sha": "2fbf623e765b594067a8c267600801876dbc9cc9"
+    },
+    "qa/kitchen/LealInfoPDV.KitchenTests.csproj": {
+      "Path": "qa/kitchen/LealInfoPDV.KitchenTests.csproj",
+      "Sha": "da7066b1c6804212a47b15487f618c14ce1799a4"
+    },
+    "qa/kitchen/Program.cs": {
+      "Path": "qa/kitchen/Program.cs",
+      "Sha": "81726fa1244170f008e147a405fe5fa09b119874"
+    },
+    "qa/network/ActivationChecks.cs": {
+      "Path": "qa/network/ActivationChecks.cs",
+      "Sha": "1397e0dddadbb17d233e6e04ae324ef749c80e02"
+    },
+    "qa/network/LealInfoPDV.NetworkTests.csproj": {
+      "Path": "qa/network/LealInfoPDV.NetworkTests.csproj",
+      "Sha": "0563e81d0de74f55a53904825c7ff47c680d10d2"
+    },
+    "qa/network/Program.cs": {
+      "Path": "qa/network/Program.cs",
+      "Sha": "0e722f6575a86dfa02d5503f549eaccda74b0a1c"
+    },
+    "qa/restore-real/LealInfoPDV.RestoreTests.csproj": {
+      "Path": "qa/restore-real/LealInfoPDV.RestoreTests.csproj",
+      "Sha": "b62830a6172594179622aa53e4da7d127311c016"
+    },
+    "qa/restore-real/Program.cs": {
+      "Path": "qa/restore-real/Program.cs",
+      "Sha": "77c076e8a5e761732d6e43ffb540bc9d065c583f"
+    },
+    "qa/restore-real/WindowsFlow.cs": {
+      "Path": "qa/restore-real/WindowsFlow.cs",
+      "Sha": "12f136187109af97ac30345a64bf82a06363ef0c"
+    },
+    "qa/sales-logo/LealInfoPDV.SalesLogoTests.csproj": {
+      "Path": "qa/sales-logo/LealInfoPDV.SalesLogoTests.csproj",
+      "Sha": "da7066b1c6804212a47b15487f618c14ce1799a4"
+    },
+    "qa/sales-logo/Program.cs": {
+      "Path": "qa/sales-logo/Program.cs",
+      "Sha": "3bf44e4abe3f5481c5b75da966b47a8aa223e74d"
+    },
+    "qa/speedfood/LealInfoPDV.SpeedFoodTests.csproj": {
+      "Path": "qa/speedfood/LealInfoPDV.SpeedFoodTests.csproj",
+      "Sha": "32517e7a4ec5f10fa9d50618294e9c00738c754c"
+    },
+    "qa/speedfood/Program.cs": {
+      "Path": "qa/speedfood/Program.cs",
+      "Sha": "dfb3c217e2c46d6771578d416baf730e7935bd94"
+    },
+    "qa/speedfood/prepare-live-auth.cjs": {
+      "Path": "qa/speedfood/prepare-live-auth.cjs",
+      "Sha": "a119a0952fdffaf05d4b95bc993f9c9e888ae582"
+    },
+    "qa/update-selection/LealInfoPDV.UpdateTests.csproj": {
+      "Path": "qa/update-selection/LealInfoPDV.UpdateTests.csproj",
+      "Sha": "da7066b1c6804212a47b15487f618c14ce1799a4"
+    },
+    "qa/update-selection/Program.cs": {
+      "Path": "qa/update-selection/Program.cs",
+      "Sha": "a5273d3963eee006b0a9b11d00bb834fbfd9d8c8"
+    },
+    "ready-kitchen/photos.zip": {
+      "Path": "GLOBAL/ready-kitchen/photos.zip",
+      "Sha": "196c10fcfff8f7070b081c4bf1829b06ab15095d"
+    },
+    "realtime/LiaLicenseGate.cs": {
+      "Path": "GLOBAL/realtime/LiaLicenseGate.cs",
+      "Sha": "2edaa97e9103dd012e4d416f25357695c5f815bf"
+    },
+    "realtime/LocalPdvAssistant.cs": {
+      "Path": "GLOBAL/realtime/LocalPdvAssistant.cs",
+      "Sha": "22df4da74dae13d4df150d3b262d3df4145bfea6"
+    },
+    "realtime/MainForm.cs": {
+      "Path": "GLOBAL/realtime/MainForm.cs",
+      "Sha": "1d9e40c02c9eb2d2c456f67f76309692d77b2340"
+    },
+    "realtime/OpenAiRealtimeConnection.cs": {
+      "Path": "GLOBAL/realtime/OpenAiRealtimeConnection.cs",
+      "Sha": "35f0f09725fe466f758706b7a783073d3bcffbc3"
+    },
+    "realtime/PdvKnowledge.cs": {
+      "Path": "GLOBAL/realtime/PdvKnowledge.cs",
+      "Sha": "9bead9b77033fb0e411990d57a79e9aba3775113"
+    },
+    "scripts/aplicar_boas_vindas_holografica_v10_302.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_boas_vindas_holografica_v10_302.ps1",
+      "Sha": "45775298355d53b94ba8ba797a34a4920debfee4"
+    },
+    "scripts/aplicar_boas_vindas_holografica_v10_303.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_boas_vindas_holografica_v10_303.ps1",
+      "Sha": "84aef6e160e1f94fbfa7a2b706756fb18d3fc9eb"
+    },
+    "scripts/aplicar_boas_vindas_holografica_v10_304.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_boas_vindas_holografica_v10_304.ps1",
+      "Sha": "d60e29dc25cf73e3a73164850e2625d3ea1d99fb"
+    },
+    "scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1",
+      "Sha": "49881ecfd845eae274058e6af0084f93ff2f583a"
+    },
+    "scripts/aplicar_central_equipamentos_v10_314.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_central_equipamentos_v10_314.ps1",
+      "Sha": "87ad3faa40aa21d8898f746bdd133f8e2f338351"
+    },
+    "scripts/aplicar_lic_ai_botao_v10_186.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_lic_ai_botao_v10_186.ps1",
+      "Sha": "0cb89c675be612377e40f2a6c0b63db4d0df8c97"
+    },
+    "scripts/aplicar_lic_ai_conversa_v10_210.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_lic_ai_conversa_v10_210.ps1",
+      "Sha": "ed4c103e67000865c3dd32ba04691907d57f1795"
+    },
+    "scripts/aplicar_lic_ai_estado_v10_210.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_lic_ai_estado_v10_210.ps1",
+      "Sha": "bd5b41d7215984a7abf637bd404bc7799ddba49e"
+    },
+    "scripts/aplicar_login_futurista_v10_259.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_login_futurista_v10_259.ps1",
+      "Sha": "0bb9b927812ba75453790f5bab3828fc7c9278ec"
+    },
+    "scripts/aplicar_login_gdi_v10_263.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_login_gdi_v10_263.ps1",
+      "Sha": "bc2bdbbcf71e385c89173829bf6e5fbc72309ff2"
+    },
+    "scripts/aplicar_login_premium_v10_261.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_login_premium_v10_261.ps1",
+      "Sha": "001b4cd7ea9b02bd6b4db42e036faa1ba7d15288"
+    },
+    "scripts/aplicar_login_vidro_cromo_v10_260.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_login_vidro_cromo_v10_260.ps1",
+      "Sha": "5f10993e208f8076929720bec68441fcffb1c96a"
+    },
+    "scripts/aplicar_tema_azul_texturizado_v10_306.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_tema_azul_texturizado_v10_306.ps1",
+      "Sha": "5c872d6f8bb7a78e3f5a45ea179db8a33d1b0c72"
+    },
+    "scripts/aplicar_virgula_valores_cadastro_v10_305.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_virgula_valores_cadastro_v10_305.ps1",
+      "Sha": "8075e81acf192a1f5ce2f49c610a0d79316917b2"
+    },
+    "scripts/aplicar_visual_estavel_v10_177.ps1": {
+      "Path": "GLOBAL/scripts/aplicar_visual_estavel_v10_177.ps1",
+      "Sha": "9b01fa5a459b1c573743f67ae1b0ded774f31c00"
+    },
+    "scripts/corrigir_inputs_login_v10_260.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_inputs_login_v10_260.ps1",
+      "Sha": "f4e63554c31bd176c937903a8007fe46e9dbab0b"
+    },
+    "scripts/corrigir_lia_audio_streaming_v10_249.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lia_audio_streaming_v10_249.ps1",
+      "Sha": "745c92e7fd147d5ed45f4dd90b1c371114170095"
+    },
+    "scripts/corrigir_lia_buffer_delay_v10_250.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lia_buffer_delay_v10_250.ps1",
+      "Sha": "8adf20397b943ed16ddd513ff364856f9af85be8"
+    },
+    "scripts/corrigir_lia_fila_audio_v10_252.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lia_fila_audio_v10_252.ps1",
+      "Sha": "11066fd36b598822adc697d74dcc81bbe77ec7e3"
+    },
+    "scripts/corrigir_lic_ai_captura_timeout_v10_240.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lic_ai_captura_timeout_v10_240.ps1",
+      "Sha": "2168e071926ee3c2e017273b4a98d85b27874491"
+    },
+    "scripts/corrigir_lic_ai_ciclo_voz_v10_215.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lic_ai_ciclo_voz_v10_215.ps1",
+      "Sha": "a800f72e63ca342b73d0e3bf3181618bb6a3c9e1"
+    },
+    "scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1",
+      "Sha": "c88b24b8ad1976d59445605fb6f1450e83525ae3"
+    },
+    "scripts/corrigir_lic_ai_resposta_rapida_v10_221.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lic_ai_resposta_rapida_v10_221.ps1",
+      "Sha": "b6d64beee5ae499c26064732f73dfefed8e3b5e1"
+    },
+    "scripts/corrigir_lic_ai_resposta_v10_213.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lic_ai_resposta_v10_213.ps1",
+      "Sha": "ab13d32718e50627eb87b3c57ba6eb47ec0a2ed8"
+    },
+    "scripts/corrigir_lic_ai_timeout_v10_220.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lic_ai_timeout_v10_220.ps1",
+      "Sha": "0d3fcb585803e588fdd946ee2670f211dae145d7"
+    },
+    "scripts/corrigir_lic_ai_tts_openai_v10_217.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lic_ai_tts_openai_v10_217.ps1",
+      "Sha": "58d8b0250204bdde2dcff5e90007d1fa39d78acc"
+    },
+    "scripts/corrigir_lic_ai_velocidade_continua_v10_222.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_lic_ai_velocidade_continua_v10_222.ps1",
+      "Sha": "5ce3150c3a54cf5f5867d9f7eac14cdf7dd57e38"
+    },
+    "scripts/corrigir_protecao_legada_lia_v10_253.ps1": {
+      "Path": "GLOBAL/scripts/corrigir_protecao_legada_lia_v10_253.ps1",
+      "Sha": "ae5e8dda2fbf488d43a8becccaef52096fb5a453"
+    },
+    "scripts/expandir_inteligencia_lia_v10_225.ps1": {
+      "Path": "GLOBAL/scripts/expandir_inteligencia_lia_v10_225.ps1",
+      "Sha": "cde984df210849b78d971e08bbdbb839b8e1457e"
+    },
+    "scripts/integrar_radio_lia_v10_228.ps1": {
+      "Path": "GLOBAL/scripts/integrar_radio_lia_v10_228.ps1",
+      "Sha": "b4d84b86449bf1da2afdeaf8ca2e4c5f4cc3da1e"
+    },
+    "scripts/sincronizar_update_manager_v10_303.ps1": {
+      "Path": "GLOBAL/scripts/sincronizar_update_manager_v10_303.ps1",
+      "Sha": "5ade0da244ca35a3e668762b622c4f10ce776767"
+    },
+    "scripts/sincronizar_update_manager_v10_304.ps1": {
+      "Path": "GLOBAL/scripts/sincronizar_update_manager_v10_304.ps1",
+      "Sha": "24ea07852a366b28957589013d231d1dcfa21ba3"
+    },
+    "tools/SellerGui/CustomerLedger.cs": {
+      "Path": "GLOBAL/tools/SellerGui/CustomerLedger.cs",
+      "Sha": "8e2ce32ea484d33f1649148b2dd3420df70afa62"
+    },
+    "tools/SellerGui/LealInfoVendedor.csproj": {
+      "Path": "GLOBAL/tools/SellerGui/LealInfoVendedor.csproj",
+      "Sha": "0ed8572423392b9ddb9edb8536e08fabb31d8bec"
+    },
+    "tools/SellerGui/Program.cs": {
+      "Path": "GLOBAL/tools/SellerGui/Program.cs",
+      "Sha": "84f2bd8adae150e56f73a9f6cd013faa7ed75a3c"
+    },
+    "tools/licencas/Emitir-Licenca.ps1": {
+      "Path": "GLOBAL/tools/licencas/Emitir-Licenca.ps1",
+      "Sha": "6be9b181c6ddf77d2c0a0a94638abde9a53baf32"
+    },
+    "tools/licencas/README.md": {
+      "Path": "GLOBAL/tools/licencas/README.md",
+      "Sha": "2ed5e0137b781ba6a41ba737b1bb11e7ce2bce5c"
+    },
+    "tools/licensing-cloud/README.md": {
+      "Path": "GLOBAL/tools/licensing-cloud/README.md",
+      "Sha": "e871b8c6ffe1c7c3dcb44d37737f92cb3a17b225"
+    },
+    "tools/licensing-cloud/firebase.json": {
+      "Path": "GLOBAL/tools/licensing-cloud/firebase.json",
+      "Sha": "84cfb9f121aa7ccb6c74a2ba6295c04dc9741aba"
+    },
+    "tools/licensing-cloud/firestore.rules": {
+      "Path": "GLOBAL/tools/licensing-cloud/firestore.rules",
+      "Sha": "365b27ab268600560d8968ad636346880603d031"
+    },
+    "tools/licensing-cloud/public/app.js": {
+      "Path": "GLOBAL/tools/licensing-cloud/public/app.js",
+      "Sha": "12e45652d39caca188935a08133cfd7031267234"
+    },
+    "tools/licensing-cloud/public/firebase-config.js": {
+      "Path": "GLOBAL/tools/licensing-cloud/public/firebase-config.js",
+      "Sha": "7142a26ac7d3888e3fac01df42d54b2919b61813"
+    },
+    "tools/licensing-cloud/public/index.html": {
+      "Path": "GLOBAL/tools/licensing-cloud/public/index.html",
+      "Sha": "8db7f821312d961ea84f25812f98bd66e61ba72e"
+    },
+    "tools/licensing-cloud/public/styles.css": {
+      "Path": "GLOBAL/tools/licensing-cloud/public/styles.css",
+      "Sha": "cdc4882d001e17178efb110fda0423aa8ebc5dfc"
+    },
+    "version.json": {
+      "Path": "version.json",
+      "Sha": "82ba971595e3c864df5f51b2a4ff0ac2d61a9a94"
+    }
+  },
+  "OperationalGlobalReference": {
+    "Version": "10.453",
+    "Component": "GLOBAL",
+    "PetApiVersion": 1,
+    "PackageUrl": "https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.453/LEAL_INFO_PDV_GLOBAL_V10_453_UPDATE.zip",
+    "Sha256": "18935f8aff97e2d2516a8702bac8c220387e4b2e19403cb3651221e268398fdd",
+    "SourceCommit": "1dea48d98cf7eb1bc458e1ae719fcf7e8ede6fae",
+    "Mandatory": false,
+    "Notes": "GLOBAL 10.453: aviso automático no desktop com Atualizar agora e Depois; consulta por minuto; adiamento de 30 minutos. SAIR e Esc no login. Tutorial acessível em Ajuda sem abrir automaticamente. Preserva funções, PETs, dados, licença e configurações. Atualização pelo PDV, sem setup.",
+    "BuildRunId": "39972543115",
+    "ValidationRunId": "39972543115",
+    "ProtectedUpdaterRequired": true,
+    "RequiresIndependentPet": true,
+    "InstalledOnRealComputers": false,
+    "Delivery": "preserve-existing-core",
+    "InstalledCoreChannels": {
+      "6789abcc4cf37467b6cf26ba9de3cc75e9f6a149279d58a1bed6b14c51427e38": "GLOBAL",
+      "11e23478770a303efeb58a1400aa397c6137ebcd0656b413555db7a925fe6b5c": "GLOBAL",
+      "5f55d4e18ddf5d645c070b199f8bdf8dfc78acc1c00d1186f7db89f95b1dfd78": "001",
+      "03c2cf2c75c949b7d159d657991d08f418520cac9c95bba70c10f012ec08e56e": "001",
+      "574fb05f60e42ac3334f1d78339ab69b9ac71c8463dd754a157907276b3ab4eb": "002",
+      "9cf62129c3b88e8912e8c5e1a4406c289be4c60c10f0da713a888cf8122371a7": "002",
+      "c35c03d5dfca090e6ec51984d8d609160da87ae779d7836bcfab0f63b3bd80d5": "003",
+      "46f4e4eb16c792d060072f886f853c703b94ca8801fb59a3eda4b0265d9082d7": "003",
+      "77934113044c44b68a94e41816fae463a689495f53688173fb95d4f89963c501": "004",
+      "ccfbcfd1ee340eb177334fb7d076ed9892c84cc16c73a2ac0f057929005a789e": "004",
+      "c282271f5967f8ec3d095aaf6f0a97b6626dfe23128aa0c4535e65c1b5dd8997": "GLOBAL",
+      "de348ed17947e90953a28a0486455838abebddc6960bd0eb4ade0f3e818f4f2d": "001",
+      "896fb4fb38437c354fec1321304b75af9b8f495fa85e2a83a5d733be77d7925d": "002",
+      "825df627f06e7414f7b67044d124e41e9af9407c5b185608320b338b5b26ceaa": "003",
+      "a3a7c78c5750e009155809a7c05de99cad494f19c3e96c4bf577f16859c48a9a": "GLOBAL",
+      "1da91d05236dd23bdddb84445347459e27a2d01ef39ce1232f3c0a9429d6f364": "GLOBAL",
+      "56a2ba21b7f5c47ef7964126ab634f246205fe3c0f15ef5b794582b1e0785f9d": "GLOBAL",
+      "eeb61b3be904b1807b18dc8bf685a1e4f6927a50f2f2c9c51ff0e713cf9f9805": "GLOBAL",
+      "98cadf1f92625d52e690a34dd8bff26dff847f32c83538baad17c14858121d3a": "001",
+      "abdc817a2082baa4ef779c2f271406a83acec22a22889620f488aebe8efaaa5f": "001",
+      "ff52aacfbc018edc62d301f5684b4dc1e36c8e6b272c479ac3c1d9b245d4994a": "002",
+      "b6ca7c59b7037334181b58b72699da85d7ac4ad8c1c279caae68585db712ac7d": "002",
+      "c404c5e9dbb32248afc4effb44201bf019af156d3f9dda389b3e76b696370d53": "004",
+      "715096fa1d996a906db9535472faec1d403d3458db648331adbd7e0680671f6b": "004"
+    },
+    "SourceBase": "98915ae5a9eb02825d77f74bb179e0ce27d65bd9",
+    "GlobalFeatureVersion": "10.453",
+    "PublishedBaselineVersion": "10.445",
+    "DesktopNotifier": true,
+    "PollSeconds": 60,
+    "DeferredMinutes": 30,
+    "PackagesVerifiedBeforeFeed": true
+  }
+}

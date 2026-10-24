@@ -1,0 +1,56 @@
+name: Organizar GLOBAL e quatro PETs - somente integridade e isolamento
+on:
+  push:
+    branches: [organize/global-pets-20261024]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - name: Verify preserved source bytes and single common parent
+        run: python organization/verify.py
+      - name: Reuse original preparation and compile the common parent and all four children
+        shell: pwsh
+        run: |
+          '{"sdk":{"version":"10.0.401","rollForward":"disable"}}'|Set-Content global.json
+          Push-Location GLOBAL
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          Pop-Location
+          $commonHash=''
+          foreach($id in @('001','002','003','004')){
+            dotnet build "PETs/$id/Pet.csproj" -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+            if($LASTEXITCODE -ne 0){throw "PET $id build failed"}
+            $current=(Get-FileHash GLOBAL/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.dll).Hash
+            if($commonHash -and $current -ne $commonHash){throw 'A child changed the common parent output'}
+            $commonHash=$current
+            New-Item -ItemType Directory "fixtures/$id" -Force|Out-Null
+            Copy-Item "PETs/$id/bin/Release/net8.0-windows10.0.19041.0/LealInfoPDV.Pet.Profile.dll" "fixtures/$id/Pet.dll"
+            $version=if($id -eq '001'){'1.2'}else{'1.1'}
+            @{Identity=$id;Version=$version;ApiVersion=1;Assembly='Pet.dll';Sha256=(Get-FileHash "fixtures/$id/Pet.dll").Hash}|ConvertTo-Json|Set-Content "fixtures/$id/manifest.json"
+          }
+          dotnet build organization/Tests.csproj -c Release -p:UseSharedCompilation=false -p:BuildInParallel=false
+          if($LASTEXITCODE -ne 0){throw 'Organization tests build failed'}
+          $commonHash|Set-Content evidence/common-parent.sha256
+      - name: Verify client identities module hashes and isolated loading
+        shell: pwsh
+        run: |
+          foreach($id in @('001','002','003','004')){
+            dotnet organization/bin/Release/net8.0-windows10.0.19041.0/Tests.dll $id "fixtures/$id"
+            if($LASTEXITCODE -ne 0){throw "Isolation test failed $id"}
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GLOBAL-PETs-organizacao-SEM-PUBLICACAO
+          path: evidence/

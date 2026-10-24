@@ -15,7 +15,7 @@
     <FileVersion>10.443.0.0</FileVersion>
     <ApplicationIcon>Assets\lealinfo.ico</ApplicationIcon>
   </PropertyGroup>
-  <ItemGroup><Compile Remove="realtime\**\*.cs" /><Compile Remove="qa\**\*.cs" /><Compile Remove="extensions\**\*.cs" /><Compile Remove="tools\SellerGui\**\*.cs" /><Compile Remove="LIC-AI\**\*.cs" /></ItemGroup>
+  <ItemGroup><Compile Remove="realtime/**/*.cs" /><Compile Remove="../qa/**/*.cs" /><Compile Remove="../extensions/**/*.cs" /><Compile Remove="tools/SellerGui/**/*.cs" /><Compile Remove="../LIC-AI/**/*.cs" /></ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.12" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3537.50" />
@@ -25,11 +25,11 @@
     <PackageReference Include="QRCoder" Version="1.6.0" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Assets\*.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
-    <Content Include="Assets\*.jpg"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
-    <Content Include="Assets\*.mp4"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
+    <Content Include="Assets/*.png"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></Content>
+    <Content Include="Assets/*.jpg"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
+    <Content Include="Assets/*.mp4"><CopyToOutputDirectory>Always</CopyToOutputDirectory><CopyToPublishDirectory>Always</CopyToPublishDirectory></Content>
   </ItemGroup>
-  <ItemGroup><EmbeddedResource Include="TransactionalUpdate.ps1" LogicalName="TransactionalUpdateWorker" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../TransactionalUpdate.ps1" LogicalName="TransactionalUpdateWorker" /></ItemGroup>
   <ItemGroup><EmbeddedResource Include="ready-kitchen/photos.zip" LogicalName="ReadyKitchen.photos.zip" /></ItemGroup>
   <ItemGroup><EmbeddedResource Include="Assets/KitchenTablesPremium.png" LogicalName="Kitchen.TablesPremium" /></ItemGroup>
 </Project>
