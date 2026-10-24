@@ -1,0 +1,45 @@
+name: Gelamaq PET isolated integration - no publish
+on:
+  push:
+    branches: [prepare/gelamaq-finance-pet-isolado]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.401
+      - name: Compile PDV and Gelamaq PET
+        shell: pwsh
+        run: |
+          dotnet build qa/gelamaq-integration/Tests.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'PDV/PET compilation failed'}
+      - name: Financial report and actual PET loader
+        shell: pwsh
+        run: |
+          dotnet qa/gelamaq-integration/bin/Release/net8.0-windows10.0.19041.0/Tests.dll
+          if($LASTEXITCODE -ne 0){throw 'Integration tests failed'}
+      - name: Verify protected updater channel boundary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory evidence -Force|Out-Null
+          $app=Join-Path $env:RUNNER_TEMP 'gelamaq-update-refusal'
+          New-Item -ItemType Directory $app -Force|Out-Null
+          $sentinel=Join-Path $app 'customer-data-sentinel.txt'
+          Set-Content $sentinel 'DO NOT MODIFY'
+          $before=(Get-FileHash $sentinel).Hash
+          & powershell.exe -NoProfile -File ./TransactionalUpdate.ps1 -Mode Prepare -App $app -Channel 002 -Version 10.457 2>&1 | Out-File evidence/updater-refusal.txt
+          $exit=$LASTEXITCODE
+          if($exit -eq 0){throw 'Unexpected acceptance of unsupported channel'}
+          if((Get-FileHash $sentinel).Hash -ne $before){throw 'Sentinel modified'}
+          @{IndividualUpdate='BLOCKED: existing worker rejects channel 002';Rollback='NOT EXERCISED: transaction cannot start for 002';ExitCode=$exit;SentinelUnchanged=$true;Published=$false;ProductionTouched=$false}|ConvertTo-Json|Set-Content evidence/delivery-status.json
+          exit 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gelamaq-integracao-NAO-PUBLICADO
+          path: evidence/
