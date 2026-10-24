@@ -1,0 +1,35 @@
+name: Gelamaq PET V1.1 - publish approved Windows artifact only
+on:
+  push:
+    branches: [release/gelamaq-pet-finance-delivery]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: gelamaq-pet-finance-publish
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VALIDATION_RUN: '40108751561'
+      VALIDATION_COMMIT: f6a1a5bebb826f33be77f26ce5ff277a78e9c409
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reuse pinned successful Windows artifact without rebuild
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python qa/gelamaq-delivery/publish.py download
+      - name: Publish Gelamaq PET exclusively through existing protected client feed
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/gelamaq-delivery/publish.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: GELAMAQ-PET-V1_1-PUBLICACAO
+          path: |
+            published-gelamaq.json
+            previous-gelamaq.json
