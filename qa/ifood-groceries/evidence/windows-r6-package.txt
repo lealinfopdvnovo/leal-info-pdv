@@ -1,0 +1,5 @@
+R6 package validation PASS
+Managed Windows GUI / asInvoker / correct merchant / final-bag tab present.
+ZIP integrity verified; 7 files; EXE SHA256 matches manifest.
+210 checks passed with isolated fake HTTP/files; no live R6 or Windows GUI execution.
+ZIP SHA256 87ba87db58357cbeed32d5fb6a3297793b1dd4d7ea40b67abbeb7ddcbb4beb83

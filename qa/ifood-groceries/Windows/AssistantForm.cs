@@ -20,7 +20,11 @@ namespace LealInfo.IFood.Assistant
         private readonly Label status = new Label(), counter = new Label();
         private readonly Button connect = new Button(), save = new Button(), toggle = new Button();
         private readonly CheckBox testApp = new CheckBox();
-        private readonly DataGridView grid = new DataGridView();
+        private readonly DataGridView grid = new DataGridView(), bagGrid = new DataGridView();
+        private readonly ComboBox bagPicker = new ComboBox();
+        private readonly Label bagTotals = new Label();
+        private BagStore bagStore;
+        private BagProcessor bagProcessor;
         private readonly System.Windows.Forms.Timer timer = new System.Windows.Forms.Timer();
         private AuthenticationClient auth;
         private EventsClient events;
@@ -32,7 +36,7 @@ namespace LealInfo.IFood.Assistant
         private string safeError = "Nenhuma falha.", folder;
         public AssistantForm()
         {
-            Text = "LEAL INFO - iFood | ETAPA 2 - RECEBIMENTO R5";
+            Text = "LEAL INFO - iFood | RECEBIMENTO E SACOLA FINAL R6";
             ClientSize = new Size(1000, 720); MinimumSize = new Size(760, 610);
             StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
             Font = new Font("Segoe UI", 10); BackColor = Color.FromArgb(24,26,30); ForeColor = Color.White;
@@ -61,10 +65,21 @@ namespace LealInfo.IFood.Assistant
             grid.DefaultCellStyle.BackColor=Color.FromArgb(32,34,38);grid.DefaultCellStyle.ForeColor=Color.White;grid.EnableHeadersVisualStyles=false;
             grid.ColumnHeadersDefaultCellStyle.BackColor=Color.FromArgb(55,50,35);grid.ColumnHeadersDefaultCellStyle.ForeColor=Color.FromArgb(224,191,113);
             grid.Columns.Add("date","Evento (horario local)");grid.Columns.Add("order","Pedido (ID)");grid.Columns.Add("event","Situacao recebida");grid.Columns.Add("ack","Recebimento");
-            grid.Columns[1].FillWeight=170;panel.Controls.Add(grid,0,2);
+            grid.Columns[1].FillWeight=170;
+            var tabs=new TabControl {Dock=DockStyle.Fill};var eventsTab=new TabPage("Eventos");eventsTab.Controls.Add(grid);tabs.TabPages.Add(eventsTab);
+            var bagTab=new TabPage("Sacola final - conferencia");bagTab.BackColor=BackColor;bagTab.ForeColor=ForeColor;
+            var bagPanel=new TableLayoutPanel {Dock=DockStyle.Fill,ColumnCount=1,RowCount=3,Padding=new Padding(8)};
+            bagPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));bagPanel.RowStyles.Add(new RowStyle(SizeType.Percent,100));bagPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            bagPicker.Dock=DockStyle.Top;bagPicker.DropDownStyle=ComboBoxStyle.DropDownList;bagPicker.SelectedIndexChanged+=(s,e)=>ShowBag();bagPanel.Controls.Add(bagPicker,0,0);
+            bagGrid.Dock=DockStyle.Fill;bagGrid.ReadOnly=true;bagGrid.AllowUserToAddRows=false;bagGrid.AllowUserToDeleteRows=false;bagGrid.RowHeadersVisible=false;bagGrid.AutoSizeColumnsMode=DataGridViewAutoSizeColumnsMode.Fill;
+            bagGrid.BackgroundColor=grid.BackgroundColor;bagGrid.DefaultCellStyle=grid.DefaultCellStyle.Clone();
+            bagGrid.Columns.Add("product","Produto");bagGrid.Columns.Add("quantity","Qtd. informada");bagGrid.Columns.Add("unavailable","Indisponivel");bagGrid.Columns.Add("available","Qtd. disponivel");bagGrid.Columns.Add("gross","Valor informado");
+            bagGrid.Columns[0].FillWeight=200;bagPanel.Controls.Add(bagGrid,0,1);
+            bagTotals.AutoSize=true;bagTotals.MaximumSize=new Size(900,0);bagTotals.Margin=new Padding(0,8,0,0);bagTotals.Text="Aguardando RFI e sacola final. Esta tela nao executa a separacao.";bagPanel.Controls.Add(bagTotals,0,2);
+            bagTab.Controls.Add(bagPanel);tabs.TabPages.Add(bagTab);panel.Controls.Add(tabs,0,2);
             counter.AutoSize=true;counter.Margin=new Padding(0,8,0,8);panel.Controls.Add(counter,0,3);
             var footer=new FlowLayoutPanel {AutoSize=true,Dock=DockStyle.Fill};save.Text="Salvar resultado para o Work";save.AutoSize=true;footer.Controls.Add(save);
-            footer.Controls.Add(new Label {AutoSize=true,Text="Somente eventos. Nao confirma, separa ou cancela pedidos.",Margin=new Padding(8,8,0,0)});panel.Controls.Add(footer,0,4);
+            footer.Controls.Add(new Label {AutoSize=true,Text="Eventos e sacola final de testes. Separacao ainda externa.",Margin=new Padding(8,8,0,0)});panel.Controls.Add(footer,0,4);
             connect.Click += async (s,e) => await ConnectAsync();
             toggle.Click += async (s,e) => {
                 if(running){running=false;timer.Stop();if(operation!=null)operation.Cancel();toggle.Text="Retomar recebimento";status.Text="Recebimento pausado. Historico preservado.";}
@@ -75,7 +90,14 @@ namespace LealInfo.IFood.Assistant
             FormClosing += (s,e)=>{
                 running=false;timer.Stop();if(busy){closing=true;e.Cancel=true;if(operation!=null)operation.Cancel();status.Text="Encerrando operacao e preservando a fila...";}
             };
-            FormClosed += (s,e)=>{timer.Dispose();if(events!=null)events.Dispose();if(auth!=null)auth.Dispose();if(journal!=null)journal.Dispose();if(operation!=null)operation.Dispose();secret.Clear();};
+            FormClosed += (s,e)=>{timer.Dispose();if(bagProcessor!=null)bagProcessor.Dispose();if(bagStore!=null)bagStore.Dispose();if(events!=null)events.Dispose();if(auth!=null)auth.Dispose();if(journal!=null)journal.Dispose();if(operation!=null)operation.Dispose();secret.Clear();};
+            Shown+=(s,e)=>{
+                var area=Screen.FromControl(this).WorkingArea;
+                MinimumSize=new Size(Math.Min(MinimumSize.Width,area.Width-16),Math.Min(MinimumSize.Height,area.Height-16));
+                Size=new Size(Math.Min(Width,area.Width-16),Math.Min(Height,area.Height-16));
+                Location=new Point(area.Left+(area.Width-Width)/2,area.Top+(area.Height-Height)/2);
+            };
+            Resize+=(s,e)=>{status.MaximumSize=new Size(Math.Max(300,ClientSize.Width-50),0);bagTotals.MaximumSize=new Size(Math.Max(300,ClientSize.Width-70),0);};
             RefreshGrid();
         }
         private void Log(AuthenticationEvidence item)
@@ -91,13 +113,14 @@ namespace LealInfo.IFood.Assistant
                 // Per-app directory prevents ACK bookkeeping being shared between different devices.
                 string appHash;using(var sha=SHA256.Create())appHash=BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(id.Text.Trim()))).Replace("-", "").Substring(0,24);
                 folder=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"LEAL_INFO_IFOOD_TESTES","ETAPA2",merchant.ToString("D"),appHash);
-                journal=new EventJournal(folder,merchant);
+                journal=new EventJournal(folder,merchant);bagStore=new BagStore(folder,merchant);
                 auth=new AuthenticationClient(id.Text.Trim(),secret.Text.Trim(),Log,null,null,AuthenticationMode.Centralized);
                 secret.Clear();id.ReadOnly=true;secret.Enabled=false;testApp.Enabled=false;
                 status.Text="Conectando a sessao para receber pedidos...";
                 await auth.ConnectCentralizedAsync(operation.Token);authenticated=true;
                 await auth.VerifyMerchantAsync(merchant,operation.Token);merchantVerified=true;
                 events=new EventsClient(merchant,auth.GetAccessTokenAsync,Log);receiver=new EventReceiver(events,journal);
+                bagProcessor=new BagProcessor(journal,bagStore,auth.GetAccessTokenAsync,Log);
                 running=true;toggle.Enabled=true;timer.Start();status.Text="Conectado. Iniciando recebimento a cada 30 segundos.";RefreshGrid();
             }
             catch(Exception ex){Fail(ex);}
@@ -111,7 +134,9 @@ namespace LealInfo.IFood.Assistant
             try
             {
                 var result=await receiver.RunCycleAsync(operation.Token);
-                if(result.Polled){polls++;received+=result.Received;duplicate+=result.Received-result.Added;}
+                int imported=0;
+                if(result.Polled){polls++;received+=result.Received;duplicate+=result.Received-result.Added;imported=await bagProcessor.ProcessAsync(operation.Token);}
+                if(imported>0)result.Message+=" Sacola final validada e gravada na aba de conferencia.";
                 status.Text=result.Message;RefreshGrid();
             }
             catch(OperationCanceledException){status.Text="Recebimento pausado. Eventos gravados permanecem na fila.";}
@@ -135,22 +160,45 @@ namespace LealInfo.IFood.Assistant
         {
             grid.Rows.Clear();var rows=journal==null?new List<ReceivedEvent>():journal.Snapshot();
             foreach(var row in rows.Reverse().Take(2000))grid.Rows.Add(DateTimeOffset.Parse(row.CreatedAt).ToLocalTime().ToString("dd/MM HH:mm:ss"),row.OrderId,
-                row.FullCode+(row.AwaitingFinalBag?" (sacola pendente)":""),row.AckAccepted?"Gravado / ACK aceito":"Gravado / ACK pendente");
+                row.FullCode+(row.AwaitingFinalBag?(row.BusinessProcessed?" (sacola gravada)":" (sacola pendente)"):""),row.AckAccepted?"Gravado / ACK aceito":"Gravado / ACK pendente");
+            RefreshBags();
             counter.Text="Pedidos no historico: "+rows.Select(r=>r.OrderId).Distinct(StringComparer.OrdinalIgnoreCase).Count()+" | Eventos: "+rows.Count+" | ACK pendentes: "+rows.Count(r=>!r.AckAccepted)+" | Consultas nesta sessao: "+polls;
         }
+        private void RefreshBags()
+        {
+            string selected=bagPicker.SelectedItem as string;
+            var bags=bagStore==null?new List<BagOrder>():bagStore.Snapshot();
+            bagPicker.Items.Clear();foreach(var bag in bags)bagPicker.Items.Add(bag.Id.ToString("D"));
+            if(selected!=null && bagPicker.Items.Contains(selected))bagPicker.SelectedItem=selected;
+            else if(bagPicker.Items.Count>0)bagPicker.SelectedIndex=bagPicker.Items.Count-1;
+            ShowBag();
+        }
+        private void ShowBag()
+        {
+            bagGrid.Rows.Clear();if(bagStore==null || bagPicker.SelectedItem==null)return;
+            var bag=bagStore.Snapshot().Single(b=>b.Id.ToString("D")==bagPicker.SelectedItem.ToString());
+            foreach(var item in bag.Items){int index=bagGrid.Rows.Add(item.Name,item.ReportedQuantity,item.Unavailable?"SIM":"NAO",item.AvailableQuantity,Money(item.GrossCents));
+                if(item.Unavailable)bagGrid.Rows[index].DefaultCellStyle.ForeColor=Color.Salmon;}
+            bagTotals.Text="Modalidade: "+bag.Operation+" | Agenda: "+bag.Scheduling+"\nJanela: "+bag.WindowFrom+" / "+bag.WindowTo+
+                "\nTotal da sacola: "+Money(bag.BagGrossCents)+" | Pagamento informado: "+Money(bag.PaymentCents)+
+                "\nBeneficios informados: "+bag.Benefits.Length+" | "+string.Join("; ",bag.Benefits.Take(4).Select(b=>b.Target+" / "+b.Liability+": "+Money(b.Cents)).ToArray())+
+                (bag.Benefits.Length>4?" (demais no relatorio)":"")+
+                "\nBeneficio nao comprova cupom. Linha indisponivel mantem dados informados; quantidade disponivel e zero. Sem baixa de estoque ou financeiro.";
+        }
+        private static string Money(decimal cents){return (cents/100m).ToString("C2",System.Globalization.CultureInfo.GetCultureInfo("pt-BR"));}
         private void SaveReport()
         {
             if(busy)return;
-            using(var dialog=new SaveFileDialog {Filter="Resultado (*.txt)|*.txt",FileName="RESULTADO_IFOOD_ETAPA2.txt",InitialDirectory=Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)})
+            using(var dialog=new SaveFileDialog {Filter="Resultado (*.txt)|*.txt",FileName="RESULTADO_IFOOD_SACOLA_R6.txt",InitialDirectory=Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)})
             {
                 if(dialog.ShowDialog(this)!=DialogResult.OK)return;
-                try{File.WriteAllText(dialog.FileName,Report(),new UTF8Encoding(true));status.Text="Resultado salvo. Envie RESULTADO_IFOOD_ETAPA2.txt ao Work.";}
+                try{File.WriteAllText(dialog.FileName,Report(),new UTF8Encoding(true));status.Text="Resultado salvo. Envie RESULTADO_IFOOD_SACOLA_R6.txt ao Work.";}
                 catch{status.Text="Nao foi possivel salvar. Escolha uma pasta com permissao.";}
             }
         }
         private string Report()
         {
-            var text=new StringBuilder("LEAL INFO - IFOOD ETAPA 2 - RECEBIMENTO R5\r\n");
+            var text=new StringBuilder("LEAL INFO - IFOOD RECEBIMENTO E SACOLA FINAL R6\r\n");
             text.AppendLine("UTC: "+DateTimeOffset.UtcNow.ToString("O"));text.AppendLine("Loja de testes: "+merchant);
             text.AppendLine("Autenticacao nesta sessao: "+(authenticated?"CONFIRMADA":"NAO CONFIRMADA"));
             text.AppendLine("Acesso a loja nesta sessao: "+(merchantVerified?"CONFIRMADO":"NAO CONFIRMADO"));
@@ -160,10 +208,18 @@ namespace LealInfo.IFood.Assistant
             var rows=journal==null?new List<ReceivedEvent>():journal.Snapshot();
             text.AppendLine("Eventos tecnicos persistidos: "+rows.Count+"; ACK pendentes: "+rows.Count(r=>!r.AckAccepted));
             text.AppendLine("Historico pode incluir sessoes anteriores. HTTP 204 confirma comunicacao, nao recebimento de pedido.");
-            text.AppendLine("ACK confirma apenas transporte do evento; NAO confirma o pedido. Sem separacao, importacao da sacola ou efeitos no PDV.");
+            text.AppendLine("ACK confirma apenas transporte; NAO confirma o pedido. A sacola final e gravada somente em RFI, em pasta isolada, sem efeitos no PDV.");
+            text.AppendLine("Sacolas finais persistidas: "+(bagStore==null?0:bagStore.Snapshot().Count));
+            text.AppendLine("SACOLAS (IDs, quantidades e valores tecnicos; sem dados do consumidor):");
+            if(bagStore!=null)foreach(var bag in bagStore.Snapshot()){
+                text.AppendLine("Pedido "+bag.Id+" | "+bag.Operation+" | "+bag.Scheduling+" | janela "+bag.WindowFrom+" / "+bag.WindowTo+" | total centavos "+bag.BagGrossCents+" | pagamento centavos "+bag.PaymentCents);
+                foreach(var item in bag.Items)text.AppendLine("Item "+item.Id+" | quantidade informada "+item.ReportedQuantity+" | unavailable "+item.Unavailable+" | disponivel "+item.AvailableQuantity+" | valor informado centavos "+item.GrossCents);
+                foreach(var benefit in bag.Benefits)text.AppendLine("Beneficio "+benefit.Target+" | "+benefit.Liability+" | centavos "+benefit.Cents);
+            }
+            text.AppendLine("Beneficio nao comprova cupom; unavailable nao comprova solicitacao de cancelamento. Evidencias reais permanecem pendentes.");
             text.AppendLine("Videos, logs oficiais e homologacao permanecem pendentes.");
             text.AppendLine("EVENTOS (IDs tecnicos; sem cliente, endereco, itens ou credenciais):");
-            foreach(var row in rows)text.AppendLine(row.CreatedAt+" | pedido "+row.OrderId+" | evento "+row.Id+" | "+row.Code+" / "+row.FullCode+" | ACK "+row.AckAccepted+" | processamento comercial "+row.BusinessProcessed);
+            foreach(var row in rows)text.AppendLine(row.CreatedAt+" | pedido "+row.OrderId+" | evento "+row.Id+" | "+row.Code+" / "+row.FullCode+" | ACK "+row.AckAccepted+" | sacola persistida "+row.BusinessProcessed);
             text.AppendLine("HTTP (metadados; sem corpos, cabecalhos, chaves ou tokens):");
             lock(logs){foreach(var row in logs)text.AppendLine(row.AtUtc.ToString("O")+" | "+row.Method+" | "+row.Route+" | HTTP "+(row.Status.HasValue?row.Status.Value.ToString():"sem resposta")+" | "+row.ElapsedMs+" ms | "+row.Outcome);text.AppendLine("Registros antigos omitidos por limite: "+skippedLogs);}
             return text.ToString();

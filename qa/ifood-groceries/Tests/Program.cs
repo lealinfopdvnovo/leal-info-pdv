@@ -69,6 +69,7 @@ passed += await AuthenticationTests.Run();
 passed += await CentralizedTests.Run();
 passed += await ReceptionTests.Run();
 passed += await PartialPickingTests.Run();
+passed += await PortableBagTests.Run();
 Console.WriteLine($"TOTAL {passed} PASS; isolated fixtures and fake HTTP only; NO live iFood, PDV or Windows UI test.");
 sealed class Stub(Func<HttpRequestMessage,Task<HttpResponseMessage>> handler):HttpMessageHandler
 { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r,CancellationToken c)=>handler(r); }

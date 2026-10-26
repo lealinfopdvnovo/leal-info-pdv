@@ -179,3 +179,53 @@ de pedido de teste e ACK; conectar sacola final ao host; escolher o fluxo de
 separacao autorizado (App Separador ou Picking conforme habilitacao), testar
 cupom/cancelamento/parcial e reunir videos/logs oficiais. A revisao offline
 nao substitui nenhuma dessas evidencias.
+
+
+## R6 — sacola final conectada ao receptor Windows
+
+Adicionado Core/PortableBag.cs, C# 5 compativel com Framework 4.8. VirtualBag
+.NET 8 agora adapta o resultado desse mesmo parser, evitando validadores
+divergentes. Os testes anteriores continuam aprovados. Parser verifica raiz
+JSON unica, duplicacao de chaves, tipos estritos, unavailable obrigatorio,
+identidade/test=true/GROCERY, quantidades unitarias, valores em centavos e
+janelas de entrega/retirada. Peso variavel permanece rejeitado explicitamente.
+
+BagProcessor processa no maximo 10 RFIs pendentes por ciclo, depois do polling.
+GET fixo /order/v1.0/orders/{id}/virtual-bag, sem redirecionamento, limite 1 MB,
+timeout incluindo leitura do corpo e log apenas de metadados. Sem retentativa
+automatica de sacola em falha; formulario interrompe a recepcao para analise.
+BagStore grava somente campos normalizados de itens, valores, modalidade e
+beneficios (sem consumidor/documentos/endereco/telefone). Arquivo atomico,
+lease exclusiva, 1000 recebimentos/16 MB e validacao ao reabrir.
+
+O checkpoint RFI e atualizado somente depois da gravacao da sacola. Interrupcao
+entre as duas gravacoes reutiliza a sacola sem novo GET. Se o arquivo da sacola
+estiver ausente mesmo com checkpoint antigo, a fila permite recuperacao.
+EventJournal/BagStore sincronizam leituras/mutacoes; BagProcessor serializa
+ciclos concorrentes. BusinessProcessed e nome legado: na R6 significa apenas
+sacola persistida, sem efeitos comerciais. Nenhum ACK e enviado por BagProcessor;
+o ACK de transporte continua sendo feito por EventReceiver apos persistir eventos.
+
+Windows/AssistantForm.cs: aba Eventos e nova aba Sacola final - conferencia,
+com produtos, quantidade reportada/disponivel, unavailable, valores, beneficios,
+modalidade e janela. Relatorio RESULTADO_IFOOD_SACOLA_R6.txt sem nomes de produtos
+ou consumidor; contem IDs tecnicos, quantidades e valores. Tamanho inicial e
+limitado a area util do monitor; a interface ainda precisa de verificacao real.
+A interface nao executa nem certifica separacao: a revisao de plano 0/3/1 anterior
+permanece componente de teste separado da conferencia visual.
+
+Validacao: 210 verificacoes locais aprovadas (177 anteriores + 33 novas),
+registradas em evidence/portable-bag-tests.txt. Incluem 12 chamadas concorrentes,
+restart, falha antes/depois da primeira gravacao, dados corruptos, checkpoint
+sem arquivo, unavailable ausente/string, outra loja/producao, corpo excedido,
+401/403/404/429/500/302 sem repeticao. Sem HTTP real e sem execucao de UI Windows.
+Build Framework em evidence/windows-r6-build.txt; pacote em evidence/windows-r6-package.txt.
+
+A R5 continua sendo a unica versao com evidencia real de polling (HTTP 204).
+R6 preparada para uso isolado apos destravar o comprador. GLOBAL, clientes,
+Firebase, licencas, APK e PDV instalado nao foram modificados ou publicados.
+
+Pendencias: login do comprador (incidente enviado pelo usuario), primeiro pedido
+recebido/ACK, RFI/sacola real, habilitacao do fluxo externo de separacao,
+validacao do pedido original/cupom/solicitacao de cancelamento, retirada e agenda
+reais, videos e exportacao de logs oficiais. Nao iniciar homologacao oficial.

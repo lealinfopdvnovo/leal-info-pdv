@@ -1,60 +1,59 @@
-LEAL INFO - IFOOD | ETAPA 2 - RECEBIMENTO R5
+LEAL INFO - IFOOD | RECEBIMENTO E SACOLA FINAL R6
 
-1. Extraia este ZIP em uma nova pasta e abra Conectar_iFood_Teste.exe.
-2. Preencha na janela as credenciais do aplicativo Teste (C), as mesmas
-   usadas na etapa 1. Elas nao foram guardadas no programa anterior.
+PACOTE PREPARADO PARA TESTES; HOMOLOGACAO E PEDIDOS REAIS AINDA PENDENTES.
+O suporte esta tratando a falha de login do comprador de testes.
+
+QUANDO O ACESSO DE TESTES ESTIVER LIBERADO
+1. Feche a R5 e extraia este ZIP em uma pasta nova, fora do PDV.
+2. Abra Conectar_iFood_Teste.exe e informe as credenciais do Teste (C)
+   SOMENTE na janela local. Elas ficam em memoria ate fechar o programa.
 3. Marque a confirmacao e clique em Conectar e iniciar recebimento.
-4. Mantenha a janela aberta. O quadro mostrara eventos de pedidos recebidos.
-5. Clique em Salvar resultado para o Work e envie RESULTADO_IFOOD_ETAPA2.txt.
-   Nunca envie Client Secret ou token pelo chat.
+4. Deixe a janela aberta. Eventos aparecem na aba Eventos. Quando chegar
+   READY_FOR_INVOICE (RFI), a sacola sera lida, validada e gravada.
+5. Abra Sacola final - conferencia e escolha o pedido para ver os itens.
+6. Salve RESULTADO_IFOOD_SACOLA_R6.txt para enviar ao Work.
 
-Nao e necessario instalar nada, usar PowerShell ou ser administrador.
-Requer Windows com .NET Framework 4.8. Esta pasta e separada do PDV real.
-A loja de testes e fixa: 84a8976b-0559-48c6-84ce-fc2502f1364a.
-Nao execute outro receptor com as mesmas credenciais ao mesmo tempo.
+Use somente a loja de testes 84a8976b-0559-48c6-84ce-fc2502f1364a.
+Nao rode R5 e R6 simultaneamente. A R6 reutiliza a fila tecnica da R5,
+se forem usadas as mesmas credenciais do aplicativo e o mesmo usuario Windows.
+Nao apague essa fila. O receptor nao substitui nem atualiza o PDV instalado.
 
-O QUE ESTA VERSAO FAZ
-- Consulta os eventos dessa loja a cada 30 segundos enquanto esta ativa.
-- Grava os IDs, codigos e horarios antes de confirmar o recebimento (ACK).
-- Evita duplicacoes; preserva a fila ao fechar; recupera ACK pendente.
-- Mostra os eventos, incluindo READY_FOR_INVOICE (sacola ainda pendente).
-- Exporta somente metadados HTTP e IDs tecnicos, sem corpos nem credenciais.
-- Em falha de permissao ou formato, para. Falhas transitorias possuem
-  espera crescente e limite de 3 falhas consecutivas.
+O QUE A R6 ACRESCENTA
+- Aba Sacola final com produtos, quantidade informada, unavailable,
+  quantidade disponivel, valores, modalidade, janela agendada e beneficios.
+- Parser compartilhado entre Windows Framework e nucleo .NET 8.
+- unavailable e obrigatorio e booleano; linha indisponivel tem quantidade
+  disponivel zero, preservando quantidade e valores que vieram da API.
+- Somente pedidos test=true, categoria GROCERY e da loja fixada sao aceitos.
+- Leitura apenas em RFI, com limite de resposta e tempo. Falha deixa a
+  sacola pendente e interrompe a recepcao para analise, sem repetir a leitura.
+- Persistencia atomica da sacola e recuperacao entre os dois arquivos
+  (sacola/eventos), inclusive se houver interrupcao depois da primeira gravacao.
+- Dados do consumidor, documentos, enderecos, telefones e credenciais nao
+  sao gravados na sacola normalizada nem incluidos no relatorio.
 
-Se aparecer Conectado. Aguardando pedido de teste, a consulta funcionou.
-Isso ainda nao prova que um pedido chegou: um evento precisa aparecer.
-O resultado de HTTP 204 significa apenas que nao ha eventos pendentes.
+O indicador interno BusinessProcessed da fila antiga significa, na R6,
+apenas SACOLA FINAL PERSISTIDA. Nao significa venda, estoque ou financeiro.
+ACK continua sendo confirmacao de transporte do evento, nao do pedido.
+HTTP 204 confirma consulta sem eventos; nao comprova pedido recebido.
+Beneficio informado nao comprova uso de cupom. unavailable=true nao comprova
+que a solicitacao de cancelamento foi enviada; essas evidencias sao separadas.
 
-CRIACAO DE PEDIDO DE TESTE
-A R5 nao cria pedidos automaticamente. Depois de validar a consulta,
-use somente o usuario e a loja de testes indicados no Developer Portal.
-Para Groceries, se o gerador estiver indisponivel, o fluxo oficial utiliza
-esse usuario de testes no app/site iFood. O endereco de teste indicado
-na documentacao e Ramal Bujari, 100, bairro Bujari. Procure a loja de testes
-com o receptor ativo. Se ela nao aparecer, pare e informe o resultado;
-nao utilize uma loja real nem conclua uma compra de producao.
+LIMITES
+Esta janela nao executa confirmacao, cancelamento, separacao, despacho,
+faturamento, notificacoes ou alteracoes no PDV. O fluxo de separacao deve
+ser habilitado no ambiente de testes (App Separador ou Picking autorizado).
+O componente de revisao do cenario 0/3/1 ja tem testes locais, mas a aba
+Windows mostra os dados da sacola; nao certifica o cenario automaticamente.
+Produtos de peso variavel continuam fora do escopo inicial de unidades.
 
-LIMITES DESTA ETAPA
-ACK e confirmacao de transporte do evento, NAO confirmacao do pedido.
-Esta versao nao confirma, cancela, separa ou despacha pedidos, nao altera
-estoque/financeiro e ainda nao importa a sacola final no PDV. A fila guarda
-somente campos tecnicos; metadados livres e dados de clientes nao sao salvos.
-As etapas de separacao e importacao final continuam pendentes. O evento
-RFI permanece registrado como processamento comercial pendente.
-Nao usar a R5 sozinha para operar a loja: os pedidos de teste ainda precisam
-do fluxo de separacao apropriado para avancar. Nao iniciar homologacao oficial.
+VALIDACAO DESTA ENTREGA
+210 verificacoes locais aprovadas; HTTP simulado e arquivos isolados.
+EXE compilado com avisos tratados como erros para .NET Framework 4.8.
+O codigo compartilhado foi executado nos testes .NET 8. A interface e as
+chamadas reais da R6 ainda precisam de validacao no Windows do usuario.
+Nao ha resultados reais de pedidos, separacao ou homologacao nesta entrega.
 
-DADOS LOCAIS
-Credenciais e tokens: somente na memoria ate fechar a janela.
-Fila: %LOCALAPPDATA%\LEAL_INFO_IFOOD_TESTES\ETAPA2\ (por loja/aplicativo).
-Nao apague a fila entre testes. Uma segunda janela com a mesma fila e bloqueada.
-GLOBAL, Firebase, clientes, licenca e APK nao sao modificados.
-Os logs oficiais para homologacao continuam sendo exportados no Developer
-Portal, em Logs da API > HTTP Requests, no aplicativo utilizado nos videos.
-
-VALIDACAO
-Codigo compilado com avisos tratados como erros; testes locais com HTTP
-simulado. Autenticacao e consulta da loja ja foram comprovadas na R4.
-A recepcao real e a interface R5 ainda precisam ser verificadas no seu Windows.
-Este pacote nao declara homologacao nem integracao completa concluida.
+Nao e necessario instalar SDK, usar PowerShell ou ser administrador.
+Nao inclua Client Secret nem tokens em mensagens ou arquivos enviados.
+Roteiro dos testes e videos: ROTEIRO_VALIDACAO.txt.

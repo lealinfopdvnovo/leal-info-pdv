@@ -37,7 +37,8 @@ namespace LealInfo.IFood.Groceries
         [DataMember(IsRequired = true)] public string FullCode { get; internal set; }
         [DataMember(IsRequired = true)] public string CreatedAt { get; internal set; }
         [DataMember(IsRequired = true)] public bool AckAccepted { get; internal set; }
-        // Remains false until a future order processor completes its work. ACK is transport-only.
+        // R6: true only after normalized final bag is durably stored. No PDV/stock/finance posting.
+        // Field name retained for compatibility with the R5 event journal. ACK is transport-only.
         [DataMember(IsRequired = true)] public bool BusinessProcessed { get; internal set; }
         public bool AwaitingFinalBag { get { return Code == "RFI" || FullCode == "READY_FOR_INVOICE"; } }
         internal ReceivedEvent Copy() { return (ReceivedEvent)MemberwiseClone(); }
@@ -65,6 +66,7 @@ namespace LealInfo.IFood.Groceries
             catch { throw new ReceptionFailure("Formato de dados invalido. Recepcao interrompida sem confirmar o lote."); }
         }
         // Framework's JSON reader can ignore a second root value; enforce one bounded document.
+        internal static void ValidateDocument(byte[] bytes) { ValidateBoundary(bytes); }
         private static void ValidateBoundary(byte[] bytes)
         {
             string json = new UTF8Encoding(false, true).GetString(bytes);
@@ -118,6 +120,7 @@ namespace LealInfo.IFood.Groceries
 
     public sealed class EventJournal : IDisposable
     {
+        private readonly object stateGate=new object();
         private const int MaximumEvents = 10000;
         private const int MaximumBytes = 16000000;
         private readonly string path;
@@ -154,15 +157,15 @@ namespace LealInfo.IFood.Groceries
             }
             catch { lease.Dispose(); throw; }
         }
-        public DateTimeOffset NextAttemptUtc { get { return ReceptionJson.Timestamp(state.NextAttemptUtc); } }
-        public IList<ReceivedEvent> Snapshot() { return state.Events.Select(e => e.Copy()).ToList().AsReadOnly(); }
-        public IList<string> PendingIds() { return state.Events.Where(e => !e.AckAccepted).Select(e => e.Id).ToList().AsReadOnly(); }
+        public DateTimeOffset NextAttemptUtc { get { lock(stateGate) { return ReceptionJson.Timestamp(state.NextAttemptUtc); } } }
+        public IList<ReceivedEvent> Snapshot() { lock(stateGate) { return state.Events.Select(e => e.Copy()).ToList().AsReadOnly(); } }
+        public IList<string> PendingIds() { lock(stateGate) { return state.Events.Where(e => !e.AckAccepted).Select(e => e.Id).ToList().AsReadOnly(); } }
         private JournalState Clone()
         { return new JournalState { Version = 1, Merchant = state.Merchant, NextAttemptUtc = state.NextAttemptUtc, Events = state.Events.Select(e => e.Copy()).ToList() }; }
         public void Schedule(DateTimeOffset next)
-        { var draft = Clone(); draft.NextAttemptUtc = next.ToUniversalTime().ToString("O"); Commit(draft); }
+        { lock(stateGate) { var draft = Clone(); draft.NextAttemptUtc = next.ToUniversalTime().ToString("O"); Commit(draft); } }
         public int Stage(IList<ReceivedEvent> batch)
-        {
+        { lock(stateGate) {
             var draft = Clone(); var index = draft.Events.ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase); int added = 0;
             foreach (var item in batch)
             {
@@ -184,15 +187,21 @@ namespace LealInfo.IFood.Groceries
             }
             draft.Events = draft.Events.OrderBy(e => ReceptionJson.Timestamp(e.CreatedAt)).ThenBy(e => e.Id, StringComparer.Ordinal).ToList();
             Commit(draft); return added;
-        }
+        } }
         public void MarkAckAccepted(IList<string> ids)
-        {
+        { lock(stateGate) {
             var selected = new HashSet<string>(ids, StringComparer.OrdinalIgnoreCase); var draft = Clone();
             if (selected.Count != ids.Count || draft.Events.Count(e => selected.Contains(e.Id)) != selected.Count)
                 throw new ReceptionFailure("Confirmacao local sem evento persistido.");
             foreach (var row in draft.Events) if (selected.Contains(row.Id)) row.AckAccepted = true;
             Commit(draft);
-        }
+        } }
+        public void MarkBagPersisted(string id)
+        { lock(stateGate) {
+            var draft=Clone();var row=draft.Events.SingleOrDefault(e=>string.Equals(e.Id,id,StringComparison.OrdinalIgnoreCase));
+            if(row==null || !row.AwaitingFinalBag)throw new ReceptionFailure("Sacola sem evento RFI persistido.");
+            row.BusinessProcessed=true;Commit(draft);
+        } }
         private void Commit(JournalState draft)
         {
             var bytes = ReceptionJson.Write(draft);
