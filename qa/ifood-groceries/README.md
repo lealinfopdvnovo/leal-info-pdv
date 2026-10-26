@@ -81,3 +81,60 @@ Fonte oficial consultada em 26/10/2026: https://developer.ifood.com.br/en-US/doc
 O relatório real enviado pelo usuário registrou POST token HTTP 200 em 26/10/2026 20:08:26 UTC e GET merchant HTTP 403 às 20:08:27 UTC. A autenticação centralizada está comprovada. Ao inspecionar visualmente o print original `image(20261026-132719).png`, constatou-se erro de transcrição do UUID no assistente: `84a8976b-0559-48c6-84ce-fe2502f1364a` em vez de `84a8976b-0559-48c6-84ce-fc2502f1364a`.
 
 A R4 corrige somente o destino da consulta e inclui o UUID público da loja no relatório. Não muda OAuth, permissões ou métodos HTTP. O erro de configuração é comprovado; não é possível afirmar que era a única causa do 403 antes de consultar o UUID corrigido. A validação real da loja e dos pedidos continua pendente. Os 96 testes do núcleo permanecem da R3; a R4 foi compilada e seu destino foi verificado contra o print.
+
+
+## Etapa 2 — receptor Windows R5 (2026-10-26)
+
+A etapa 1 foi comprovada no Windows do usuario: R4 com HTTP 200 no token e
+HTTP 200 no merchant correto, conforme RESULTADO_IFOOD_TESTE(1).txt, UTC
+2026-10-26T20:15. Essa evidencia nao prova acesso a Events/Orders/Picking.
+
+A R5 acrescenta `Core/EventReception.cs`, compartilhado diretamente com o
+executavel .NET Framework 4.8 (C# 5) e com os testes .NET 8. Nao exige SDK,
+PowerShell ou instalacao no Windows. Autenticacao C permanece em memoria;
+a abertura de outra versao exige preencher as credenciais localmente.
+
+- GET `/events/v1.0/events:polling`, filtro `x-polling-merchants` fixado na
+  loja de testes conhecida, intervalo minimo de 30 segundos persistido.
+- Sem filtros types/groups/categories que possam descartar outros eventos.
+- IDs, codigos e horarios validados; fila tecnica atomica gravada antes do ACK.
+- POST `/events/v1.0/events/acknowledgment` com array de objetos `id`, ate
+  2000 por chamada. Apenas HTTP 202 marca ACK aceito. Aceite de transporte
+  nunca e tratado como confirmacao comercial do pedido.
+- Duplicacao e conflito de ID; recuperacao de ACK apos reinicio; exclusao
+  mutua por arquivo; ordenacao por createdAt, sem regressao de status comercial
+  porque esta etapa ainda nao projeta o estado comercial do pedido.
+- 401/403/400/404/redirecionamento param; 429/5xx/rede aguardam 60/120 segundos
+  ou Retry-After maior, com parada na terceira falha consecutiva.
+- Limites de 2 MB por resposta, 2000 eventos por lote, 10000 eventos e 16 MB
+  na fila; documento JSON unico, profundidade limitada e campos obrigatorios.
+- Relatorio com IDs tecnicos e metadados HTTP. Sem corpos de resposta,
+  cabecalhos, clientes, enderecos ou credenciais. Metadados livres do evento
+  nao sao persistidos nem interpretados nesta etapa.
+
+A fila esta em LocalAppData/LEAL_INFO_IFOOD_TESTES/ETAPA2, separada por
+merchant e hash do Client ID. A aplicacao principal e suas bases nao sao
+abertas. O ultimo formulario exibe os eventos; salvar o resultado gera
+RESULTADO_IFOOD_ETAPA2.txt. HTTP 204 comprova comunicacao, nao pedido recebido.
+
+Validacao: 155 verificacoes locais aprovadas, sendo 59 novas de recepcao,
+com HTTP simulado e arquivos temporarios. Compilacao do nucleo, testes e
+EXE com avisos tratados como erros. Evidencias em `evidence/reception-tests.txt`
+e `evidence/windows-r5-build.txt`. Nao foi executada a interface R5 no Windows
+nem realizada chamada real de Events nesta sessao: dependem da execucao local.
+
+Escopo pendente: nenhum POST de confirmar/cancelar/separar/despachar; sacola
+final ainda nao conectada ao receptor Windows. RFI fica registrado com
+BusinessProcessed=false, disponivel para a proxima etapa. O nucleo anterior
+VirtualBag/Inbox permanece preservado, mas nao e chamado pela R5. Nao confundir
+recebimento tecnico com processamento completo no PDV ou homologacao.
+
+Referencias oficiais consultadas em 26/10/2026:
+- https://developer.ifood.com.br/es-CO/docs/food/guides/modules/events/polling-overview
+- https://developer.ifood.com.br/en-US/docs/food/guides/modules/events/intro
+- https://developer.ifood.com.br/en-US/docs/getting-started/documentation/best-practices
+- https://developer.ifood.com.br/en-US/docs/groceries/guides/modules/order/details
+- https://developer.ifood.com.br/pt-BR/docs/guides/order/
+
+Usado o contrato dedicado do modulo Events (array/ACK por id), e nao o exemplo
+alternativo orders:polling do guia de workflow. Sem fallback silencioso de rota.

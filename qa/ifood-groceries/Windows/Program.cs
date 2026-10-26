@@ -22,7 +22,7 @@ namespace LealInfo.IFood.Assistant
         private static void ReportFailure(Exception ex)
         {
             // No exception message/stack, input value, HTTP body or header is exported.
-            var text = new StringBuilder("LEAL INFO - FALHA LOCAL DO ASSISTENTE R4\r\n");
+            var text = new StringBuilder("LEAL INFO - FALHA LOCAL DO ASSISTENTE R5\r\n");
             text.AppendLine("UTC: " + DateTimeOffset.UtcNow.ToString("O"));
             text.AppendLine("CLR: " + Environment.Version);
             text.AppendLine("Processo 64 bits: " + Environment.Is64BitProcess);

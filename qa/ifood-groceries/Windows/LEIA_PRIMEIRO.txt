@@ -1,39 +1,60 @@
-﻿LEAL INFO - IFOOD TESTE (C) - R4
+LEAL INFO - IFOOD | ETAPA 2 - RECEBIMENTO R5
 
-1. Extraia o ZIP em uma nova pasta.
-2. Abra Conectar_iFood_Teste.exe.
-3. No Developer Portal, abra Meus aplicativos e escolha o aplicativo
-   cujo nome termina em Teste (C), do tipo Centralizado.
-4. Copie Client ID e Client Secret desse aplicativo para a janela local.
-   Nao use as credenciais do Teste (D). Nao envie chaves pelo chat.
-5. Marque a confirmacao e clique em Conectar e verificar minha loja de testes.
-6. Clique em Salvar resultado e envie somente RESULTADO_IFOOD_TESTE.txt ao Work.
+1. Extraia este ZIP em uma nova pasta e abra Conectar_iFood_Teste.exe.
+2. Preencha na janela as credenciais do aplicativo Teste (C), as mesmas
+   usadas na etapa 1. Elas nao foram guardadas no programa anterior.
+3. Marque a confirmacao e clique em Conectar e iniciar recebimento.
+4. Mantenha a janela aberta. O quadro mostrara eventos de pedidos recebidos.
+5. Clique em Salvar resultado para o Work e envie RESULTADO_IFOOD_ETAPA2.txt.
+   Nunca envie Client Secret ou token pelo chat.
 
-A R4 usa client_credentials, conforme o fluxo oficial de aplicativos
-centralizados. Nao gera userCode, nao abre navegador e nao solicita
-cadastro/login no Portal do Parceiro. Nenhum acesso de producao e solicitado.
-Isso nao altera o tipo do aplicativo LEAL INFO PDV de producao.
-O aplicativo Teste (C) ja constava nos prints enviados pelo usuario.
+Nao e necessario instalar nada, usar PowerShell ou ser administrador.
+Requer Windows com .NET Framework 4.8. Esta pasta e separada do PDV real.
+A loja de testes e fixa: 84a8976b-0559-48c6-84ce-fc2502f1364a.
+Nao execute outro receptor com as mesmas credenciais ao mesmo tempo.
 
-Escopo: POST /authentication/v1.0/oauth/token e GET do merchant de teste
-identificado nos prints. Sem polling, ACK, pedidos, separacao ou alteracoes
-no PDV, GLOBAL, Firebase, estoque, licenca ou clientes em producao.
-Credenciais e tokens ficam somente na memoria da janela. O relatorio tem
-status e metadados HTTP, sem cabecalhos, corpos ou valores privados.
-Em falha, a operacao para. Nao ha troca automatica para outro tipo de app.
+O QUE ESTA VERSAO FAZ
+- Consulta os eventos dessa loja a cada 30 segundos enquanto esta ativa.
+- Grava os IDs, codigos e horarios antes de confirmar o recebimento (ACK).
+- Evita duplicacoes; preserva a fila ao fechar; recupera ACK pendente.
+- Mostra os eventos, incluindo READY_FOR_INVOICE (sacola ainda pendente).
+- Exporta somente metadados HTTP e IDs tecnicos, sem corpos nem credenciais.
+- Em falha de permissao ou formato, para. Falhas transitorias possuem
+  espera crescente e limite de 3 falhas consecutivas.
 
-A autenticacao real e as permissoes devem ser confirmadas pelo resultado.
-Um login aceito nao comprova permissao para Orders/Picking nem homologacao.
-Videos, logs oficiais e integracao operacional ainda estao pendentes.
+Se aparecer Conectado. Aguardando pedido de teste, a consulta funcionou.
+Isso ainda nao prova que um pedido chegou: um evento precisa aparecer.
+O resultado de HTTP 204 significa apenas que nao ha eventos pendentes.
 
-Requer Windows com .NET Framework 4.8. Sem instalacao ou administrador.
-Se ocorrer falha local, envie ERRO_IFOOD_TESTE.txt da Area de Trabalho.
-O codigo foi compilado e testado com HTTP simulado; a R4 ainda precisa ser
-executada no Windows do usuario e conectada a API oficial.
+CRIACAO DE PEDIDO DE TESTE
+A R5 nao cria pedidos automaticamente. Depois de validar a consulta,
+use somente o usuario e a loja de testes indicados no Developer Portal.
+Para Groceries, se o gerador estiver indisponivel, o fluxo oficial utiliza
+esse usuario de testes no app/site iFood. O endereco de teste indicado
+na documentacao e Ramal Bujari, 100, bairro Bujari. Procure a loja de testes
+com o receptor ativo. Se ela nao aparecer, pare e informe o resultado;
+nao utilize uma loja real nem conclua uma compra de producao.
 
-CORRECAO R4
-O UUID da loja foi conferido visualmente no print original do usuario.
-Valor correto: 84a8976b-0559-48c6-84ce-fc2502f1364a.
-A R3 usava fe2502 no lugar de fc2502. O login ja retornou HTTP 200;
-a consulta com o UUID correto ainda deve ser confirmada.
-O relatorio agora identifica a loja consultada, sem expor credenciais.
+LIMITES DESTA ETAPA
+ACK e confirmacao de transporte do evento, NAO confirmacao do pedido.
+Esta versao nao confirma, cancela, separa ou despacha pedidos, nao altera
+estoque/financeiro e ainda nao importa a sacola final no PDV. A fila guarda
+somente campos tecnicos; metadados livres e dados de clientes nao sao salvos.
+As etapas de separacao e importacao final continuam pendentes. O evento
+RFI permanece registrado como processamento comercial pendente.
+Nao usar a R5 sozinha para operar a loja: os pedidos de teste ainda precisam
+do fluxo de separacao apropriado para avancar. Nao iniciar homologacao oficial.
+
+DADOS LOCAIS
+Credenciais e tokens: somente na memoria ate fechar a janela.
+Fila: %LOCALAPPDATA%\LEAL_INFO_IFOOD_TESTES\ETAPA2\ (por loja/aplicativo).
+Nao apague a fila entre testes. Uma segunda janela com a mesma fila e bloqueada.
+GLOBAL, Firebase, clientes, licenca e APK nao sao modificados.
+Os logs oficiais para homologacao continuam sendo exportados no Developer
+Portal, em Logs da API > HTTP Requests, no aplicativo utilizado nos videos.
+
+VALIDACAO
+Codigo compilado com avisos tratados como erros; testes locais com HTTP
+simulado. Autenticacao e consulta da loja ja foram comprovadas na R4.
+A recepcao real e a interface R5 ainda precisam ser verificadas no seu Windows.
+Este pacote nao declara homologacao nem integracao completa concluida.

@@ -1,0 +1,8 @@
+R5 package validation: PASS
+Managed Windows GUI executable; asInvoker manifest; correct merchant; wrong merchant absent.
+ZIP integrity and SHA256 verified.
+Only qa/ifood-groceries source/evidence modified.
+Targeted private-key/JWT pattern scan: no matches.
+No real credentials embedded; fake token values are isolated tests only.
+No Windows GUI execution or live Events call in Work.
+ZIP SHA256 048ff7239f8dbc5868ad3ba87d6897108a9133082dbe2a338f404e5765335679

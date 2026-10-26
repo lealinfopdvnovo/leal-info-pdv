@@ -1,0 +1,159 @@
+PASS scenario final quantities 0/3/1 with unavailable=true
+PASS cancelled line retained without restoring stock quantity
+PASS coupon sponsorship and server money preserved in cents
+PASS missing unavailable rejected
+PASS string boolean rejected
+PASS available zero quantity rejected
+PASS fractional unit quantity rejected
+PASS unsupported weight fails explicitly
+PASS duplicate item identity rejected
+PASS other merchant blocked
+PASS production order blocked
+PASS food schema not confused with groceries
+PASS scheduled window preserves timezone
+PASS scheduled without window rejected
+PASS takeout does not require delivery address
+PASS duplicate JSON keys rejected
+PASS no final import before RFI
+PASS 12 concurrent deliveries persist one event/order
+PASS restart replays safely without refetch
+PASS event id reused for another order rejected
+PASS network failure never acknowledged
+PASS snapshot excludes customer and auth data
+PASS reader uses official virtual-bag route
+PASS token used in header only
+PASS reader and parser contract integration
+PASS HTTP evidence contains no token/body
+PASS HTTP 401 fails without retry loop or redirect
+PASS HTTP 403 fails without retry loop or redirect
+PASS HTTP 429 fails without retry loop or redirect
+PASS HTTP 500 fails without retry loop or redirect
+PASS HTTP 302 fails without retry loop or redirect
+PASS auth: no token before authorization
+PASS auth: fixed HTTPS API origin
+PASS auth: link code sends client ID only as form
+PASS auth: safe portal URL and private ToString
+PASS auth: fixed HTTPS API origin
+PASS auth: token credentials in form body only
+PASS auth: authorization and verifier are URL encoded
+PASS auth: valid token reused for 12 calls without HTTP
+PASS auth: consumed authorization not replayed
+PASS auth: fixed HTTPS API origin
+PASS auth: only specified merchant queried
+PASS auth: bearer confined to API header
+PASS auth: fixed HTTPS API origin
+PASS auth: token credentials in form body only
+PASS auth: refresh token grant contract
+PASS auth: expiration from expiresIn; concurrent calls refresh once
+PASS auth: logs exclude credentials and merchant identifier
+PASS auth: preserves HTTP status 302
+PASS auth: HTTP 302 stops once without exposing response
+PASS auth: preserves HTTP status 400
+PASS auth: HTTP 400 stops once without exposing response
+PASS auth: preserves HTTP status 401
+PASS auth: HTTP 401 stops once without exposing response
+PASS auth: preserves HTTP status 403
+PASS auth: HTTP 403 stops once without exposing response
+PASS auth: preserves HTTP status 429
+PASS auth: HTTP 429 stops once without exposing response
+PASS auth: preserves HTTP status 500
+PASS auth: HTTP 500 stops once without exposing response
+PASS auth: untrusted authorization URL rejected
+PASS auth: untrusted authorization URL rejected
+PASS auth: untrusted authorization URL rejected
+PASS auth: untrusted authorization URL rejected
+PASS auth: untrusted authorization URL rejected
+PASS auth: expired linking code blocked before HTTP
+PASS auth: invalid token contract rejected
+PASS auth: invalid token contract rejected
+PASS auth: invalid token contract rejected
+PASS auth: invalid token contract rejected
+PASS auth: refresh failure invalidates session
+PASS auth: no refresh retry storm
+PASS auth: malformed/oversized response sanitized
+PASS auth: malformed/oversized response sanitized
+PASS auth: malformed/oversized response sanitized
+PASS auth: other merchant rejected; logger failures do not break auth
+AUTH TOTAL 45 PASS; fake HTTP only.
+PASS centralized: centralized app never requests partner userCode
+PASS centralized: partner authorization flow rejected locally
+PASS centralized: client_credentials sent only to official token endpoint
+PASS centralized: no partner code or refresh grant required
+PASS centralized: token accepted without refreshToken in response
+PASS centralized: repeat connect reuses valid token without API calls
+PASS centralized: query only selected test merchant with bearer
+PASS centralized: client_credentials sent only to official token endpoint
+PASS centralized: no partner code or refresh grant required
+PASS centralized: expiry triggers one client_credentials renewal across concurrent calls
+PASS centralized: centralized evidence excludes secrets
+PASS centralized: HTTP 401 no automatic retry or grant fallback
+PASS centralized: failed centralized login not silently retried
+PASS centralized: HTTP 403 no automatic retry or grant fallback
+PASS centralized: failed centralized login not silently retried
+PASS centralized: HTTP 429 no automatic retry or grant fallback
+PASS centralized: failed centralized login not silently retried
+PASS centralized: HTTP 500 no automatic retry or grant fallback
+PASS centralized: failed centralized login not silently retried
+PASS centralized: distributed credentials mode cannot use centralized grant accidentally
+CENTRALIZED TOTAL 20 PASS; fake HTTP only.
+PASS reception: official host and bearer header
+PASS reception: Events route without automatic-ACK filters
+PASS reception: single test merchant filter
+PASS reception: official host and bearer header
+PASS reception: ACK payload contains unique event ID only
+PASS reception: journal persisted before remote ACK
+PASS reception: concurrent cycles perform one poll/ACK
+PASS reception: transport ACK is never business confirmation
+PASS reception: no polling before 30 seconds
+PASS reception: official host and bearer header
+PASS reception: Events route without automatic-ACK filters
+PASS reception: single test merchant filter
+PASS reception: official host and bearer header
+PASS reception: ACK payload contains unique event ID only
+PASS reception: journal persisted before remote ACK
+PASS reception: redelivery ACK repeated without duplicate order/event
+PASS reception: second receiver instance blocked by exclusive journal lease
+PASS reception: restart retains events, accepted ACK and 30-second throttle
+PASS reception: journal stores allowlisted technical event fields only
+PASS reception: HTTP evidence excludes bearer and body
+PASS reception: HTTP 200 empty is connection evidence only, without ACK
+PASS reception: HTTP 204 empty is connection evidence only, without ACK
+PASS reception: HTTP 400 stops without retry or endpoint fallback
+PASS reception: stopped receiver cannot silently retry HTTP 400
+PASS reception: HTTP 401 stops without retry or endpoint fallback
+PASS reception: stopped receiver cannot silently retry HTTP 401
+PASS reception: HTTP 403 stops without retry or endpoint fallback
+PASS reception: stopped receiver cannot silently retry HTTP 403
+PASS reception: HTTP 404 stops without retry or endpoint fallback
+PASS reception: stopped receiver cannot silently retry HTTP 404
+PASS reception: HTTP 302 stops without retry or endpoint fallback
+PASS reception: stopped receiver cannot silently retry HTTP 302
+PASS reception: 429 honors Retry-After and minimum backoff
+PASS reception: no request during Retry-After
+PASS reception: second transient failure backs off 120 seconds
+PASS reception: third consecutive failure stops instead of infinite retries
+PASS reception: Retry-After longer than one hour is not shortened
+PASS reception: failed ACK keeps persisted event pending
+PASS reception: restart retries pending ACK before polling
+PASS reception: restart recovers failed ACK with no duplicate event
+PASS reception: foreign merchant rejects entire batch without ACK
+PASS reception: missing merchant rejects entire batch without ACK
+PASS reception: empty ID rejects entire batch without ACK
+PASS reception: missing timestamp rejects entire batch without ACK
+PASS reception: timestamp without timezone rejects entire batch without ACK
+PASS reception: log injection rejects entire batch without ACK
+PASS reception: null event rejects entire batch without ACK
+PASS reception: malformed/oversized/duplicate-key response rejected without ACK
+PASS reception: malformed/oversized/duplicate-key response rejected without ACK
+PASS reception: malformed/oversized/duplicate-key response rejected without ACK
+PASS reception: malformed/oversized/duplicate-key response rejected without ACK
+PASS reception: malformed/oversized/duplicate-key response rejected without ACK
+PASS reception: malformed/oversized/duplicate-key response rejected without ACK
+PASS reception: conflicting event identity stops with no second ACK
+PASS reception: out-of-order events sorted; unknown event retained; RFI remains pending final import
+PASS reception: all technical events acknowledged without pretending business processing
+PASS reception: disk write failure prevents ACK and in-memory publication
+PASS reception: corrupt journal fails closed and is preserved
+PASS reception: user cancellation prevents polling
+RECEPTION TOTAL 59 PASS; fake HTTP and isolated disk only.
+TOTAL 155 PASS; isolated fixtures and fake HTTP only; NO live iFood, PDV or Windows UI test.
