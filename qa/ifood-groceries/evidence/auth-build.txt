@@ -1,0 +1,4 @@
+Direct Roslyn compilation (.NET SDK 8.0.426); MSBuild blocked by host ProcessName failure. Warnings treated as errors.
+Core csc exit 0
+
+Tests csc exit 0

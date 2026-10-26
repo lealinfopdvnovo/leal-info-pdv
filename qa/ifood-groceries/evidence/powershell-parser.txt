@@ -1,0 +1,1 @@
+PASS PowerShell AST parser: 84 tokens, zero syntax errors. Parser 7.4; Windows 5.1 runtime still untested.
