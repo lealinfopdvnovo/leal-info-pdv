@@ -1,0 +1,6 @@
+MSBuild version 17.11.69+4d6a29faa for .NET
+  Determining projects to restore...
+  Restored /workspace/scratch/54042d64bc5c/ifood-audit/qa/ifood-groceries/Tests/Tests.csproj (in 107 ms).
+  Restored /workspace/scratch/54042d64bc5c/ifood-audit/qa/ifood-groceries/Core/Core.csproj (in 97 ms).
+  Core -> /workspace/scratch/54042d64bc5c/ifood-audit/qa/ifood-groceries/Core/bin/Release/net8.0/LealInfo.IFood.Groceries.Core.dll
+  Tests -> /workspace/scratch/54042d64bc5c/ifood-audit/qa/ifood-groceries/Tests/bin/Release/net8.0/Tests.dll

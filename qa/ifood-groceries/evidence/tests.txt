@@ -1,0 +1,32 @@
+PASS scenario final quantities 0/3/1 with unavailable=true
+PASS cancelled line retained without restoring stock quantity
+PASS coupon sponsorship and server money preserved in cents
+PASS missing unavailable rejected
+PASS string boolean rejected
+PASS available zero quantity rejected
+PASS fractional unit quantity rejected
+PASS unsupported weight fails explicitly
+PASS duplicate item identity rejected
+PASS other merchant blocked
+PASS production order blocked
+PASS food schema not confused with groceries
+PASS scheduled window preserves timezone
+PASS scheduled without window rejected
+PASS takeout does not require delivery address
+PASS duplicate JSON keys rejected
+PASS no final import before RFI
+PASS 12 concurrent deliveries persist one event/order
+PASS restart replays safely without refetch
+PASS event id reused for another order rejected
+PASS network failure never acknowledged
+PASS snapshot excludes customer and auth data
+PASS reader uses official virtual-bag route
+PASS token used in header only
+PASS reader and parser contract integration
+PASS HTTP evidence contains no token/body
+PASS HTTP 401 fails without retry loop or redirect
+PASS HTTP 403 fails without retry loop or redirect
+PASS HTTP 429 fails without retry loop or redirect
+PASS HTTP 500 fails without retry loop or redirect
+PASS HTTP 302 fails without retry loop or redirect
+TOTAL 31 PASS; isolated fixtures and fake HTTP only; NO live iFood, PDV or Windows UI test.
