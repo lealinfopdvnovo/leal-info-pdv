@@ -1,45 +1,32 @@
-﻿LEAL INFO - CONECTAR IFOOD DE TESTES - R2
+LEAL INFO - IFOOD TESTE (C) - R3
 
-Este assistente verifica somente a autenticacao do aplicativo distribuido
-Teste (D) e o acesso a loja de testes Mercado ja identificada nos prints.
-Nao e uma atualizacao do PDV e nao conclui a homologacao.
+1. Extraia o ZIP em uma nova pasta.
+2. Abra Conectar_iFood_Teste.exe.
+3. No Developer Portal, abra Meus aplicativos e escolha o aplicativo
+   cujo nome termina em Teste (C), do tipo Centralizado.
+4. Copie Client ID e Client Secret desse aplicativo para a janela local.
+   Nao use as credenciais do Teste (D). Nao envie chaves pelo chat.
+5. Marque a confirmacao e clique em Conectar e verificar minha loja de testes.
+6. Clique em Salvar resultado e envie somente RESULTADO_IFOOD_TESTE.txt ao Work.
 
-COMO ABRIR
-1. Extraia todos os arquivos do ZIP para uma pasta no Windows.
-2. Abra Conectar_iFood_Teste.exe com dois cliques. Nao precisa de administrador.
-3. Na janela, preencha Client ID e Client Secret do aplicativo Teste (D).
-   Cole somente na janela local. Nao envie esses valores pelo chat.
-4. Confirme que e o aplicativo de testes e clique em Gerar codigo.
-5. Clique em Abrir autorizacao no navegador. Autorize somente o app de testes.
-   Se o portal mostrar erro, pare e salve o resultado; nao insista no login.
-6. Cole na janela o codigo de autorizacao devolvido pelo portal.
-7. Clique em Validar conexao. Depois clique em Salvar resultado.
-8. Envie ao Work apenas RESULTADO_IFOOD_TESTE.txt.
+A R3 usa client_credentials, conforme o fluxo oficial de aplicativos
+centralizados. Nao gera userCode, nao abre navegador e nao solicita
+cadastro/login no Portal do Parceiro. Nenhum acesso de producao e solicitado.
+Isso nao altera o tipo do aplicativo LEAL INFO PDV de producao.
+O aplicativo Teste (C) ja constava nos prints enviados pelo usuario.
 
-O QUE ELE FAZ
-- POST /authentication/v1.0/oauth/userCode
-- POST /authentication/v1.0/oauth/token
-- GET /merchant/v1.0/merchants/{merchantId}, somente a loja de testes conhecida.
-- Mantem chaves, codigos privados e tokens apenas na memoria enquanto aberto.
-- Salva, quando solicitado, somente o estado do teste e metadados HTTP.
-- Nao repete automaticamente operacoes que falharam.
+Escopo: POST /authentication/v1.0/oauth/token e GET do merchant de teste
+identificado nos prints. Sem polling, ACK, pedidos, separacao ou alteracoes
+no PDV, GLOBAL, Firebase, estoque, licenca ou clientes em producao.
+Credenciais e tokens ficam somente na memoria da janela. O relatorio tem
+status e metadados HTTP, sem cabecalhos, corpos ou valores privados.
+Em falha, a operacao para. Nao ha troca automatica para outro tipo de app.
 
-O QUE AINDA PRECISA SER FEITO
-Recebimento continuo dos pedidos, separacao integrada ao PDV de testes,
-cenarios de retirada/agendamento, videos reais e logs do Developer Portal.
-O resultado deste assistente nao substitui os logs oficiais exigidos pelo iFood.
+A autenticacao real e as permissoes devem ser confirmadas pelo resultado.
+Um login aceito nao comprova permissao para Orders/Picking nem homologacao.
+Videos, logs oficiais e integracao operacional ainda estao pendentes.
 
-VALIDACAO DESTE PACOTE
-76 verificacoes locais com HTTP simulado aprovadas.
-Executavel compilado contra .NET Framework 4.8 / C# 5.
-Nao compila codigo no seu computador e nao depende do PowerShell.
-A interface ainda nao foi executada em um Windows real e nao houve login
-real com as credenciais do usuario neste ambiente. O teste local e necessario.
-
-Requer Windows com .NET Framework 4.8.
-Se falhar ao abrir, envie ERRO_IFOOD_TESTE.txt da Area de Trabalho.
-O erro original do pacote anterior nao teve a causa identificada: sua
-mensagem era generica. A R2 elimina a compilacao local e inclui diagnostico.
-Nao altera banco, licenca, Firebase, GLOBAL ou clientes em producao.
-Nao envia pedidos, nao abre loja por polling, nao faz cobrancas nem envia
-mensagens. Fechar a janela encerra a sessao em memoria.
+Requer Windows com .NET Framework 4.8. Sem instalacao ou administrador.
+Se ocorrer falha local, envie ERRO_IFOOD_TESTE.txt da Area de Trabalho.
+O codigo foi compilado e testado com HTTP simulado; a R3 ainda precisa ser
+executada no Windows do usuario e conectada a API oficial.

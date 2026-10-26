@@ -65,3 +65,13 @@ O usuário executou o pacote anterior e recebeu a mensagem genérica de falha lo
 O tratamento de falhas grava somente tipos de exceção, HRESULT, versão CLR e arquitetura, sem mensagens, stack traces ou valores de entrada. O núcleo OAuth não mudou. Os 76 testes da etapa anterior permanecem a evidência do núcleo; a nova compilação e a estrutura PE/ZIP foram verificadas em `evidence/windows-r2-*`. Ainda falta comprovar a abertura em Windows real.
 
 Build reproduzível: `python Windows/build-assistant.py --dotnet <dotnet> --csc <sdk>/Roslyn/bincore/csc.dll --refs <referencias-net48> --output <pasta>` a partir de `qa/ifood-groceries`. Não colocar as referências de compilação no pacote do usuário.
+
+## R3 - testes sem conta de parceiro
+
+O usuário informou não ter acesso de parceiro e o navegador abriu `portal.ifood.com.br/login` no fluxo D. O print posterior confirma Teste (D), credencial Authorization Code. O aplicativo Teste (C) centralizado também já estava presente nos prints anteriores. A R3 passa a utilizar exclusivamente as credenciais desse aplicativo C e `grantType=client_credentials`; não altera o aplicativo distribuído de produção.
+
+`AuthenticationClient` substitui o nome `DistributedAuthentication` e mantém o fluxo D no núcleo, com modo explícito. O formulário R3 usa somente o modo C, sem userCode, navegador ou autorização de lojista. Tokens C não exigem refreshToken; na expiração a renovação usa client_credentials e é serializada. Falhas não provocam retry ou troca de grant automática. Nenhuma credencial é embutida no executável.
+
+**96 verificações locais passaram (76 anteriores + 20 centralizadas).** Evidências: `evidence/centralized-tests.txt`, `evidence/centralized-build.txt`, `evidence/windows-r3-build.txt`. A R2 abriu no Windows conforme print do usuário; abertura da R3 e acesso real à API continuam não comprovados. Consulta bem-sucedida ao merchant não valida escopos Orders/Picking.
+
+Fonte oficial consultada em 26/10/2026: https://developer.ifood.com.br/en-US/docs/food/guides/modules/authentication/centralized . O teste deve ser feito com as credenciais do Teste (C), não as do Teste (D).

@@ -1,0 +1,4 @@
+Roslyn SDK 8.0.426 direct compilation, warnings as errors.
+Core compile exit 0
+
+Tests compile exit 0

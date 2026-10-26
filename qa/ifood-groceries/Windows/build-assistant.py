@@ -13,8 +13,8 @@ with tempfile.TemporaryDirectory(prefix='ifood-build-') as tmp:
  args=['-nologo','-langversion:5','-nostdlib+','-warnaserror+','-deterministic+','-target:winexe','-platform:anycpu','-main:LealInfo.IFood.Assistant.Program','-win32manifest:'+str(root/'Windows/assistant.manifest'),'-r:'+','.join(str(a.refs.resolve()/(n+'.dll')) for n in refs),'-out:'+str(exe),str(source),str(root/'Windows/AssistantForm.cs'),str(root/'Windows/Program.cs')]
  rsp=tmp/'build.rsp';rsp.write_text('\n'.join('"'+v+'"' for v in args))
  result=subprocess.run([str(a.dotnet.resolve()),str(a.csc.resolve()),'@'+str(rsp)],capture_output=True,text=True)
- report='R2 portable Windows EXE; C# 5; official Framework 4.8 references; warnings as errors.\nExit '+str(result.returncode)+'\n'+result.stdout+result.stderr+'\nWindows runtime/UI still requires a real-machine check.\n'
- (root/'evidence/windows-r2-build.txt').write_text(report)
+ report='R3 centralized test Windows EXE; C# 5; official Framework 4.8 references; warnings as errors.\nExit '+str(result.returncode)+'\n'+result.stdout+result.stderr+'\nWindows runtime/UI still requires a real-machine check.\n'
+ (root/'evidence/windows-r3-build.txt').write_text(report)
  if result.returncode:raise SystemExit(report)
 for name in ['Conectar_iFood_Teste.exe.config','ABRIR_IFOOD_TESTE.cmd','LEIA_PRIMEIRO.txt']:shutil.copyfile(root/'Windows'/name,out/name)
 (out/'SHA256.txt').write_text(hashlib.sha256(exe.read_bytes()).hexdigest()+'  '+exe.name+'\n')

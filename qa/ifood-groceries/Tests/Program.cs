@@ -66,6 +66,7 @@ foreach(var code in new[]{401,403,429,500,302}){
  bool failed=false;try{await api.ReadAsync(orderId);}catch(HttpRequestException){failed=true;}Check(failed&&calls==1,"HTTP "+code+" fails without retry loop or redirect");
 }
 passed += await AuthenticationTests.Run();
+passed += await CentralizedTests.Run();
 Console.WriteLine($"TOTAL {passed} PASS; isolated fixtures and fake HTTP only; NO live iFood, PDV or Windows UI test.");
 sealed class Stub(Func<HttpRequestMessage,Task<HttpResponseMessage>> handler):HttpMessageHandler
 { protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r,CancellationToken c)=>handler(r); }

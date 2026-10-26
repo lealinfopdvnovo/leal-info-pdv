@@ -51,7 +51,8 @@ namespace LealInfo.IFood.Groceries
         { AccessToken = access; RefreshToken = refresh; ExpiresAt = expires; }
         public override string ToString() { return "iFood session [private]"; }
     }
-    public sealed class DistributedAuthentication : IDisposable
+    public enum AuthenticationMode { Distributed, Centralized }
+    public sealed class AuthenticationClient : IDisposable
     {
         private const string Origin = "https://merchant-api.ifood.com.br";
         private const string CodeRoute = "/authentication/v1.0/oauth/userCode";
@@ -63,9 +64,11 @@ namespace LealInfo.IFood.Groceries
         private readonly string clientId;
         private string clientSecret;
         private AccessSession session;
-        public DistributedAuthentication(string id, string secret, Action<AuthenticationEvidence> log,
-            HttpMessageHandler isolatedTestHandler = null, Func<DateTimeOffset> clock = null)
+        private readonly AuthenticationMode mode;
+        public AuthenticationClient(string id, string secret, Action<AuthenticationEvidence> log,
+            HttpMessageHandler isolatedTestHandler = null, Func<DateTimeOffset> clock = null, AuthenticationMode mode = AuthenticationMode.Distributed)
         {
+            this.mode = mode;
             ValidateSecret(id, 1024); ValidateSecret(secret, 8000);
             clientId = id; clientSecret = secret; evidence = log; now = clock ?? (() => DateTimeOffset.UtcNow);
             http = new HttpClient(isolatedTestHandler ?? new HttpClientHandler { AllowAutoRedirect = false });
@@ -73,6 +76,7 @@ namespace LealInfo.IFood.Groceries
         }
         public async Task<LinkingCode> BeginAsync(CancellationToken ct)
         {
+            if (mode != AuthenticationMode.Distributed) throw new AuthenticationFailure("Aplicativo centralizado nao utiliza codigo de parceiro.");
             var started = now();
             var dto = await SendAsync<CodeResponse>(HttpMethod.Post, CodeRoute, CodeRoute,
                 new Dictionary<string, string> { { "clientId", clientId } }, null, ct).ConfigureAwait(false);
@@ -84,6 +88,7 @@ namespace LealInfo.IFood.Groceries
         }
         public async Task CompleteAsync(LinkingCode code, string authorizationCode, CancellationToken ct)
         {
+            if (mode != AuthenticationMode.Distributed) throw new AuthenticationFailure("Fluxo de autorizacao incompativel com o aplicativo.");
             ValidateSecret(authorizationCode, 8000);
             await serial.WaitAsync(ct).ConfigureAwait(false);
             try
@@ -98,6 +103,23 @@ namespace LealInfo.IFood.Groceries
             }
             finally { serial.Release(); }
         }
+        public async Task ConnectCentralizedAsync(CancellationToken ct)
+        {
+            if (mode != AuthenticationMode.Centralized) throw new AuthenticationFailure("Use as credenciais do aplicativo Teste (C).");
+            await serial.WaitAsync(ct).ConfigureAwait(false);
+            try
+            {
+                if (session != null && now() < session.ExpiresAt) return;
+                session = null;
+                session = await ExchangeAsync(CentralizedForm(), ct).ConfigureAwait(false);
+            }
+            finally { serial.Release(); }
+        }
+        private Dictionary<string, string> CentralizedForm()
+        {
+            return new Dictionary<string, string> { { "grantType", "client_credentials" },
+                { "clientId", clientId }, { "clientSecret", clientSecret } };
+        }
         public async Task<string> GetAccessTokenAsync(CancellationToken ct)
         {
             await serial.WaitAsync(ct).ConfigureAwait(false);
@@ -106,7 +128,7 @@ namespace LealInfo.IFood.Groceries
                 if (session == null) throw new AuthenticationFailure("Autenticacao ainda nao concluida.");
                 if (now() < session.ExpiresAt) return session.AccessToken;
                 var refresh = session.RefreshToken; session = null;
-                session = await ExchangeAsync(new Dictionary<string, string> {
+                session = await ExchangeAsync(mode == AuthenticationMode.Centralized ? CentralizedForm() : new Dictionary<string, string> {
                     { "grantType", "refresh_token" }, { "clientId", clientId }, { "clientSecret", clientSecret },
                     { "refreshToken", refresh }
                 }, ct).ConfigureAwait(false);
@@ -129,7 +151,8 @@ namespace LealInfo.IFood.Groceries
         {
             var started = now();
             var dto = await SendAsync<TokenResponse>(HttpMethod.Post, TokenRoute, TokenRoute, form, null, ct).ConfigureAwait(false);
-            ValidateSecret(dto.accessToken, 8000); ValidateSecret(dto.refreshToken, 8000); ValidateExpiry(dto.expiresIn);
+            ValidateSecret(dto.accessToken, 8000); ValidateExpiry(dto.expiresIn);
+            if (mode == AuthenticationMode.Distributed) ValidateSecret(dto.refreshToken, 8000);
             if (!string.Equals(dto.type, "bearer", StringComparison.OrdinalIgnoreCase))
                 throw new AuthenticationFailure("Tipo de token inesperado.");
             return new AccessSession(dto.accessToken, dto.refreshToken, started.AddSeconds(dto.expiresIn));
@@ -205,7 +228,7 @@ namespace LealInfo.IFood.Groceries
         [DataContract] private sealed class TokenResponse
         {
             [DataMember(IsRequired = true)] public string accessToken;
-            [DataMember(IsRequired = true)] public string refreshToken;
+            [DataMember] public string refreshToken;
             [DataMember(IsRequired = true)] public string type;
             [DataMember(IsRequired = true)] public int expiresIn;
         }
