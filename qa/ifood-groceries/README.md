@@ -75,3 +75,9 @@ O usuário informou não ter acesso de parceiro e o navegador abriu `portal.ifoo
 **96 verificações locais passaram (76 anteriores + 20 centralizadas).** Evidências: `evidence/centralized-tests.txt`, `evidence/centralized-build.txt`, `evidence/windows-r3-build.txt`. A R2 abriu no Windows conforme print do usuário; abertura da R3 e acesso real à API continuam não comprovados. Consulta bem-sucedida ao merchant não valida escopos Orders/Picking.
 
 Fonte oficial consultada em 26/10/2026: https://developer.ifood.com.br/en-US/docs/food/guides/modules/authentication/centralized . O teste deve ser feito com as credenciais do Teste (C), não as do Teste (D).
+
+## R4 - correção comprovada do UUID da loja de testes
+
+O relatório real enviado pelo usuário registrou POST token HTTP 200 em 26/10/2026 20:08:26 UTC e GET merchant HTTP 403 às 20:08:27 UTC. A autenticação centralizada está comprovada. Ao inspecionar visualmente o print original `image(20261026-132719).png`, constatou-se erro de transcrição do UUID no assistente: `84a8976b-0559-48c6-84ce-fe2502f1364a` em vez de `84a8976b-0559-48c6-84ce-fc2502f1364a`.
+
+A R4 corrige somente o destino da consulta e inclui o UUID público da loja no relatório. Não muda OAuth, permissões ou métodos HTTP. O erro de configuração é comprovado; não é possível afirmar que era a única causa do 403 antes de consultar o UUID corrigido. A validação real da loja e dos pedidos continua pendente. Os 96 testes do núcleo permanecem da R3; a R4 foi compilada e seu destino foi verificado contra o print.

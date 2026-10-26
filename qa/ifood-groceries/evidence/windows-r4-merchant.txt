@@ -1,0 +1,5 @@
+PASS: configured merchant UUID matches visually inspected original user screenshot image(20261026-132719).png.
+Expected: 84a8976b-0559-48c6-84ce-fc2502f1364a
+Previous incorrect: 84a8976b-0559-48c6-84ce-fe2502f1364a
+REAL R3: token HTTP 200; wrong merchant query HTTP 403.
+NOT YET VERIFIED: live query with corrected UUID.

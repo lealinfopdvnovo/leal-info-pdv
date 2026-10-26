@@ -1,4 +1,4 @@
-LEAL INFO - IFOOD TESTE (C) - R3
+﻿LEAL INFO - IFOOD TESTE (C) - R4
 
 1. Extraia o ZIP em uma nova pasta.
 2. Abra Conectar_iFood_Teste.exe.
@@ -9,7 +9,7 @@ LEAL INFO - IFOOD TESTE (C) - R3
 5. Marque a confirmacao e clique em Conectar e verificar minha loja de testes.
 6. Clique em Salvar resultado e envie somente RESULTADO_IFOOD_TESTE.txt ao Work.
 
-A R3 usa client_credentials, conforme o fluxo oficial de aplicativos
+A R4 usa client_credentials, conforme o fluxo oficial de aplicativos
 centralizados. Nao gera userCode, nao abre navegador e nao solicita
 cadastro/login no Portal do Parceiro. Nenhum acesso de producao e solicitado.
 Isso nao altera o tipo do aplicativo LEAL INFO PDV de producao.
@@ -28,5 +28,12 @@ Videos, logs oficiais e integracao operacional ainda estao pendentes.
 
 Requer Windows com .NET Framework 4.8. Sem instalacao ou administrador.
 Se ocorrer falha local, envie ERRO_IFOOD_TESTE.txt da Area de Trabalho.
-O codigo foi compilado e testado com HTTP simulado; a R3 ainda precisa ser
+O codigo foi compilado e testado com HTTP simulado; a R4 ainda precisa ser
 executada no Windows do usuario e conectada a API oficial.
+
+CORRECAO R4
+O UUID da loja foi conferido visualmente no print original do usuario.
+Valor correto: 84a8976b-0559-48c6-84ce-fc2502f1364a.
+A R3 usava fe2502 no lugar de fc2502. O login ja retornou HTTP 200;
+a consulta com o UUID correto ainda deve ser confirmada.
+O relatorio agora identifica a loja consultada, sem expor credenciais.

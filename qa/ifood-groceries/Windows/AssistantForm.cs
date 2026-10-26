@@ -11,7 +11,7 @@ namespace LealInfo.IFood.Assistant
 
     public sealed class AssistantForm : Form
     {
-        private readonly Guid merchant = new Guid("84a8976b-0559-48c6-84ce-fe2502f1364a");
+        private readonly Guid merchant = new Guid("84a8976b-0559-48c6-84ce-fc2502f1364a");
         private readonly List<AuthenticationEvidence> logs = new List<AuthenticationEvidence>();
         private readonly TextBox id = new TextBox(), secret = new TextBox();
         private readonly Label status = new Label();
@@ -22,7 +22,7 @@ namespace LealInfo.IFood.Assistant
         private string safeError = "Nenhuma tentativa realizada.";
         public AssistantForm()
         {
-            Text = "LEAL INFO - iFood TESTE (C) - R3";
+            Text = "LEAL INFO - iFood TESTE (C) - R4";
             ClientSize = new Size(730, 490); MinimumSize = new Size(650, 490);
             StartPosition = FormStartPosition.CenterScreen; AutoScaleMode = AutoScaleMode.Dpi;
             Font = new Font("Segoe UI", 10); BackColor = Color.FromArgb(24,26,30); ForeColor = Color.White;
@@ -72,9 +72,10 @@ namespace LealInfo.IFood.Assistant
         private void SetBusy(bool value){busy=value;save.Enabled=!value;UseWaitCursor=value;}
         private string Report()
         {
-            var text=new StringBuilder();text.AppendLine("LEAL INFO - DIAGNOSTICO IFOOD TESTE (C) - R3");
+            var text=new StringBuilder();text.AppendLine("LEAL INFO - DIAGNOSTICO IFOOD TESTE (C) - R4");
             text.AppendLine("UTC: "+DateTimeOffset.UtcNow.ToString("O"));
             text.AppendLine("Fluxo: client_credentials (aplicativo de testes centralizado)");
+            text.AppendLine("Loja de testes (Merchant UUID): " + merchant.ToString("D"));
             text.AppendLine("Autenticacao: "+(authenticated?"CONFIRMADA":"NAO CONFIRMADA"));
             text.AppendLine("Acesso a loja de testes: "+(merchantVerified?"CONFIRMADO":"NAO CONFIRMADO"));
             text.AppendLine("Resultado: "+safeError);
