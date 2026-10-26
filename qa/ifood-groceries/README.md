@@ -57,3 +57,11 @@ O assistente usa exatamente o mesmo `Authentication.cs`, com a diretiva nullable
 `Windows/build-assistant.py` gera `Conectar_iFood_Teste.ps1`; o `.cmd` apenas abre Windows PowerShell em modo STA, com política de execução restrita àquele processo. Não muda a política permanente, não requer administrador e não baixa executáveis. O relatório só é salvo quando o usuário escolhe o destino. Em caso de falha de token ou consulta, ele distingue autenticação aceita de acesso ao merchant confirmado. Não renova automaticamente após falha. A memória gerenciada não oferece garantia de apagamento físico imediato dos valores após uso.
 
 A consulta ao merchant não comprova que permissões de Orders/Picking estejam disponíveis. Não há consumo de eventos, ACK ou comandos de separação neste assistente. O ambiente só será marcado como conectado após o relatório de uma execução real.
+
+## Correção do inicializador R2
+
+O usuário executou o pacote anterior e recebeu a mensagem genérica de falha local antes de abrir o formulário. O erro técnico foi ocultado pelo catch, portanto a causa específica não foi comprovada. A R2 substitui o caminho de compilação local/Add-Type por EXE portátil compilado antecipadamente contra .NET Framework 4.8, com manifesto asInvoker e configuração CLR. O .cmd abre somente esse EXE; o antigo .ps1 é um wrapper de compatibilidade, não faz parte do ZIP entregue.
+
+O tratamento de falhas grava somente tipos de exceção, HRESULT, versão CLR e arquitetura, sem mensagens, stack traces ou valores de entrada. O núcleo OAuth não mudou. Os 76 testes da etapa anterior permanecem a evidência do núcleo; a nova compilação e a estrutura PE/ZIP foram verificadas em `evidence/windows-r2-*`. Ainda falta comprovar a abertura em Windows real.
+
+Build reproduzível: `python Windows/build-assistant.py --dotnet <dotnet> --csc <sdk>/Roslyn/bincore/csc.dll --refs <referencias-net48> --output <pasta>` a partir de `qa/ifood-groceries`. Não colocar as referências de compilação no pacote do usuário.

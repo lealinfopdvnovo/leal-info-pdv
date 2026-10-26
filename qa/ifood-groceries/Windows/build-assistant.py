@@ -1,23 +1,21 @@
+"""Build a portable Windows GUI with official Framework reference assemblies.
+No compiler, SDK or PowerShell is required on the user's computer.
+"""
+import argparse, hashlib, json, shutil, subprocess, tempfile
 from pathlib import Path
-root=Path(__file__).resolve().parent.parent
-code=(root/'Core/Authentication.cs').read_text().replace('#nullable disable\n','')+'\n'+(root/'Windows/AssistantForm.cs').read_text()
-assert "\n'@" not in code
-ps='''# LEAL INFO: diagnostico isolado do aplicativo iFood Teste (D).
-# Nao requer administrador, SDK, instalacao ou alteracao do PDV.
-$ErrorActionPreference = 'Stop'
-if ($env:OS -ne 'Windows_NT') { throw 'Este assistente requer Windows.' }
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-$source = @'
-'''+code+'''\n'@
-try {
-    Add-Type -TypeDefinition $source -ReferencedAssemblies @('System.dll','System.Core.dll','System.Net.Http.dll','System.Runtime.Serialization.dll','System.Xml.dll','System.Windows.Forms.dll','System.Drawing.dll') -ErrorAction Stop
-    [LealInfo.IFood.Assistant.AssistantForm]::Run()
-} catch {
-    Write-Host 'Nao foi possivel iniciar o assistente. Nenhuma credencial foi salva.'
-    Write-Host 'Informe ao Work: falha local ao iniciar assistente Windows.'
-    Read-Host 'Pressione Enter para fechar'
-}
-'''
-(root/'Windows/Conectar_iFood_Teste.ps1').write_text(ps,encoding='utf-8-sig')
-(root/'Windows/ABRIR_IFOOD_TESTE.cmd').write_bytes(b'@echo off\r\ncd /d "%~dp0"\r\npowershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0Conectar_iFood_Teste.ps1"\r\n')
-print('Assistant generated from the same Authentication.cs tested by the .NET suite.')
+parser=argparse.ArgumentParser()
+for arg in ['dotnet','csc','refs','output']:parser.add_argument('--'+arg,required=True,type=Path)
+a=parser.parse_args();root=Path(__file__).resolve().parent.parent;out=a.output.resolve();out.mkdir(parents=True,exist_ok=True)
+refs=['mscorlib','System','System.Core','System.Net.Http','System.Runtime.Serialization','System.Xml','System.Windows.Forms','System.Drawing']
+with tempfile.TemporaryDirectory(prefix='ifood-build-') as tmp:
+ tmp=Path(tmp);source=tmp/'Authentication.cs';source.write_text((root/'Core/Authentication.cs').read_text().replace('#nullable disable\n',''))
+ exe=out/'Conectar_iFood_Teste.exe'
+ args=['-nologo','-langversion:5','-nostdlib+','-warnaserror+','-deterministic+','-target:winexe','-platform:anycpu','-main:LealInfo.IFood.Assistant.Program','-win32manifest:'+str(root/'Windows/assistant.manifest'),'-r:'+','.join(str(a.refs.resolve()/(n+'.dll')) for n in refs),'-out:'+str(exe),str(source),str(root/'Windows/AssistantForm.cs'),str(root/'Windows/Program.cs')]
+ rsp=tmp/'build.rsp';rsp.write_text('\n'.join('"'+v+'"' for v in args))
+ result=subprocess.run([str(a.dotnet.resolve()),str(a.csc.resolve()),'@'+str(rsp)],capture_output=True,text=True)
+ report='R2 portable Windows EXE; C# 5; official Framework 4.8 references; warnings as errors.\nExit '+str(result.returncode)+'\n'+result.stdout+result.stderr+'\nWindows runtime/UI still requires a real-machine check.\n'
+ (root/'evidence/windows-r2-build.txt').write_text(report)
+ if result.returncode:raise SystemExit(report)
+for name in ['Conectar_iFood_Teste.exe.config','ABRIR_IFOOD_TESTE.cmd','LEIA_PRIMEIRO.txt']:shutil.copyfile(root/'Windows'/name,out/name)
+(out/'SHA256.txt').write_text(hashlib.sha256(exe.read_bytes()).hexdigest()+'  '+exe.name+'\n')
+print('Compiled portable EXE:',exe.name,exe.stat().st_size,'bytes')

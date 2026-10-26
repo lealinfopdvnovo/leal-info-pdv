@@ -1,4 +1,4 @@
-LEAL INFO - CONECTAR IFOOD DE TESTES
+﻿LEAL INFO - CONECTAR IFOOD DE TESTES - R2
 
 Este assistente verifica somente a autenticacao do aplicativo distribuido
 Teste (D) e o acesso a loja de testes Mercado ja identificada nos prints.
@@ -6,7 +6,7 @@ Nao e uma atualizacao do PDV e nao conclui a homologacao.
 
 COMO ABRIR
 1. Extraia todos os arquivos do ZIP para uma pasta no Windows.
-2. Abra ABRIR_IFOOD_TESTE.cmd com dois cliques. Nao execute como administrador.
+2. Abra Conectar_iFood_Teste.exe com dois cliques. Nao precisa de administrador.
 3. Na janela, preencha Client ID e Client Secret do aplicativo Teste (D).
    Cole somente na janela local. Nao envie esses valores pelo chat.
 4. Confirme que e o aplicativo de testes e clique em Gerar codigo.
@@ -31,12 +31,15 @@ O resultado deste assistente nao substitui os logs oficiais exigidos pelo iFood.
 
 VALIDACAO DESTE PACOTE
 76 verificacoes locais com HTTP simulado aprovadas.
-Codigo do assistente compilado contra .NET Framework 4.8 / C# 5.
-Sintaxe PowerShell analisada sem erros.
+Executavel compilado contra .NET Framework 4.8 / C# 5.
+Nao compila codigo no seu computador e nao depende do PowerShell.
 A interface ainda nao foi executada em um Windows real e nao houve login
 real com as credenciais do usuario neste ambiente. O teste local e necessario.
 
-Requer Windows com Windows PowerShell e .NET Framework 4.8.
+Requer Windows com .NET Framework 4.8.
+Se falhar ao abrir, envie ERRO_IFOOD_TESTE.txt da Area de Trabalho.
+O erro original do pacote anterior nao teve a causa identificada: sua
+mensagem era generica. A R2 elimina a compilacao local e inclui diagnostico.
 Nao altera banco, licenca, Firebase, GLOBAL ou clientes em producao.
 Nao envia pedidos, nao abre loja por polling, nao faz cobrancas nem envia
 mensagens. Fechar a janela encerra a sessao em memoria.

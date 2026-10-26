@@ -1,0 +1,5 @@
+PASS: PE32 managed IL-only AnyCPU; Windows GUI subsystem; nonzero entry point.
+PASS: asInvoker manifest; no administrator elevation.
+PASS: launcher does not invoke PowerShell or compile source.
+PASS: ZIP integrity.
+NOT RUN: Windows UI or live iFood authentication.
