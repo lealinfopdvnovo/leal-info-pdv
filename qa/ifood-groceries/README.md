@@ -138,3 +138,44 @@ Referencias oficiais consultadas em 26/10/2026:
 
 Usado o contrato dedicado do modulo Events (array/ACK por id), e nao o exemplo
 alternativo orders:polling do guia de workflow. Sem fallback silencioso de rota.
+
+
+## Preparacao offline da separacao parcial (26/10/2026)
+
+Adicionado `Core/PartialPicking.cs`: plano local de tres produtos com tres
+unidades originais previstas, solicitacao de cancelamento do primeiro,
+separacao de tres unidades do segundo e uma do terceiro. Nenhum comando e
+enviado ao iFood. O plano descreve o cenario esperado; nao comprova o pedido
+original, a aplicacao do cupom nem a solicitacao real de cancelamento.
+
+A revisao confere IDs de produtos, exatamente tres linhas, unavailable=true
+no primeiro e unavailable=false/quantidades 3 e 1 nos demais. Uma linha
+cancelada pode manter quantidade reportada 3 ou 0; sua quantidade disponivel
+sempre e zero. Linha ausente nao e inferida como cancelada. Trocas de ordem
+no array sao aceitas; produtos extras/substituidos falham neste roteiro.
+Desconto final e observado, mas patrocinio/promocao nao e tratado como prova
+de cupom. Os indicadores de evidencia externa permanecem obrigatorios.
+
+`FinalBagPreparation` conecta o Inbox existente a essa revisao: somente RFI
+permite buscar e persistir a sacola. A sacola validada e persistida antes de
+retornar prontidao de recebimento. Reentrega apos reinicio recupera a sacola
+sem nova busca ou importacao duplicada. Este componente nao envia ACK.
+
+Validacao: compilacao do Core e Tests com warnings-as-errors; 177 verificacoes
+locais aprovadas (155 anteriores + 22 novas), sem chamadas reais. Evidencia:
+`evidence/partial-picking-tests.txt`. A R5 entregue ao usuario permanece
+inalterada; o novo componente .NET 8 ainda precisa ser conectado ao host de
+Windows e ao processamento dos eventos persistidos. Nenhuma nova versao
+Windows ou atualizacao do PDV foi publicada.
+
+Bloqueio externo: usuario informou falha ao confirmar o codigo de login no
+site de compras iFood, apesar do recebimento do codigo. Chamado de incidente
+enviado pelo usuario; numero nao fornecido. Primeiro pedido, ACK real, sacola
+real e separacao ainda nao foram validados. A comunicacao R5 ja comprovada
+(HTTP 204) permanece valida como evidencia de conectividade, nao de pedido.
+
+Proximas etapas: resolver acesso de compras com suporte, comprovar recepcao
+de pedido de teste e ACK; conectar sacola final ao host; escolher o fluxo de
+separacao autorizado (App Separador ou Picking conforme habilitacao), testar
+cupom/cancelamento/parcial e reunir videos/logs oficiais. A revisao offline
+nao substitui nenhuma dessas evidencias.
