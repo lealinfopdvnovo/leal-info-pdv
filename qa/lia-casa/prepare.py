@@ -28,6 +28,13 @@ elif mode=='package':
  assert json.loads((r/'evidence/lia-results.json').read_text())['Success']
  assert json.loads((r/'evidence/login457-results.json').read_text())['Success']
  assert all(x['Pass'] for x in json.loads((r/'evidence/rollback.json').read_text(encoding='utf-8-sig')))
+ def normalized(p):
+  d=json.loads(p.read_text(encoding='utf-8-sig'))
+  for bag in (d['libraries'],*d['targets'].values()):
+   for k in list(bag):
+    if k.startswith('LealInfoPDV/'):del bag[k]
+  return d
+ assert normalized(Path('legacy/LealInfoPDV.deps.json'))==normalized(r/'publish/LealInfoPDV.deps.json')
  out=Path('output/CASA');out.mkdir(parents=True,exist_ok=True)
  with zipfile.ZipFile(out/'CANDIDATA_LIA_CASA_NAO_PUBLICADA.zip','w',zipfile.ZIP_DEFLATED) as z:
   for n in ('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'):z.write(r/'publish'/n,n)
