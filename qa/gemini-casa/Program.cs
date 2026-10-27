@@ -40,7 +40,7 @@ sealed class ExperimentForm:Form{
   var approved=new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
   Ui(()=>approved.TrySetResult(!closing&&MessageBox.Show(this,"Executar no PDV: "+command+"?","Confirmar navegação experimental",MessageBoxButtons.YesNo)==DialogResult.Yes));
   if(!await approved.Task.WaitAsync(TimeSpan.FromSeconds(30)))return "Operador recusou; nenhuma ação executada.";
-  if(expected!=generation||closing||session==null)return "Sessão encerrada; ação recusada.";
+  if(expected!=generation||closing||session?.IsActive!=true)return "Sessão encerrada; ação recusada.";
   using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(4));
   try{using var pipe=new NamedPipeClientStream(".","LealInfoPDV.Navigation",PipeDirection.InOut,PipeOptions.Asynchronous);await pipe.ConnectAsync(timeout.Token);using var writer=new StreamWriter(pipe,Encoding.UTF8,1024,true){AutoFlush=true};using var reader=new StreamReader(pipe,Encoding.UTF8,true,1024,true);await writer.WriteLineAsync(command.AsMemory(),timeout.Token);return await reader.ReadLineAsync(timeout.Token)??"PDV não confirmou a ação.";}catch{return "PDV não confirmou a ação; confira a tela. Não repetir automaticamente.";}
  }

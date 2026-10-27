@@ -17,6 +17,7 @@ public sealed class LiveSession : IAsyncDisposable
  Task? receive;Task? transmit;bool disposed;
  public event Action<string>? Transcript;
  public event Action<string>? Status;
+ public bool IsActive=>!disposed&&!lifetime.IsCancellationRequested;
  public long AudioChunks {get;private set;}
  public LiveSession(bool navigation,Func<string,Task<string>> execute){protocol=new(navigation);this.execute=execute;}
  public async Task StartAsync(string key,string model,string knowledge){
