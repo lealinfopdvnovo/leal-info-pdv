@@ -63,7 +63,7 @@ public sealed class LiveSession : IAsyncDisposable
     // Extended Thinking can emit tools/audio after turnComplete; never close here.
    }
    if(root.TryGetProperty("toolCall",out var tools)){
-    var responses=new List<object>();foreach(var call in tools.GetProperty("functionCalls").EnumerateArray())responses.Add(await protocol.ToolAsync(call,execute));
+    var responses=new List<object>();foreach(var call in tools.GetProperty("functionCalls").EnumerateArray())responses.Add(await protocol.ToolAsync(call,c=>execute(c).WaitAsync(lifetime.Token)));
     await SendAsync(new{toolResponse=new{functionResponses=responses}});
    }
   }}catch(OperationCanceledException){}catch{ready.TrySetException(new InvalidOperationException("Sessão recusada ou encerrada."));Status?.Invoke("Sessão interrompida: verifique cota/acesso/rede. Sem repetição automática.");lifetime.Cancel();}
