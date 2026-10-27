@@ -1,0 +1,46 @@
+name: Gemini Live Casa - experimental sem publicacao
+on:
+  push:
+    branches: [experiment/gemini-live-casa]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Conferir isolamento integral
+        shell: python
+        run: |
+          import subprocess
+          changed=subprocess.check_output(['git','diff','--name-only','c19a69f50616c652dd89341fa4a07fa311750b61','HEAD'],text=True).splitlines()
+          assert changed and all(p.startswith('qa/gemini-casa/') or p=='.github/workflows/gemini_casa_experimental.yml' for p in changed),changed
+          print('PASS GLOBAL, realtime original, PETs, dados e demais clientes sem alteracao')
+      - name: Testar protocolo sem API ou credenciais
+        run: dotnet run --project qa/gemini-casa/Tests.csproj -c Release
+      - name: Compilar candidata Windows separada
+        run: dotnet publish qa/gemini-casa/LiaGeminiCasa.csproj -c Release -r win-x64 --self-contained true -o candidate-gemini-casa
+      - name: Conferir pacote e registrar integridade
+        shell: python
+        run: |
+          import hashlib,json,os
+          from pathlib import Path
+          p=Path('candidate-gemini-casa')
+          assert (p/'LiaGeminiCasa.Experimental.exe').is_file()
+          assert not any(x.name.lower() in ('lealinfopdv.exe','lealinfopdv.dll','licai.exe','pet.dll','gemini.key') or x.suffix.lower() in ('.db','.license','.pem','.key') for x in p.rglob('*') if x.is_file())
+          files={x.relative_to(p).as_posix():hashlib.sha256(x.read_bytes()).hexdigest() for x in p.rglob('*') if x.is_file()}
+          (p/'integrity.json').write_text(json.dumps(dict(Source=os.environ['GITHUB_SHA'],Target='Casa do Adriano',Published=False,RealApiTested=False,Files=files),indent=2))
+          print('PASS candidata separada sem substituir PDV, PET ou LIA; hashes registrados')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gemini-live-casa-EXPERIMENTAL-NAO-PUBLICADO
+          path: |
+            candidate-gemini-casa/
+            evidence/
+            qa/gemini-casa/README.md
