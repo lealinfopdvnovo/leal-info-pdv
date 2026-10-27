@@ -229,3 +229,56 @@ Pendencias: login do comprador (incidente enviado pelo usuario), primeiro pedido
 recebido/ACK, RFI/sacola real, habilitacao do fluxo externo de separacao,
 validacao do pedido original/cupom/solicitacao de cancelamento, retirada e agenda
 reais, videos e exportacao de logs oficiais. Nao iniciar homologacao oficial.
+
+
+## R7 — conferencia automatica por pedido e verificacao de interface
+
+Core/ScenarioInspection.cs e compartilhado diretamente entre .NET Framework
+Windows e .NET 8. PartialPickingPlan agora adapta para esse mesmo motor, sem
+regras quantitativas paralelas. Quatro criterios quantitativos (tres produtos,
+item indisponivel/0, item 3, item 1) e um criterio observado de beneficios.
+Pedido original 3x3, cupom, solicitacao de cancelamento, video e logs oficiais
+permanecem cinco evidencias pendentes, sem aprovacao inferida dos dados finais.
+
+A nova aba Cenario 0/3/1 e evidencias recebe mapeamento explicito dos produtos
+por ID via seletores com nome/UUID. Nao infere papeis pela ordem do array.
+Selecao duplicada/ausente nao gera aprovacao. A selecao valida e guardada por
+pedido/loja em scenario-selections-v1.json (atomico, maximo 1000 planos/1 MB,
+sem nomes, credenciais ou dados do consumidor). Produto previsto ausente e
+identificado como divergencia, sem presumir cancelamento.
+
+Resumo por pedido: RESUMO_IFOOD_<id>.txt com origem, IDs, quantidades, valores,
+beneficios e criterios APROVADO LOCAL/DIVERGENTE/PENDENTE/OBSERVADO. Nao
+substitui videos e logs oficiais, nao aprova homologacao e nao expoe nomes
+ou credenciais. Diagnostico geral: RESULTADO_IFOOD_CONFERENCIA_R7.txt.
+
+238 verificacoes locais aprovadas: 210 anteriores + 28 novas, registradas em
+evidence/scenario-inspection-tests.txt. Incluem mapeamento, ordem trocada,
+selecao indevida, outra loja/pedido, dados ausentes, exportacao recalculada,
+proveniencia simulada, privacidade, cultura, persistencia apos restart,
+falha de disco, concorrencia e arquivo corrompido. Compilacao com warnings-as-errors.
+
+VERIFICAR_INTERFACE_R7.cmd inicia o mesmo EXE com /verificar-interface.
+Esse modo usa pedido ficticio em pasta temporaria separada, desabilita entrada
+de credenciais/conexao e nao instancia AuthenticationClient, EventsClient ou
+BagProcessor. O titulo/tela/relatorios mostram SIMULACAO LOCAL. A verificacao
+exercita seletores, divergencia, botao de gravacao, retorno ao plano correto,
+resumo e limites visiveis dos controles, registrando DPI e area util atuais.
+Gera RESULTADO_IFOOD_INTERFACE_R7.txt na Area de Trabalho, com PASS/FAIL.
+A pasta ficticia e removida ao fechar; a fila normal nao e usada. Esse modo
+nao gera pedido real e nunca constitui evidencia oficial de homologacao.
+
+LIMITACAO: nao ha acesso direto ao Windows do usuario neste ambiente.
+A interface R7 foi compilada, mas nao executada aqui. O item de validacao
+no Windows permanece pendente ate o usuario executar o CMD e enviar o TXT.
+O comando elimina necessidade de login/API e de programacao manual para esse
+primeiro teste. Avalia somente a configuracao atual de tela, sem declarar
+outros DPIs/resolucoes testados. O fluxo real segue dependente do acesso de
+compras e ferramenta de separacao habilitada pelo iFood.
+
+A R7 preserva o receptor e a sacola R6. Nenhum fluxo comercial foi publicado
+no PDV, GLOBAL, clientes, Firebase ou APK. Nenhuma notificacao ou faturamento.
+
+A conexao e recolhida apos conectar ou no modo local para liberar area de tela.
+O botao Dados da conexao permite expandir/recolher; Pausar fica no rodape.
+A verificacao local tambem exercita a expansao sem habilitar credenciais.

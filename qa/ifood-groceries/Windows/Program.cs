@@ -8,21 +8,21 @@ namespace LealInfo.IFood.Assistant
 {
     internal static class Program
     {
-        [STAThread] private static void Main()
+        [STAThread] private static void Main(string[] args)
         {
             try
             {
                 ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
                 Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
                 Application.ThreadException += (s, e) => ReportFailure(e.Exception);
-                AssistantForm.Run();
+                AssistantForm.Run(args.Length==1 && string.Equals(args[0],"/verificar-interface",StringComparison.OrdinalIgnoreCase));
             }
             catch (Exception ex) { ReportFailure(ex); }
         }
         private static void ReportFailure(Exception ex)
         {
             // No exception message/stack, input value, HTTP body or header is exported.
-            var text = new StringBuilder("LEAL INFO - FALHA LOCAL DO ASSISTENTE R6\r\n");
+            var text = new StringBuilder("LEAL INFO - FALHA LOCAL DO ASSISTENTE R7\r\n");
             text.AppendLine("UTC: " + DateTimeOffset.UtcNow.ToString("O"));
             text.AppendLine("CLR: " + Environment.Version);
             text.AppendLine("Processo 64 bits: " + Environment.Is64BitProcess);

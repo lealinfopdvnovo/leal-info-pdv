@@ -1,0 +1,5 @@
+R7 package validation PASS
+Managed Windows GUI; asInvoker; inspection tab; summary and offline interface command present.
+ZIP integrity verified, 8 files; EXE checksum verified.
+238 local checks passed; no Windows UI execution and no live API test in Work.
+ZIP SHA256 c6f0a7f5d2195e0eab4b3dbf127a4a818135078d8f5da10d69fca2b7501a5c60

@@ -1,0 +1,4 @@
+R7 scenario inspection and per-order summary Windows EXE; C# 5; official Framework 4.8 references; warnings as errors.
+Exit 0
+
+Windows runtime/UI still requires a real-machine check.

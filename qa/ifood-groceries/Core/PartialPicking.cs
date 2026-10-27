@@ -35,25 +35,17 @@ public sealed class PartialPickingPlan
     public PickingReview Review(Order finalBag)
     {
         if (finalBag.Id != OrderId || finalBag.MerchantId != MerchantId) throw new ContractException("scenario order/merchant");
-        var issues = new List<string>();
-        if (finalBag.Items.Select(i => i.Id).Distinct().Count() != finalBag.Items.Count)
-            throw new ContractException("scenario duplicate items");
-        if (finalBag.Items.Count != 3 || finalBag.Items.Any(i => !Lines.Any(l => l.ItemId == i.Id)))
-            issues.Add("O cenario exige exatamente os tres produtos previstos; substituicoes precisam de outro roteiro.");
-        foreach (var line in Lines)
+        var portable=new BagOrder { Id=finalBag.Id,MerchantId=finalBag.MerchantId,Operation=finalBag.Operation,Scheduling=finalBag.Scheduling,
+            Items=finalBag.Items.Select(i=>new BagItem {Id=i.Id,Name=i.Name,ReportedQuantity=i.ReportedQuantity,Unavailable=i.Unavailable,UnitCents=i.UnitCents,GrossCents=i.GrossCents}).ToArray(),
+            Benefits=finalBag.Benefits.Select(b=>new BagBenefit {Target=b.Target,TargetId=b.TargetId,Liability=b.Liability,Cents=b.Cents}).ToArray() };
+        try
         {
-            var item = finalBag.Items.SingleOrDefault(i => i.Id == line.ItemId);
-            if (item is null) { issues.Add("Produto previsto ausente; nao inferir cancelamento pela ausencia da linha."); continue; }
-            if (line.Action == PlannedPickingAction.RequestCancellation)
-            {
-                if (!item.Unavailable || item.AvailableQuantity != 0)
-                    issues.Add("Item 1 precisa de unavailable=true; quantidade zero sozinha nao prova indisponibilidade.");
-            }
-            else if (item.Unavailable || item.ReportedQuantity != line.PlannedQuantity || item.AvailableQuantity != line.PlannedQuantity)
-                issues.Add(line.Action == PlannedPickingAction.PickAllThree ?
-                    "Item 2 precisa de unavailable=false e quantidade 3." : "Item 3 precisa de unavailable=false e quantidade 1.");
+            var selection=ScenarioSelection.Create(OrderId,MerchantId,Lines[0].ItemId,Lines[1].ItemId,Lines[2].ItemId);
+            var review=ScenarioInspection.Inspect(portable,selection);
+            return new PickingReview(review.QuantitiesMatch,finalBag.Benefits.Any(b=>b.Cents>0),
+                review.Criteria.Where(c=>c.QuantityCriterion && c.State!=InspectionState.Pass).Select(c=>c.Detail).ToList().AsReadOnly());
         }
-        return new PickingReview(issues.Count == 0, finalBag.Benefits.Any(b => b.Cents > 0), issues.AsReadOnly());
+        catch(ReceptionFailure){throw new ContractException("scenario identity/items");}
     }
 }
 
