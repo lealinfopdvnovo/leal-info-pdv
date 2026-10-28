@@ -18,14 +18,12 @@ if sys.argv[1]=='version':
         assert '10.461' in text, name
         p.write_text(text.replace('10.461',VERSION),encoding='utf-8')
         changed.append(name)
-    runtime=Path('runtime-version.txt').read_text().strip()
-    assert all(c.isdigit() or c=='.' for c in runtime)
-    project=ROOT/'LealInfoPDV.csproj'
-    pins='<Target Name="PinPublishedCasaRuntime" BeforeTargets="ProcessFrameworkReferences"><ItemGroup>'
-    for framework in ('Microsoft.NETCore.App','Microsoft.WindowsDesktop.App.WindowsForms','Microsoft.WindowsDesktop.App'):
-        pins+=f'<FrameworkReference Update="{framework}" RuntimeFrameworkVersion="{runtime}" />'
-    pins+='</ItemGroup></Target>'
-    project.write_text(project.read_text().replace('</Project>',pins+'</Project>'))
+    # dotnet chooses the SDK from the invocation directory, not the csproj path.
+    # The published recipe pins10.0.401 inside candidate; honor it from the CI cwd.
+    sdk=json.loads((ROOT/'global.json').read_text())
+    assert sdk['sdk']['version']=='10.0.401'
+    Path('global.json').write_bytes((ROOT/'global.json').read_bytes())
+    print('PASS invoking exact published SDK10.0.401 from workspace global.json')
     Path('delivery-version-proof.json').write_text(json.dumps(dict(
         Version=VERSION,MetadataOnly=changed,Client='003',Published=False)))
 elif sys.argv[1]=='package':
