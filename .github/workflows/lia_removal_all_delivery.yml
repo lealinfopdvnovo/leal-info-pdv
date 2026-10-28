@@ -76,9 +76,12 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Before compilation failed'}
           dotnet build removal/qa/lia-removal/WindowsProbe.csproj -c Release -o probe
           if($LASTEXITCODE -ne 0){throw 'Probe build failed'}
-          Copy-Item probe/WindowsProbe.dll published/
-          dotnet exec --depsfile published/LealInfoPDV.deps.json --runtimeconfig baseline-publish/LealInfoPDV.runtimeconfig.json published/WindowsProbe.dll published/LealInfoPDV.dll published
-          if($LASTEXITCODE -ne 0){throw 'Published GLOBAL baseline unexpectedly contains LIA button'}
+          New-Item -ItemType Directory published-probe -Force|Out-Null
+          Copy-Item baseline-publish/* published-probe/ -Recurse -Force
+          Copy-Item published/LealInfoPDV.exe,published/LealInfoPDV.dll,published/LealInfoPDV.deps.json published-probe/ -Force
+          Copy-Item probe/WindowsProbe.dll published-probe/
+          dotnet exec --depsfile published-probe/LealInfoPDV.deps.json --runtimeconfig published-probe/LealInfoPDV.runtimeconfig.json published-probe/WindowsProbe.dll published-probe/LealInfoPDV.dll published
+          if($LASTEXITCODE -ne 0){throw 'Published GLOBAL assembly validation failed'}
           Copy-Item probe/WindowsProbe.dll baseline-publish/
           dotnet exec --depsfile baseline-publish/LealInfoPDV.deps.json --runtimeconfig baseline-publish/LealInfoPDV.runtimeconfig.json baseline-publish/WindowsProbe.dll baseline-publish/LealInfoPDV.dll before
           if($LASTEXITCODE -ne 0){throw 'Before UI failed'}
