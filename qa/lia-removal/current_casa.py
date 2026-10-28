@@ -37,6 +37,11 @@ elif mode == 'payload':
     assert len(hashes)==len(z.namelist()) and all(not n.startswith('/') and '..' not in n.split('/') for n in hashes)
     Path('bundle-proof.json').write_text(json.dumps(dict(Sha256=hashlib.sha256(raw).hexdigest(),FileHashes=hashes)))
     subprocess.run(['python','controller/qa/gemini-delivery/prepare.py','candidate'],check=True)
+    # The historical login recipe writes sdk-version.txt for its older baseline.
+    # Restore the exact CURRENT published framework contract after that recipe.
+    deps=json.loads(Path('published-461/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
+    sdk=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.Windows.SDK.NET.Ref/'))
+    Path('sdk-version.txt').write_text(sdk)
     Path('current-casa-provenance.json').write_text(json.dumps(dict(
         PublishedPackageSha256=SHA,RecipeCommit='be7c9adb6ca04b88637eb323d96b344a660d07a5',
         EmbeddedVoicePayloadReused=True,VoiceCodeChanged=False,Published=False),indent=2))

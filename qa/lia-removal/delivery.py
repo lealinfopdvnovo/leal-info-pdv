@@ -18,6 +18,14 @@ if sys.argv[1]=='version':
         assert '10.461' in text, name
         p.write_text(text.replace('10.461',VERSION),encoding='utf-8')
         changed.append(name)
+    runtime=Path('runtime-version.txt').read_text().strip()
+    assert all(c.isdigit() or c=='.' for c in runtime)
+    project=ROOT/'LealInfoPDV.csproj'
+    pins='<Target Name="PinPublishedCasaRuntime" BeforeTargets="ProcessFrameworkReferences"><ItemGroup>'
+    for framework in ('Microsoft.NETCore.App','Microsoft.WindowsDesktop.App.WindowsForms','Microsoft.WindowsDesktop.App'):
+        pins+=f'<FrameworkReference Update="{framework}" RuntimeFrameworkVersion="{runtime}" />'
+    pins+='</ItemGroup></Target>'
+    project.write_text(project.read_text().replace('</Project>',pins+'</Project>'))
     Path('delivery-version-proof.json').write_text(json.dumps(dict(
         Version=VERSION,MetadataOnly=changed,Client='003',Published=False)))
 elif sys.argv[1]=='package':
