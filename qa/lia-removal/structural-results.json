@@ -1,0 +1,30 @@
+{
+  "status": "PENDING_WINDOWS",
+  "source_commit": "be811bb46555ebed75c95e1ed0d83c2099add7c6",
+  "structural_unit_tests": 6,
+  "source_reconstruction_checks": [
+    {
+      "variant": 0,
+      "mainform_before_sha256": "84e8db5373d0d1f0d6a12a9913928fb4323f9b64bf0117dabcccd5dc9cd2561d",
+      "mainform_after_sha256": "271bd5a5e426f9dbd985dab1ccfe4379ef419d2ebde547aee4cc9311451da106",
+      "exact_outside_block_preserved": true
+    },
+    {
+      "variant": 1,
+      "mainform_before_sha256": "7fead5653c5c0b05f7eb3e67f13c140d324619e4dac9e921b891741783dc261d",
+      "mainform_after_sha256": "271bd5a5e426f9dbd985dab1ccfe4379ef419d2ebde547aee4cc9311451da106",
+      "exact_outside_block_preserved": true
+    },
+    {
+      "variant": 2,
+      "mainform_before_sha256": "aad1af431ba55cf14c511f45f429ecd155250177663ab2d679f2ce942b37c07a",
+      "mainform_after_sha256": "271bd5a5e426f9dbd985dab1ccfe4379ef419d2ebde547aee4cc9311451da106",
+      "exact_outside_block_preserved": true
+    }
+  ],
+  "windows_compiled": false,
+  "published": false,
+  "startup_animation_files_changed": false,
+  "operational_sources_changed": false,
+  "limitation": "Historical source reconstruction, not current published binaries or real Windows homologation."
+}

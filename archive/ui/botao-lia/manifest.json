@@ -1,0 +1,21 @@
+{
+  "source_commit": "be811bb46555ebed75c95e1ed0d83c2099add7c6",
+  "files": [
+    {
+      "origin": "scripts/aplicar_lic_ai_botao_v10_186.ps1",
+      "archived": "archive/ui/botao-lia/original/aplicar_lic_ai_botao_v10_186.ps1.source",
+      "sha256": "a187835f3f9e6d117f9255245fae98f3a789a0dd536abf9627cfb5c4fed647aa"
+    },
+    {
+      "origin": "scripts/aplicar_lic_ai_estado_v10_210.ps1",
+      "archived": "archive/ui/botao-lia/original/aplicar_lic_ai_estado_v10_210.ps1.source",
+      "sha256": "1a27cceb792f61619e1aae793806d8f85e1776a12e5980298b77e5a55bab1324"
+    },
+    {
+      "origin": "scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1",
+      "archived": "archive/ui/botao-lia/original/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1.source",
+      "sha256": "59f3775648fb0298d61af9ccef3f5dce2d971c6f77372cc085346cbe9e774993"
+    }
+  ],
+  "compiled": false
+}
