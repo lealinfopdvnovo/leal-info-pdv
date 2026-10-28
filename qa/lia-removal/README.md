@@ -3,7 +3,7 @@
 ## Escopo e estado
 
 PENDENTE de compilação e regressão em Windows. Não pronta para homologação.
-Sem alteração de fontes operacionais, projetos, workflows, feeds ou produção.
+A candidata desativa a chamada de inicialização de navegação LIA no MainForm e os três geradores exclusivos do botão. Um workflow novo de validação tem somente contents:read; os workflows existentes e feeds permanecem intactos. Sem publicação ou produção.
 Base do controlador: release/lia-casa-10-458, preservada em manifest.json.
 Não usar esta base antiga como atualização de clientes.
 
@@ -44,3 +44,7 @@ Nenhum workflow foi alterado ou disparado para contornar o limite autorizado.
 Sem publicação, mudança de versão, instalador, acesso a banco, licença,
 chaves, Firebase, APK ou configuração de cliente. A futura distribuição
 continua dependendo de autorização separada.
+
+## Continuação autorizada
+
+A remoção foi implementada no MainForm da candidata e nos três geradores; a animação de entrada não é alterada. O workflow novo compila cópias de fontes fixadas GLOBAL/001/002/003/004 antes/depois da transformação e verifica login, splash, controles operacionais, métodos, hashes das demais fontes e recuperação do aplicador existente. Estes commits fixados são bases históricas, não reconstruções garantidas das versões atualmente instaladas. Não usar artefatos como atualização de clientes. A publicação continua proibida.

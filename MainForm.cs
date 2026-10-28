@@ -65,7 +65,7 @@ public sealed partial class MainForm : Form
         {
             MaximizedBounds = Screen.FromControl(this).WorkingArea;
             WindowState = FormWindowState.Maximized;
-            if (Licensing.InstallationLicense.HasLia) StartNavigationListener();
+            // LIA button removed in this isolated candidate; startup animation preserved.
 
             if (GetSetting("company_registered", "0") != "1")
             {

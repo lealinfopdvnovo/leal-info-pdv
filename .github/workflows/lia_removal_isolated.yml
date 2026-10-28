@@ -1,0 +1,96 @@
+name: Remocao botao LIA - candidata isolada sem publicar
+on:
+  push:
+    branches: [prepare/lia-removal-isolated-20261028]
+    paths: [qa/lia-removal/**, scripts/aplicar_lic_ai_botao_v10_186.ps1, scripts/aplicar_lic_ai_estado_v10_210.ps1, scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1, MainForm.cs, .github/workflows/lia_removal_isolated.yml]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - channel: GLOBAL
+            base: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+          - channel: 001
+            base: 7aa5d38336e94659c07f0afc6ddfe40169c41a3a
+          - channel: 002
+            base: 735f3f6b0f933f25585c0c9e7e50551dae9a056d
+          - channel: 003
+            base: 874bc1e77fc3fb9b643ed17ceb0e1e1c91ad2ac8
+          - channel: 004
+            base: 2787ea2541261bd68cf1e931ceaa6ed537ddc832
+    env:
+      PYTHONUTF8: '1'
+      LEAL_NOTIFIER_ISOLATED_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller, fetch-depth: 0}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.base }}
+          path: candidate
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: 8.0.x}
+      - name: Testar arquivo historico e transformador
+        shell: pwsh
+        run: |
+          python -m unittest discover -s controller/qa/lia-removal -v
+          if($LASTEXITCODE -ne 0){throw 'Structural tests failed'}
+      - name: Reconstituir somente botao historico na copia isolada
+        working-directory: candidate
+        shell: pwsh
+        run: |
+          foreach($n in @('aplicar_lic_ai_botao_v10_186.ps1','aplicar_lic_ai_estado_v10_210.ps1','corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1')){
+            $script=Get-Content "../controller/archive/ui/botao-lia/original/$n.source" -Raw
+            & ([ScriptBlock]::Create($script))
+            if($LASTEXITCODE -and $LASTEXITCODE -ne 0){throw 'Historical generator failed'}
+          }
+      - name: Compilar antes e preservar fontes
+        shell: pwsh
+        run: |
+          python controller/qa/lia-removal/windows_prepare.py candidate snapshot
+          if($LASTEXITCODE -ne 0){throw 'Snapshot failed'}
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o baseline-publish -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Baseline compilation failed'}
+          dotnet build controller/qa/lia-removal/WindowsProbe.csproj -c Release -o probe
+          if($LASTEXITCODE -ne 0){throw 'Probe compilation failed'}
+          Copy-Item probe/WindowsProbe.dll baseline-publish/
+          Copy-Item probe/WindowsProbe.runtimeconfig.json baseline-publish/
+          dotnet exec --depsfile baseline-publish/LealInfoPDV.deps.json --runtimeconfig baseline-publish/LealInfoPDV.runtimeconfig.json baseline-publish/WindowsProbe.dll baseline-publish/LealInfoPDV.dll before
+          if($LASTEXITCODE -ne 0){throw 'Baseline probe failed'}
+      - name: Remover botao preservando animacao e demais fontes
+        shell: pwsh
+        run: |
+          python controller/qa/lia-removal/windows_prepare.py candidate remove
+          if($LASTEXITCODE -ne 0){throw 'Removal scope failed'}
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o candidate-publish -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Removal compilation failed'}
+          Copy-Item probe/WindowsProbe.dll candidate-publish/
+          Copy-Item probe/WindowsProbe.runtimeconfig.json candidate-publish/
+          dotnet exec --depsfile candidate-publish/LealInfoPDV.deps.json --runtimeconfig candidate-publish/LealInfoPDV.runtimeconfig.json candidate-publish/WindowsProbe.dll candidate-publish/LealInfoPDV.dll after
+          if($LASTEXITCODE -ne 0){throw 'Removal probe failed'}
+          python controller/qa/lia-removal/windows_prepare.py candidate finish
+          if($LASTEXITCODE -ne 0){throw 'Final source gate failed'}
+      - name: Regressao do aplicador e recuperacao existentes sem alterar mecanismo
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          if(!(Test-Path TransactionalUpdate.ps1)){throw 'Existing rollback worker absent in pinned source; do not approve this channel'}
+          New-Item -ItemType Directory publish,evidence -Force|Out-Null
+          Copy-Item ../candidate-publish/LealInfoPDV.exe,../candidate-publish/LealInfoPDV.dll,../candidate-publish/LealInfoPDV.deps.json publish/
+          & ../controller/qa/global-453/assets/rollback.ps1
+          if($LASTEXITCODE -ne 0){throw 'Existing recovery regression failed'}
+          Copy-Item evidence/rollback.json ../evidence/rollback.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lia-removal-${{ matrix.channel }}-NAO-PUBLICADO
+          path: |
+            evidence/
+            candidate-publish/LealInfoPDV.exe
+            candidate-publish/LealInfoPDV.dll
+            candidate-publish/LealInfoPDV.deps.json
