@@ -7,7 +7,7 @@ permissions:
   actions: read
 concurrency:
   group: lia-removal-all-10463
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   windows:
     runs-on: windows-latest

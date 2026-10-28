@@ -43,7 +43,7 @@ for channel,path in FEEDS.items():
  before=read(path);check(before==candidate['Feed'],'Live feed advanced; no feed changed')
  package=root/candidate['Package'];digest=hashlib.sha256(package.read_bytes()).hexdigest();check(digest==candidate['Sha256'],'Hash mismatch')
  with zipfile.ZipFile(package) as z:check(len(z.namelist())==3 and set(z.namelist())=={'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'},'Unexpected payload')
- tag=f'v10.463-{channel.lower()}-sem-botao-lia';url=f'https://github.com/{REPO}/releases/download/{tag}/{package.name}'
+ tag='v10.463-global-sem-botao-lia' if channel=='GLOBAL' else f'client-{channel}-v10.463-sem-botao-lia';url=f'https://github.com/{REPO}/releases/download/{tag}/{package.name}'
  notes='Retirada somente do botão LIA e acionamentos exclusivos. Animação de entrada, funcionalidades operacionais, PET, dados, licença, configurações e atualizador preservados.'
  exists=subprocess.run(['gh','release','view',tag,'--repo',REPO],capture_output=True).returncode==0
  if not exists:subprocess.run(['gh','release','create',tag,str(package),'--repo',REPO,'--target',head,'--title',f'{channel}10.463 — retirada do botão LIA','--notes',notes,'--latest=false'],check=True)
