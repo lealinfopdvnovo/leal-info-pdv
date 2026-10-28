@@ -40,7 +40,7 @@ public sealed class LiveSession : IAsyncDisposable
    mic.DataAvailable+=(_,e)=>{if(!lifetime.IsCancellationRequested)input.Writer.TryWrite(e.Buffer.AsSpan(0,e.BytesRecorded).ToArray());};
    mic.RecordingStopped+=(_,e)=>{if(e.Exception!=null){Status?.Invoke("Microfone interrompido; sessão encerrada.");lifetime.Cancel();}};
    mic.StartRecording();stage="LIVE";Status?.Invoke("Ouvindo — sessão experimental de até 5 minutos.");
-  }catch(Exception ex){var detail=lastFailure??LiveDiagnostic.Failure(stage,ex,secret);await DisposeAsync();throw new InvalidOperationException(detail+" Nenhum provedor pago foi acionado.");}
+  }catch(Exception ex){var detail=lastFailure??LiveDiagnostic.Failure(stage,ex,secret);await DisposeAsync();throw new InvalidOperationException(detail+" Sem troca automática de provedor ou ativação de faturamento.");}
  }
  async Task SendAsync(object value){
   await sendLock.WaitAsync(lifetime.Token);
@@ -50,9 +50,9 @@ public sealed class LiveSession : IAsyncDisposable
  async Task ReceiveAsync(){
   var bytes=new byte[16384];
   try{while(!lifetime.IsCancellationRequested){
-   using var message=new MemoryStream();ValueWebSocketReceiveResult part;
-   do{part=await socket.ReceiveAsync(bytes.AsMemory(),lifetime.Token);if(part.MessageType==WebSocketMessageType.Close){lastFailure=LiveDiagnostic.Closed(stage,socket.CloseStatus,socket.CloseStatusDescription,secret);throw new IOException(lastFailure);}if(part.MessageType!=WebSocketMessageType.Text||message.Length+part.Count>4*1024*1024)throw new InvalidDataException("Frame inválido.");message.Write(bytes,0,part.Count);}while(!part.EndOfMessage);
-   using var doc=JsonDocument.Parse(message.ToArray());var root=doc.RootElement;
+   using var message=new LiveFrameReader();ValueWebSocketReceiveResult part;
+   do{part=await socket.ReceiveAsync(bytes.AsMemory(),lifetime.Token);if(part.MessageType==WebSocketMessageType.Close){lastFailure=LiveDiagnostic.Closed(stage,socket.CloseStatus,socket.CloseStatusDescription,secret);throw new IOException(lastFailure);}message.Append(bytes.AsSpan(0,part.Count),part.MessageType);}while(!part.EndOfMessage);
+   using var doc=message.Parse();var root=doc.RootElement;
    if(root.TryGetProperty("error",out var apiError)){lastFailure=LiveDiagnostic.ApiError(apiError,secret);throw new InvalidOperationException(lastFailure);}
    if(root.TryGetProperty("setupComplete",out _)){ready.TrySetResult();continue;}
    if(root.TryGetProperty("goAway",out _)){Status?.Invoke("Sessão próxima do limite; interrompida sem reconexão automática.");lifetime.Cancel();break;}

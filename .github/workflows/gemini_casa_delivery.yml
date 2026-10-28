@@ -1,7 +1,7 @@
 name: Casa Gemini Live - entrega transacional sem publicar
 on:
   push:
-    branches: [prepare/casa-gemini-diagnostic-460]
+    branches: [prepare/casa-gemini-frames-461]
 permissions:
   contents: read
   actions: read
@@ -32,7 +32,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
-          python -c "import subprocess; c=subprocess.check_output(['git','-C','controller','diff','--name-only','d295fb3f7739d9ed6362f09b9651cb21e031c8e9','HEAD'],text=True).splitlines();assert c and all(x.startswith(('qa/gemini-delivery/','qa/gemini-casa/')) or x=='.github/workflows/gemini_casa_delivery.yml' for x in c),c;print('PASS source scope Casa only')"
+          python -c "import subprocess; c=subprocess.check_output(['git','-C','controller','diff','--name-only','29546006a1bd4c98511727c358f184a50fb927b3','HEAD'],text=True).splitlines();assert c and all(x.startswith(('qa/gemini-delivery/','qa/gemini-casa/')) or x=='.github/workflows/gemini_casa_delivery.yml' for x in c),c;print('PASS source scope Casa only')"
           python controller/qa/gemini-delivery/prepare.py download
           if($LASTEXITCODE -ne 0){throw 'Approved artifacts failed'}
       - name: Preparar localizador da instalacao na candidata derivada
@@ -96,7 +96,7 @@ jobs:
           python controller/qa/gemini-delivery/prepare.py package
           if($LASTEXITCODE -ne 0){throw 'Package failed'}
           Push-Location candidate
-          dotnet run --project qa/gemini-delivery/DeliveryProbe.csproj -c Release @props -- ../output/LEAL_INFO_PDV_CASA_V10_460_UPDATE.zip
+          dotnet run --project qa/gemini-delivery/DeliveryProbe.csproj -c Release @props -- ../output/LEAL_INFO_PDV_CASA_V10_461_UPDATE.zip
           if($LASTEXITCODE -ne 0){throw 'Scope/license/package policy failed'}
           Pop-Location
       - name: Testar aplicacao interrupcoes corrupcao recuperacao e rollback completos
@@ -104,12 +104,12 @@ jobs:
         run: |
           New-Item -ItemType Directory previous,release-output -Force|Out-Null
           Copy-Item legacy-458/* previous/
-          Copy-Item output/LEAL_INFO_PDV_CASA_V10_460_UPDATE.zip release-output/
-          '{"Package":"LEAL_INFO_PDV_CASA_V10_460_UPDATE.zip","Channel":"GLOBAL","Version":"10.460"}'|Set-Content build-entry.json
+          Copy-Item output/LEAL_INFO_PDV_CASA_V10_461_UPDATE.zip release-output/
+          '{"Package":"LEAL_INFO_PDV_CASA_V10_461_UPDATE.zip","Channel":"GLOBAL","Version":"10.461"}'|Set-Content build-entry.json
           New-Item -ItemType Directory candidate/qa/update-transaction -Force|Out-Null
           Copy-Item controller/qa/update-transaction/StartupFixture* candidate/qa/update-transaction/
           $fixture='candidate/qa/update-transaction/StartupFixture.cs'
-          (Get-Content $fixture -Raw).Replace('10.422','10.460')|Set-Content $fixture
+          (Get-Content $fixture -Raw).Replace('10.422','10.461')|Set-Content $fixture
           dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -o startup-fixture-publish
           if($LASTEXITCODE -ne 0){throw 'Startup fixture build failed'}
           ./controller/qa/update-transaction/test-transaction.ps1
@@ -119,7 +119,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: casa-gemini-10-460-CANDIDATA-NAO-PUBLICADA
+          name: casa-gemini-10-461-CANDIDATA-NAO-PUBLICADA
           path: |
             output/
             evidence/

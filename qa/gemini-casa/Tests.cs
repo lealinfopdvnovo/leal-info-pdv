@@ -30,6 +30,14 @@ class Tests{
   Check(api.Contains("429")&&api.Contains("RESOURCE_EXHAUSTED"),"API status preserved without guessing root cause");
   var err=LiveDiagnostic.Failure("CONNECT",new IOException("failed "+fake),fake);
   Check(err.Contains("CONNECT")&&!err.Contains(fake),"handshake diagnostic stage and redaction");
+  foreach(var type in new[]{System.Net.WebSockets.WebSocketMessageType.Text,System.Net.WebSockets.WebSocketMessageType.Binary}){
+   using var frame=new LiveFrameReader();var payload=System.Text.Encoding.UTF8.GetBytes("{\"setupComplete\":{}}");
+   for(int at=0;at<payload.Length;at++)frame.Append(payload.AsSpan(at,1),type);
+   using var parsed=frame.Parse();Check(parsed.RootElement.TryGetProperty("setupComplete",out _),"fragmented setup JSON accepted "+type);
+  }
+  using(var frame=new LiveFrameReader()){frame.Append(new byte[]{255,0},System.Net.WebSockets.WebSocketMessageType.Binary);try{frame.Parse();throw new Exception("raw non-JSON binary accepted");}catch(JsonException){Check(true,"non-JSON binary refused");}}
+  using(var frame=new LiveFrameReader()){try{frame.Append(new byte[LiveFrameReader.MaximumBytes+1],System.Net.WebSockets.WebSocketMessageType.Binary);throw new Exception("oversize accepted");}catch(InvalidDataException){Check(true,"message size limit preserved");}}
+  using(var frame=new LiveFrameReader()){frame.Append(new byte[]{123},System.Net.WebSockets.WebSocketMessageType.Text);try{frame.Append(new byte[]{125},System.Net.WebSockets.WebSocketMessageType.Binary);throw new Exception("mixed frame types accepted");}catch(InvalidDataException){Check(true,"mixed fragment types refused");}}
   Directory.CreateDirectory("evidence");File.WriteAllText("evidence/gemini-tests.json",JsonSerializer.Serialize(new{Pass=true,Assertions=count,NetworkUsed=false,RealApiTested=false,VoiceCompared=false,Published=false}));
  }
 }
