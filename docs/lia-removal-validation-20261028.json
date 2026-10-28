@@ -1,0 +1,77 @@
+{
+  "status": "ISOLATED_SOURCE_CANDIDATE_VALIDATED",
+  "implementation_commit": "a9af9aa8fe88174687588ccfc335cd4aaca040d9",
+  "windows_run": 40690645429,
+  "windows_result": "success",
+  "jobs": [
+    {
+      "id": 122824240125,
+      "name": "windows (002, 735f3f6b0f933f25585c0c9e7e50551dae9a056d)",
+      "result": "success"
+    },
+    {
+      "id": 122824240173,
+      "name": "windows (001, 7aa5d38336e94659c07f0afc6ddfe40169c41a3a)",
+      "result": "success"
+    },
+    {
+      "id": 122824240288,
+      "name": "windows (004, 2787ea2541261bd68cf1e931ceaa6ed537ddc832)",
+      "result": "success"
+    },
+    {
+      "id": 122824240404,
+      "name": "windows (GLOBAL, 98915ae5a9eb02825d77f74bb179e0ce27d65bd9)",
+      "result": "success"
+    },
+    {
+      "id": 122824240572,
+      "name": "windows (003, 874bc1e77fc3fb9b643ed17ceb0e1e1c91ad2ac8)",
+      "result": "success"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": 12817660910,
+      "name": "lia-removal-001-NAO-PUBLICADO",
+      "sha256": "sha256:eadc7b2d7537d2e1150a9baa5530b06d3b8be3fbe9b20e0e6549823d81ce3ced"
+    },
+    {
+      "id": 12817650992,
+      "name": "lia-removal-003-NAO-PUBLICADO",
+      "sha256": "sha256:38878a2fdef826ebcd1c214bf659b3303de0db79a193e05d117b46524a6da3ce"
+    },
+    {
+      "id": 12817256905,
+      "name": "lia-removal-004-NAO-PUBLICADO",
+      "sha256": "sha256:c587d2107377290605ff0a9ec3493d75670e173e1f3a5234443a5feff4188688"
+    },
+    {
+      "id": 12816647423,
+      "name": "lia-removal-GLOBAL-NAO-PUBLICADO",
+      "sha256": "sha256:aeae45a9bc7ce66391f7b8b57b7c9e118fa2d6a860f7b518e1eb103e9004269d"
+    },
+    {
+      "id": 12816453395,
+      "name": "lia-removal-002-NAO-PUBLICADO",
+      "sha256": "sha256:5306a35b10ddcc52dbc5e179ec0d301cc8fac12dff0e5b718a1616454ff03221"
+    }
+  ],
+  "checks": [
+    "6 structural tests including Git object recovery and SHA-256",
+    "Before/after Windows compilation in five pinned source fixtures",
+    "LIA button absent after transformation; operational controls/methods unchanged",
+    "Login and splash instantiated; source and animation assets unchanged",
+    "Existing cash-flow test: valid/invalid values, persistence and two reopenings",
+    "Existing updater: success, interruption with recovery, bad SHA; 3 scenarios per fixture"
+  ],
+  "limits": [
+    "Pinned historical source fixtures, not proof of equivalence with every currently installed version",
+    "No real customer installation or visual/audio animation homologation",
+    "No end-to-end kitchen, glass or sale-payment homologation performed; sources unchanged",
+    "Generated artifacts are NOT authorized updates for current clients; current release recipes must be reconciled before future publication"
+  ],
+  "published": false,
+  "production_changed": false,
+  "entry_animation_removed": false
+}

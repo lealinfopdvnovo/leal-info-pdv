@@ -1,50 +1,30 @@
-# Remoção do botão LIA — preparação isolada
+# Remoção do botão LIA — candidata isolada validada
 
-## Escopo e estado
+Estado: implementação concluída na branch, com validação Windows isolada em 28/10/2026.
 
-PENDENTE de compilação e regressão em Windows. Não pronta para homologação.
-A candidata desativa a chamada de inicialização de navegação LIA no MainForm e os três geradores exclusivos do botão. Um workflow novo de validação tem somente contents:read; os workflows existentes e feeds permanecem intactos. Sem publicação ou produção.
-Base do controlador: release/lia-casa-10-458, preservada em manifest.json.
-Não usar esta base antiga como atualização de clientes.
+- Código testado: `a9af9aa8fe88174687588ccfc335cd4aaca040d9`.
+- Execução: https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/40690645429
+- Cinco jobs Windows aprovados: GLOBAL e cópias de fontes 001/002/003/004.
+- Backup: `archive/ui/botao-lia/`, hashes e recuperação por objetos Git verificados.
 
-O botão não existe diretamente no MainForm da base organizada consultada:
-é injetado pelos scripts históricos na montagem das candidatas. Por isso,
-não se substituiu a aplicação por uma base mais antiga para retirar o botão.
+## Alteração implementada
 
-O transformador recebe exclusivamente uma cópia já recomposta da versão de
-cada cliente. A cópia deve conter `.lia-removal-isolated` com o conteúdo
-`ISOLATED-NOT-PRODUCTION`. Não executar em instalações reais.
+A chamada de inicialização do listener de navegação da assistente foi retirada do MainForm da candidata. Os três geradores exclusivos do botão agora não criam controle, clique/teclado, temporizadores, canal de estados ou lançador da LIA. Seus originais permanecem arquivados fora da compilação.
 
-Remove o bloco conhecido de criação do botão, clique, teclado, pintura,
-timer, canal de estados e encerramento da assistente, mais a chamada de
-inicialização do listener de navegação. Mantém os métodos de navegação,
-licenciamento e dependências para não excluir funções compartilhadas.
-Variantes desconhecidas ou referências fora do bloco são rejeitadas.
-O arquivo original completo é guardado apenas na candidata local para reversão;
-não enviar essa cópia automaticamente ao GitHub.
+`remove_button.py` retira o bloco reconhecido de candidatas já montadas, recusando variantes desconhecidas antes de escrever. Preserva cópia reversível do MainForm apenas no ambiente de teste. Mantém métodos compartilhados, política de licença, dependências e arquivos dos motores; não faz limpeza no computador do cliente.
 
-## Verificação disponível
+**A animação de entrada foi preservada.** LoginForm.cs, SplashForm.cs e Assets não foram alterados. Tampouco houve alteração de banco, licença, estoque, configurações, arquivos PET, atualizador, feeds, Firebase ou APK.
 
-`python -m unittest discover -s qa/lia-removal -v`
+## Evidências
 
-Testes estruturais Python: arquivo histórico e recuperação via objetos Git,
-três terminadores históricos, LF/CRLF, BOM, rejeição de código compartilhado,
-rejeição de variante desconhecida, proteção de arquivos e reversão byte a byte.
-Fixtures estruturais não comprovam compilação, interface Windows nem vendas.
+6 testes estruturais; compilação antes/depois; ausência do botão após a transformação; mesmos controles operacionais e métodos; layout em três tamanhos solicitados à janela; instanciação de login/splash; teste financeiro existente com entrada +100, saída -40, saldo final 1260 e reabertura; atualização bem-sucedida, recuperação após interrupção e rejeição de SHA inválido. Os sentinelas de dados, licença, estoque, financeiro, configurações e PET ficaram intactos nos cenários descartáveis.
 
-## Próximo gate
+O primeiro erro de validação foi a conversão CRLF do checkout Windows: corrigida com atributo Git que conserva os bytes do arquivo histórico. Depois foram corrigidos somente o contexto da receita já publicada de 002/004 e o canal dos testes de rollback. O mecanismo do atualizador permaneceu inalterado.
 
-Recompor a candidata atual exata de cada canal com suas receitas existentes;
-aplicar somente após reconhecer o bloco completo, compilar e executar regressão
-Windows, inclusive login/animação, módulos comerciais e atualização/rollback.
-A versão 10.461/Gemini pode ter variantes adicionais: não presumir compatibilidade.
-Este ambiente não possui dotnet, PowerShell ou Windows GUI disponíveis.
-Nenhum workflow foi alterado ou disparado para contornar o limite autorizado.
+## Limites e congelamento
 
-Sem publicação, mudança de versão, instalador, acesso a banco, licença,
-chaves, Firebase, APK ou configuração de cliente. A futura distribuição
-continua dependendo de autorização separada.
+As fontes fixadas são bases históricas, não a comprovação de equivalência com todas as versões atualmente instaladas (incluindo a Casa 10.461). Não distribuir esses artefatos como atualizações. A futura publicação exige reconciliar a retirada com a receita atual exata de cada cliente e autorização separada. A variante Gemini e quaisquer variantes posteriores não reconhecidas continuam bloqueadas pelo transformador até revisão dirigida.
 
-## Continuação autorizada
+Não houve homologação real de vendas, Cozinha, Vidraçaria ou áudio/animação no PC do usuário nesta etapa. Suas fontes foram preservadas; os testes listados acima são a evidência disponível. Não se anunciou aprovação real nem instalação.
 
-A remoção foi implementada no MainForm da candidata e nos três geradores; a animação de entrada não é alterada. O workflow novo compila cópias de fontes fixadas GLOBAL/001/002/003/004 antes/depois da transformação e verifica login, splash, controles operacionais, métodos, hashes das demais fontes e recuperação do aplicador existente. Estes commits fixados são bases históricas, não reconstruções garantidas das versões atualmente instaladas. Não usar artefatos como atualização de clientes. A publicação continua proibida.
+Nada foi publicado, instalado ou mesclado na branch operacional. Implementação e evidências congeladas no commit/execução identificados acima.
