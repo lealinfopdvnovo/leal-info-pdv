@@ -1,0 +1,29 @@
+name: Publicar CASA exclusiva 10.460 aprovada sem recompilar
+on:
+  push:
+    branches: [release/gemini-casa-10-460]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publicar-casa-10-460
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recuperar exatamente pacote aprovado sem compilar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python qa/gemini-delivery/publish_approved.py download
+      - name: Publicar somente feed licenciado Casa e comprovar isolamento
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/gemini-delivery/publish_approved.py publish
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: comprovante-publicacao-CASA-10-460
+          path: publication-proof.json
