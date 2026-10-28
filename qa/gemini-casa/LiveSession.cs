@@ -28,12 +28,13 @@ public sealed class LiveSession : IAsyncDisposable
   var uri=new Uri("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="+Uri.EscapeDataString(key.Trim()));
   try{
    await socket.ConnectAsync(uri,lifetime.Token);
-   stage="SETUP";receive=ReceiveAsync();
-   await SendAsync(protocol.Setup(model,knowledge));
-   await ready.Task.WaitAsync(TimeSpan.FromSeconds(20),lifetime.Token);
+   // Prepare playback before consuming any server frame, including immediate post-setup audio.
    stage="AUDIO_OUTPUT";
    output=new BufferedWaveProvider(new WaveFormat(24000,16,1)){BufferDuration=TimeSpan.FromSeconds(20),DiscardOnBufferOverflow=false,ReadFully=true};
    speaker=new WaveOutEvent();speaker.Init(output);speaker.Play();
+   stage="SETUP";receive=ReceiveAsync();
+   await SendAsync(protocol.Setup(model,knowledge));
+   await ready.Task.WaitAsync(TimeSpan.FromSeconds(20),lifetime.Token);
    transmit=TransmitAsync();
    stage="AUDIO_INPUT";
    mic=new WaveInEvent{WaveFormat=new WaveFormat(16000,16,1),BufferMilliseconds=40,NumberOfBuffers=3};
