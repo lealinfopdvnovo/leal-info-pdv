@@ -5,7 +5,7 @@ r=Path('candidate');mode=sys.argv[1]
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def sources():return {p.relative_to(r).as_posix():sha(p) for p in r.rglob('*') if p.is_file() and not any(x in ('.git','qa','bin','obj','publish','evidence') for x in p.relative_to(r).parts)}
 if mode=='download':
- for run,name,dest in [('40609046605','gemini-live-casa-EXPERIMENTAL-NAO-PUBLICADO','approved-gemini'),('40606501484','lia-casa-NAO-PUBLICADO','approved-pdv')]:
+ for run,name,dest in [('40609046605','gemini-live-casa-EXPERIMENTAL-NAO-PUBLICADO','approved-gemini'),('40606501484','casa-gemini-10-459-CANDIDATA-NAO-PUBLICADA','approved-pdv')]:
   subprocess.run(['gh','run','download',run,'--repo','lealinfopdvnovo/leal-info-pdv','--name',name,'--dir',dest],check=True)
  files=list(Path('approved-gemini').rglob('integrity.json'));assert len(files)==1
  index=json.loads(files[0].read_text());assert index['Source']=='47eb0ac79b50b631c1b019e73303fc4d26285f97' and not index['Published']
