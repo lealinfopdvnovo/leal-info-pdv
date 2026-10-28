@@ -66,12 +66,30 @@
     "Existing updater: success, interruption with recovery, bad SHA; 3 scenarios per fixture"
   ],
   "limits": [
-    "Pinned historical source fixtures, not proof of equivalence with every currently installed version",
+    "Five pinned source fixtures plus current Casa10.461 reconstructed from its published recipe and verified payload; other installed current versions are not proven equivalent",
     "No real customer installation or visual/audio animation homologation",
-    "No end-to-end kitchen, glass or sale-payment homologation performed; sources unchanged",
-    "Generated artifacts are NOT authorized updates for current clients; current release recipes must be reconciled before future publication"
+    "No end-to-end kitchen, glass or sale-payment homologation performed; operational sources unchanged",
+    "No publication authorized; candidate artifacts retain baseline versions and must not be distributed as current updates without versioning, validation and separate authorization"
   ],
   "published": false,
   "production_changed": false,
-  "entry_animation_removed": false
+  "entry_animation_removed": false,
+  "current_casa": {
+    "implementation_commit": "6d3a84f5d5e1aae378092c8db66c9f4c3dc2351b",
+    "windows_run": 40691698125,
+    "windows_job": 122827863735,
+    "result": "success",
+    "published_baseline_version": "10.461",
+    "published_baseline_sha256": "d0e78ae6e9baef1aad05b4ce4847d156940cd8a9322a7d8b909aa2f0ac1a58fc",
+    "recipe_commit": "be7c9adb6ca04b88637eb323d96b344a660d07a5",
+    "voice_payload_reused": true,
+    "voice_api_called": false,
+    "artifact": [
+      {
+        "id": 12816559465,
+        "name": "lia-removal-CASA-10461-NAO-PUBLICADO",
+        "sha256": "sha256:1fa7289b05034ff657f14af220763cfc5e16f82575ea426d972b351223c3a1ec"
+      }
+    ]
+  }
 }
