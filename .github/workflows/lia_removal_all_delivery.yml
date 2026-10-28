@@ -35,7 +35,7 @@ jobs:
       LEAL_NOTIFIER_ISOLATED_TEST: '1'
     steps:
       - uses: actions/checkout@v4
-        with: {path: removal}
+        with: {path: removal, fetch-depth: 0}
       - uses: actions/checkout@v4
         with:
           path: controller
