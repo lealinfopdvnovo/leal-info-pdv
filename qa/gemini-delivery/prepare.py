@@ -21,7 +21,11 @@ elif mode=='sidecar':
  # Derive only the installation locator; original Live audio/protocol implementation is reused unchanged.
  p=Path('qa/gemini-casa/Program.cs');s=p.read_text();old='readonly string installation=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,".."));';assert old in s
  s=s.replace(old,'''readonly string installation=ResolveInstallation();
- static string ResolveInstallation(){var a=Environment.GetCommandLineArgs();if(a.Length!=3||a[1]!="--pdv-root"||!Path.IsPathFullyQualified(a[2]))throw new InvalidOperationException("Abra esta candidata pela seleção de LIA no PDV da Casa.");return Path.GetFullPath(a[2]);}''');p.write_text(s)
+ static string ResolveInstallation(){var a=Environment.GetCommandLineArgs();if(a.Length!=3||a[1]!="--pdv-root"||!Path.IsPathFullyQualified(a[2]))throw new InvalidOperationException("Abra esta candidata pela seleção de LIA no PDV da Casa.");return Path.GetFullPath(a[2]);}''');s=s.replace('await pipe.ConnectAsync(timeout.Token);using var writer=', 'await pipe.ConnectAsync(timeout.Token);VerifyNavigationPeer(pipe);using var writer=')
+ anchor=' async Task<string> ExecuteAsync(string command){'
+ assert anchor in s
+ method=' [System.Runtime.InteropServices.DllImport("kernel32.dll",SetLastError=true)]\n static extern bool GetNamedPipeServerProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe,out uint pid);\n void VerifyNavigationPeer(NamedPipeClientStream pipe){\n  if(!GetNamedPipeServerProcessId(pipe.SafePipeHandle,out var pid))throw new InvalidOperationException("Não foi possível identificar o PDV receptor.");\n  using var peer=Process.GetProcessById(checked((int)pid));\n  if(!string.Equals(peer.MainModule?.FileName,Path.Combine(installation,"LealInfoPDV.exe"),StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Receptor de navegação pertence a outra instalação; comando recusado.");\n }\n'
+ s=s.replace(anchor,method+anchor);p.write_text(s)
 elif mode=='bundle':
  # Keep every runtime/dependency from the approved artifact. Only the sidecar executable, DLL and symbols may change.
  base=Path('approved-sidecar');new=Path('sidecar-built');own={'LiaGeminiCasa.Experimental.exe','LiaGeminiCasa.Experimental.dll','LiaGeminiCasa.Experimental.pdb'}
@@ -44,8 +48,8 @@ elif mode=='candidate':
  p=r/'LealInfoPDV.csproj';p.write_text(p.read_text().replace('</Project>','<ItemGroup><EmbeddedResource Include="'+str(Path('bundle/casa-gemini.zip').resolve()).replace('\\','/')+'" LogicalName="Casa.Gemini.Bundle" /></ItemGroup></Project>'))
  for n in ('DeliveryProbe.cs','DeliveryProbe.csproj'):dest=r/'qa/gemini-delivery'/n;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(Path('controller/qa/gemini-delivery')/n,dest)
  after=sources();allowed={'MainForm.cs','LoginForm.cs','UpdateManager.cs','LealInfoPDV.csproj','BundleStore.cs','CasaGeminiDelivery.cs','CasaGeminiPayload.cs'}
- changed={n for n in set(before)|set(after) if before.get(n)!=after.get(n)};assert changed==allowed,changed
- Path('delivery-scope-proof.json').write_text(json.dumps(dict(Target='Casa do Adriano',Changes=sorted(changed),Protected={n:h for n,h in before.items() if n not in allowed},UpdaterWorkerUnchanged=True,LicenseUnchanged=True,PetUnchanged=True,Published=False),indent=2))
+ changed={n for n in set(before)|set(after) if before.get(n)!=after.get(n)};assert changed==allowed-{'LoginForm.cs'},changed
+ Path('delivery-scope-proof.json').write_text(json.dumps(dict(Target='Casa do Adriano',Changes=sorted(changed),Protected={n:h for n,h in before.items() if n not in changed},UpdaterWorkerUnchanged=True,LicenseUnchanged=True,PetUnchanged=True,Published=False),indent=2))
 elif mode=='package':
  proof=json.loads(Path('delivery-scope-proof.json').read_text())
  for n,h in proof['Protected'].items():assert sha(r/n)==h,n
