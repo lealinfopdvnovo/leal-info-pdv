@@ -33,7 +33,10 @@ def known_blocks():
     lifecycle = (archive/'corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1.source').read_text()
     final_insert = lifecycle.split("$new=@'\n", 1)[1].split("\n'@", 1)[0]
     final = updated.replace(ENDINGS[1], final_insert)
-    return tuple(value.lstrip('\n') for value in (block, updated, final))
+    # Exact additional launcher line from the published Casa10.461 recipe.
+    gemini = final.replace('            if (!Licensing.InstallationLicense.HasLia) return;',
+        '            if (!Licensing.InstallationLicense.HasLia) return;\n            if (await CasaGeminiDelivery.TryHandleAsync(this)) return;', 1)
+    return tuple(value.lstrip('\n') for value in (block, updated, final, gemini))
 
 
 def transform(text):

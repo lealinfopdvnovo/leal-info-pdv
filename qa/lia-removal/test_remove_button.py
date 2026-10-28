@@ -33,7 +33,7 @@ class RemovalTests(unittest.TestCase):
             self.assertEqual(hashlib.sha256(stored).hexdigest(), item['sha256'])
 
     def test_three_lifecycle_variants_preserve_surrounding_source(self):
-        for i in range(3):
+        for i in range(4):
             for newline in ('\n', '\r\n'):
                 with self.subTest(lifecycle=i, newline=repr(newline)):
                     source = self.source(i, newline)
