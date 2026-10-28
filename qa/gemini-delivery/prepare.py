@@ -56,12 +56,12 @@ elif mode=='package':
  assert json.loads(Path('evidence/gemini-tests.json').read_text())['Pass']
  assert json.loads(Path('evidence/gemini-delivery-tests.json').read_text())['Pass']
  out=Path('output');out.mkdir(exist_ok=True)
- with zipfile.ZipFile(out/'LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip','w',zipfile.ZIP_DEFLATED) as z:
+ with zipfile.ZipFile(out/'LEAL_INFO_PDV_CASA_V10_460_UPDATE.zip','w',zipfile.ZIP_DEFLATED) as z:
   for n in ('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'):z.write(r/'publish'/n,n)
  for n in ('delivery-scope-proof.json','bundle-proof.json'):shutil.copyfile(n,out/n)
  for folder in (Path('evidence'),r/'evidence'):
   for p in folder.glob('*.json'):shutil.copyfile(p,out/p.name)
- (out/'candidate.json').write_text(json.dumps(dict(Version='10.460',TargetClientCode='003',Component='GLOBAL',Delivery='Casa scoped compiled package only; common reference unchanged',SourceCommit=os.environ['GITHUB_SHA'],Baseline='10.459',ApprovedGeminiRun=40609046605,Package='LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip',Sha256=sha(out/'LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip'),Published=False,RealApiTested=False),indent=2))
+ (out/'candidate.json').write_text(json.dumps(dict(Version='10.460',TargetClientCode='003',Component='GLOBAL',Delivery='Casa scoped compiled package only; common reference unchanged',SourceCommit=os.environ['GITHUB_SHA'],Baseline='10.459',ApprovedGeminiRun=40609046605,Package='LEAL_INFO_PDV_CASA_V10_460_UPDATE.zip',Sha256=sha(out/'LEAL_INFO_PDV_CASA_V10_460_UPDATE.zip'),Published=False,RealApiTested=False),indent=2))
  print('PASS Casa-only candidate packaged; no feed or customer installation changed')
 elif mode=='finish':
  assert json.loads((r/'evidence/gemini-delivery-probe.json').read_text())['Pass']

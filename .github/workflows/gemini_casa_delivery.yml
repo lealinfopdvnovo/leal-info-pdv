@@ -96,7 +96,7 @@ jobs:
           python controller/qa/gemini-delivery/prepare.py package
           if($LASTEXITCODE -ne 0){throw 'Package failed'}
           Push-Location candidate
-          dotnet run --project qa/gemini-delivery/DeliveryProbe.csproj -c Release @props -- ../output/LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip
+          dotnet run --project qa/gemini-delivery/DeliveryProbe.csproj -c Release @props -- ../output/LEAL_INFO_PDV_CASA_V10_460_UPDATE.zip
           if($LASTEXITCODE -ne 0){throw 'Scope/license/package policy failed'}
           Pop-Location
       - name: Testar aplicacao interrupcoes corrupcao recuperacao e rollback completos
@@ -104,8 +104,8 @@ jobs:
         run: |
           New-Item -ItemType Directory previous,release-output -Force|Out-Null
           Copy-Item legacy-458/* previous/
-          Copy-Item output/LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip release-output/
-          '{"Package":"LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip","Channel":"GLOBAL","Version":"10.460"}'|Set-Content build-entry.json
+          Copy-Item output/LEAL_INFO_PDV_CASA_V10_460_UPDATE.zip release-output/
+          '{"Package":"LEAL_INFO_PDV_CASA_V10_460_UPDATE.zip","Channel":"GLOBAL","Version":"10.460"}'|Set-Content build-entry.json
           New-Item -ItemType Directory candidate/qa/update-transaction -Force|Out-Null
           Copy-Item controller/qa/update-transaction/StartupFixture* candidate/qa/update-transaction/
           $fixture='candidate/qa/update-transaction/StartupFixture.cs'
