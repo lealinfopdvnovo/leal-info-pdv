@@ -5,15 +5,15 @@ r=Path('candidate');mode=sys.argv[1]
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
 def sources():return {p.relative_to(r).as_posix():sha(p) for p in r.rglob('*') if p.is_file() and not any(x in ('.git','qa','bin','obj','publish','evidence') for x in p.relative_to(r).parts)}
 if mode=='download':
- for run,name,dest in [('40604180608','gemini-live-casa-EXPERIMENTAL-NAO-PUBLICADO','approved-gemini'),('40589513031','lia-casa-NAO-PUBLICADO','approved-pdv')]:
+ for run,name,dest in [('40609046605','gemini-live-casa-EXPERIMENTAL-NAO-PUBLICADO','approved-gemini'),('40606501484','lia-casa-NAO-PUBLICADO','approved-pdv')]:
   subprocess.run(['gh','run','download',run,'--repo','lealinfopdvnovo/leal-info-pdv','--name',name,'--dir',dest],check=True)
  files=list(Path('approved-gemini').rglob('integrity.json'));assert len(files)==1
- index=json.loads(files[0].read_text());assert index['Source']=='d2dbccdcfb944cd2698f460f74cf739813c9c8e5' and not index['Published']
+ index=json.loads(files[0].read_text());assert index['Source']=='47eb0ac79b50b631c1b019e73303fc4d26285f97' and not index['Published']
  src=files[0].parent
  for n,h in index['Files'].items():assert sha(src/n)==h,n
  shutil.copytree(src,'approved-sidecar');Path('approved-sidecar/integrity.json').unlink()
  m=list(Path('approved-pdv').rglob('candidate.json'));assert len(m)==1
- d=json.loads(m[0].read_text());assert d['SourceCommit']=='c19a69f50616c652dd89341fa4a07fa311750b61' and d['Sha256']=='af1e787964c7ec550a991f4dab457e4e6750779579533b495b3b69bedc3fa085'
+ d=json.loads(m[0].read_text());assert d['SourceCommit']=='d295fb3f7739d9ed6362f09b9651cb21e031c8e9' and d['Sha256']=='b8b16ea37f0b64f788317dd19bf34d52ac075262c373399f0275b985c0c3dcf6'
  p=m[0].parent/d['Package'];assert sha(p)==d['Sha256'];z=zipfile.ZipFile(p);assert set(z.namelist())=={'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'}
  Path('legacy-458').mkdir();z.extractall('legacy-458');Path('approved-sidecar-index.json').write_text(json.dumps(index))
  print('PASS exact approved Gemini source/artifact file hashes and Casa10.458 package recovered')
@@ -36,11 +36,11 @@ elif mode=='bundle':
  Path('bundle').mkdir();Path('bundle/hashes.json').write_text(json.dumps(hashes))
  with zipfile.ZipFile('bundle/casa-gemini.zip','w',zipfile.ZIP_DEFLATED) as z:
   for n in sorted(hashes):z.write(base/n,n)
- Path('bundle-proof.json').write_text(json.dumps(dict(ApprovedRun=40604180608,ApprovedSource='d2dbccdcfb944cd2698f460f74cf739813c9c8e5',DerivedFiles=sorted(own),Sha256=sha(Path('bundle/casa-gemini.zip')),FileHashes=hashes),indent=2))
+ Path('bundle-proof.json').write_text(json.dumps(dict(ApprovedRun=40609046605,ApprovedSource='47eb0ac79b50b631c1b019e73303fc4d26285f97',DerivedFiles=sorted(own),Sha256=sha(Path('bundle/casa-gemini.zip')),FileHashes=hashes),indent=2))
 elif mode=='candidate':
  before=sources();Path('before-delivery.json').write_text(json.dumps(before))
  for n in ('LoginForm.cs','UpdateManager.cs','LealInfoPDV.csproj','qa/login457/Program.cs'):
-  p=r/n;p.write_text(p.read_text(encoding='utf-8-sig').replace('10.458','10.459').replace('Minor==458','Minor==459'))
+  p=r/n;p.write_text(p.read_text(encoding='utf-8-sig').replace('10.458','10.460').replace('Minor==458','Minor==460'))
  p=r/'MainForm.cs';s=p.read_text(encoding='utf-8-sig');a=s.index('async void btnAssistenteAI_Click');left=s[:a];right=s[a:];anchor='            if (!Licensing.InstallationLicense.HasLia) return;';assert anchor in right
  right=right.replace(anchor,anchor+'\n            if (await CasaGeminiDelivery.TryHandleAsync(this)) return;',1);p.write_text(left+right)
  for n in ('BundleStore.cs','CasaGeminiDelivery.cs'):shutil.copyfile(Path('controller/qa/gemini-delivery')/n,r/n)
@@ -61,7 +61,7 @@ elif mode=='package':
  for n in ('delivery-scope-proof.json','bundle-proof.json'):shutil.copyfile(n,out/n)
  for folder in (Path('evidence'),r/'evidence'):
   for p in folder.glob('*.json'):shutil.copyfile(p,out/p.name)
- (out/'candidate.json').write_text(json.dumps(dict(Version='10.459',TargetClientCode='003',Component='GLOBAL',Delivery='Casa scoped compiled package only; common reference unchanged',SourceCommit=os.environ['GITHUB_SHA'],Baseline='10.458',ApprovedGeminiRun=40604180608,Package='LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip',Sha256=sha(out/'LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip'),Published=False,RealApiTested=False),indent=2))
+ (out/'candidate.json').write_text(json.dumps(dict(Version='10.460',TargetClientCode='003',Component='GLOBAL',Delivery='Casa scoped compiled package only; common reference unchanged',SourceCommit=os.environ['GITHUB_SHA'],Baseline='10.459',ApprovedGeminiRun=40609046605,Package='LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip',Sha256=sha(out/'LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip'),Published=False,RealApiTested=False),indent=2))
  print('PASS Casa-only candidate packaged; no feed or customer installation changed')
 elif mode=='finish':
  assert json.loads((r/'evidence/gemini-delivery-probe.json').read_text())['Pass']

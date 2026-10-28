@@ -21,6 +21,15 @@ class Tests{
   try{LiveProtocol.Audio(new byte[]{0});throw new Exception("odd PCM accepted");}catch(ArgumentException){Check(true,"odd PCM refused");}
   try{navigation.Setup("paid-unknown","x");throw new Exception("unknown model accepted");}catch(ArgumentException){Check(true,"unknown model refused");}
   navigation.Reset();await navigation.ToolAsync(Call("PRODUTOS","PRODUTOS"),Execute);Check(calls==LiveProtocol.Screens.Length+2,"new session resets deduplication");
+  string fake="unit-test-secret-only";
+  var redacted=LiveDiagnostic.Redact("wss://test.invalid/?key="+fake+" key="+fake+" Bearer "+fake,fake);
+  Check(!redacted.Contains(fake)&&!redacted.Contains("test.invalid"),"credentials and endpoint query redacted");
+  var close=LiveDiagnostic.Closed("SETUP",System.Net.WebSockets.WebSocketCloseStatus.PolicyViolation,"model unavailable",fake);
+  Check(close.Contains("1008")&&close.Contains("model unavailable")&&close.Contains("SETUP"),"server close code reason and stage preserved");
+  var api=LiveDiagnostic.ApiError(JsonSerializer.SerializeToElement(new{code=429,status="RESOURCE_EXHAUSTED",message="quota exceeded"}),fake);
+  Check(api.Contains("429")&&api.Contains("RESOURCE_EXHAUSTED"),"API status preserved without guessing root cause");
+  var err=LiveDiagnostic.Failure("CONNECT",new IOException("failed "+fake),fake);
+  Check(err.Contains("CONNECT")&&!err.Contains(fake),"handshake diagnostic stage and redaction");
   Directory.CreateDirectory("evidence");File.WriteAllText("evidence/gemini-tests.json",JsonSerializer.Serialize(new{Pass=true,Assertions=count,NetworkUsed=false,RealApiTested=false,VoiceCompared=false,Published=false}));
  }
 }

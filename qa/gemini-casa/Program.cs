@@ -17,7 +17,7 @@ sealed class ExperimentForm:Form{
  readonly RichTextBox log=new(){Dock=DockStyle.Fill,ReadOnly=true};LiveSession? session;bool busy;bool closing;int generation;
  readonly string installation=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,".."));
  public ExperimentForm(){
-  Text="LIA experimental — somente Casa do Adriano — NÃO PUBLICADA";Size=new(1000,680);
+  Text="LIA experimental — somente Casa do Adriano — TESTE EXPERIMENTAL";Size=new(1000,680);
   model.Items.AddRange(LiveProtocol.Models);model.SelectedIndex=0;
   var panel=new FlowLayoutPanel{Dock=DockStyle.Top,Height=225,FlowDirection=FlowDirection.TopDown,WrapContents=false,AutoScroll=true};
   panel.Controls.AddRange(new Control[]{new Label{Text="Gemini Live — chave apenas neste campo local (não é salva)",AutoSize=true},key,model,navigation,consent,start,stop});Controls.Add(log);Controls.Add(panel);

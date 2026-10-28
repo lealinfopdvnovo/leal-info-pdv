@@ -12,9 +12,9 @@ class DeliveryProbe{
   }}finally{prop.SetValue(null,old);}
   var type=typeof(MainForm).Assembly.GetType("LealInfoPDV.UpdateManager")!;var manifest=type.GetNestedType("UpdateManifest",BindingFlags.NonPublic)!;
   var m=Activator.CreateInstance(manifest)!;void Set(string n,object v)=>manifest.GetProperty(n)!.SetValue(m,v);
-  Set("Version","10.459");Set("TargetClientCode","003");Set("Component","GLOBAL");Set("PetApiVersion",1);Set("Sha256",new string('a',64));Set("PackageUrl","https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.459-casa/test.zip");
+  Set("Version","10.460");Set("TargetClientCode","003");Set("Component","GLOBAL");Set("PetApiVersion",1);Set("Sha256",new string('a',64));Set("PackageUrl","https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/v10.460-casa/test.zip");
   var select=type.GetMethod("SelectManifest",BindingFlags.NonPublic|BindingFlags.Static)!;
-  foreach(var id in new[]{"001","002","003","004"})Check((select.Invoke(null,new object?[]{id,"10.458",null,m})!=null)==(id=="003"),"manifest routing "+id);
+  foreach(var id in new[]{"001","002","003","004"})Check((select.Invoke(null,new object?[]{id,"10.459",null,m})!=null)==(id=="003"),"manifest routing "+id);
   var policy=typeof(MainForm).Assembly.GetType("LealInfoPDV.Licensing.UpdatePayloadPolicy")!;
   policy.GetMethod("Validate",BindingFlags.NonPublic|BindingFlags.Static)!.Invoke(null,new object[]{args[0]});Check(true,"existing package policy accepts exact payload without widening");
   using var stream=typeof(MainForm).Assembly.GetManifestResourceStream("Casa.Gemini.Bundle");Check(stream!=null,"embedded experimental candidate present");

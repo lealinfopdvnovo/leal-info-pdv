@@ -14,7 +14,7 @@ public sealed class LiveSession : IAsyncDisposable
  readonly LiveProtocol protocol;
  readonly Func<string,Task<string>> execute;
  WaveInEvent? mic; WaveOutEvent? speaker; BufferedWaveProvider? output;
- Task? receive;Task? transmit;bool disposed;
+ Task? receive;Task? transmit;bool disposed;string stage="CONNECT";string? secret;string? lastFailure;
  public event Action<string>? Transcript;
  public event Action<string>? Status;
  public bool IsActive=>!disposed&&!lifetime.IsCancellationRequested;
@@ -23,21 +23,24 @@ public sealed class LiveSession : IAsyncDisposable
  public async Task StartAsync(string key,string model,string knowledge){
   if(disposed)throw new ObjectDisposedException(nameof(LiveSession));
   if(string.IsNullOrWhiteSpace(key)||key.Any(char.IsControl))throw new InvalidOperationException("Chave local ausente ou inválida.");
+  secret=key.Trim();
   // Never log this URI or provider exceptions: they can contain authentication material.
   var uri=new Uri("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key="+Uri.EscapeDataString(key.Trim()));
   try{
    await socket.ConnectAsync(uri,lifetime.Token);
-   receive=ReceiveAsync();
+   stage="SETUP";receive=ReceiveAsync();
    await SendAsync(protocol.Setup(model,knowledge));
    await ready.Task.WaitAsync(TimeSpan.FromSeconds(20),lifetime.Token);
+   stage="AUDIO_OUTPUT";
    output=new BufferedWaveProvider(new WaveFormat(24000,16,1)){BufferDuration=TimeSpan.FromSeconds(20),DiscardOnBufferOverflow=false,ReadFully=true};
    speaker=new WaveOutEvent();speaker.Init(output);speaker.Play();
    transmit=TransmitAsync();
+   stage="AUDIO_INPUT";
    mic=new WaveInEvent{WaveFormat=new WaveFormat(16000,16,1),BufferMilliseconds=40,NumberOfBuffers=3};
    mic.DataAvailable+=(_,e)=>{if(!lifetime.IsCancellationRequested)input.Writer.TryWrite(e.Buffer.AsSpan(0,e.BytesRecorded).ToArray());};
    mic.RecordingStopped+=(_,e)=>{if(e.Exception!=null){Status?.Invoke("Microfone interrompido; sessão encerrada.");lifetime.Cancel();}};
-   mic.StartRecording();Status?.Invoke("Ouvindo — sessão experimental de até 5 minutos.");
-  }catch{await DisposeAsync();throw new InvalidOperationException("Não foi possível iniciar Gemini Live. Verifique acesso ao modelo, chave, cota gratuita, rede e dispositivos de áudio. Nenhum provedor pago foi acionado.");}
+   mic.StartRecording();stage="LIVE";Status?.Invoke("Ouvindo — sessão experimental de até 5 minutos.");
+  }catch(Exception ex){var detail=lastFailure??LiveDiagnostic.Failure(stage,ex,secret);await DisposeAsync();throw new InvalidOperationException(detail+" Nenhum provedor pago foi acionado.");}
  }
  async Task SendAsync(object value){
   await sendLock.WaitAsync(lifetime.Token);
@@ -48,9 +51,9 @@ public sealed class LiveSession : IAsyncDisposable
   var bytes=new byte[16384];
   try{while(!lifetime.IsCancellationRequested){
    using var message=new MemoryStream();ValueWebSocketReceiveResult part;
-   do{part=await socket.ReceiveAsync(bytes.AsMemory(),lifetime.Token);if(part.MessageType==WebSocketMessageType.Close)throw new IOException("WebSocket fechado.");if(part.MessageType!=WebSocketMessageType.Text||message.Length+part.Count>4*1024*1024)throw new InvalidDataException("Frame inválido.");message.Write(bytes,0,part.Count);}while(!part.EndOfMessage);
+   do{part=await socket.ReceiveAsync(bytes.AsMemory(),lifetime.Token);if(part.MessageType==WebSocketMessageType.Close){lastFailure=LiveDiagnostic.Closed(stage,socket.CloseStatus,socket.CloseStatusDescription,secret);throw new IOException(lastFailure);}if(part.MessageType!=WebSocketMessageType.Text||message.Length+part.Count>4*1024*1024)throw new InvalidDataException("Frame inválido.");message.Write(bytes,0,part.Count);}while(!part.EndOfMessage);
    using var doc=JsonDocument.Parse(message.ToArray());var root=doc.RootElement;
-   if(root.TryGetProperty("error",out _))throw new InvalidOperationException("API recusou a sessão.");
+   if(root.TryGetProperty("error",out var apiError)){lastFailure=LiveDiagnostic.ApiError(apiError,secret);throw new InvalidOperationException(lastFailure);}
    if(root.TryGetProperty("setupComplete",out _)){ready.TrySetResult();continue;}
    if(root.TryGetProperty("goAway",out _)){Status?.Invoke("Sessão próxima do limite; interrompida sem reconexão automática.");lifetime.Cancel();break;}
    if(root.TryGetProperty("serverContent",out var content)){
@@ -67,7 +70,7 @@ public sealed class LiveSession : IAsyncDisposable
     var responses=new List<object>();foreach(var call in tools.GetProperty("functionCalls").EnumerateArray())responses.Add(await protocol.ToolAsync(call,c=>execute(c).WaitAsync(lifetime.Token)));
     await SendAsync(new{toolResponse=new{functionResponses=responses}});
    }
-  }}catch(OperationCanceledException){}catch{ready.TrySetException(new InvalidOperationException("Sessão recusada ou encerrada."));Status?.Invoke("Sessão interrompida: verifique cota/acesso/rede. Sem repetição automática.");lifetime.Cancel();}
+  }}catch(OperationCanceledException){}catch(Exception ex){lastFailure??=LiveDiagnostic.Failure(stage,ex,secret);ready.TrySetException(new InvalidOperationException(lastFailure));Status?.Invoke(lastFailure+" Sem repetição automática.");lifetime.Cancel();}
   finally{mic?.StopRecording();speaker?.Stop();}
  }
  public async ValueTask DisposeAsync(){
