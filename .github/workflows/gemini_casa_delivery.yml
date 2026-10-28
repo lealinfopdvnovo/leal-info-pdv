@@ -106,6 +106,8 @@ jobs:
           Copy-Item legacy-458/* previous/
           Copy-Item output/LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip release-output/
           '{"Package":"LEAL_INFO_PDV_CASA_V10_459_UPDATE.zip","Channel":"GLOBAL","Version":"10.459"}'|Set-Content build-entry.json
+          New-Item -ItemType Directory candidate/qa/update-transaction -Force|Out-Null
+          Copy-Item controller/qa/update-transaction/StartupFixture* candidate/qa/update-transaction/
           $fixture='candidate/qa/update-transaction/StartupFixture.cs'
           (Get-Content $fixture -Raw).Replace('10.422','10.459')|Set-Content $fixture
           dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -o startup-fixture-publish
