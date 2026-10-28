@@ -1,0 +1,152 @@
+name: Casa10.462 sem botao LIA - validar e publicar somente003
+on:
+  push:
+    branches: [release/lia-removal-casa-10462]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: publicar-casa-10-462
+  cancel-in-progress: false
+jobs:
+  build:
+    outputs:
+      artifact_id: ${{ steps.approved.outputs.artifact-id }}
+      artifact_sha: ${{ steps.approved.outputs.artifact-digest }}
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      CHANNEL: CASA
+      PYTHONUTF8: '1'
+      LEAL_NOTIFIER_ISOLATED_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: removal, fetch-depth: 0}
+      - uses: actions/checkout@v4
+        with:
+          ref: be7c9adb6ca04b88637eb323d96b344a660d07a5
+          path: controller
+      - uses: actions/checkout@v4
+        with:
+          ref: 874bc1e77fc3fb9b643ed17ceb0e1e1c91ad2ac8
+          path: candidate
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Recuperar pacote publicado exato e recompor receita sem IA
+        shell: pwsh
+        run: |
+          python -m unittest discover -s removal/qa/lia-removal -v
+          if($LASTEXITCODE -ne 0){throw 'Structural tests failed'}
+          python removal/qa/lia-removal/current_casa.py download
+          if($LASTEXITCODE -ne 0){throw 'Published package integrity failed'}
+          python controller/qa/login457/prepare.py
+          if($LASTEXITCODE -ne 0){throw 'Published baseline failed'}
+          python controller/qa/login457/finish.py
+          if($LASTEXITCODE -ne 0){throw 'Login recipe failed'}
+          python controller/qa/lia-casa/prepare.py
+          if($LASTEXITCODE -ne 0){throw '458 preparation failed'}
+          Push-Location candidate
+          ./scripts/aplicar_lic_ai_botao_v10_186.ps1
+          ./scripts/aplicar_lic_ai_estado_v10_210.ps1
+          ./scripts/corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1
+          Pop-Location
+          python controller/qa/lia-casa/prepare.py verify
+          if($LASTEXITCODE -ne 0){throw 'Button baseline scope failed'}
+          $a=[Reflection.Assembly]::Load([IO.File]::ReadAllBytes((Resolve-Path published-461/LealInfoPDV.dll).Path))
+          New-Item -ItemType Directory bundle,native -Force|Out-Null
+          foreach($entry in @(@('Casa.Gemini.Bundle','bundle/casa-gemini.zip'),@('LealInfoPDV.UpdateNotifier.Native','native/LealInfoPDV.Notificador.exe'))){
+            $stream=$a.GetManifestResourceStream($entry[0]);if(!$stream){throw 'Published resource absent'}
+            $dest=[IO.File]::Create((Join-Path $pwd $entry[1]))
+            try{$stream.CopyTo($dest)}finally{$stream.Dispose();$dest.Dispose()}
+          }
+          python removal/qa/lia-removal/current_casa.py payload
+          if($LASTEXITCODE -ne 0){throw 'Current Casa reconstruction failed'}
+          python removal/qa/lia-removal/delivery.py version
+          if($LASTEXITCODE -ne 0){throw 'Version metadata failed'}
+          python removal/qa/lia-removal/windows_prepare.py candidate snapshot
+          if($LASTEXITCODE -ne 0){throw 'Snapshot failed'}
+      - name: Compilar antes e depois preservando dependencias publicadas
+        shell: pwsh
+        run: |
+          $native=(Resolve-Path native/LealInfoPDV.Notificador.exe).Path
+          $sdk=Get-Content sdk-version.txt
+          $props=@('-p:UseSharedCompilation=false',"-p:NotifierPayload=$native","-p:WindowsSdkPackageVersion=$sdk")
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o baseline-publish @props
+          if($LASTEXITCODE -ne 0){throw 'Current baseline compilation failed'}
+          dotnet build removal/qa/lia-removal/WindowsProbe.csproj -c Release -o probe
+          if($LASTEXITCODE -ne 0){throw 'Probe compilation failed'}
+          Copy-Item probe/WindowsProbe.dll baseline-publish/
+          dotnet exec --depsfile baseline-publish/LealInfoPDV.deps.json --runtimeconfig baseline-publish/LealInfoPDV.runtimeconfig.json baseline-publish/WindowsProbe.dll baseline-publish/LealInfoPDV.dll before
+          if($LASTEXITCODE -ne 0){throw 'Current baseline probe failed'}
+          python removal/qa/lia-removal/windows_prepare.py candidate remove
+          if($LASTEXITCODE -ne 0){throw 'Current removal failed'}
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o candidate-publish @props
+          if($LASTEXITCODE -ne 0){throw 'Current removed compilation failed'}
+          Copy-Item probe/WindowsProbe.dll candidate-publish/
+          dotnet exec --depsfile candidate-publish/LealInfoPDV.deps.json --runtimeconfig candidate-publish/LealInfoPDV.runtimeconfig.json candidate-publish/WindowsProbe.dll candidate-publish/LealInfoPDV.dll after
+          if($LASTEXITCODE -ne 0){throw 'Current removal probe failed'}
+          python removal/qa/lia-removal/windows_prepare.py candidate finish
+          if($LASTEXITCODE -ne 0){throw 'Source preservation gate failed'}
+          Copy-Item current-casa-provenance.json evidence/
+          Push-Location candidate
+          dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release @props
+          if($LASTEXITCODE -ne 0){throw 'Current cash regression failed'}
+          Copy-Item cash-test-results.txt ../evidence/
+          New-Item -ItemType Directory publish,evidence -Force|Out-Null
+          Copy-Item ../candidate-publish/LealInfoPDV.exe,../candidate-publish/LealInfoPDV.dll,../candidate-publish/LealInfoPDV.deps.json publish/
+          $script=(Get-Content ../controller/qa/global-453/assets/rollback.ps1 -Raw).Replace('Channel 001','Channel GLOBAL').Replace('Version 10.452','Version 10.461')
+          & ([ScriptBlock]::Create($script))
+          if($LASTEXITCODE -ne 0){throw 'Current worker recovery failed'}
+          Copy-Item evidence/rollback.json ../evidence/
+          Pop-Location
+      - name: Empacotar10.462 e verificar dependencias e versao
+        shell: pwsh
+        run: |
+          $version=[Reflection.AssemblyName]::GetAssemblyName((Resolve-Path candidate-publish/LealInfoPDV.dll).Path).Version.ToString()
+          if($version -ne '10.462.0.0'){throw "Unexpected candidate version $version"}
+          python removal/qa/lia-removal/delivery.py package
+          if($LASTEXITCODE -ne 0){throw 'Candidate package/dependency contract failed'}
+          New-Item -ItemType Directory previous -Force|Out-Null
+          Copy-Item published-461/* previous/
+          New-Item -ItemType Directory candidate/qa/update-transaction -Force|Out-Null
+          Copy-Item controller/qa/update-transaction/StartupFixture* candidate/qa/update-transaction/
+          $fixture='candidate/qa/update-transaction/StartupFixture.cs'
+          (Get-Content $fixture -Raw).Replace('10.422','10.462')|Set-Content $fixture
+          dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -o startup-fixture-publish
+          if($LASTEXITCODE -ne 0){throw 'Startup recovery fixture failed'}
+          ./controller/qa/update-transaction/test-transaction.ps1
+          if($LASTEXITCODE -ne 0){throw '19 transactional recovery scenarios failed'}
+          python removal/qa/lia-removal/delivery.py gate
+          if($LASTEXITCODE -ne 0){throw 'Final Windows release gate failed'}
+      - uses: actions/upload-artifact@v4
+        id: approved
+        with:
+          name: casa-10-462-WINDOWS-APROVADO
+          path: |
+            release-output/
+            evidence/
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recuperar exatamente artefato Windows aprovado sem recompilar
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISH_PHASE: download
+          APPROVED_ARTIFACT_ID: ${{ needs.build.outputs.artifact_id }}
+          APPROVED_ARTIFACT_SHA: ${{ needs.build.outputs.artifact_sha }}
+        run: python qa/lia-removal/publish_casa.py
+      - name: Publicar somente canal licenciado Casa003 e comprovar isolamento
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/lia-removal/publish_casa.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: comprovante-publicacao-CASA-10-462
+          path: publication-proof.json
