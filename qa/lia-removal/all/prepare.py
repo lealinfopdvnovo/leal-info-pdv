@@ -40,6 +40,7 @@ elif mode=='finish':
  sdk=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.Windows.SDK.NET.Ref/'))
  Path('sdk-version.txt').write_text(sdk)
  subprocess.run(['python',__file__,'version'],check=True)
+ if C=='GLOBAL':assert 'btnAssistenteAI' not in (R/'MainForm.cs').read_text(encoding='utf-8-sig'), 'Unexpected GLOBAL source'
  # Snapshot source BEFORE only the authorized button removal.
  subprocess.run(['python','removal/qa/lia-removal/windows_prepare.py','candidate','snapshot'],check=True)
 elif mode=='version':

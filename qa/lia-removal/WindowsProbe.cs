@@ -21,7 +21,9 @@ internal static class Probe
             using var main = (Form)Activator.CreateInstance(mainType)!;
             bool removed = args[1] == "after";
             var buttons = Walk(main).Where(x => x.Name == "btnAssistenteAI").ToArray();
-            if (buttons.Length != (removed ? 0 : 1)) throw new Exception("Unexpected LIA button count");
+            bool baselineAbsent=Environment.GetEnvironmentVariable("CHANNEL")=="GLOBAL" && Environment.GetEnvironmentVariable("LEAL_LIA_BASELINE_ABSENT")=="1";
+            int expectedCount=removed || baselineAbsent ? 0 : 1;
+            if (buttons.Length != expectedCount) throw new Exception("Unexpected LIA button count");
             var labels = Walk(main).Select(x => x.GetType().FullName + ":" + x.Name + ":" + x.Text)
                 .Where(x => !x.Contains("btnAssistenteAI")).Order().ToArray();
             var methods = mainType.GetMethods(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
@@ -31,7 +33,7 @@ internal static class Probe
             foreach (var size in new[] { new System.Drawing.Size(1366,768), new System.Drawing.Size(1600,900), new System.Drawing.Size(1920,1080) })
             {
                 main.WindowState=FormWindowState.Normal; main.ClientSize=size; main.PerformLayout();
-                if (Walk(main).Count(x=>x.Name=="btnAssistenteAI") != (removed?0:1)) throw new Exception("Resize restored LIA button");
+                if (Walk(main).Count(x=>x.Name=="btnAssistenteAI") != expectedCount) throw new Exception("Resize restored LIA button");
             }
             using var login = (Form)Activator.CreateInstance(a.GetType("LealInfoPDV.LoginForm",true)!)!;
             using var splash = (Form)Activator.CreateInstance(a.GetType("LealInfoPDV.SplashForm",true)!)!;

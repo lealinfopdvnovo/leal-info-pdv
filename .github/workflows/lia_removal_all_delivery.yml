@@ -19,16 +19,8 @@ jobs:
           - channel: GLOBAL
             base: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
             recipe: 1dea48d98cf7eb1bc458e1ae719fcf7e8ede6fae
-          - channel: '001'
-            base: 7aa5d38336e94659c07f0afc6ddfe40169c41a3a
-            recipe: 78ec019b04561c28fa5e7c7bfd3fcc4a740f6833
-          - channel: '002'
-            base: 735f3f6b0f933f25585c0c9e7e50551dae9a056d
-            recipe: f6a1a5bebb826f33be77f26ce5ff277a78e9c409
-          - channel: '004'
-            base: 2787ea2541261bd68cf1e931ceaa6ed537ddc832
-            recipe: e691d9e8d548ce30c54653698a98370e0a2838e8
     env:
+      LEAL_LIA_BASELINE_ABSENT: '1'
       CHANNEL: ${{ matrix.channel }}
       SOURCE_BASE: ${{ matrix.base }}
       PYTHONUTF8: '1'
@@ -84,6 +76,9 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Before compilation failed'}
           dotnet build removal/qa/lia-removal/WindowsProbe.csproj -c Release -o probe
           if($LASTEXITCODE -ne 0){throw 'Probe build failed'}
+          Copy-Item probe/WindowsProbe.dll published/
+          dotnet exec --depsfile published/LealInfoPDV.deps.json --runtimeconfig baseline-publish/LealInfoPDV.runtimeconfig.json published/WindowsProbe.dll published/LealInfoPDV.dll published
+          if($LASTEXITCODE -ne 0){throw 'Published GLOBAL baseline unexpectedly contains LIA button'}
           Copy-Item probe/WindowsProbe.dll baseline-publish/
           dotnet exec --depsfile baseline-publish/LealInfoPDV.deps.json --runtimeconfig baseline-publish/LealInfoPDV.runtimeconfig.json baseline-publish/WindowsProbe.dll baseline-publish/LealInfoPDV.dll before
           if($LASTEXITCODE -ne 0){throw 'Before UI failed'}
@@ -137,6 +132,13 @@ jobs:
         with:
           pattern: lia-removal-10463-*
           path: proof
+      - name: Reaproveitar tres artefatos Windows aprovados sem recompilar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for channel in 001 002 004; do
+            gh run download 40701585292 --repo lealinfopdvnovo/leal-info-pdv --name lia-removal-10463-$channel --dir proof/lia-removal-10463-$channel
+          done
       - name: Publicar somente pacotes aprovados em seus canais originais
         env:
           GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}

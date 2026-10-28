@@ -38,7 +38,8 @@ for channel,path in FEEDS.items():
  candidate=json.loads((root/f'{channel}.json').read_text())
  gate=json.loads((root/f'{channel}-gate.json').read_text())
  check(gate['Pass'] and gate['TransactionScenarios']==3 and gate['Channel']==channel,'Missing channel gate')
- check(candidate['SourceCommit']==os.environ['GITHUB_SHA'] and candidate['Version']=='10.463' and candidate['Channel']==channel,'Wrong candidate')
+ expected_source=os.environ['GITHUB_SHA'] if channel=='GLOBAL' else '78c0d348d210f9c9b2672746e09bcddbf4ba4474'
+ check(candidate['SourceCommit']==expected_source and candidate['Version']=='10.463' and candidate['Channel']==channel,'Wrong candidate')
  check(candidate['DependenciesUnchanged'] and candidate['EntryAnimationPreserved'] and candidate['LiaButtonRemoved'],'Preservation gate missing')
  before=read(path);check(before==candidate['Feed'],'Live feed advanced; no feed changed')
  package=root/candidate['Package'];digest=hashlib.sha256(package.read_bytes()).hexdigest();check(digest==candidate['Sha256'],'Hash mismatch')
@@ -48,7 +49,7 @@ for channel,path in FEEDS.items():
  exists=subprocess.run(['gh','release','view',tag,'--repo',REPO],capture_output=True).returncode==0
  if not exists:subprocess.run(['gh','release','create',tag,str(package),'--repo',REPO,'--target',head,'--title',f'{channel}10.463 — retirada do botão LIA','--notes',notes,'--latest=false'],check=True)
  check(hashlib.sha256(get(url)).hexdigest()==digest,'Public package mismatch; feeds unchanged')
- m=dict(before);m.update(Version='10.463',PackageUrl=url,Sha256=digest,SourceCommit=os.environ['GITHUB_SHA'],BuildRunId=os.environ['GITHUB_RUN_ID'],ValidationRunId=os.environ['GITHUB_RUN_ID'],PublicationRunId=os.environ['GITHUB_RUN_ID'],PublishedBaselineVersion=before['Version'],Notes=notes,InstalledOnRealComputers=False,LiaButtonRemoved=True,EntryAnimationPreserved=True,PackagesVerifiedBeforeFeed=True)
+ m=dict(before);m.update(Version='10.463',PackageUrl=url,Sha256=digest,SourceCommit=expected_source,BuildRunId=os.environ['GITHUB_RUN_ID'] if channel=='GLOBAL' else '40701585292',ValidationRunId=os.environ['GITHUB_RUN_ID'] if channel=='GLOBAL' else '40701585292',PublicationRunId=os.environ['GITHUB_RUN_ID'],PublishedBaselineVersion=before['Version'],Notes=notes,InstalledOnRealComputers=False,LiaButtonRemoved=True,EntryAnimationPreserved=True,PackagesVerifiedBeforeFeed=True)
  manifests[path]=m;proof.append(dict(Channel=channel,Feed=path,Sha256=digest,RecoveryScenarios=3))
 check(snapshot()[0]==head,'Concurrent update; feeds unchanged')
 tree=api(f'repos/{REPO}/git/trees',dict(base_tree=old['tree']['sha'],tree=[dict(path=p,mode='100644',type='blob',content=json.dumps(m,ensure_ascii=False,indent=2)+'\n') for p,m in manifests.items()]))

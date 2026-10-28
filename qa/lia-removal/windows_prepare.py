@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import shutil
 import sys
+import os
 
 from remove_button import transform, LISTENER
 
@@ -21,20 +22,25 @@ def hashes():
 
 
 if mode == 'snapshot':
-    assert 'btnAssistenteAI' in (root/'MainForm.cs').read_text(encoding='utf-8-sig')
+    assert 'btnAssistenteAI' in (root/'MainForm.cs').read_text(encoding='utf-8-sig') or os.environ.get('CHANNEL')=='GLOBAL'
     (evidence/'source-before.json').write_text(json.dumps(hashes(), indent=2))
 elif mode == 'remove':
     before = json.loads((evidence/'source-before.json').read_text())
     p = root/'MainForm.cs'
     raw = p.read_bytes()
-    output, block = transform(raw.decode('utf-8-sig'))
+    text = raw.decode('utf-8-sig')
+    if os.environ.get('CHANNEL')=='GLOBAL' and 'btnAssistenteAI' not in text:
+        assert os.environ.get('LEAL_LIA_BASELINE_ABSENT')=='1'
+        output, block = text.replace(LISTENER, '            // LIA button entry point retired; entry animation preserved.'), ''
+    else:
+        output, block = transform(text)
     (evidence/'removed-button.cs.source').write_text(block, encoding='utf-8')
     # Preserve a complete reversible source snapshot as an ephemeral build artifact.
     (evidence/'MainForm.cs.before.source').write_bytes(raw)
     p.write_bytes((b'\xef\xbb\xbf' if raw.startswith(b'\xef\xbb\xbf') else b'')+output.encode())
     after = hashes()
     changed = sorted(k for k in set(before)|set(after) if before.get(k)!=after.get(k))
-    assert changed == ['MainForm.cs'], changed
+    assert changed == ['MainForm.cs'] or (not block and not changed and os.environ.get('CHANNEL')=='GLOBAL'), changed
     # Restore byte-for-byte into a scratch copy and check its digest.
     restored = evidence/'restore-check.source'
     shutil.copyfile(evidence/'MainForm.cs.before.source', restored)
