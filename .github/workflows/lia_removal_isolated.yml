@@ -15,17 +15,18 @@ jobs:
         include:
           - channel: GLOBAL
             base: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
-          - channel: 001
+          - channel: '001'
             base: 7aa5d38336e94659c07f0afc6ddfe40169c41a3a
-          - channel: 002
+          - channel: '002'
             base: 735f3f6b0f933f25585c0c9e7e50551dae9a056d
-          - channel: 003
+          - channel: '003'
             base: 874bc1e77fc3fb9b643ed17ceb0e1e1c91ad2ac8
-          - channel: 004
+          - channel: '004'
             base: 2787ea2541261bd68cf1e931ceaa6ed537ddc832
     env:
       PYTHONUTF8: '1'
       LEAL_NOTIFIER_ISOLATED_TEST: '1'
+      CHANNEL: ${{ matrix.channel }}
     steps:
       - uses: actions/checkout@v4
         with: {path: controller, fetch-depth: 0}
@@ -34,7 +35,24 @@ jobs:
           ref: ${{ matrix.base }}
           path: candidate
       - uses: actions/setup-dotnet@v4
-        with: {dotnet-version: 8.0.x}
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Reconstituir receita publicada existente para 002 e 004
+        if: matrix.channel == '002' || matrix.channel == '004'
+        shell: pwsh
+        run: |
+          # Existing immutable published recipe, BEFORE the removal snapshot.
+          python controller/qa/login457/prepare.py
+          if($LASTEXITCODE -ne 0){throw 'Existing published baseline recipe failed'}
+          Push-Location candidate
+          ./scripts/aplicar_tema_azul_texturizado_v10_306.ps1
+          ./scripts/aplicar_cadastro_produtos_avancado_v10_312.ps1
+          ./scripts/aplicar_central_equipamentos_v10_314.ps1
+          Pop-Location
+          python controller/qa/login457/finish.py
+          if($LASTEXITCODE -ne 0){throw 'Existing login baseline recipe failed'}
       - name: Testar arquivo historico e transformador
         shell: pwsh
         run: |
@@ -89,7 +107,9 @@ jobs:
           if(!(Test-Path TransactionalUpdate.ps1)){throw 'Existing rollback worker absent in pinned source; do not approve this channel'}
           New-Item -ItemType Directory publish,evidence -Force|Out-Null
           Copy-Item ../candidate-publish/LealInfoPDV.exe,../candidate-publish/LealInfoPDV.dll,../candidate-publish/LealInfoPDV.deps.json publish/
-          & ../controller/qa/global-453/assets/rollback.ps1
+          $channel=if($env:CHANNEL -in @('GLOBAL','003')){'GLOBAL'}else{$env:CHANNEL}
+          $script=(Get-Content ../controller/qa/global-453/assets/rollback.ps1 -Raw).Replace('Channel 001',"Channel $channel")
+          & ([ScriptBlock]::Create($script))
           if($LASTEXITCODE -ne 0){throw 'Existing recovery regression failed'}
           Copy-Item evidence/rollback.json ../evidence/rollback.json
       - uses: actions/upload-artifact@v4
