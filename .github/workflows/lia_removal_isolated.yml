@@ -75,6 +75,13 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Removal probe failed'}
           python controller/qa/lia-removal/windows_prepare.py candidate finish
           if($LASTEXITCODE -ne 0){throw 'Final source gate failed'}
+      - name: Regressao financeira existente na candidata sem LIA
+        shell: pwsh
+        working-directory: candidate
+        run: |
+          dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Existing financial regression failed'}
+          Copy-Item cash-test-results.txt ../evidence/cash-test-results.txt
       - name: Regressao do aplicador e recuperacao existentes sem alterar mecanismo
         shell: pwsh
         working-directory: candidate
