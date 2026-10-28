@@ -73,7 +73,8 @@ jobs:
         run: |
           $native=(Resolve-Path native/LealInfoPDV.Notificador.exe).Path
           $sdk=Get-Content sdk-version.txt
-          $props=@('-p:UseSharedCompilation=false',"-p:NotifierPayload=$native","-p:WindowsSdkPackageVersion=$sdk")
+          $runtime=Get-Content runtime-version.txt
+          $props=@('-p:UseSharedCompilation=false',"-p:NotifierPayload=$native","-p:WindowsSdkPackageVersion=$sdk","-p:RuntimeFrameworkVersion=$runtime",'-p:TargetLatestRuntimePatch=false')
           dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o baseline-publish @props
           if($LASTEXITCODE -ne 0){throw 'Current baseline compilation failed'}
           dotnet build removal/qa/lia-removal/WindowsProbe.csproj -c Release -o probe

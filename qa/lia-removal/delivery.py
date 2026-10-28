@@ -27,7 +27,13 @@ elif sys.argv[1]=='package':
             for key in list(bag):
                 if key.startswith('LealInfoPDV/'):del bag[key]
         return d
-    assert normalized(Path('published-461/LealInfoPDV.deps.json'))==normalized(Path('candidate-publish/LealInfoPDV.deps.json')), 'Published dependency contract changed'
+    old=normalized(Path('published-461/LealInfoPDV.deps.json'))
+    new=normalized(Path('candidate-publish/LealInfoPDV.deps.json'))
+    if old!=new:
+        print('DEPENDENCY DIFFERENCE',json.dumps(dict(
+            BeforeLibraries=sorted(old['libraries']),AfterLibraries=sorted(new['libraries']),
+            BeforeTarget=old.get('runtimeTarget'),AfterTarget=new.get('runtimeTarget'))))
+        raise AssertionError('Published dependency contract changed')
     assert json.loads(Path('evidence/validation.json').read_text())['Pass']
     assert 'PASS' in Path('evidence/cash-test-results.txt').read_text(encoding='utf-8-sig')
     out=Path('release-output');out.mkdir(exist_ok=True)

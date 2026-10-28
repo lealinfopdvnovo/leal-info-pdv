@@ -25,6 +25,11 @@ if mode == 'download':
     deps=json.loads(Path('published-461/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
     sdk=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.Windows.SDK.NET.Ref/'))
     Path('sdk-version.txt').write_text(sdk)
+    core=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.NETCore.App.Runtime.win-x64/'))
+    desktop=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.WindowsDesktop.App.Runtime.win-x64/'))
+    assert core==desktop, 'Published runtime framework versions require separate pinning'
+    Path('runtime-version.txt').write_text(core)
+    print('PASS published runtime pinned:',core,'Windows SDK:',sdk)
 elif mode == 'payload':
     raw=Path('bundle/casa-gemini.zip').read_bytes()
     z=zipfile.ZipFile(io.BytesIO(raw))
