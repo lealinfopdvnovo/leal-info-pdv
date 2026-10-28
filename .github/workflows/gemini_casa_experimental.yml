@@ -1,7 +1,7 @@
 name: Gemini Live Casa - experimental sem publicacao
 on:
   push:
-    branches: [experiment/gemini-live-casa]
+    branches: [experiment/gemini-live-casa, fix/casa-gemini-diagnostics]
 permissions:
   contents: read
 jobs:
