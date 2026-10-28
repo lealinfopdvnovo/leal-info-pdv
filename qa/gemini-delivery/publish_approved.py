@@ -46,7 +46,7 @@ api(f'repos/{REPO}/git/refs/heads/main',dict(sha=c['sha'],force=False),'PATCH')
 try:
  after=snapshot()[2];changed={p for p in set(after)|set(protected) if after.get(p)!=protected.get(p)};check(changed=={FEED},'Unexpected changed file')
  check(read(FEED)==m,'API feed mismatch')
- for attempt in range(12):
+ for attempt in range(40):
   if json.loads(get(f'https://raw.githubusercontent.com/{REPO}/main/{FEED}'))==m:break
   time.sleep(3)
  else:raise RuntimeError('Public feed did not converge')
