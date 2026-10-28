@@ -1,0 +1,148 @@
+name: Retirada LIA - GLOBAL e clientes restantes - validar e publicar
+on:
+  push:
+    branches: [release/lia-removal-all-10463]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: lia-removal-all-10463
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - channel: GLOBAL
+            base: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+            recipe: 1dea48d98cf7eb1bc458e1ae719fcf7e8ede6fae
+          - channel: '001'
+            base: 7aa5d38336e94659c07f0afc6ddfe40169c41a3a
+            recipe: 78ec019b04561c28fa5e7c7bfd3fcc4a740f6833
+          - channel: '002'
+            base: 735f3f6b0f933f25585c0c9e7e50551dae9a056d
+            recipe: f6a1a5bebb826f33be77f26ce5ff277a78e9c409
+          - channel: '004'
+            base: 2787ea2541261bd68cf1e931ceaa6ed537ddc832
+            recipe: e691d9e8d548ce30c54653698a98370e0a2838e8
+    env:
+      CHANNEL: ${{ matrix.channel }}
+      SOURCE_BASE: ${{ matrix.base }}
+      PYTHONUTF8: '1'
+      LEAL_NOTIFIER_ISOLATED_TEST: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: removal}
+      - uses: actions/checkout@v4
+        with:
+          path: controller
+          ref: ${{ matrix.recipe }}
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: ${{ matrix.base }}
+      - uses: actions/checkout@v4
+        with:
+          path: recovery
+          ref: be7c9adb6ca04b88637eb323d96b344a660d07a5
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: 10.0.401}
+      - name: Recuperar fontes e pacote exclusivos de cada canal
+        shell: pwsh
+        run: |
+          python -m unittest discover -s removal/qa/lia-removal -v
+          if($LASTEXITCODE -ne 0){throw 'Structural tests failed'}
+          python removal/qa/lia-removal/all/prepare.py baseline
+          if($LASTEXITCODE -ne 0){throw 'Current baseline failed'}
+          if($env:CHANNEL -ne 'GLOBAL'){
+            Push-Location candidate
+            foreach($s in @('aplicar_tema_azul_texturizado_v10_306.ps1','aplicar_lic_ai_botao_v10_186.ps1','aplicar_lic_ai_estado_v10_210.ps1','corrigir_lic_ai_encerrar_com_pdv_v10_223.ps1','aplicar_cadastro_produtos_avancado_v10_312.ps1','aplicar_central_equipamentos_v10_314.ps1')){ & "./scripts/$s" }
+            Pop-Location
+          }
+          $a=[Reflection.Assembly]::Load([IO.File]::ReadAllBytes((Resolve-Path published/LealInfoPDV.dll).Path))
+          New-Item -ItemType Directory native -Force|Out-Null
+          foreach($name in $a.GetManifestResourceNames()){
+            $stream=$a.GetManifestResourceStream($name)
+            $dest=[IO.File]::Create((Join-Path $pwd "native/$name"))
+            try{$stream.CopyTo($dest)}finally{$stream.Dispose();$dest.Dispose()}
+          }
+          if(!(Test-Path native/LealInfoPDV.UpdateNotifier.Native)){throw 'Published notifier absent'}
+          python removal/qa/lia-removal/all/prepare.py finish
+          if($LASTEXITCODE -ne 0){throw 'Current recipe reconstruction failed'}
+      - name: Compilar antes e depois e preservar interface fontes PET e recursos
+        shell: pwsh
+        run: |
+          $native=(Resolve-Path native/LealInfoPDV.UpdateNotifier.Native).Path
+          $sdk=Get-Content sdk-version.txt
+          $props=@('-p:UseSharedCompilation=false',"-p:NotifierPayload=$native","-p:WindowsSdkPackageVersion=$sdk")
+          if($env:CHANNEL -eq '001'){$props+=("-p:LojaPetPayload="+(Resolve-Path native/Loja.PET.1.2).Path)}
+          if($env:CHANNEL -eq '002'){$props+=("-p:GelamaqPetPayload="+(Resolve-Path native/Gelamaq.PET.payload).Path);$props+=("-p:GelamaqPetManifest="+(Resolve-Path native/Gelamaq.PET.manifest).Path)}
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o baseline-publish @props
+          if($LASTEXITCODE -ne 0){throw 'Before compilation failed'}
+          dotnet build removal/qa/lia-removal/WindowsProbe.csproj -c Release -o probe
+          if($LASTEXITCODE -ne 0){throw 'Probe build failed'}
+          Copy-Item probe/WindowsProbe.dll baseline-publish/
+          dotnet exec --depsfile baseline-publish/LealInfoPDV.deps.json --runtimeconfig baseline-publish/LealInfoPDV.runtimeconfig.json baseline-publish/WindowsProbe.dll baseline-publish/LealInfoPDV.dll before
+          if($LASTEXITCODE -ne 0){throw 'Before UI failed'}
+          python removal/qa/lia-removal/windows_prepare.py candidate remove
+          if($LASTEXITCODE -ne 0){throw 'Removal failed'}
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o candidate-publish @props
+          if($LASTEXITCODE -ne 0){throw 'After compilation failed'}
+          Copy-Item probe/WindowsProbe.dll candidate-publish/
+          dotnet exec --depsfile candidate-publish/LealInfoPDV.deps.json --runtimeconfig candidate-publish/LealInfoPDV.runtimeconfig.json candidate-publish/WindowsProbe.dll candidate-publish/LealInfoPDV.dll after
+          if($LASTEXITCODE -ne 0){throw 'After UI failed'}
+          python removal/qa/lia-removal/windows_prepare.py candidate finish
+          if($LASTEXITCODE -ne 0){throw 'Source preservation failed'}
+          python removal/qa/lia-removal/all/package.py package
+          if($LASTEXITCODE -ne 0){throw 'Package dependencies failed'}
+          $b=[Reflection.Assembly]::Load([IO.File]::ReadAllBytes((Resolve-Path candidate-publish/LealInfoPDV.dll).Path))
+          foreach($name in @('LealInfoPDV.UpdateNotifier.Native','Loja.PET.1.2','Gelamaq.PET.payload','Gelamaq.PET.manifest','TransactionalUpdateWorker')){
+            if(Test-Path "native/$name"){
+              $stream=$b.GetManifestResourceStream($name);if(!$stream){throw "Lost resource $name"}
+              $mem=[IO.MemoryStream]::new();$stream.CopyTo($mem);$stream.Dispose()
+              $old=[IO.File]::ReadAllBytes((Resolve-Path "native/$name").Path)
+              if([Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($old)) -ne [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($mem.ToArray()))){throw "Changed protected resource $name"}
+            }
+          }
+          Push-Location candidate
+          dotnet run --project qa/cash-flow/LealInfoPDV.CashTests.csproj -c Release @props
+          if($LASTEXITCODE -ne 0){throw 'Cash regression failed'}
+          Pop-Location
+          Push-Location candidate
+          New-Item -ItemType Directory publish,evidence -Force|Out-Null
+          Copy-Item ../candidate-publish/LealInfoPDV.exe,../candidate-publish/LealInfoPDV.dll,../candidate-publish/LealInfoPDV.deps.json publish/
+          $script=(Get-Content ../recovery/qa/global-453/assets/rollback.ps1 -Raw).Replace('Channel 001',"Channel $env:CHANNEL").Replace('Version 10.452','Version 10.463')
+          & ([ScriptBlock]::Create($script))
+          if($LASTEXITCODE -ne 0){throw 'Existing protected update and recovery scenarios failed'}
+          Copy-Item evidence/rollback.json ../release-output/transaction-results.json
+          Pop-Location
+          python removal/qa/lia-removal/all/package.py gate
+          if($LASTEXITCODE -ne 0){throw 'Final release gate failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lia-removal-10463-${{ matrix.channel }}
+          path: |
+            release-output/
+            evidence/
+  publish:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: lia-removal-10463-*
+          path: proof
+      - name: Publicar somente pacotes aprovados em seus canais originais
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/lia-removal/all/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publicacao-remocao-lia-10463
+          path: publication-proof.json
