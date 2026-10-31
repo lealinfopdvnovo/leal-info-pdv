@@ -19,3 +19,8 @@ Não guardar segredos ou dados privados de consumidores. Não alterar PDV, GLOBA
 ## Fotos e prints
 
 [Ver galeria dos 94 prints do iFood, por data](./PRINTS-IFOOD.md).
+
+
+## Logs e relatórios
+
+[Consultar logs oficiais e relatórios do iFood](./LOGS-IFOOD.md).

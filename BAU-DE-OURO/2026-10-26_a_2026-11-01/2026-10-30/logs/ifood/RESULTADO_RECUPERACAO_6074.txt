@@ -1,0 +1,14 @@
+SACOLA #6074 RECUPERADA E GRAVADA NA FILA LOCAL.
+Pedido: 0f683d37-6ebf-4298-ba19-2dcdcca891a9
+Itens: 3
+Produtos em centavos: 2596
+Pagamento em centavos: 3685
+ID=95a91779-84ca-46e4-a55f-fe968c836c43 | quantidade=1 | unavailable=False | disponivel=1 | unitarioCentavos=799
+ID=2f248cb9-7796-4a15-b082-f5b514d14979 | quantidade=3 | unavailable=False | disponivel=3 | unitarioCentavos=599
+ID=adef5ebd-bb43-4607-b6e9-11b80f5515ba | quantidade=3 | unavailable=True | disponivel=0 | unitarioCentavos=499
+Feche este utilitario e reabra o R8 para conferir a sacola. Homologacao oficial ainda pendente.
+
+UTC: 2026-10-30T19:27:18.6893452+00:00
+POST /authentication/v1.0/oauth/token HTTP 200
+GET /merchant/v1.0/merchants/{merchantId} HTTP 200
+GET /order/v1.0/orders/{id}/virtual-bag HTTP 200

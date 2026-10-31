@@ -1,0 +1,139 @@
+LEAL INFO - IFOOD CONFERENCIA R8
+Origem: CONEXAO DE TESTES / CONFERENCIA LOCAL
+UTC: 2026-10-30T13:49:46.8589268+00:00
+Loja de testes: 84a8976b-0559-48c6-84ce-fc2502f1364a
+Autenticacao nesta sessao: CONFIRMADA
+Acesso a loja nesta sessao: CONFIRMADO
+Consultas de eventos bem-sucedidas nesta sessao: 98
+Eventos em ciclos concluidos nesta sessao: 8; repetidos: 0
+Ultima falha fatal: Sacola final invalida: identidade, unavailable, quantidade, valor ou horario. Nenhuma importacao concluida.
+Recepcao ativa: False
+Eventos tecnicos persistidos: 13; ACK pendentes: 0
+Historico pode incluir sessoes anteriores. HTTP 204 confirma comunicacao, nao recebimento de pedido.
+ACK confirma apenas transporte; NAO confirma o pedido. A sacola final e gravada somente em RFI, em pasta isolada, sem efeitos no PDV.
+Sacolas finais persistidas: 0
+SACOLAS (IDs, quantidades e valores tecnicos; sem dados do consumidor):
+Beneficio nao comprova cupom; unavailable nao comprova solicitacao de cancelamento. Evidencias reais permanecem pendentes.
+Cadastro Item: HTTP 202: lote aceito para processamento. Cadastro e visibilidade ainda devem ser confirmados no Portal do Parceiro.
+Videos, logs oficiais e homologacao permanecem pendentes.
+EVENTOS (IDs tecnicos; sem cliente, endereco, itens ou credenciais):
+2026-10-29T16:32:25.027Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento e6a30471-a11c-40bf-bb0c-b267490d49f9 | PLC / PLACED | ACK True | sacola persistida False
+2026-10-29T16:32:25.869Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento 91298518-bda5-450a-8105-7a0ccf7d4fde | CFM / CONFIRMED | ACK True | sacola persistida False
+2026-10-29T16:32:25.996Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento f932fb3e-a34f-43d8-9c4a-65d65e032f82 | DDCR / DELIVERY_DROP_CODE_REQUESTED | ACK True | sacola persistida False
+2026-10-29T16:46:05.539Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento dfe988f8-f84b-49e3-b215-7ab7d76ae084 | SPS / SEPARATION_STARTED | ACK True | sacola persistida False
+2026-10-29T17:02:01.248Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento 7f4284ff-311a-4030-8a60-59e64017ad65 | CON / CONCLUDED | ACK True | sacola persistida False
+2026-10-30T13:22:44.9Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento b8264edc-c46e-4f8f-9113-987cd668b9dd | PLC / PLACED | ACK True | sacola persistida False
+2026-10-30T13:22:45.736Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento 68f76a2e-263f-4515-ba9b-7b1da4ef90c1 | CFM / CONFIRMED | ACK True | sacola persistida False
+2026-10-30T13:22:45.883Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento a5d53caf-8f39-4519-ad87-95fd066b5c35 | DDCR / DELIVERY_DROP_CODE_REQUESTED | ACK True | sacola persistida False
+2026-10-30T13:30:59.952Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento 3db2d7bc-0467-40cd-9c2a-107a4c6746a7 | SPS / SEPARATION_STARTED | ACK True | sacola persistida False
+2026-10-30T13:41:28.548Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento 05e2617b-4257-4f85-b8ab-b74d086bc160 | PRQ / PATCH_REQUESTED | ACK True | sacola persistida False
+2026-10-30T13:41:28.811Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento cbe95a0c-75e5-4a20-996d-90e1fdae3026 | OPA / ORDER_PATCHED | ACK True | sacola persistida False
+2026-10-30T13:41:30.596Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento e641e284-f212-4d0f-bcf3-c1cd65b1cac6 | SPE / SEPARATION_ENDED | ACK True | sacola persistida False
+2026-10-30T13:41:31.741Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento 62284224-faea-4126-ba30-49fb3d01f041 | RFI / READY_FOR_INVOICE | ACK True | sacola persistida False
+HTTP (metadados; sem corpos, cabecalhos, chaves ou tokens):
+2026-10-30T12:52:56.4791225+00:00 | POST | /authentication/v1.0/oauth/token | HTTP 200 | 332 ms | received
+2026-10-30T12:52:56.6386935+00:00 | GET | /merchant/v1.0/merchants/{merchantId} | HTTP 200 | 154 ms | received
+2026-10-30T12:52:56.9349009+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 180 ms | empty
+2026-10-30T12:53:27.0877390+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 177 ms | empty
+2026-10-30T12:53:57.3358198+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 175 ms | empty
+2026-10-30T12:54:27.4851416+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 164 ms | empty
+2026-10-30T12:54:57.7238228+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 158 ms | empty
+2026-10-30T12:55:28.0125671+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 197 ms | empty
+2026-10-30T12:55:58.1820538+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 150 ms | empty
+2026-10-30T12:56:28.3105711+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 173 ms | empty
+2026-10-30T12:56:58.4774941+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 172 ms | empty
+2026-10-30T12:57:28.7489956+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 184 ms | empty
+2026-10-30T12:57:58.9426628+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 175 ms | empty
+2026-10-30T12:58:29.1379049+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 152 ms | empty
+2026-10-30T12:58:59.3922772+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 154 ms | empty
+2026-10-30T12:59:29.7209612+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 150 ms | empty
+2026-10-30T12:59:59.9169337+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 172 ms | empty
+2026-10-30T13:00:30.2021004+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 169 ms | empty
+2026-10-30T13:01:00.4124315+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 159 ms | empty
+2026-10-30T13:01:30.6747939+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 177 ms | empty
+2026-10-30T13:02:00.7588515+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 158 ms | empty
+2026-10-30T13:02:31.0209121+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 178 ms | empty
+2026-10-30T13:03:01.2095597+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 154 ms | empty
+2026-10-30T13:03:31.5342036+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 175 ms | empty
+2026-10-30T13:04:01.8061905+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 174 ms | empty
+2026-10-30T13:04:32.1123207+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 171 ms | empty
+2026-10-30T13:05:02.4099277+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 167 ms | empty
+2026-10-30T13:05:32.6905129+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 148 ms | empty
+2026-10-30T13:06:02.9706608+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 153 ms | empty
+2026-10-30T13:06:33.2224969+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 171 ms | empty
+2026-10-30T13:07:03.3690067+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 174 ms | empty
+2026-10-30T13:07:33.6038686+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 172 ms | empty
+2026-10-30T13:08:03.7984808+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 206 ms | empty
+2026-10-30T13:08:33.9874626+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 170 ms | empty
+2026-10-30T13:09:04.1844826+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 177 ms | empty
+2026-10-30T13:09:34.4702665+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 158 ms | empty
+2026-10-30T13:10:04.8285734+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 177 ms | empty
+2026-10-30T13:10:35.0877546+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 160 ms | empty
+2026-10-30T13:11:05.3495720+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 177 ms | empty
+2026-10-30T13:11:35.5700077+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 152 ms | empty
+2026-10-30T13:12:05.8400526+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 180 ms | empty
+2026-10-30T13:12:36.0294475+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 153 ms | empty
+2026-10-30T13:13:06.1987386+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 174 ms | empty
+2026-10-30T13:13:36.3992163+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 173 ms | empty
+2026-10-30T13:14:06.5369285+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 153 ms | empty
+2026-10-30T13:14:36.9021588+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 154 ms | empty
+2026-10-30T13:15:07.1901618+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 151 ms | empty
+2026-10-30T13:15:37.4863405+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 154 ms | empty
+2026-10-30T13:16:07.7568686+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 169 ms | empty
+2026-10-30T13:16:37.8883780+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 150 ms | empty
+2026-10-30T13:17:08.0395471+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 176 ms | empty
+2026-10-30T13:17:13.1851176+00:00 | POST | /item/v1.0/ingestion/{merchantId}?reset=false | HTTP 202 | 312 ms | ACCEPTED_PENDING_CATALOG
+2026-10-30T13:17:38.1496723+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 153 ms | empty
+2026-10-30T13:18:08.4157939+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 153 ms | empty
+2026-10-30T13:18:38.7758171+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 182 ms | empty
+2026-10-30T13:19:09.0298414+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 173 ms | empty
+2026-10-30T13:19:39.2621765+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 152 ms | empty
+2026-10-30T13:20:09.5496245+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 189 ms | empty
+2026-10-30T13:20:39.7943039+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 153 ms | empty
+2026-10-30T13:21:10.1001272+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 173 ms | empty
+2026-10-30T13:21:40.3343847+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 168 ms | empty
+2026-10-30T13:22:10.6060568+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 174 ms | empty
+2026-10-30T13:22:40.8387549+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 149 ms | empty
+2026-10-30T13:23:11.1199321+00:00 | GET | /events/v1.0/events:polling | HTTP 200 | 174 ms | received
+2026-10-30T13:23:11.3821708+00:00 | POST | /events/v1.0/events/acknowledgment | HTTP 202 | 212 ms | ack-accepted
+2026-10-30T13:23:41.4403668+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 172 ms | empty
+2026-10-30T13:24:11.6981085+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 152 ms | empty
+2026-10-30T13:24:42.0078370+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 165 ms | empty
+2026-10-30T13:25:12.1624299+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 152 ms | empty
+2026-10-30T13:25:42.3492852+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 153 ms | empty
+2026-10-30T13:26:12.5774096+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 170 ms | empty
+2026-10-30T13:26:42.8638350+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 151 ms | empty
+2026-10-30T13:27:13.1976078+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 174 ms | empty
+2026-10-30T13:27:43.4591667+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 185 ms | empty
+2026-10-30T13:28:13.6686883+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 188 ms | empty
+2026-10-30T13:28:43.8531606+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 155 ms | empty
+2026-10-30T13:29:14.0483747+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 152 ms | empty
+2026-10-30T13:29:44.2940820+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 173 ms | empty
+2026-10-30T13:30:14.4557854+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 153 ms | empty
+2026-10-30T13:30:44.6556406+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 170 ms | empty
+2026-10-30T13:31:14.9094439+00:00 | GET | /events/v1.0/events:polling | HTTP 200 | 172 ms | received
+2026-10-30T13:31:15.1186555+00:00 | POST | /events/v1.0/events/acknowledgment | HTTP 202 | 185 ms | ack-accepted
+2026-10-30T13:31:45.0421650+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 171 ms | empty
+2026-10-30T13:32:15.2284527+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 156 ms | empty
+2026-10-30T13:32:45.4397908+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 170 ms | empty
+2026-10-30T13:33:15.5611003+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 172 ms | empty
+2026-10-30T13:33:45.6994313+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 152 ms | empty
+2026-10-30T13:34:15.9520307+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 184 ms | empty
+2026-10-30T13:34:46.0345488+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 172 ms | empty
+2026-10-30T13:35:16.1794172+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 166 ms | empty
+2026-10-30T13:35:46.2699241+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 155 ms | empty
+2026-10-30T13:36:16.3921404+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 156 ms | empty
+2026-10-30T13:36:46.6845879+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 187 ms | empty
+2026-10-30T13:37:16.9240613+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 171 ms | empty
+2026-10-30T13:37:47.1193922+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 153 ms | empty
+2026-10-30T13:38:17.3071902+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 155 ms | empty
+2026-10-30T13:38:47.5028395+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 156 ms | empty
+2026-10-30T13:39:17.7002509+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 174 ms | empty
+2026-10-30T13:39:47.9019895+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 176 ms | empty
+2026-10-30T13:40:18.0678866+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 180 ms | empty
+2026-10-30T13:40:48.2496606+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 155 ms | empty
+2026-10-30T13:41:18.4671008+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 173 ms | empty
+2026-10-30T13:41:48.7196083+00:00 | GET | /events/v1.0/events:polling | HTTP 200 | 182 ms | received
+2026-10-30T13:41:48.9314352+00:00 | POST | /events/v1.0/events/acknowledgment | HTTP 202 | 189 ms | ack-accepted
+2026-10-30T13:41:49.1656551+00:00 | GET | /order/v1.0/orders/{id}/virtual-bag | HTTP 200 | 213 ms | received
+Registros antigos omitidos por limite: 0
