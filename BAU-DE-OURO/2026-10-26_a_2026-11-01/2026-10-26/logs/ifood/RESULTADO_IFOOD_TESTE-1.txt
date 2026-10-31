@@ -1,0 +1,11 @@
+LEAL INFO - DIAGNOSTICO IFOOD TESTE (C) - R4
+UTC: 2026-10-26T20:16:04.9242529+00:00
+Fluxo: client_credentials (aplicativo de testes centralizado)
+Loja de testes (Merchant UUID): 84a8976b-0559-48c6-84ce-fc2502f1364a
+Autenticacao: CONFIRMADA
+Acesso a loja de testes: CONFIRMADO
+Resultado: Nenhum.
+Pedidos, separacao, videos e homologacao: NAO VALIDADOS por este assistente.
+HTTP (metadados; sem corpos, cabecalhos, chaves ou tokens):
+2026-10-26T20:15:55.3145825+00:00 | POST | /authentication/v1.0/oauth/token | HTTP 200 | 338 ms | received
+2026-10-26T20:15:55.5483612+00:00 | GET | /merchant/v1.0/merchants/{merchantId} | HTTP 200 | 227 ms | received

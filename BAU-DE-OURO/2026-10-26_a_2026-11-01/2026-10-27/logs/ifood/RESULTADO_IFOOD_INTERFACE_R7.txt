@@ -1,0 +1,26 @@
+LEAL INFO - VERIFICACAO DA INTERFACE R7
+SIMULACAO LOCAL - SEM API - NAO E HOMOLOGACAO
+PASS | Modo local sem clientes de rede ou autenticacao
+PASS | Conexao e entrada de credenciais desabilitadas
+PASS | Painel de conexao expande sem habilitar credenciais no modo local
+PASS | Painel recolhido libera area para conferencia, como apos conectar
+PASS | Pedido ficticio e dez criterios renderizados
+PASS | Cenario ficticio 0/3/1 aprovado localmente
+PASS | Cinco evidencias externas permanecem pendentes
+PASS | Selecao repetida nao gera aprovacao
+PASS | Botao guarda alteracao por pedido e sinaliza divergencia
+PASS | Botao restaura plano correto e atualiza aprovacao local
+PASS | Resumo identifica simulacao e pendencias; usa IDs sem dados pessoais
+PASS | Controle visivel dentro da janela: ComboBox / pedidoConferencia
+PASS | Controle visivel dentro da janela: ComboBox / produtoCancelar
+PASS | Controle visivel dentro da janela: ComboBox / produtoSepararTres
+PASS | Controle visivel dentro da janela: ComboBox / produtoSepararUm
+PASS | Controle visivel dentro da janela: Button / conferirSelecao
+PASS | Controle visivel dentro da janela: Button / salvarResumo
+PASS | Controle visivel dentro da janela: Button / dadosConexao
+PASS | Controle visivel dentro da janela: DataGridView / criterios
+DPI atual: 96 x 96
+Resolucao/area util atual: {X=0,Y=0,Width=1366,Height=720}
+Janela atual: {Width=1016, Height=704}; cliente: {Width=1000, Height=665}
+Formulario de login real, outras resolucoes/escalas e pedidos reais: NAO VALIDADOS por esta verificacao.
+TOTAL: 19 PASS; 0 FAIL. Dados ficticios, nenhuma chamada HTTP.

@@ -1,6 +1,8 @@
 # Logs e relatórios iFood — 2026-10-30
 
-- [RESULTADO_RECUPERACAO_6074.txt](./RESULTADO_RECUPERACAO_6074.txt)
 - [RESULTADO_IFOOD_CONFERENCIA_R8.txt](./RESULTADO_IFOOD_CONFERENCIA_R8.txt)
+- [RESULTADO_RECUPERACAO_6074.txt](./RESULTADO_RECUPERACAO_6074.txt)
+- [RESUMO_IFOOD_0f683d37.txt](./RESUMO_IFOOD_0f683d37.txt)
+- [DIAGNOSTICO_SACOLA_6074.txt](./DIAGNOSTICO_SACOLA_6074.txt)
 
-Os JSON são exportações oficiais de metadados HTTP. Os TXT são relatórios locais auxiliares; não substituem vídeo, corpo da resposta ou aprovação do iFood. O relatório R8 de30/10 registra o erro ANTES da recuperação; o resumo de31/10 registra o resultado posterior 0/3/1 conforme plano.
+Relatórios históricos mantidos, incluindo falhas e resultados anteriores. JSONs são metadados oficiais HTTP; TXT são diagnósticos, testes locais e resumos auxiliares. Não equivalem à homologação do iFood.

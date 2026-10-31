@@ -1,0 +1,10 @@
+LEAL INFO - DIAGNOSTICO IFOOD TESTE (C) - R3
+UTC: 2026-10-26T20:09:59.3627612+00:00
+Fluxo: client_credentials (aplicativo de testes centralizado)
+Autenticacao: CONFIRMADA
+Acesso a loja de testes: NAO CONFIRMADO
+Resultado: iFood HTTP 403 em /merchant/v1.0/merchants/{merchantId}
+Pedidos, separacao, videos e homologacao: NAO VALIDADOS por este assistente.
+HTTP (metadados; sem corpos, cabecalhos, chaves ou tokens):
+2026-10-26T20:08:26.8595476+00:00 | POST | /authentication/v1.0/oauth/token | HTTP 200 | 761 ms | received
+2026-10-26T20:08:27.0554700+00:00 | GET | /merchant/v1.0/merchants/{merchantId} | HTTP 403 | 183 ms | failed

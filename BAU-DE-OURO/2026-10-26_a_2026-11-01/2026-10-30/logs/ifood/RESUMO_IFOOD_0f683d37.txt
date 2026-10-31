@@ -1,0 +1,24 @@
+LEAL INFO - RESUMO POR PEDIDO / CONFERENCIA R7
+Origem: SACOLA FINAL DE TESTE PERSISTIDA - CONFERENCIA LOCAL
+UTC: 2026-10-30T19:35:41.3748851+00:00
+Pedido: 0f683d37-6ebf-4298-ba19-2dcdcca891a9
+Loja: 84a8976b-0559-48c6-84ce-fc2502f1364a
+Resultado das quantidades: PENDENTE OU DIVERGENTE
+Nenhum resultado desta conferencia equivale a aprovacao do iFood.
+Modalidade: DELIVERY | agendamento: IMMEDIATE | janela: 2026-10-30T14:02:44.302Z / 2026-10-30T14:12:44.302Z
+Valores informados em centavos: sacola=2596 | pagamento=3685
+Item 95a91779-84ca-46e4-a55f-fe968c836c43 | qtd informada=1 | unavailable=False | qtd disponivel=1
+Item 2f248cb9-7796-4a15-b082-f5b514d14979 | qtd informada=3 | unavailable=False | qtd disponivel=3
+Item adef5ebd-bb43-4607-b6e9-11b80f5515ba | qtd informada=3 | unavailable=True | qtd disponivel=0
+CRITERIOS E EVIDENCIAS:
+APROVADO LOCAL | Tres produtos no resultado | Encontrados: 3. O roteiro exige exatamente tres produtos.
+PENDENTE | Item 1 - indisponivel | Identifique o produto desta acao pelo nome/ID, conforme o pedido original.
+PENDENTE | Item 2 - tres unidades | Identifique o produto desta acao pelo nome/ID, conforme o pedido original.
+PENDENTE | Item 3 - uma unidade | Identifique o produto desta acao pelo nome/ID, conforme o pedido original.
+OBSERVADO | Beneficios da sacola | 0 patrocinio(s) informado(s). Presenca ou ausencia de beneficio final nao comprova aplicacao do cupom original.
+PENDENTE | Pedido original: 3 unidades de cada | Exige evidencia do pedido original. A selecao de produtos descreve o plano, nao comprova quantidades originais.
+PENDENTE | Cupom aplicado | Exige evidencia real do cupom no pedido original.
+PENDENTE | Solicitacao de cancelamento | unavailable=true nao comprova o envio da solicitacao. Registrar a acao e seu resultado na ferramenta de separacao.
+PENDENTE | Video do fluxo completo | Gravar criacao, recebimento e separacao reais DE TESTE.
+PENDENTE | Logs oficiais do aplicativo | Exportar HTTP Requests no Developer Portal, do mesmo aplicativo usado no video.
+Resumo auxiliar; anexar videos e logs oficiais somente depois da validacao real.

@@ -1,0 +1,22 @@
+LEAL INFO - IFOOD ETAPA 2 - RECEBIMENTO R5
+UTC: 2026-10-26T20:46:54.6383668+00:00
+Loja de testes: 84a8976b-0559-48c6-84ce-fc2502f1364a
+Autenticacao nesta sessao: CONFIRMADA
+Acesso a loja nesta sessao: CONFIRMADO
+Consultas de eventos bem-sucedidas nesta sessao: 4
+Eventos em ciclos concluidos nesta sessao: 0; repetidos: 0
+Ultima falha fatal: Nenhuma falha.
+Recepcao ativa: True
+Eventos tecnicos persistidos: 0; ACK pendentes: 0
+Historico pode incluir sessoes anteriores. HTTP 204 confirma comunicacao, nao recebimento de pedido.
+ACK confirma apenas transporte do evento; NAO confirma o pedido. Sem separacao, importacao da sacola ou efeitos no PDV.
+Videos, logs oficiais e homologacao permanecem pendentes.
+EVENTOS (IDs tecnicos; sem cliente, endereco, itens ou credenciais):
+HTTP (metadados; sem corpos, cabecalhos, chaves ou tokens):
+2026-10-26T20:45:19.0291946+00:00 | POST | /authentication/v1.0/oauth/token | HTTP 200 | 841 ms | received
+2026-10-26T20:45:19.1996536+00:00 | GET | /merchant/v1.0/merchants/{merchantId} | HTTP 200 | 163 ms | received
+2026-10-26T20:45:19.4962761+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 217 ms | empty
+2026-10-26T20:45:50.3731251+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 152 ms | empty
+2026-10-26T20:46:20.4026282+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 182 ms | empty
+2026-10-26T20:46:50.5600418+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 154 ms | empty
+Registros antigos omitidos por limite: 0

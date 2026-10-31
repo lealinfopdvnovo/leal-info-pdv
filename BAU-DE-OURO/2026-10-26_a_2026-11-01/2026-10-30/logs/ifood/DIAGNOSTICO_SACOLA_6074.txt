@@ -1,0 +1,63 @@
+LEAL INFO - DIAGNOSTICO SACOLA #6074
+Pedido: 0f683d37-6ebf-4298-ba19-2dcdcca891a9
+Loja: 84a8976b-0559-48c6-84ce-fc2502f1364a
+Consulta somente leitura. Nenhuma alteracao no pedido ou na fila R8.
+id | tipo=string | identidade=CORRETA
+merchant.id | tipo=string | identidade=CORRETA
+test | tipo=boolean | valor=true
+category | tipo=AUSENTE
+bag.items | tipo=array | caracteres=391
+bag.items[0].uniqueId | tipo=string | guidValido=True
+bag.items[0].name | tipo=string | caracteres=30
+bag.items[0].quantity | tipo=number | valor=1 | inteiro=True
+bag.items[0].unavailable | tipo=boolean | valor=false
+bag.items[0].product.isVariableWeight | tipo=boolean | valor=false
+bag.items[0].prices.unitValue | tipo=object | caracteres=6
+bag.items[0].prices.unitValue.value | tipo=number | valor=799 | inteiro=True
+bag.items[0].prices.unitValue.currency | tipo=string | valor=BRL
+bag.items[0].prices.grossValue | tipo=object | caracteres=6
+bag.items[0].prices.grossValue.value | tipo=number | valor=799 | inteiro=True
+bag.items[0].prices.grossValue.currency | tipo=string | valor=BRL
+bag.items[1].uniqueId | tipo=string | guidValido=True
+bag.items[1].name | tipo=string | caracteres=30
+bag.items[1].quantity | tipo=number | valor=3 | inteiro=True
+bag.items[1].unavailable | tipo=boolean | valor=false
+bag.items[1].product.isVariableWeight | tipo=boolean | valor=false
+bag.items[1].prices.unitValue | tipo=object | caracteres=6
+bag.items[1].prices.unitValue.value | tipo=number | valor=599 | inteiro=True
+bag.items[1].prices.unitValue.currency | tipo=string | valor=BRL
+bag.items[1].prices.grossValue | tipo=object | caracteres=7
+bag.items[1].prices.grossValue.value | tipo=number | valor=1797 | inteiro=True
+bag.items[1].prices.grossValue.currency | tipo=string | valor=BRL
+bag.items[2].uniqueId | tipo=string | guidValido=True
+bag.items[2].name | tipo=string | caracteres=30
+bag.items[2].quantity | tipo=number | valor=3 | inteiro=True
+bag.items[2].unavailable | tipo=boolean | valor=true
+bag.items[2].product.isVariableWeight | tipo=boolean | valor=false
+bag.items[2].prices.unitValue | tipo=object | caracteres=6
+bag.items[2].prices.unitValue.value | tipo=number | valor=499 | inteiro=True
+bag.items[2].prices.unitValue.currency | tipo=string | valor=BRL
+bag.items[2].prices.grossValue | tipo=object | caracteres=7
+bag.items[2].prices.grossValue.value | tipo=number | valor=1497 | inteiro=True
+bag.items[2].prices.grossValue.currency | tipo=string | valor=BRL
+bag.prices.grossValue | tipo=object | caracteres=7
+bag.prices.grossValue.value | tipo=number | valor=2596 | inteiro=True
+bag.prices.grossValue.currency | tipo=string | valor=BRL
+operationMode.type | tipo=string | valor=DELIVERY
+operationMode.schedulingType | tipo=string | valor=IMMEDIATE
+operationMode.deliveryTime.window.from | tipo=string | horarioValido=True
+operationMode.deliveryTime.window.to | tipo=string | horarioValido=True
+operationMode.takeoutTime.window.from | tipo=AUSENTE
+operationMode.takeoutTime.window.to | tipo=AUSENTE
+payment.methods | tipo=array | caracteres=101
+payment.methods[0].amount | tipo=object | caracteres=7
+payment.methods[0].amount.value | tipo=number | valor=3685 | inteiro=True
+payment.methods[0].amount.currency | tipo=string | valor=BRL
+benefit | tipo=object | caracteres=0
+benefit.benefits | tipo=null | caracteres=0
+VALIDADOR BASE: REJEITADO. Campos acima permitem localizar divergencias sem exportar o corpo.
+
+UTC: 2026-10-30T18:58:36.0097279+00:00
+POST /authentication/v1.0/oauth/token HTTP 200
+GET /merchant/v1.0/merchants/{merchantId} HTTP 200
+GET /order/v1.0/orders/{id}/virtual-bag HTTP 200
