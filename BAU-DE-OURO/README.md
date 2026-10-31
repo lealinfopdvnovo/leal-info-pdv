@@ -14,3 +14,8 @@ Cada semana segue segunda a domingo. Dentro dela, pastas AAAA-MM-DD com registro
 Registrar conversa e decisão, mudanças feitas, testes/evidências, publicação, pendências e próximo passo. Diferenciar relato de confirmação técnica. Preservar histórico. Não inventar atividades ou transcrições inacessíveis: este acervo reúne o histórico disponível, não cópia integral de todos os chats.
 
 Não guardar segredos ou dados privados de consumidores. Não alterar PDV, GLOBAL/PET, banco, licença, Firebase, APK ou feeds ao atualizar documentação. Esta branch é documental.
+
+
+## Fotos e prints
+
+[Ver galeria dos 94 prints do iFood, por data](./PRINTS-IFOOD.md).
