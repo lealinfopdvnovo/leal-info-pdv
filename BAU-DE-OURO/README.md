@@ -1,16 +1,16 @@
-# Baú de Ouro
+# Baú de Ouro — conversas, decisões e mudanças LEAL INFO
 
-Organização: uma pasta por semana (segunda a domingo) e uma subpasta por data, formato AAAA-MM-DD.
+Abrange PDV, GLOBAL/PET, atualizador, LIA, Vidraçaria, Cozinha, ANGRA VIDROS, ALERTA/Cloudflare e iFood.
 
-## Semanas
-- [26/10 a 01/11/2026](./2026-10-26_a_2026-11-01/README.md)
+## Semanas com pastas por dia
+- [19/10 a 25/10/2026](./2026-10-19_a_2026-10-25/)
+- [26/10 a 01/11/2026](./2026-10-26_a_2026-11-01/)
 
-## Estado atual
-[31/10/2026 — iFood](./2026-10-26_a_2026-11-01/2026-10-31/README.md): conferência local 0/3/1 aprovada e logs oficiais verificados; aguardando orientação sobre cupom. Homologação pendente.
+Cada semana segue segunda a domingo. Dentro dela, pastas AAAA-MM-DD com registros gerais e específicos.
 
-## Regras
-Preservar histórico. Registrar apenas evidências e distinguir teste local, publicação e aprovação oficial. Não guardar senhas, tokens, dados de consumidor nem corpos privados de logs. Não alterar PDV, GLOBAL, PET, Firebase, APK, licenças ou feeds ao atualizar o Baú. Documentação nesta branch não autoriza publicação de software.
+[Histórico consolidado anterior](./HISTORICO-CONSOLIDADO.md) | [Issue32 histórica](https://github.com/lealinfopdvnovo/leal-info-pdv/issues/32)
 
-[Baú histórico — Issue32](https://github.com/lealinfopdvnovo/leal-info-pdv/issues/32)
+## Método
+Registrar conversa e decisão, mudanças feitas, testes/evidências, publicação, pendências e próximo passo. Diferenciar relato de confirmação técnica. Preservar histórico. Não inventar atividades ou transcrições inacessíveis: este acervo reúne o histórico disponível, não cópia integral de todos os chats.
 
-Registros abaixo consolidados de evidências e relatos desta conversa; não representam cópia integral dos chats. Dias sem registro não devem receber conclusão inventada.
+Não guardar segredos ou dados privados de consumidores. Não alterar PDV, GLOBAL/PET, banco, licença, Firebase, APK ou feeds ao atualizar documentação. Esta branch é documental.
