@@ -133,3 +133,25 @@ jobs:
           path: |
             release-output/
             evidence/
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: seal-updates-exclusive
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: casa-10-463-WINDOWS-APROVADO
+          path: proof
+      - name: Publicar somente canal autorizado e verificar isolamento
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+          SEAL_CLIENT: '003'
+        run: python qa/seal-original/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publicacao-selo-casa
+          path: publication-proof.json
