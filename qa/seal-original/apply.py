@@ -22,3 +22,6 @@ s=proj.read_text(encoding="utf-8-sig")
 s=s.replace("</Project>",'<ItemGroup><EmbeddedResource Include="Certification/Selo_Certificacao_Leal_Info_PDV_Aprovado.png" LogicalName="PET.CertificationSeal" /></ItemGroup>\n</Project>')
 proj.write_text(s,encoding="utf-8")
 print("Arte original aplicada apenas ao login reconstruido.")
+
+import hashlib,json
+Path("evidence/seal-source-scope.json").write_text(json.dumps({p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in ["LoginForm.cs","LealInfoPDV.csproj"]}))
