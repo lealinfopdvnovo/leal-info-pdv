@@ -2,9 +2,14 @@
 
 Abrange PDV, GLOBAL/PET, atualizador, LIA, Vidraçaria, Cozinha, ANGRA VIDROS, ALERTA/Cloudflare e iFood.
 
+## Padrão para as próximas entregas
+
+[Consultar o compromisso de entrega registrado por Adriano](./2026-11-02_a_2026-11-08/2026-11-03/PADRAO-DE-ENTREGA.md).
+
 ## Semanas com pastas por dia
 - [19/10 a 25/10/2026](./2026-10-19_a_2026-10-25/)
 - [26/10 a 01/11/2026](./2026-10-26_a_2026-11-01/)
+- [02/11 a 08/11/2026](./2026-11-02_a_2026-11-08/)
 
 Cada semana segue segunda a domingo. Dentro dela, pastas AAAA-MM-DD com registros gerais e específicos.
 
