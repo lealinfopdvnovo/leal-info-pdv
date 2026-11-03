@@ -51,6 +51,10 @@ jobs:
             $text=Get-Content $file -Raw
             [IO.File]::WriteAllText((Join-Path $pwd $file),$text.Replace($old,$pinned),[Text.UTF8Encoding]::new($false))
           }
+          $file='removal/qa/lia-removal/all/prepare.py'
+          [IO.File]::WriteAllText((Join-Path $pwd $file),(Get-Content $file -Raw).Replace('10.463','10.464'),[Text.UTF8Encoding]::new($false))
+          $file='removal/qa/lia-removal/all/package.py'
+          [IO.File]::WriteAllText((Join-Path $pwd $file),(Get-Content $file -Raw).Replace('10.463','10.464'),[Text.UTF8Encoding]::new($false))
           python -m unittest discover -s removal/qa/lia-removal -v
           if($LASTEXITCODE -ne 0){throw 'Structural tests failed'}
           python removal/qa/lia-removal/all/prepare.py baseline
