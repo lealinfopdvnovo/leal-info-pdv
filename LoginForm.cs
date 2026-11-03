@@ -34,6 +34,47 @@ public sealed class LoginForm : Form
         stage.Controls.Add(exit);
         CancelButton=exit;
 
+        // PET LOJA LEAL INFO: selo decorativo, sem interacao e sem dependencia externa.
+        var certificationSeal=new PictureBox
+        {
+            Name="picCertificacaoLoja",
+            BackColor=Color.Transparent,
+            SizeMode=PictureBoxSizeMode.Normal,
+            TabStop=false,
+            AccessibleName="Empresa certificada Leal Info PDV"
+        };
+        certificationSeal.Paint+=(_,e)=>
+        {
+            var g=e.Graphics;
+            g.SmoothingMode=SmoothingMode.AntiAlias;
+            g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+            float s=Math.Min(certificationSeal.ClientSize.Width,certificationSeal.ClientSize.Height)/100f;
+            if(s<=0)return;
+            var state=g.Save();
+            g.TranslateTransform((certificationSeal.Width-100*s)/2f,(certificationSeal.Height-100*s)/2f);
+            g.ScaleTransform(s,s);
+            using var gold=new SolidBrush(Color.FromArgb(221,174,75));
+            using var goldLight=new Pen(Color.FromArgb(255,224,143),2.2f);
+            using var goldThin=new Pen(Color.FromArgb(199,147,48),1.4f);
+            using var dark=new SolidBrush(Color.FromArgb(17,21,31));
+            g.FillEllipse(dark,6,6,88,88);
+            g.DrawEllipse(goldLight,6,6,88,88);
+            g.DrawEllipse(goldThin,12,12,76,76);
+            g.DrawEllipse(goldThin,25,25,50,50);
+            using var small=new Font("Segoe UI",7f,FontStyle.Bold,GraphicsUnit.Pixel);
+            using var main=new Font("Segoe UI",9f,FontStyle.Bold,GraphicsUnit.Pixel);
+            using var check=new Font("Segoe UI Symbol",29f,FontStyle.Bold,GraphicsUnit.Pixel);
+            using var center=new StringFormat{Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center};
+            g.DrawString("EMPRESA",small,gold,new RectangleF(15,14,70,12),center);
+            g.DrawString("CERTIFICADA",small,gold,new RectangleF(11,27,78,12),center);
+            g.DrawString("✓",check,gold,new RectangleF(24,36,52,32),center);
+            g.DrawString("LEAL INFO",main,gold,new RectangleF(13,67,74,13),center);
+            g.DrawString("PDV",small,gold,new RectangleF(24,80,52,10),center);
+            g.Restore(state);
+        };
+        stage.Controls.Add(certificationSeal);
+
+
 
         // Identidade à esquerda — limpa, sem usar o logotipo que não foi aprovado.
         var identity=new GlassBackdropPanel();
@@ -127,6 +168,11 @@ public sealed class LoginForm : Form
             accent.BringToFront();
             int exitWidth=Math.Min(Math.Max(1,sw-32),(int)(150*DeviceDpi/96f));
             exit.SetBounds(Math.Max(0,sw-exitWidth-16),16,exitWidth,(int)(42*DeviceDpi/96f));
+            // Centralizado sob SAIR, respeitando DPI e limites da janela.
+            int sealSize=Math.Max(52,(int)(74*DeviceDpi/96f));
+            int sealX=exit.Left+(exit.Width-sealSize)/2;
+            certificationSeal.SetBounds(Math.Max(0,sealX),exit.Bottom+(int)(12*DeviceDpi/96f),sealSize,sealSize);
+            certificationSeal.BringToFront();
             exit.BringToFront();
         }
 
