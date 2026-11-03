@@ -48,8 +48,12 @@ elif mode == 'finish':
     scope = json.loads((evidence/'removal-scope.json').read_text())
     assert scope['Pass']
     before = json.loads((evidence/'source-before.json').read_text())
+    seal = json.loads((evidence/'seal-source-scope.json').read_text())
+    assert set(seal) == {'LoginForm.cs', 'LealInfoPDV.csproj'}
     for k,h in before.items():
-        if k != 'MainForm.cs':
+        if k in seal:
+            assert hashlib.sha256((root/k).read_bytes()).hexdigest()==seal[k],k
+        elif k != 'MainForm.cs':
             assert hashlib.sha256((root/k).read_bytes()).hexdigest()==h,k
     assert json.loads((evidence/'windows-after.json').read_text())['Pass']
     assert json.loads((evidence/'windows-before.json').read_text())['Pass']
