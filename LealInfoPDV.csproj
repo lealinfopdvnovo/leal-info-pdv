@@ -34,4 +34,5 @@
   <ItemGroup><EmbeddedResource Include="Assets/KitchenTablesPremium.png" LogicalName="Kitchen.TablesPremium" /></ItemGroup>
   <ItemGroup Condition="'$(LojaPetPayload)' != ''"><EmbeddedResource Include="$(LojaPetPayload)" LogicalName="Loja.PET.1.2" /></ItemGroup>
   <ItemGroup Condition="'$(NotifierPayload)' != ''"><EmbeddedResource Include="$(NotifierPayload)" LogicalName="LealInfoPDV.UpdateNotifier.Native" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Certification/Selo_Certificacao_Leal_Info_PDV_Aprovado.png" LogicalName="PET.CertificationSeal" /></ItemGroup>
 </Project>

@@ -34,6 +34,25 @@ public sealed class LoginForm : Form
         stage.Controls.Add(exit);
         CancelButton=exit;
 
+        // Selo aprovado: recurso incorporado, sem interação ou acesso a dados.
+        var certificationSeal=new PictureBox
+        {
+            Name="picCertificacao", BackColor=Color.Transparent,
+            SizeMode=PictureBoxSizeMode.Zoom, TabStop=false,
+            AccessibleName="Empresa certificada Leal Info PDV"
+        };
+        using(var sealStream=typeof(LoginForm).Assembly.GetManifestResourceStream("PET.CertificationSeal"))
+        {
+            if(sealStream!=null)
+            {
+                using var sealImage=Image.FromStream(sealStream);
+                certificationSeal.Image=new Bitmap(sealImage);
+            }
+        }
+        certificationSeal.Disposed+=(_,_)=>certificationSeal.Image?.Dispose();
+        stage.Controls.Add(certificationSeal);
+
+
 
         // Identidade à esquerda — limpa, sem usar o logotipo que não foi aprovado.
         var identity=new GlassBackdropPanel();
@@ -127,6 +146,11 @@ public sealed class LoginForm : Form
             accent.BringToFront();
             int exitWidth=Math.Min(Math.Max(1,sw-32),(int)(150*DeviceDpi/96f));
             exit.SetBounds(Math.Max(0,sw-exitWidth-16),16,exitWidth,(int)(42*DeviceDpi/96f));
+            int sealSize=Math.Min(Math.Max(1,sw),Math.Max(1,(int)(74*DeviceDpi/96f)));
+            int sealTop=exit.Bottom+(int)(12*DeviceDpi/96f);
+            certificationSeal.SetBounds(Math.Max(0,Math.Min(sw-sealSize,exit.Left+(exit.Width-sealSize)/2)),sealTop,sealSize,sealSize);
+            certificationSeal.Visible=sealTop+sealSize<=sh;
+            certificationSeal.BringToFront();
             exit.BringToFront();
         }
 
