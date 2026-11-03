@@ -25,7 +25,7 @@ if C=='001':
 else:
  d=json.loads((root/'candidate.json').read_text());g=json.loads((root/'validation-gate.json').read_text())
  assert d['TargetClientCode']==C and g['Pass'] and g['TransactionScenarios']==19
- p=root/('LEAL_INFO_PDV_CASA_V'+V.replace('.','_')+'_UPDATE.zip')
+ p=root/d['Package']
 assert d['Version']==V and d['SourceCommit']==os.environ['GITHUB_SHA']
 digest=hashlib.sha256(p.read_bytes()).hexdigest();assert digest==d['Sha256']
 with zipfile.ZipFile(p) as z:assert set(z.namelist())=={'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'} and len(z.namelist())==3
