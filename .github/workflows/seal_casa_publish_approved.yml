@@ -1,0 +1,28 @@
+name: Publicar Casa 10.463 selo - pacote Windows aprovado
+on:
+  push:
+    branches: [release/casa-selo-original-10463]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: casa-10-462-WINDOWS-APROVADO
+          path: proof
+          run-id: 41741818024
+          github-token: ${{ github.token }}
+      - name: Publicar exatamente pacote Casa aprovado sem recompilar
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+          SEAL_CLIENT: '003'
+        run: env GITHUB_SHA=8ebd90b91d0213d94edb04d14bc0d5d7ad310d47 GITHUB_RUN_ID=41741818024 python qa/seal-original/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publicacao-selo-casa
+          path: publication-proof.json
