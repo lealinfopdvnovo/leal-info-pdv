@@ -44,6 +44,13 @@ jobs:
       - name: Recuperar fontes e pacote exclusivos de cada canal
         shell: pwsh
         run: |
+          # Reproduzir a receita histórica com o feed histórico exato; canais vivos preservados.
+          $old='https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/'
+          $pinned='https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/d2b5bd8d34a10c35f55aae3a136758d1000332d7/'
+          foreach($file in @('removal/qa/lia-removal/all/prepare.py','controller/qa/global-453/prepare.py')){
+            $text=Get-Content $file -Raw
+            [IO.File]::WriteAllText((Join-Path $pwd $file),$text.Replace($old,$pinned),[Text.UTF8Encoding]::new($false))
+          }
           python -m unittest discover -s removal/qa/lia-removal -v
           if($LASTEXITCODE -ne 0){throw 'Structural tests failed'}
           python removal/qa/lia-removal/all/prepare.py baseline
