@@ -7,7 +7,22 @@ static class ProfileProbe
 {
  [System.Runtime.InteropServices.DllImport("user32.dll",SetLastError=true)]
  static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
+ [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+ struct WindowPosition{public IntPtr Window,After;public int X,Y,Width,Height;public uint Flags;}
+ sealed class OffscreenViewport:NativeWindow,IDisposable{
+  readonly Size size;
+  internal OffscreenViewport(Form form,Size value){size=value;AssignHandle(form.Handle);}
+  protected override void WndProc(ref Message message){
+   base.WndProc(ref message);
+   if(message.Msg==0x0046 && message.LParam!=IntPtr.Zero){
+    var value=System.Runtime.InteropServices.Marshal.PtrToStructure<WindowPosition>(message.LParam);
+    if((value.Flags&1)==0){value.Width=size.Width;value.Height=size.Height;System.Runtime.InteropServices.Marshal.StructureToPtr(value,message.LParam,false);}
+   }
+  }
+  public void Dispose(){ReleaseHandle();}
+ }
  static void Viewport(Form form,Size size){
+  using var viewport=new OffscreenViewport(form,size);
   if(!SetWindowPos(form.Handle,IntPtr.Zero,0,0,size.Width,size.Height,0x0016))throw new System.ComponentModel.Win32Exception();
   var clock=System.Diagnostics.Stopwatch.StartNew();
   while(clock.ElapsedMilliseconds<5000){Application.DoEvents();System.Threading.Thread.Sleep(4);}
