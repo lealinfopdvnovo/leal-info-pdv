@@ -1,0 +1,25 @@
+name: Organizacao par1-2 - selecao e staging C#
+on:
+  push:
+    branches: [prepare/organizacao-global-pet-20261104]
+    paths: ['qa/organization/**', '.github/workflows/organization_component_tests.yml']
+permissions:
+  contents: read
+jobs:
+  component-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Testar selecao independente e ZIPs reais em pastas descartaveis
+        run: dotnet run --project qa/organization/ComponentTests.csproj -c Release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: par1-2-${{ matrix.os }}
+          path: pair-evidence/
