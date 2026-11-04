@@ -1,0 +1,120 @@
+name: Organizacao GLOBAL PET - integracao e aplicador externo
+on:
+  push:
+    branches: [prepare/organizacao-global-pet-20261104]
+    paths: ['qa/organization/**', '!qa/organization/PreservedPresentation.cs.source', '.github/workflows/organization_integration_tests.yml']
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  integrated:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    # Validate the single common feed and independent PET recovery.
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+      - uses: actions/checkout@v4
+        with:
+          path: recipe
+          ref: 78c0d348d210f9c9b2672746e09bcddbf4ba4474
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Integrar fontes candidatas sem substituir arquivos comerciais
+        shell: pwsh
+        run: |
+          python -m py_compile controller/qa/organization/prepare_current_common.py controller/qa/organization/prepare_integration.py
+          python controller/qa/organization/prepare_current_common.py
+          if($LASTEXITCODE -ne 0){throw 'Current common baseline reconstruction failed'}
+          python -m py_compile controller/qa/organization/prepare_integration.py
+          if($LASTEXITCODE -ne 0){throw 'Integration script syntax failed'}
+          pwsh -NoProfile -File controller/qa/organization/common_resource_contract.ps1 -Mode Extract
+          if($LASTEXITCODE -ne 0){throw 'Current common resource extraction failed'}
+          python controller/qa/organization/prepare_integration.py
+          if($LASTEXITCODE -ne 0){throw 'Integration failed'}
+          if(Test-Path candidate/global.json){Copy-Item candidate/global.json global.json}
+          New-Item -ItemType Directory qa/organization -Force|Out-Null
+          Copy-Item controller/qa/organization/PetTransactionalUpdate.ps1 qa/organization/
+      - name: Recuperar arte e preparar selo exclusivo dos dois PETs
+        shell: pwsh
+        run: |
+          python controller/qa/organization/extract_loja_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Legacy Loja integrity verification failed'}
+          pwsh -NoProfile -File controller/qa/organization/extract_loja_worker.ps1
+          if($LASTEXITCODE -ne 0){throw 'Legacy Loja worker extraction failed'}
+          python controller/qa/organization/prepare_pet_seal.py
+          if($LASTEXITCODE -ne 0){throw 'Exclusive PET seal preparation failed'}
+          python controller/qa/organization/extract_gelamaq_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Original Gelamaq verification failed'}
+          pwsh -NoProfile -File controller/qa/organization/extract_preserved_presentations.ps1
+          if($LASTEXITCODE -ne 0){throw 'Original presentation extraction failed'}
+          python controller/qa/organization/prepare_finance_compat.py
+          if($LASTEXITCODE -ne 0){throw 'Approved financial compatibility integration failed'}
+      - name: Compilar PDV real com atualizador independente
+        shell: pwsh
+        run: |
+          dotnet build candidate/LealInfoPDV.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Integrated application compilation failed'}
+          pwsh -NoProfile -File controller/qa/organization/common_resource_contract.ps1 -Mode Verify
+          if($LASTEXITCODE -ne 0){throw 'Common resource regression detected'}
+          dotnet build candidate/qa/global-core/fixture/Pet.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'PET fixture compilation failed'}
+          $fixture=(Get-ChildItem candidate/qa/global-core/fixture/bin/Release -Filter PetFixture.dll -Recurse|Select-Object -First 1).FullName
+          if(!$fixture){$fixture=(Get-ChildItem candidate/qa/global-core/fixture/bin/Release -Filter *.dll -Recurse|Where-Object{$_.Name -ne 'LealInfoPDV.dll'}|Select-Object -First 1).FullName}
+          dotnet run --project candidate/qa/global-core/Tests.csproj -c Release -- $fixture
+          if($LASTEXITCODE -ne 0){throw 'Real common contract regression failed'}
+          $env:PET_FIXTURE=$fixture
+          dotnet run --project controller/qa/organization/StartupProbe.csproj -c Release -- --update-transaction isolated-startup-probe
+          if($LASTEXITCODE -ne 0){throw 'Independent startup health regression failed'}
+      - name: Testar os quatro perfis reais na base comum atual
+        shell: pwsh
+        run: |
+          dotnet build controller/qa/organization/ProfileProbe.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Profile probe compilation failed'}
+          dotnet build controller/qa/organization/BootstrapProbe.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Bootstrap probe compilation failed'}
+          $hostExe=(Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.exe -Recurse|Select-Object -First 1).FullName
+          foreach($id in @('001','003','002','004')){
+            dotnet build "candidate/extensions/profiles/$id/Pet.csproj" -c Release
+            if($LASTEXITCODE -ne 0){throw "Actual profile build failed $id"}
+            $module=(Get-ChildItem "candidate/extensions/profiles/$id/bin/Release" -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
+            $version=(Get-Content pair-evidence/profile-versions.json -Raw|ConvertFrom-Json).$id
+            dotnet run --project controller/qa/organization/ProfileProbe.csproj -c Release --no-build -- $id $version $module
+            if($LASTEXITCODE -ne 0){throw "Actual profile compatibility failed $id"}
+            dotnet run --project controller/qa/organization/BootstrapProbe.csproj -c Release --no-build -- $id $version $module $hostExe
+            if($LASTEXITCODE -ne 0){throw "Atomic migration validation failed $id"}
+          }
+      - name: Testar relatorio financeiro com modulo original da Gelamaq
+        shell: pwsh
+        run: |
+          $module=(Get-ChildItem candidate/extensions/profiles/002/bin/Release -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
+          dotnet run --project controller/qa/organization/GelamaqFinancialProbe.csproj -c Release -- $module
+          if($LASTEXITCODE -ne 0){throw 'Actual Gelamaq financial regression failed'}
+      - name: Testar transicao pelo aplicador original publicado da Loja
+        shell: pwsh
+        run: ./controller/qa/organization/test_legacy_loja_transition.ps1
+      - name: Verificar contrato dos modulos PET originais sem executar codigo antigo
+        shell: pwsh
+        run: |
+          $common=(Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.dll -Recurse|Select-Object -First 1).FullName
+          dotnet run --project controller/qa/organization/LegacyModuleContracts.csproj -c Release -- $common
+          if($LASTEXITCODE -ne 0){throw 'Legacy PET common API contract mismatch'}
+      - name: Testar aplicador PET e recuperacao independente SYSTEM
+        if: success() || failure()
+        shell: pwsh
+        run: ./controller/qa/organization/test_pet_transaction.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integracao-componentes-Windows
+          path: |
+            pair-evidence/
+            evidence/

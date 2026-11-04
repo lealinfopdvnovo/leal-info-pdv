@@ -1,0 +1,24 @@
+name: Organizacao GLOBAL PET - inventario real Windows
+on:
+  push:
+    branches: [prepare/organizacao-global-pet-20261104]
+    paths: ['organization/**', '.github/workflows/organization_inventory.yml']
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Testar isolamento de candidatos
+        run: python -m unittest discover -s organization -v
+      - name: Verificar bytes dos cinco pacotes publicados
+        run: python organization/inventory.py
+      - name: Inventariar assemblies e recursos reais por cliente
+        shell: pwsh
+        run: ./organization/inventory.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: organizacao-inventario-real
+          path: organization-evidence/

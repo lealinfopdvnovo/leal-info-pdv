@@ -1,0 +1,64 @@
+using System.Net.Http;
+using System.Text.Json;
+using System.Windows.Forms;
+using LealInfo.Components;
+namespace LealInfoPDV;
+internal static class ComponentUpdateCenter
+{
+ const string Root="https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/";
+ internal static async Task ShowAsync(IWin32Window? owner,string identity,string commonVersion)
+ {
+  using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(15)};
+  http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-Components/1");
+  var issues=new List<string>();
+  async Task<Release?> Load(string path,ComponentKind kind)
+  {
+   try
+   {
+    using var response=await http.GetAsync(Root+path+"?t="+DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    if(response.StatusCode==System.Net.HttpStatusCode.NotFound)return null;
+    response.EnsureSuccessStatusCode();
+    using var doc=JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+    var d=doc.RootElement;
+    if(d.GetProperty("Component").GetString()!=kind.ToString())throw new InvalidDataException("Componente incompatível");
+    if(d.GetProperty("PetApiVersion").GetInt32()!=PetRuntime.ApiVersion)throw new InvalidDataException("Contrato incompatível");
+    string? target=d.TryGetProperty("TargetClientCode",out var t)?t.GetString():null;
+    return new Release(kind,d.GetProperty("Version").GetString()!,target,d.GetProperty("Sha256").GetString()!,d.GetProperty("PackageUrl").GetString()!);
+   }
+   catch(Exception e)when(e is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException or InvalidDataException)
+   {issues.Add(kind+": "+e.Message);return null;}
+  }
+  // Separate responses: an invalid PET feed must not prevent a valid GLOBAL selection.
+  var global=await Load("version.json",ComponentKind.GLOBAL);
+  var pet=ClientUpdateIdentity.IsValidClientCode(identity)?await Load("clients/"+identity+"/pet/version.json",ComponentKind.PET):null;
+  if(!ClientUpdateIdentity.IsValidClientCode(identity)){MessageBox.Show(owner,"Não foi possível verificar a identidade da instalação.","Atualizações");return;}
+  var installed=new Installed(commonVersion,PetRuntime.CurrentVersion??"",identity);
+  var selection=IndependentUpdater.Plan(installed,global,pet);
+  selection=new Selection(selection.Available,selection.Errors.Concat(issues).ToArray());
+  ComponentUpdateForm? view=null;
+  using(view=new ComponentUpdateForm(installed,selection,async release=>
+  {
+   string folder=Path.Combine(Path.GetTempPath(),"LealComponents-"+Guid.NewGuid().ToString("N"));
+   Directory.CreateDirectory(folder);string package=Path.Combine(folder,"update.zip");
+   try
+   {
+    await IndependentUpdater.StageAsync(release,identity,Path.Combine(folder,"stage"),async(uri,token)=>{
+     var bytes=await http.GetByteArrayAsync(uri,token);
+     await File.WriteAllBytesAsync(package,bytes,token);
+     return bytes;
+    });
+    view!.Hide();
+    try
+    {
+     if(release.Component==ComponentKind.GLOBAL)
+      await TransactionalUpdate.BeginAsync(package,release.Sha256,release.Version,"GLOBAL");
+     else
+      await PetTransactionalUpdate.BeginAsync(package,release.Sha256,release.Version,"PET",identity);
+    }
+    catch{view.Show();throw;}
+   }
+   finally{try{Directory.Delete(folder,true);}catch(IOException){}}
+  }))
+  {view.ShowDialog(owner);}
+ }
+}
