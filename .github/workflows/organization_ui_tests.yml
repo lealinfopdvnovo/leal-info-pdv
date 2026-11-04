@@ -1,0 +1,23 @@
+name: Organizacao par1-2 - interface Windows candidata
+on:
+  push:
+    branches: [prepare/organizacao-global-pet-20261104]
+    paths: ['qa/organization/**', '.github/workflows/organization_ui_tests.yml']
+permissions:
+  contents: read
+jobs:
+  ui:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Testar selecao e preparacao
+        run: dotnet run --project qa/organization/ComponentTests.csproj -c Release
+      - name: Testar interface e capturar WinForms real
+        run: dotnet run --project qa/organization/WindowsUiTests.csproj -c Release
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: par1-2-interface-real
+          path: pair-evidence/
