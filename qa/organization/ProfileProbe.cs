@@ -5,6 +5,15 @@ using System.Text.Json;
 using LealInfoPDV;
 static class ProfileProbe
 {
+ [System.Runtime.InteropServices.DllImport("user32.dll",SetLastError=true)]
+ static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int width,int height,uint flags);
+ static void Viewport(Form form,Size size){
+  if(!SetWindowPos(form.Handle,IntPtr.Zero,0,0,size.Width,size.Height,0x0016))throw new System.ComponentModel.Win32Exception();
+  var clock=System.Diagnostics.Stopwatch.StartNew();
+  while(clock.ElapsedMilliseconds<5000){Application.DoEvents();System.Threading.Thread.Sleep(4);}
+  if(form.ClientSize!=size)throw new Exception("Requested viewport "+size+" but Windows rendered "+form.ClientSize);
+  if(form.Opacity<0.99)throw new Exception("Login animation did not finish fading in");
+ }
  const BindingFlags Flags=BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic;
  static readonly Assembly App=typeof(IPetExtension).Assembly;
  static void Check(bool value,string text){if(!value)throw new Exception(text);Console.WriteLine("PASS "+text);}
@@ -20,7 +29,7 @@ static class ProfileProbe
   bool expected=identity is "001" or "003";
   foreach(var size in (expected?new[]{new Size(1366,768),new Size(1600,900),new Size(1920,1080)}:new[]{new Size(1366,768)})){
    using var login=new LoginForm{WindowState=FormWindowState.Normal,ClientSize=size};
-   login.Show();Application.DoEvents();Application.RaiseIdle(EventArgs.Empty);Application.DoEvents();
+   login.Show();Viewport(login,size);Application.RaiseIdle(EventArgs.Empty);Application.DoEvents();
    var seals=login.Controls.Find("petCertificationSeal",true);
    Check(seals.Length==(expected?1:0),"seal ownership limited to Loja/Casa for "+identity);
    var exit=(Button)login.Controls.Find("btnSairLogin",true).Single();
