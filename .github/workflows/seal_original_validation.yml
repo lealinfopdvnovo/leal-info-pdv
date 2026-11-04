@@ -1,7 +1,7 @@
 name: Selo original casa - validacao Windows sem publicacao
 on:
   push:
-    branches: [release/casa-selo-fundo-10465]
+    branches: [release/casa-selo-maior-10466]
 permissions:
   contents: read
   actions: read
@@ -39,7 +39,7 @@ jobs:
         shell: pwsh
         run: |
           $file='removal/qa/lia-removal/delivery.py'
-          [IO.File]::WriteAllText((Join-Path $pwd $file),(Get-Content $file -Raw).Replace('10.462','10.465'),[Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText((Join-Path $pwd $file),(Get-Content $file -Raw).Replace('10.462','10.466'),[Text.UTF8Encoding]::new($false))
           python -m unittest discover -s removal/qa/lia-removal -v
           if($LASTEXITCODE -ne 0){throw 'Structural tests failed'}
           python removal/qa/lia-removal/current_casa.py download
@@ -107,11 +107,11 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Current worker recovery failed'}
           Copy-Item evidence/rollback.json ../evidence/
           Pop-Location
-      - name: Empacotar10.465 e verificar dependencias e versao
+      - name: Empacotar10.466 e verificar dependencias e versao
         shell: pwsh
         run: |
           $version=[Reflection.AssemblyName]::GetAssemblyName((Resolve-Path candidate-publish/LealInfoPDV.dll).Path).Version.ToString()
-          if($version -ne '10.465.0.0'){throw "Unexpected candidate version $version"}
+          if($version -ne '10.466.0.0'){throw "Unexpected candidate version $version"}
           python removal/qa/lia-removal/delivery.py package
           if($LASTEXITCODE -ne 0){throw 'Candidate package/dependency contract failed'}
           New-Item -ItemType Directory previous -Force|Out-Null
@@ -119,7 +119,7 @@ jobs:
           New-Item -ItemType Directory candidate/qa/update-transaction -Force|Out-Null
           Copy-Item controller/qa/update-transaction/StartupFixture* candidate/qa/update-transaction/
           $fixture='candidate/qa/update-transaction/StartupFixture.cs'
-          (Get-Content $fixture -Raw).Replace('10.422','10.465')|Set-Content $fixture
+          (Get-Content $fixture -Raw).Replace('10.422','10.466')|Set-Content $fixture
           dotnet publish candidate/qa/update-transaction/StartupFixture.csproj -c Release -r win-x64 --self-contained true -o startup-fixture-publish
           if($LASTEXITCODE -ne 0){throw 'Startup recovery fixture failed'}
           ./controller/qa/update-transaction/test-transaction.ps1
