@@ -36,8 +36,9 @@ public sealed class ComponentUpdateForm : Form
             };
         }
         Card(ComponentKind.GLOBAL,"GLOBAL • BASE COMUM",installed.GlobalVersion,0);
-        Card(ComponentKind.PET,"PET • "+installed.Identity,installed.PetVersion,1);
-        var note=new Label{Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,Text=selection.Errors.Count>0?string.Join("\n",selection.Errors):"Cada componente conserva sua própria versão.\nBackup e recuperação devem ser confirmados pelo aplicador antes da instalação."};
+        var clientName=installed.Identity switch{"001"=>"LOJA DO ADRIANO","002"=>"GELAMAQ","003"=>"CASA DO ADRIANO","004"=>"CASA DO GENILSON",_=>installed.Identity};
+        Card(ComponentKind.PET,"PET • "+clientName,installed.PetVersion,1);
+        var note=new Label{Dock=DockStyle.Fill,TextAlign=ContentAlignment.MiddleCenter,Text=selection.Errors.Count>0?string.Join("\n",selection.Errors):"Atualizar o GLOBAL preserva as personalizações do PET.\nAtualizar o PET afeta somente este cliente."};
         table.Controls.Add(note,0,2);table.SetColumnSpan(note,2);
         FormClosing+=(_,e)=>{if(applying&&DialogResult!=DialogResult.OK)e.Cancel=true;};
     }
