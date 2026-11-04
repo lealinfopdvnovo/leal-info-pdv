@@ -146,7 +146,7 @@ public sealed class LoginForm : Form
             accent.BringToFront();
             int exitWidth=Math.Min(Math.Max(1,sw-32),(int)(150*DeviceDpi/96f));
             exit.SetBounds(Math.Max(0,sw-exitWidth-16),16,exitWidth,(int)(42*DeviceDpi/96f));
-            int sealSize=Math.Min(Math.Max(1,sw),Math.Max(1,(int)(74*DeviceDpi/96f)));
+            int sealSize=Math.Min(Math.Max(1,sw),Math.Max(1,(int)Math.Round(74*1.30*DeviceDpi/96.0)));
             int sealTop=exit.Bottom+(int)(12*DeviceDpi/96f);
             certificationSeal.Parent=identity;
             certificationSeal.SetBounds(Math.Max(0,Math.Min(sw-sealSize,exit.Left+(exit.Width-sealSize)/2))-identity.Left,sealTop-identity.Top,sealSize,sealSize);
