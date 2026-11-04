@@ -44,6 +44,12 @@ static class ProfileProbe
     main.Close();
    }
    Check(State()==before,"all QA database rows preserved by profile load and native main form");
+   using(var updates=new LealInfo.Components.ComponentUpdateForm(new LealInfo.Components.Installed("10.463",version,identity),new LealInfo.Components.Selection(Array.Empty<LealInfo.Components.Release>(),Array.Empty<string>()),_=>Task.CompletedTask)){
+    updates.Text="VALIDAÇÃO ISOLADA — central integrada ao PDV atual";
+    updates.Show();Application.DoEvents();
+    using(var image=new Bitmap(updates.Width,updates.Height)){updates.DrawToBitmap(image,new Rectangle(Point.Empty,image.Size));image.Save("pair-evidence/central-"+identity+"-Windows.png");}
+    updates.Close();
+   }
    File.WriteAllText("pair-evidence/profile-"+identity+".json",JsonSerializer.Serialize(new{Pass=true,Identity=identity,Version=version,ModuleSha256=hash,ActualProfileSource=true,OperationalCustomer=false,Published=false}));
    return 0;
   }catch(Exception error){Console.Error.WriteLine(error);return 1;}
