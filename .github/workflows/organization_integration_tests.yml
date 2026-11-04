@@ -43,6 +43,15 @@ jobs:
           if(Test-Path candidate/global.json){Copy-Item candidate/global.json global.json}
           New-Item -ItemType Directory qa/organization -Force|Out-Null
           Copy-Item controller/qa/organization/PetTransactionalUpdate.ps1 qa/organization/
+      - name: Recuperar arte e preparar selo exclusivo dos dois PETs
+        shell: pwsh
+        run: |
+          python controller/qa/organization/extract_loja_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Legacy Loja integrity verification failed'}
+          pwsh -NoProfile -File controller/qa/organization/extract_loja_worker.ps1
+          if($LASTEXITCODE -ne 0){throw 'Legacy Loja worker extraction failed'}
+          python controller/qa/organization/prepare_pet_seal.py
+          if($LASTEXITCODE -ne 0){throw 'Exclusive PET seal preparation failed'}
       - name: Compilar PDV real com atualizador independente
         shell: pwsh
         run: |
@@ -71,19 +80,12 @@ jobs:
             dotnet build "candidate/extensions/profiles/$id/Pet.csproj" -c Release
             if($LASTEXITCODE -ne 0){throw "Actual profile build failed $id"}
             $module=(Get-ChildItem "candidate/extensions/profiles/$id/bin/Release" -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
-            $version=if($id -eq '001'){'1.2'}else{'1.1'}
+            $version=(Get-Content pair-evidence/profile-versions.json -Raw|ConvertFrom-Json).$id
             dotnet run --project controller/qa/organization/ProfileProbe.csproj -c Release --no-build -- $id $version $module
             if($LASTEXITCODE -ne 0){throw "Actual profile compatibility failed $id"}
             dotnet run --project controller/qa/organization/BootstrapProbe.csproj -c Release --no-build -- $id $version $module $hostExe
             if($LASTEXITCODE -ne 0){throw "Atomic migration validation failed $id"}
           }
-      - name: Recuperar aplicador antigo real e arte aprovada da Loja
-        shell: pwsh
-        run: |
-          python controller/qa/organization/extract_loja_legacy.py
-          if($LASTEXITCODE -ne 0){throw 'Legacy Loja integrity verification failed'}
-          pwsh -NoProfile -File controller/qa/organization/extract_loja_worker.ps1
-          if($LASTEXITCODE -ne 0){throw 'Legacy Loja worker extraction failed'}
       - name: Testar transicao pelo aplicador original publicado da Loja
         shell: pwsh
         run: ./controller/qa/organization/test_legacy_loja_transition.ps1

@@ -1,0 +1,31 @@
+using System.Drawing;
+using System.Windows.Forms;
+internal static class ProfileCertificationSeal
+{
+ internal const float LogicalSide=96.2f; // Approved 74px seal enlarged by 30%.
+ internal static int PixelSide(int dpi)=>(int)Math.Round(LogicalSide*dpi/96f);
+ internal static void Apply(Form form)
+ {
+  if(form is not LealInfoPDV.LoginForm)return;
+  if(form.Controls.Find("petCertificationSeal",true).Length!=0)return;
+  var exit=form.Controls.Find("btnSairLogin",true).SingleOrDefault()??throw new InvalidOperationException("Botão SAIR não encontrado.");
+  var stage=exit.Parent??throw new InvalidOperationException("Palco de login ausente.");
+  var backdrop=stage.Controls.Cast<Control>().SingleOrDefault(c=>c.GetType().Name=="GlassBackdropPanel")??throw new InvalidOperationException("Fundo de login não encontrado.");
+  using var stream=typeof(ProfileExtension).Assembly.GetManifestResourceStream("PET.CertificationSeal")??throw new InvalidDataException("Arte aprovada ausente no PET.");
+  using var original=Image.FromStream(stream);
+  var bitmap=new Bitmap(original);
+  var seal=new PictureBox{Name="petCertificationSeal",AccessibleName="Certificação Leal Info PDV",BackColor=Color.Transparent,SizeMode=PictureBoxSizeMode.Zoom,Image=bitmap,TabStop=false};
+  backdrop.Controls.Add(seal);
+  void Layout(object? sender,EventArgs args){
+   var point=backdrop.PointToClient(stage.PointToScreen(new Point(exit.Left+exit.Width/2,exit.Bottom)));
+   int side=Math.Min(PixelSide(form.DeviceDpi),Math.Max(1,backdrop.ClientSize.Width));
+   int top=point.Y+(int)Math.Round(14*form.DeviceDpi/96f);
+   top=Math.Clamp(top,0,Math.Max(0,backdrop.ClientSize.Height-side));
+   seal.SetBounds(Math.Clamp(point.X-side/2,0,Math.Max(0,backdrop.ClientSize.Width-side)),top,side,side);
+   seal.BringToFront();
+  }
+  exit.LocationChanged+=Layout;exit.SizeChanged+=Layout;backdrop.Resize+=Layout;form.DpiChanged+=Layout;
+  seal.Disposed+=(_,_)=>{exit.LocationChanged-=Layout;exit.SizeChanged-=Layout;backdrop.Resize-=Layout;form.DpiChanged-=Layout;bitmap.Dispose();};
+  Layout(null,EventArgs.Empty);
+ }
+}
