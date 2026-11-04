@@ -8,6 +8,11 @@ function TaskName($p){
  try{'LealInfoPDV-PetRecovery-'+([BitConverter]::ToString($h.ComputeHash([Text.Encoding]::UTF8.GetBytes($p.ToUpperInvariant()))).Replace('-','').Substring(0,16))}finally{$h.Dispose()}
 }
 $results=@()
+$runnerOriginal=$env:RUNNER_TEMP
+$fixtureRoot=Join-Path $env:ProgramFiles ('LealInfoPDV-QA-PET-'+[Guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory $fixtureRoot|Out-Null
+$env:RUNNER_TEMP=$fixtureRoot
+try{
 foreach($case in @('success','bad-hash','wrong-identity','wrong-manifest','downgrade','traversal','global-pending','tampered-stage','interruption-system-recovery','health-failure')){
  $app=Join-Path $env:RUNNER_TEMP ('pet-transaction-'+[Guid]::NewGuid().ToString('N'))
  $pet=Join-Path $app 'Extensions/PET';New-Item -ItemType Directory $pet -Force|Out-Null
@@ -63,7 +68,13 @@ foreach($case in @('success','bad-hash','wrong-identity','wrong-manifest','downg
      Start-ScheduledTask -TaskName (TaskName $app)
      $deadline=(Get-Date).AddSeconds(40)
      do{Start-Sleep -Milliseconds 250;$state=Get-Content (Join-Path $app '.pdv-pet-update/journal.json') -Raw|ConvertFrom-Json}while($state.Phase -ne 'Recovered' -and (Get-Date) -lt $deadline)
-     if($state.Phase -ne 'Recovered'){throw 'Independent SYSTEM recovery failed'}
+     if($state.Phase -ne 'Recovered'){
+      Write-Output ($state|ConvertTo-Json -Depth 12)
+      Get-ScheduledTaskInfo -TaskName (TaskName $app)|Format-List|Out-String|Write-Output
+      $failureLog=Join-Path $app '.pdv-pet-update/recovery-error.log'
+      if(Test-Path $failureLog){Get-Content $failureLog|Write-Output}
+      throw 'Independent SYSTEM recovery failed'
+     }
     }
    }
   }
@@ -83,3 +94,8 @@ foreach($case in @('success','bad-hash','wrong-identity','wrong-manifest','downg
 New-Item -ItemType Directory pair-evidence -Force|Out-Null
 $results|ConvertTo-Json -Depth 8|Set-Content pair-evidence/pet-transaction-results.json -Encoding UTF8
 $global:LASTEXITCODE=0
+
+}finally{
+ $env:RUNNER_TEMP=$runnerOriginal
+ Remove-Item $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
