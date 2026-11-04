@@ -68,7 +68,16 @@
     "petCannotOverwriteBase": true,
     "independentSelection": true,
     "missingOrInvalidFeedDoesNotSuppressOtherComponent": true,
-    "activationWorkerIntegrated": false,
+    "activationWorkerIntegrated": true,
     "productionFeedsChanged": false
+  },
+  "validation": {
+    "run": "https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/41883953915",
+    "commit": "5c86c2f827f64838472d829ff5fbc2f2e46dffbe",
+    "currentCommonBaseline": "10.463",
+    "petTransactionScenarios": 10,
+    "startupChecks": 3,
+    "operationalCustomerTested": false,
+    "migrationVerified": false
   }
 }
