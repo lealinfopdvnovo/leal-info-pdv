@@ -1,0 +1,14 @@
+{
+  "Pass": true,
+  "Version": "10.463",
+  "PackageSha256": "4e9206eaf98cbdbdec01abfa30b4aa200aa0caebae65cb997fe38cc3b3656fcd",
+  "SourceBase": "98915ae5a9eb02825d77f74bb179e0ce27d65bd9",
+  "ProtectedSourceHashes": {
+    "Auth.cs": "ab7d07d50b2b3af8692ff20e87cad7e42d3c1ac43d4a56f85f53145b6663e17c",
+    "Database.cs": "4487fe8f131664deb445aea2ae63f867af2a91180efd0f86239f76dda3499814",
+    "Licensing/InstallationLicense.cs": "21e259dc6f097a2d610c04354e158f1d0ca3040de2ce5d2f76306d0ce4e87ffd"
+  },
+  "ApprovedCommonFeatures": "10.453",
+  "LiaButtonRemoved": true,
+  "Published": false
+}

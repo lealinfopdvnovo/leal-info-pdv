@@ -1,0 +1,62 @@
+[
+  {
+    "Pass": true,
+    "Scenario": "success",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  },
+  {
+    "Pass": true,
+    "Scenario": "bad-hash",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  },
+  {
+    "Pass": true,
+    "Scenario": "wrong-identity",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  },
+  {
+    "Pass": true,
+    "Scenario": "wrong-manifest",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  },
+  {
+    "Pass": true,
+    "Scenario": "downgrade",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  },
+  {
+    "Pass": true,
+    "Scenario": "traversal",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  },
+  {
+    "Pass": true,
+    "Scenario": "global-pending",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  },
+  {
+    "Pass": true,
+    "Scenario": "tampered-stage",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  },
+  {
+    "Pass": true,
+    "Scenario": "interruption-system-recovery",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  },
+  {
+    "Pass": true,
+    "Scenario": "health-failure",
+    "OperationalCustomer": false,
+    "BaseAndDataUnchanged": true
+  }
+]

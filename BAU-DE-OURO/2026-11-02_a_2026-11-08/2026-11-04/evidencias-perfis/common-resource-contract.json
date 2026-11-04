@@ -1,0 +1,11 @@
+{
+  "AddedResource": "PetTransactionalUpdateWorker",
+  "ExistingResourcesPreserved": [
+    "ReadyKitchen.photos.zip",
+    "LealInfoPDV.UpdateNotifier.Native",
+    "Kitchen.TablesPremium",
+    "TransactionalUpdateWorker"
+  ],
+  "Pass": true,
+  "Published": false
+}
