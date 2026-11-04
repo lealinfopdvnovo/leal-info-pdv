@@ -44,6 +44,7 @@ jobs:
           dotnet run --project candidate/qa/global-core/Tests.csproj -c Release -- $fixture
           if($LASTEXITCODE -ne 0){throw 'Real common contract regression failed'}
       - name: Testar aplicador PET e recuperacao independente SYSTEM
+        if: success() || failure()
         shell: pwsh
         run: ./controller/qa/organization/test_pet_transaction.ps1
       - uses: actions/upload-artifact@v4
