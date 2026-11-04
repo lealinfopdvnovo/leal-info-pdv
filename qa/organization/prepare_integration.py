@@ -16,6 +16,12 @@ p=root/'UpdateManager.cs';s=p.read_text(encoding='utf-8-sig')
 marker='public static async Task CheckForUpdatesAsync(IWin32Window? owner,bool silent)\n {'
 assert s.count(marker)==1
 s=s.replace(marker,marker+'\n  if(!silent){await ComponentUpdateCenter.ShowAsync(owner,GetClientCode(),CurrentVersion);return;}')
+s=s.replace('if(channel != "GLOBAL")','PetTransactionalUpdate.AssertNoPendingTransaction();\\n        if(channel != "GLOBAL")') if False else s
+p.write_text(s,encoding='utf-8')
+p=root/'TransactionalUpdate.cs';s=p.read_text(encoding='utf-8-sig')
+marker='if(channel != "GLOBAL")'
+assert s.count(marker)==1
+s=s.replace(marker,'PetTransactionalUpdate.AssertNoPendingTransaction();\n        '+marker)
 p.write_text(s,encoding='utf-8')
 p=root/'Program.cs';s=p.read_text(encoding='utf-8-sig')
 assert s.count('TransactionalUpdate.BeforeStartup();')==1
