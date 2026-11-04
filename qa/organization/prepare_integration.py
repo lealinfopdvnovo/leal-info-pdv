@@ -24,6 +24,10 @@ marker='if(channel != "GLOBAL")'
 assert s.count(marker)==1
 s=s.replace(marker,'PetTransactionalUpdate.AssertNoPendingTransaction();\n        '+marker)
 p.write_text(s,encoding='utf-8')
+p=root/'TransactionalUpdate.cs';s=p.read_text(encoding='utf-8-sig')
+assert s.count("        using var state=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,\"journal.json\")));")==1
+s=s.replace("        using var state=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,\"journal.json\")));","        var journal=Path.Combine(root,\"journal.json\");\n        if(!File.Exists(journal))return; // Startup nonce may belong to PET.\n        using var state=JsonDocument.Parse(File.ReadAllText(journal));")
+p.write_text(s,encoding='utf-8')
 p=root/'Program.cs';s=p.read_text(encoding='utf-8-sig')
 assert s.count('TransactionalUpdate.BeforeStartup();')==1
 s=s.replace('TransactionalUpdate.BeforeStartup();','TransactionalUpdate.BeforeStartup(); PetTransactionalUpdate.BeforeStartup();')
