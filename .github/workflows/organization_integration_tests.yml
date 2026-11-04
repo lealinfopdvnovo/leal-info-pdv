@@ -52,6 +52,9 @@ jobs:
           if(!$fixture){$fixture=(Get-ChildItem candidate/qa/global-core/fixture/bin/Release -Filter *.dll -Recurse|Where-Object{$_.Name -ne 'LealInfoPDV.dll'}|Select-Object -First 1).FullName}
           dotnet run --project candidate/qa/global-core/Tests.csproj -c Release -- $fixture
           if($LASTEXITCODE -ne 0){throw 'Real common contract regression failed'}
+          $env:PET_FIXTURE=$fixture
+          dotnet run --project controller/qa/organization/StartupProbe.csproj -c Release -- --update-transaction isolated-startup-probe
+          if($LASTEXITCODE -ne 0){throw 'Independent startup health regression failed'}
       - name: Testar aplicador PET e recuperacao independente SYSTEM
         if: success() || failure()
         shell: pwsh
