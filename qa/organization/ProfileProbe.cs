@@ -51,7 +51,7 @@ static class ProfileProbe
   if(expected){
    var type=AppDomain.CurrentDomain.GetAssemblies().Single(a=>a.GetName().Name=="LealInfoPDV.Pet.Profile").GetType("ProfileCertificationSeal",true)!;
    var pixelSide=type.GetMethod("PixelSide",BindingFlags.Static|BindingFlags.NonPublic)!;
-   foreach(int dpi in new[]{96,120,144})Check((int)pixelSide.Invoke(null,new object[]{dpi})!==(int)Math.Round(96.2*dpi/96.0),"seal DPI sizing verified at "+dpi);
+   foreach(int dpi in new[]{96,120,144})Check((int)pixelSide.Invoke(null,new object[]{dpi})! ==(int)Math.Round(96.2*dpi/96.0),"seal DPI sizing verified at "+dpi);
   }
  }
  [STAThread]static int Main(string[] args){

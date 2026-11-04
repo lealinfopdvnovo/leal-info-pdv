@@ -5,6 +5,7 @@ root=Path('candidate')
 source=Path('controller/qa/organization')
 asset=Path('pair-evidence/approved-seal-001.png')
 assert hashlib.sha256(asset.read_bytes()).hexdigest()=='8b2c8dac49d85710dbd4d80137d3a0a66df89f987353bc10451adf8c18525542'
+other_profiles={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for identity in ['002','004'] for p in (root/'extensions/profiles'/identity).rglob('*') if p.is_file()}
 protected={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in root.glob('*.cs')}
 profile=root/'extensions/profiles/Profile.cs'
 s=profile.read_text(encoding='utf-8-sig')
@@ -31,6 +32,7 @@ for identity,old,new in [('001','1.2','1.3'),('003','1.1','1.2')]:
  ET.SubElement(items,'EmbeddedResource',Include='CertificationSeal.png',LogicalName='PET.CertificationSeal')
  tree.write(p,encoding='utf-8',xml_declaration=True)
 assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==digest for p,digest in protected.items()),'PET preparation modified common source'
+assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==digest for p,digest in other_profiles.items()),'Other PET files changed'
 Path('pair-evidence/profile-versions.json').write_text(json.dumps(versions,indent=2),encoding='utf-8')
 Path('pair-evidence/seal-scope.json').write_text(json.dumps(dict(Pass=True,Owners=['001','003'],AssetSha256=hashlib.sha256(asset.read_bytes()).hexdigest(),CommonSourcesUnchanged=True,OtherProfilesUnchanged=True,LogicalSide=96.2,Published=False),indent=2),encoding='utf-8')
 print('PASS approved seal belongs only to Loja PET 1.3 / Casa PET 1.2; common source unchanged')
