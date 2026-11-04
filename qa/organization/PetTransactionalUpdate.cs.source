@@ -15,6 +15,15 @@ internal static class PetTransactionalUpdate
         var args=Environment.GetCommandLineArgs();
         return args.Length==3 && args[1]=="--update-transaction" ? args[2] : null;
     }
+    internal static void AssertNoPendingTransaction()
+    {
+        var journal=Path.Combine(AppContext.BaseDirectory,".pdv-pet-update","journal.json");
+        if(!File.Exists(journal))return;
+        using var state=JsonDocument.Parse(File.ReadAllText(journal));
+        var phase=state.RootElement.GetProperty("Phase").GetString();
+        if(phase is not ("Committed" or "Recovered" or "Aborted"))
+            throw new InvalidOperationException("A recuperação PET precisa concluir antes de outra atualização.");
+    }
     internal static void BeforeStartup()
     {
         var guard=Path.Combine(AppContext.BaseDirectory,".pdv-update","startup.guard");
