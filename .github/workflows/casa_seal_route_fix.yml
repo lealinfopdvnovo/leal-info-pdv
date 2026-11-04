@@ -1,0 +1,20 @@
+name: Corrigir rota Casa selo 10.463
+on:
+  push:
+    branches: [release/casa-selo-route-fix]
+permissions:
+  contents: read
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Corrigir somente URL Casa preservando pacote e demais feeds
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/seal-original/fix_casa_route.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: comprovante-rota-casa-selo
+          path: route-proof.json
