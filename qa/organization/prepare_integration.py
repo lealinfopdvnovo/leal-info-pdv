@@ -34,7 +34,7 @@ print('PASS production source integration prepared on isolated common base; no f
 
 # Keep regression fixtures relative to the actual source baseline.
 p=root/'qa/global-core/Program.cs';s=p.read_text(encoding='utf-8-sig')
-current=re.search(r'CurrentVersion="([^"]+)"',(root/'UpdateManager.cs').read_text()).group(1)
+current=re.search(r'CurrentVersion="([^"]+)"',(root/'UpdateManager.cs').read_text(encoding='utf-8-sig')).group(1)
 newer=current.rsplit('.',1)[0]+'.'+str(int(current.rsplit('.',1)[1])+1)
 s=s.replace('"10.443"','"'+current+'"').replace('"10.444"','"'+newer+'"')
 p.write_text(s,encoding='utf-8')
