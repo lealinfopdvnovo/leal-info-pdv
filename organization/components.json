@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "candidate-not-migrated",
+  "status": "candidate-integrated-migration-qa-not-published",
   "global": {
     "name": "GLOBAL",
     "feed": "version.json",
@@ -72,11 +72,27 @@
     "productionFeedsChanged": false
   },
   "validation": {
-    "run": "https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/41883953915",
-    "commit": "5c86c2f827f64838472d829ff5fbc2f2e46dffbe",
+    "run": "https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/41888293183",
+    "commit": "c7aa2df9ea8b58a881ff639aa452a79fd6fe5222",
     "currentCommonBaseline": "10.463",
+    "commonContractChecks": 45,
     "petTransactionScenarios": 10,
     "startupChecks": 3,
+    "profileCompatibilityQaVerified": [
+      "001",
+      "002",
+      "003",
+      "004"
+    ],
+    "bootstrapMigrationQaVerified": [
+      "001",
+      "002",
+      "003",
+      "004"
+    ],
+    "allCommonEmbeddedResourcesPreserved": true,
+    "legacyLojaWorkerScenarios": 4,
+    "positiveActivatedStartupQualified": false,
     "operationalCustomerTested": false,
     "migrationVerified": false
   }
