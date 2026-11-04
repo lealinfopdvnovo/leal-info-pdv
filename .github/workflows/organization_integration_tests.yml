@@ -5,6 +5,8 @@ on:
     paths: ['qa/organization/**', '.github/workflows/organization_integration_tests.yml']
 permissions:
   contents: read
+env:
+  PYTHONUTF8: '1'
 jobs:
   integrated:
     runs-on: windows-latest
@@ -17,6 +19,10 @@ jobs:
         with:
           path: candidate
           ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+      - uses: actions/checkout@v4
+        with:
+          path: recipe
+          ref: 78c0d348d210f9c9b2672746e09bcddbf4ba4474
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
@@ -25,6 +31,9 @@ jobs:
       - name: Integrar fontes candidatas sem substituir arquivos comerciais
         shell: pwsh
         run: |
+          python -m py_compile controller/qa/organization/prepare_current_common.py controller/qa/organization/prepare_integration.py
+          python controller/qa/organization/prepare_current_common.py
+          if($LASTEXITCODE -ne 0){throw 'Current common baseline reconstruction failed'}
           python -m py_compile controller/qa/organization/prepare_integration.py
           if($LASTEXITCODE -ne 0){throw 'Integration script syntax failed'}
           python controller/qa/organization/prepare_integration.py
