@@ -1,9 +1,9 @@
 import base64,hashlib,json,os,subprocess,zipfile,time,urllib.request
 from pathlib import Path
 C=os.environ['SEAL_CLIENT']; assert C in ('001','003')
-V={'001':'10.464','003':'10.464'}[C]
+V={'001':'10.464','003':'10.465'}[C]
 F={'001':'clients/001/version.json','003':'clients/003/global/version.json'}[C]
-PIN={'001':('10.463','99cb5c98c7d97b5af0ca361febf68502f40494c069658bd8099bbd5918f0ff88'),'003':('10.463','fb329c8520339ec8171946c7b4b2e8bae7036c9d49ed0823ed25e8a122680d24')}[C]
+PIN={'001':('10.463','99cb5c98c7d97b5af0ca361febf68502f40494c069658bd8099bbd5918f0ff88'),'003':('10.464','6e3608bc653285fa4c506053de665698faae2a7af50eb047af87ae7255a089ee')}[C]
 REPO='lealinfopdvnovo/leal-info-pdv-updates'
 def api(path,data=None,method='POST'):
  a=['gh','api',path]
