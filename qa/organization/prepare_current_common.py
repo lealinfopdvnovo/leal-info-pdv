@@ -31,7 +31,7 @@ p.write_text(s,encoding='utf-8')
 p=root/'UpdateManager.cs';s=p.read_text(encoding='utf-8-sig')
 s=re.sub(r'CurrentVersion="[^"]+"','CurrentVersion="10.463"',s);p.write_text(s,encoding='utf-8')
 p=root/'LealInfoPDV.csproj';s=p.read_text(encoding='utf-8-sig')
-s=re.sub(r'<(Version|AssemblyVersion|FileVersion)>[^<]+</\\1>',lambda m:f'<{m[1]}>10.463.'+('0' if m[1]=='Version' else '0.0')+f'</{m[1]}>',s)
+s=re.sub(r'<(Version|AssemblyVersion|FileVersion)>[^<]+</\1>',lambda m:f'<{m[1]}>10.463.'+('0' if m[1]=='Version' else '0.0')+f'</{m[1]}>',s)
 p.write_text(s,encoding='utf-8')
 assert all(hashlib.sha256((root/name).read_bytes()).hexdigest()==digest for name,digest in before.items())
 assert hashlib.sha256((root/'TransactionalUpdate.ps1').read_bytes()).hexdigest()=='30297a15f4eaa69a4f10853a4accc764e54506db74a2256110ba1656d86d386d'
