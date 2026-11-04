@@ -89,6 +89,14 @@ jobs:
       - name: Testar transicao pelo aplicador original publicado da Loja
         shell: pwsh
         run: ./controller/qa/organization/test_legacy_loja_transition.ps1
+      - name: Verificar contrato dos modulos PET originais sem executar codigo antigo
+        shell: pwsh
+        run: |
+          python controller/qa/organization/extract_gelamaq_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Legacy Gelamaq verification failed'}
+          $common=(Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.dll -Recurse|Select-Object -First 1).FullName
+          dotnet run --project controller/qa/organization/LegacyModuleContracts.csproj -c Release -- $common
+          if($LASTEXITCODE -ne 0){throw 'Legacy PET common API contract mismatch'}
       - name: Testar aplicador PET e recuperacao independente SYSTEM
         if: success() || failure()
         shell: pwsh
