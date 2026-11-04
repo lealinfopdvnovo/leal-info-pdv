@@ -55,6 +55,19 @@ jobs:
           $env:PET_FIXTURE=$fixture
           dotnet run --project controller/qa/organization/StartupProbe.csproj -c Release -- --update-transaction isolated-startup-probe
           if($LASTEXITCODE -ne 0){throw 'Independent startup health regression failed'}
+      - name: Testar os quatro perfis reais na base comum atual
+        shell: pwsh
+        run: |
+          dotnet build controller/qa/organization/ProfileProbe.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Profile probe compilation failed'}
+          foreach($id in @('001','003','002','004')){
+            dotnet build "candidate/extensions/profiles/$id/Pet.csproj" -c Release
+            if($LASTEXITCODE -ne 0){throw "Actual profile build failed $id"}
+            $module=(Get-ChildItem "candidate/extensions/profiles/$id/bin/Release" -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
+            $version=if($id -eq '001'){'1.2'}else{'1.1'}
+            dotnet run --project controller/qa/organization/ProfileProbe.csproj -c Release --no-build -- $id $version $module
+            if($LASTEXITCODE -ne 0){throw "Actual profile compatibility failed $id"}
+          }
       - name: Testar aplicador PET e recuperacao independente SYSTEM
         if: success() || failure()
         shell: pwsh
