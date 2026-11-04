@@ -38,3 +38,13 @@ assert hashlib.sha256((root/'TransactionalUpdate.ps1').read_bytes()).hexdigest()
 Path('pair-evidence').mkdir(exist_ok=True)
 Path('pair-evidence/current-baseline.json').write_text(json.dumps(dict(Pass=True,Version=feed['Version'],PackageSha256=feed['Sha256'],SourceBase=feed['SourceBase'],ProtectedSourceHashes=before,ApprovedCommonFeatures='10.453',LiaButtonRemoved=True,Published=False),indent=2),encoding='utf-8')
 print('PASS current 10.463 common baseline reconstructed; authentication, database, licensing and recovery worker preserved')
+
+# All project-reference builds use the exact distributed Windows SDK package.
+deps=json.loads((published/'LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
+sdk=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.Windows.SDK.NET.Ref/'))
+import xml.etree.ElementTree as ET
+props=root/'Directory.Build.props'
+tree=ET.parse(props) if props.exists() else ET.ElementTree(ET.Element('Project'))
+group=ET.SubElement(tree.getroot(),'PropertyGroup')
+ET.SubElement(group,'WindowsSdkPackageVersion').text=sdk
+tree.write(props,encoding='utf-8',xml_declaration=True)
