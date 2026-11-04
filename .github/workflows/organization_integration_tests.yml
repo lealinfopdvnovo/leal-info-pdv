@@ -9,6 +9,7 @@ jobs:
   integrated:
     runs-on: windows-latest
     timeout-minutes: 30
+    # Validate the single common feed and independent PET recovery.
     steps:
       - uses: actions/checkout@v4
         with: {path: controller}
