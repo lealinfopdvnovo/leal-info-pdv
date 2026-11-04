@@ -53,4 +53,5 @@ props=root/'Directory.Build.props'
 tree=ET.parse(props) if props.exists() else ET.ElementTree(ET.Element('Project'))
 group=ET.SubElement(tree.getroot(),'PropertyGroup')
 ET.SubElement(group,'WindowsSdkPackageVersion').text=sdk
+ET.SubElement(group,'NotifierPayload').text=str((root/'current-embedded/Notifier.exe').resolve())
 tree.write(props,encoding='utf-8',xml_declaration=True)

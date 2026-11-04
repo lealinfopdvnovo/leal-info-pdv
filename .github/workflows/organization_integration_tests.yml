@@ -36,6 +36,8 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Current common baseline reconstruction failed'}
           python -m py_compile controller/qa/organization/prepare_integration.py
           if($LASTEXITCODE -ne 0){throw 'Integration script syntax failed'}
+          pwsh -NoProfile -File controller/qa/organization/common_resource_contract.ps1 -Mode Extract
+          if($LASTEXITCODE -ne 0){throw 'Current common resource extraction failed'}
           python controller/qa/organization/prepare_integration.py
           if($LASTEXITCODE -ne 0){throw 'Integration failed'}
           if(Test-Path candidate/global.json){Copy-Item candidate/global.json global.json}
@@ -46,6 +48,8 @@ jobs:
         run: |
           dotnet build candidate/LealInfoPDV.csproj -c Release -p:UseSharedCompilation=false
           if($LASTEXITCODE -ne 0){throw 'Integrated application compilation failed'}
+          pwsh -NoProfile -File controller/qa/organization/common_resource_contract.ps1 -Mode Verify
+          if($LASTEXITCODE -ne 0){throw 'Common resource regression detected'}
           dotnet build candidate/qa/global-core/fixture/Pet.csproj -c Release
           if($LASTEXITCODE -ne 0){throw 'PET fixture compilation failed'}
           $fixture=(Get-ChildItem candidate/qa/global-core/fixture/bin/Release -Filter PetFixture.dll -Recurse|Select-Object -First 1).FullName
