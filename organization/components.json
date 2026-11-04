@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "status": "candidate-not-migrated",
+  "global": {
+    "name": "GLOBAL",
+    "feed": "version.json",
+    "versionScheme": "10.x",
+    "audience": [
+      "001",
+      "002",
+      "003",
+      "004"
+    ],
+    "payload": [
+      "LealInfoPDV.exe",
+      "LealInfoPDV.dll",
+      "LealInfoPDV.deps.json"
+    ]
+  },
+  "pets": [
+    {
+      "id": "001",
+      "name": "Loja Leal Info",
+      "versionScheme": "1.x",
+      "proposedFeed": "clients/001/pet/version.json",
+      "payloadRoot": "Extensions/PET",
+      "legacyVersion": "1.2",
+      "legacyResource": "Loja.PET.1.2",
+      "legacyResourceSha256": "054E30F5ED5D40A0B539511F50C4415F346B8EC20CBEFB325ACF364D0F2ACD8F",
+      "extractionAndMigrationVerified": false
+    },
+    {
+      "id": "002",
+      "name": "Gelamaq",
+      "versionScheme": "1.x",
+      "proposedFeed": "clients/002/pet/version.json",
+      "payloadRoot": "Extensions/PET",
+      "legacyVersion": "1.1",
+      "legacyResource": "Gelamaq.PET.payload",
+      "legacyResourceSha256": "887AD549A9764770FC2E8924B13FF9D56E96E5511BF90A2647670C6830987034",
+      "extractionAndMigrationVerified": false
+    },
+    {
+      "id": "003",
+      "name": "Casa do Adriano",
+      "versionScheme": "1.x",
+      "proposedFeed": "clients/003/pet/version.json",
+      "payloadRoot": "Extensions/PET",
+      "legacyVersion": "1.1",
+      "legacyResource": "Casa.Gemini.Bundle",
+      "legacyResourceSha256": "3BD817CEFB3AC5C815813D144D5442C062162E20C26B725A51DCE32309E73918",
+      "extractionAndMigrationVerified": false
+    },
+    {
+      "id": "004",
+      "name": "Casa do Genilson",
+      "versionScheme": "1.x",
+      "proposedFeed": "clients/004/pet/version.json",
+      "payloadRoot": "Extensions/PET",
+      "legacyVersion": null,
+      "legacyResource": null,
+      "legacyResourceSha256": null,
+      "extractionAndMigrationVerified": false
+    }
+  ],
+  "rules": {
+    "globalCannotOverwritePet": true,
+    "petCannotOverwriteBase": true,
+    "independentSelection": true,
+    "missingOrInvalidFeedDoesNotSuppressOtherComponent": true,
+    "activationWorkerIntegrated": false,
+    "productionFeedsChanged": false
+  }
+}
