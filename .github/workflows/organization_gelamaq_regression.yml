@@ -1,0 +1,66 @@
+name: PET Gelamaq - regressao direcionada de identidade e financeiro
+on:
+  push:
+    branches: [prepare/organizacao-global-pet-20261104]
+    paths: ['qa/organization/PreservedPresentation.cs.source', '.github/workflows/organization_gelamaq_regression.yml']
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  gelamaq:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with: {path: candidate, ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9}
+      - uses: actions/checkout@v4
+        with: {path: recipe, ref: 78c0d348d210f9c9b2672746e09bcddbf4ba4474}
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Preparar mesma candidata aprovada
+        shell: pwsh
+        run: |
+          python controller/qa/organization/prepare_current_common.py
+          if($LASTEXITCODE -ne 0){throw 'Current baseline failed'}
+          pwsh -NoProfile -File controller/qa/organization/common_resource_contract.ps1 -Mode Extract
+          if($LASTEXITCODE -ne 0){throw 'Published resource extraction failed'}
+          python controller/qa/organization/prepare_integration.py
+          if($LASTEXITCODE -ne 0){throw 'Integration failed'}
+          python controller/qa/organization/extract_loja_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Loja verification failed'}
+          pwsh -NoProfile -File controller/qa/organization/extract_loja_worker.ps1
+          if($LASTEXITCODE -ne 0){throw 'Approved asset extraction failed'}
+          python controller/qa/organization/prepare_pet_seal.py
+          if($LASTEXITCODE -ne 0){throw 'PET preparation failed'}
+          python controller/qa/organization/extract_gelamaq_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Gelamaq verification failed'}
+          pwsh -NoProfile -File controller/qa/organization/extract_preserved_presentations.ps1
+          if($LASTEXITCODE -ne 0){throw 'Original module extraction failed'}
+          python controller/qa/organization/prepare_finance_compat.py
+          if($LASTEXITCODE -ne 0){throw 'Financial contract failed'}
+          Copy-Item candidate/global.json global.json
+      - name: Verificar somente identidade e financeiro corrigidos
+        shell: pwsh
+        run: |
+          dotnet build candidate/extensions/profiles/002/Pet.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Gelamaq build failed'}
+          dotnet build candidate/extensions/profiles/001/Pet.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Shared helper compilation failed'}
+          $module=(Get-ChildItem candidate/extensions/profiles/002/bin/Release -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
+          dotnet run --project controller/qa/organization/ProfileProbe.csproj -c Release -- 002 1.1 $module
+          if($LASTEXITCODE -ne 0){throw 'Gelamaq identity regression failed'}
+          dotnet run --project controller/qa/organization/GelamaqFinancialProbe.csproj -c Release -- $module
+          if($LASTEXITCODE -ne 0){throw 'Gelamaq financial regression failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gelamaq-regressao-direcionada
+          path: |
+            pair-evidence/
+            evidence/

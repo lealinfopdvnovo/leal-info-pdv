@@ -20,6 +20,12 @@ internal static class PreservedPresentation
   }
   static IEnumerable<Control> Walk(Control c)=>c.Controls.Cast<Control>().SelectMany(x=>new[]{x}.Concat(Walk(x)));
  }
+ sealed class Financial(IPetExtension original):IPetExtension,IFinancialMovementsPet{
+  readonly IPetExtension owner=ProfilePresentation.Create();
+  public void Customize(Form form){original.Customize(form);owner.Customize(form);}
+  public string PrepareSql(string sql)=>((IFinancialMovementsPet)original).PrepareSql(sql);
+  public System.Data.DataTable ReadTable(System.Data.IDataReader reader)=>((IFinancialMovementsPet)original).ReadTable(reader);
+ }
  internal static IPetExtension Create(){
   var id=ProfileExtension.Identity;
   var expected=id switch{"001"=>"054E30F5ED5D40A0B539511F50C4415F346B8EC20CBEFB325ACF364D0F2ACD8F","002"=>"887AD549A9764770FC2E8924B13FF9D56E96E5511BF90A2647670C6830987034",_=>throw new InvalidDataException("Proprietário do módulo original inválido.")};
@@ -30,6 +36,6 @@ internal static class PreservedPresentation
   var types=assembly.GetExportedTypes().Where(t=>!t.IsAbstract&&typeof(IPetExtension).IsAssignableFrom(t)).ToArray();
   if(types.Length!=1)throw new InvalidDataException("Contrato da personalização original incompatível.");
   var extension=(IPetExtension)Activator.CreateInstance(types[0])!;
-  return id=="001"?new Versioned(extension):extension;
+  return id=="001"?new Versioned(extension):new Financial(extension);
  }
 }

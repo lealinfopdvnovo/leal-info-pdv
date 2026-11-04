@@ -2,7 +2,7 @@ name: Organizacao GLOBAL PET - integracao e aplicador externo
 on:
   push:
     branches: [prepare/organizacao-global-pet-20261104]
-    paths: ['qa/organization/**', '.github/workflows/organization_integration_tests.yml']
+    paths: ['qa/organization/**', '!qa/organization/PreservedPresentation.cs.source', '.github/workflows/organization_integration_tests.yml']
 permissions:
   contents: read
 env:
