@@ -44,6 +44,11 @@ static class BootstrapProbe
    }
    byte[] trailer=new byte[56];BinaryPrimitives.WriteInt64LittleEndian(trailer,capsule.Length);SHA256.HashData(capsule).CopyTo(trailer,8);Encoding.ASCII.GetBytes("LEAL-PET-BOOT-01").CopyTo(trailer,40);
    byte[] host=File.ReadAllBytes(exe).Concat(capsule).Concat(trailer).ToArray();
+   var payload=Path.Combine("pair-fixtures",identity);Directory.CreateDirectory(payload);
+   File.WriteAllBytes(Path.Combine(payload,"LealInfoPDV.exe"),host);
+   foreach(var name in new[]{"LealInfoPDV.dll","LealInfoPDV.deps.json"})File.Copy(Path.Combine(Path.GetDirectoryName(exe)!,name),Path.Combine(payload,name),true);
+   using(var zip=ZipFile.Open(Path.Combine(payload,"transition.zip"),ZipArchiveMode.Create))
+    foreach(var name in new[]{"LealInfoPDV.exe","LealInfoPDV.dll","LealInfoPDV.deps.json"})zip.CreateEntryFromFile(Path.Combine(payload,name),name,CompressionLevel.Optimal);
    string Fixture(string kind){
     var folder=Path.Combine(Environment.GetEnvironmentVariable("RUNNER_TEMP")!,"bootstrap-"+identity+"-"+kind+"-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(folder);
     File.WriteAllText(Path.Combine(folder,"QA-ISOLATED"),"disposable fixture");
