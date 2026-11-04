@@ -1,0 +1,54 @@
+name: Organizacao GLOBAL PET - integracao e aplicador externo
+on:
+  push:
+    branches: [prepare/organizacao-global-pet-20261104]
+    paths: ['qa/organization/**', '.github/workflows/organization_integration_tests.yml']
+permissions:
+  contents: read
+jobs:
+  integrated:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Integrar fontes candidatas sem substituir arquivos comerciais
+        shell: pwsh
+        run: |
+          python -m py_compile controller/qa/organization/prepare_integration.py
+          if($LASTEXITCODE -ne 0){throw 'Integration script syntax failed'}
+          python controller/qa/organization/prepare_integration.py
+          if($LASTEXITCODE -ne 0){throw 'Integration failed'}
+          if(Test-Path candidate/global.json){Copy-Item candidate/global.json global.json}
+          New-Item -ItemType Directory qa/organization -Force|Out-Null
+          Copy-Item controller/qa/organization/PetTransactionalUpdate.ps1 qa/organization/
+      - name: Compilar PDV real com atualizador independente
+        shell: pwsh
+        run: |
+          dotnet build candidate/LealInfoPDV.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Integrated application compilation failed'}
+          dotnet build candidate/qa/global-core/fixture/Pet.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'PET fixture compilation failed'}
+          $fixture=(Get-ChildItem candidate/qa/global-core/fixture/bin/Release -Filter PetFixture.dll -Recurse|Select-Object -First 1).FullName
+          if(!$fixture){$fixture=(Get-ChildItem candidate/qa/global-core/fixture/bin/Release -Filter *.dll -Recurse|Where-Object{$_.Name -ne 'LealInfoPDV.dll'}|Select-Object -First 1).FullName}
+          dotnet run --project candidate/qa/global-core/Tests.csproj -c Release -- $fixture
+          if($LASTEXITCODE -ne 0){throw 'Real common contract regression failed'}
+      - name: Testar aplicador PET e recuperacao independente SYSTEM
+        shell: pwsh
+        run: ./controller/qa/organization/test_pet_transaction.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integracao-componentes-Windows
+          path: |
+            pair-evidence/
+            evidence/
