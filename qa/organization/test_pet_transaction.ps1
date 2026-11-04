@@ -1,6 +1,6 @@
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated runner only'}
-$worker=(Resolve-Path qa/organization/PetTransactionalUpdate.ps1).Path
+$worker=(Resolve-Path (Join-Path $PSScriptRoot 'PetTransactionalUpdate.ps1')).Path
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 function Hash($p){(Get-FileHash -LiteralPath $p -Algorithm SHA256).Hash.ToLowerInvariant()}
 function TaskName($p){
