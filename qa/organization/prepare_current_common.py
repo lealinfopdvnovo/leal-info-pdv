@@ -23,9 +23,15 @@ body=source[source.index('# Apply reviewed features only;'):source.index("allowe
 namespace=dict(root=root,channel='GLOBAL',assets=recipe/'qa/global-453/assets',Path=Path,re=re,subprocess=__import__('subprocess'),json=json)
 exec(compile(body,'approved-common-features','exec'),namespace)
 sys.path.insert(0,str((recipe/'qa/lia-removal').resolve()))
-from remove_button import transform
+from remove_button import transform, LISTENER
 p=root/'MainForm.cs'
-s,removed=transform(p.read_text(encoding='utf-8-sig'))
+s=p.read_text(encoding='utf-8-sig')
+if 'btnAssistenteAI' in s:
+ s,removed=transform(s)
+else:
+ assert not any(token in s for token in ('licAiButton','licStatusCts','licPulseTimer','EncerrarLicAiComPdv'))
+ assert s.count(LISTENER)==1
+ s=s.replace(LISTENER,'',1)
 p.write_text(s,encoding='utf-8')
 # Metadata matches the CURRENT baseline; no downgrade to 10.445 or 10.453.
 p=root/'UpdateManager.cs';s=p.read_text(encoding='utf-8-sig')
