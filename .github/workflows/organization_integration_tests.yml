@@ -73,6 +73,13 @@ jobs:
             dotnet run --project controller/qa/organization/BootstrapProbe.csproj -c Release --no-build -- $id $version $module $hostExe
             if($LASTEXITCODE -ne 0){throw "Atomic migration validation failed $id"}
           }
+      - name: Recuperar aplicador antigo real e arte aprovada da Loja
+        shell: pwsh
+        run: |
+          python controller/qa/organization/extract_loja_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Legacy Loja integrity verification failed'}
+          pwsh -NoProfile -File controller/qa/organization/extract_loja_worker.ps1
+          if($LASTEXITCODE -ne 0){throw 'Legacy Loja worker extraction failed'}
       - name: Testar aplicador PET e recuperacao independente SYSTEM
         if: success() || failure()
         shell: pwsh
