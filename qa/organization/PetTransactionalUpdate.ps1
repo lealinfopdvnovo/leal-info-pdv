@@ -162,6 +162,7 @@ foreach($path in @($App,(Join-Path $App 'Extensions'),$targetPath,$root,$sharedR
  if(Test-Path $path){if(((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){throw 'Redirected component path'}}
 }
 New-Item -ItemType Directory $root,$sharedRoot -Force|Out-Null
+if($Mode -eq 'Apply' -and !$fixture){throw 'Direct apply is restricted to isolated tests; production requires health handoff'}
 # The worker is elevated by the ordinary update UI; the task runs independently as SYSTEM.
 $gate=$null
 try{
