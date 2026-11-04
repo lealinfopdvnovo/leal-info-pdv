@@ -22,7 +22,7 @@ p.write_text(s,encoding='utf-8')
 p=root/'TransactionalUpdate.cs';s=p.read_text(encoding='utf-8-sig')
 marker='if(channel != "GLOBAL")'
 assert s.count(marker)==1
-s=s.replace(marker,'PetTransactionalUpdate.AssertNoPendingTransaction();\n        '+marker)
+s=s.replace(marker,'PetTransactionalUpdate.AssertNoPendingTransaction();\n        if(string.IsNullOrWhiteSpace(PetRuntime.CurrentVersion))throw new InvalidOperationException(\"A personalização PET precisa estar migrada e validada antes da atualização GLOBAL.\");\n        '+marker)
 p.write_text(s,encoding='utf-8')
 p=root/'TransactionalUpdate.cs';s=p.read_text(encoding='utf-8-sig')
 assert s.count("        using var state=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,\"journal.json\")));")==1
