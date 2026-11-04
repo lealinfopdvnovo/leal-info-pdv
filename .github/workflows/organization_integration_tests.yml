@@ -52,6 +52,12 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Legacy Loja worker extraction failed'}
           python controller/qa/organization/prepare_pet_seal.py
           if($LASTEXITCODE -ne 0){throw 'Exclusive PET seal preparation failed'}
+          python controller/qa/organization/extract_gelamaq_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Original Gelamaq verification failed'}
+          pwsh -NoProfile -File controller/qa/organization/extract_preserved_presentations.ps1
+          if($LASTEXITCODE -ne 0){throw 'Original presentation extraction failed'}
+          python controller/qa/organization/prepare_finance_compat.py
+          if($LASTEXITCODE -ne 0){throw 'Approved financial compatibility integration failed'}
       - name: Compilar PDV real com atualizador independente
         shell: pwsh
         run: |
@@ -86,14 +92,18 @@ jobs:
             dotnet run --project controller/qa/organization/BootstrapProbe.csproj -c Release --no-build -- $id $version $module $hostExe
             if($LASTEXITCODE -ne 0){throw "Atomic migration validation failed $id"}
           }
+      - name: Testar relatorio financeiro com modulo original da Gelamaq
+        shell: pwsh
+        run: |
+          $module=(Get-ChildItem candidate/extensions/profiles/002/bin/Release -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
+          dotnet run --project controller/qa/organization/GelamaqFinancialProbe.csproj -c Release -- $module
+          if($LASTEXITCODE -ne 0){throw 'Actual Gelamaq financial regression failed'}
       - name: Testar transicao pelo aplicador original publicado da Loja
         shell: pwsh
         run: ./controller/qa/organization/test_legacy_loja_transition.ps1
       - name: Verificar contrato dos modulos PET originais sem executar codigo antigo
         shell: pwsh
         run: |
-          python controller/qa/organization/extract_gelamaq_legacy.py
-          if($LASTEXITCODE -ne 0){throw 'Legacy Gelamaq verification failed'}
           $common=(Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.dll -Recurse|Select-Object -First 1).FullName
           dotnet run --project controller/qa/organization/LegacyModuleContracts.csproj -c Release -- $common
           if($LASTEXITCODE -ne 0){throw 'Legacy PET common API contract mismatch'}

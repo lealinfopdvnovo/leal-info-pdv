@@ -1,0 +1,35 @@
+using System.Reflection;
+using System.Runtime.Loader;
+using System.Security.Cryptography;
+using System.Text.RegularExpressions;
+using LealInfoPDV;
+internal static class PreservedPresentation
+{
+ sealed class Context:AssemblyLoadContext{
+  internal Context():base("Leal-PET-original-"+Guid.NewGuid().ToString("N"),false){}
+  protected override Assembly? Load(AssemblyName name)=>name.Name==typeof(IPetExtension).Assembly.GetName().Name?typeof(IPetExtension).Assembly:null;
+ }
+ sealed class Versioned(IPetExtension original):IPetExtension{
+  public void Customize(Form form){
+   original.Customize(form);
+   if(form is not MainForm)return;
+   string Replace(string value)=>Regex.Replace(value,@"PET V1\.2\b","PET V"+ProfileExtension.Version);
+   form.Text=Replace(form.Text);
+   foreach(var strip in Walk(form).OfType<StatusStrip>())
+    foreach(var label in strip.Items.OfType<ToolStripStatusLabel>())if(label.Name=="loja_pet_version")label.Text=Replace(label.Text);
+  }
+  static IEnumerable<Control> Walk(Control c)=>c.Controls.Cast<Control>().SelectMany(x=>new[]{x}.Concat(Walk(x)));
+ }
+ internal static IPetExtension Create(){
+  var id=ProfileExtension.Identity;
+  var expected=id switch{"001"=>"054E30F5ED5D40A0B539511F50C4415F346B8EC20CBEFB325ACF364D0F2ACD8F","002"=>"887AD549A9764770FC2E8924B13FF9D56E96E5511BF90A2647670C6830987034",_=>throw new InvalidDataException("Proprietário do módulo original inválido.")};
+  using var resource=typeof(ProfileExtension).Assembly.GetManifestResourceStream("PET.PreservedPresentation")??throw new InvalidDataException("Personalização original ausente.");
+  using var bytes=new MemoryStream();resource.CopyTo(bytes);
+  if(Convert.ToHexString(SHA256.HashData(bytes.ToArray()))!=expected)throw new InvalidDataException("Integridade da personalização original inválida.");
+  bytes.Position=0;var assembly=new Context().LoadFromStream(bytes);
+  var types=assembly.GetExportedTypes().Where(t=>!t.IsAbstract&&typeof(IPetExtension).IsAssignableFrom(t)).ToArray();
+  if(types.Length!=1)throw new InvalidDataException("Contrato da personalização original incompatível.");
+  var extension=(IPetExtension)Activator.CreateInstance(types[0])!;
+  return id=="001"?new Versioned(extension):extension;
+ }
+}
