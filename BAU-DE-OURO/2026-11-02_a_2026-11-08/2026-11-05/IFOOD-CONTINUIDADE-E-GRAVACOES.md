@@ -61,7 +61,7 @@ As imagens foram vistas nesta conversa. As referências abaixo identificam os or
 
 ## Pasta e pacote para suporte
 
-[Pasta de materiais para homologação](../../../VIDEOS-HOMOLOGACAO-IFOOD/README.md).
+[Pasta de materiais para homologação](../../VIDEOS-HOMOLOGACAO-IFOOD/README.md).
 
 Combinado:
 1. Receber os arquivos que Adriano enviar nesta conversa.
