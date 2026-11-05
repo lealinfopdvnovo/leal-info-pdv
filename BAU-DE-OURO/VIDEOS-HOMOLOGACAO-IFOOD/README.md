@@ -29,3 +29,13 @@ Chamado de homologação: 35288437.
 Usar subpastas por data, por exemplo `2026-11-05/`, e nomes descritivos por cenário. Preservar a extensão e a qualidade do vídeo original. Não renomear um ensaio como evidência final.
 
 [Voltar ao Baú de Ouro](../README.md)
+
+## Continuidade e entrega completa — 05/11/2026
+
+[Passos desta conversa, evidências e ponto exato de retomada](../2026-11-02_a_2026-11-08/2026-11-05/IFOOD-CONTINUIDADE-E-GRAVACOES.md).
+
+Adriano confirmou que esta pasta reunirá **todo o material exigido pelo suporte**, incluindo vídeos, logs oficiais, relatórios e identificação dos testes, organizados por cenário e data. Manter os vídeos separados por cenário e os materiais de apoio identificados.
+
+Ao concluir a coleta e a conferência, preparar **um ZIP completo**, verificar seu conteúdo e fornecer download a Adriano. Ele vai descompactar e encaminhar ao suporte. O ZIP ainda não foi criado; nenhum vídeo foi recebido nesta pasta. O pedido anterior do suporte por links de vídeos continua registrado; não presumir que o ZIP substitui o formato de envio exigido.
+
+**Retomada atual:** loja aberta confirmada no Separador e no app, R8 conectado segundo Adriano, arroz 3 e feijão 3 na sacola; açúcar indisponível. Orientada consulta em Produtos → Inativos, mas reativação ainda não confirmada. Agora é ensaio; depois será criado um novo pedido com gravação desde o início. Cupom dispensado segundo relato do usuário.
