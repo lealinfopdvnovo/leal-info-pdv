@@ -29,3 +29,7 @@ Não guardar segredos ou dados privados de consumidores. Não alterar PDV, GLOBA
 ## Logs e relatórios
 
 [Consultar logs oficiais e relatórios do iFood](./LOGS-IFOOD.md).
+
+## Vídeos de homologação iFood
+
+[Gravações para homologação do iFood — pasta e inventário](./VIDEOS-HOMOLOGACAO-IFOOD/README.md).
