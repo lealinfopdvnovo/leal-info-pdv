@@ -33,3 +33,10 @@ Não guardar segredos ou dados privados de consumidores. Não alterar PDV, GLOBA
 ## Vídeos de homologação iFood
 
 [Gravações para homologação do iFood — pasta e inventário](./VIDEOS-HOMOLOGACAO-IFOOD/README.md).
+
+## Organização de 09/11/2026
+
+- [09/11 a 15/11/2026](./2026-11-09_a_2026-11-15/README.md)
+- [Consolidação de todos os projetos e pendências](./2026-11-09_a_2026-11-15/2026-11-09/CONSOLIDACAO-PROJETOS.md)
+
+Inclui aplicativos ANGRA VIDROS, SpeedFood e Salão MJ, além dos módulos históricos. Registros anteriores preservados; resultados relatados são separados de testes e publicações comprovados.
