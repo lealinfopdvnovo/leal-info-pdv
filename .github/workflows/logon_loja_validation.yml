@@ -1,7 +1,7 @@
-name: LOGON Loja - correcao e validacao Windows
+name: Selo Loja - fundo integrado - validacao Windows
 on:
   push:
-    branches: [fix/loja-logon-backup-20261106]
+    branches: [fix/loja-selo-fundo-20261110]
 permissions:
   contents: read
   actions: read
@@ -137,25 +137,3 @@ jobs:
           path: |
             release-output/
             evidence/
-  publish:
-    needs: windows
-    runs-on: ubuntu-latest
-    concurrency:
-      group: seal-updates-exclusive
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: lia-removal-10463-001
-          path: proof
-      - name: Publicar correcao somente Loja com feed fixado e testes aprovados
-        env:
-          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
-          SEAL_CLIENT: '001'
-        run: python qa/logon-loja/publish.py
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: publicacao-logon-loja
-          path: publication-proof.json
