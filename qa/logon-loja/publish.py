@@ -2,9 +2,9 @@ import base64,hashlib,json,os,subprocess,zipfile,time,urllib.request
 from pathlib import Path
 C=os.environ['SEAL_CLIENT']; assert C in ('001','003')
 assert C == '001'
-V='10.466'
+V='10.467'
 F={'001':'clients/001/version.json','003':'clients/003/global/version.json'}[C]
-PIN={'001':('10.465','728b20ff2e38d96deaf538ad45e6297bced845a6460c9a827a17ade3960d5fd6'),'003':('10.462','a9e140e1f02d004dbcc4a37897dfc7f832af1d3148e1aca0d083383fa74c2cfe')}[C]
+PIN={'001':('10.466','f98e67668e8632f651bfa6f1c40095032d5d16ec7e3090594d2f869408986865'),'003':('10.462','a9e140e1f02d004dbcc4a37897dfc7f832af1d3148e1aca0d083383fa74c2cfe')}[C]
 REPO='lealinfopdvnovo/leal-info-pdv-updates'
 def api(path,data=None,method='POST'):
  a=['gh','api',path]
@@ -35,13 +35,14 @@ assert d['Version']==V and d['SourceCommit']==os.environ['GITHUB_SHA']
 digest=hashlib.sha256(p.read_bytes()).hexdigest();assert digest==d['Sha256']
 with zipfile.ZipFile(p) as z:assert set(z.namelist())=={'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'} and len(z.namelist())==3
 h,old,protected=snap();before=read();assert (before['Version'],before['Sha256'])==PIN
-tag=f'client-{C}-v{V}-selo-fundo'
-notes='Loja: remove o retangulo escuro do selo, mantendo tamanho, arte e posicao. Preserva LOGON, backup, dados, licenca e personalizacoes. GLOBAL e demais clientes inalterados.'
+tag=f'client-{C}-v{V}-pet-display'
+notes='Loja PET V1.3: restaura exibicao da base 10.465 e separa versao PET; preserva selo corrigido, dados e licenca. Numero de pacote interno usado somente para ordenar atualizacoes.'
 subprocess.run(['gh','release','create',tag,str(p),'--repo',REPO,'--target',h,'--title',f'{C} {V} — selo aprovado','--notes',notes,'--latest=false'],check=True)
 url=f'https://github.com/{REPO}/releases/download/{tag}/{p.name}'
 assert hashlib.sha256(get(url)).hexdigest()==digest
 assert snap()[0]==h
-m=dict(before);m.update(Version=V,PackageUrl=url,Sha256=digest,SourceCommit=os.environ['GITHUB_SHA'],BuildRunId=os.environ['GITHUB_RUN_ID'],ValidationRunId=os.environ['GITHUB_RUN_ID'],PublicationRunId=os.environ['GITHUB_RUN_ID'],PublishedBaselineVersion=before['Version'],Notes=notes,CertificationSeal=True,InstalledOnRealComputers=False,PackagesVerifiedBeforeFeed=True)
+display=json.loads(Path('proof/evidence/pet-display-scope.json').read_text());assert set(display)=={'MainForm.cs','LoginForm.cs'}
+m=dict(before);m.update(Version=V,PackageUrl=url,Sha256=digest,SourceCommit=os.environ['GITHUB_SHA'],BuildRunId=os.environ['GITHUB_RUN_ID'],ValidationRunId=os.environ['GITHUB_RUN_ID'],PublicationRunId=os.environ['GITHUB_RUN_ID'],PublishedBaselineVersion=before['Version'],Notes=notes,CertificationSeal=True,GlobalFeatureVersion='10.465',PetVersion='1.3',InstalledOnRealComputers=False,PackagesVerifiedBeforeFeed=True)
 t=api(f'repos/{REPO}/git/trees',dict(base_tree=old['tree']['sha'],tree=[dict(path=F,mode='100644',type='blob',content=json.dumps(m,ensure_ascii=False,indent=2)+'\n')]))
 c=api(f'repos/{REPO}/git/commits',dict(message=f'Authorized seal ONLY {C} {V}; preserve GLOBAL and other channels',tree=t['sha'],parents=[h]))
 api(f'repos/{REPO}/git/refs/heads/main',dict(sha=c['sha'],force=False),'PATCH')

@@ -50,8 +50,12 @@ elif mode == 'finish':
     before = json.loads((evidence/'source-before.json').read_text())
     seal = json.loads((evidence/'seal-source-scope.json').read_text())
     assert set(seal) == {'LoginForm.cs', 'LealInfoPDV.csproj'}
+    display = json.loads((evidence/'pet-display-scope.json').read_text())
+    assert set(display) == {'MainForm.cs', 'LoginForm.cs'}
     for k,h in before.items():
-        if k in seal:
+        if k in display:
+            assert hashlib.sha256((root/k).read_bytes()).hexdigest()==display[k],k
+        elif k in seal:
             assert hashlib.sha256((root/k).read_bytes()).hexdigest()==seal[k],k
         elif k != 'MainForm.cs':
             assert hashlib.sha256((root/k).read_bytes()).hexdigest()==h,k
