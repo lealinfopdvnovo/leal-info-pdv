@@ -2,9 +2,9 @@ import base64,hashlib,json,os,subprocess,zipfile,time,urllib.request
 from pathlib import Path
 C=os.environ['SEAL_CLIENT']; assert C in ('001','003')
 assert C == '001'
-V='10.465'
+V='10.466'
 F={'001':'clients/001/version.json','003':'clients/003/global/version.json'}[C]
-PIN={'001':('10.464','405c9d86cdd012f8dc61e7a8bf7c96f6387578c93a208e8fb859481a5a780e7d'),'003':('10.462','a9e140e1f02d004dbcc4a37897dfc7f832af1d3148e1aca0d083383fa74c2cfe')}[C]
+PIN={'001':('10.465','728b20ff2e38d96deaf538ad45e6297bced845a6460c9a827a17ade3960d5fd6'),'003':('10.462','a9e140e1f02d004dbcc4a37897dfc7f832af1d3148e1aca0d083383fa74c2cfe')}[C]
 REPO='lealinfopdvnovo/leal-info-pdv-updates'
 def api(path,data=None,method='POST'):
  a=['gh','api',path]
@@ -35,8 +35,8 @@ assert d['Version']==V and d['SourceCommit']==os.environ['GITHUB_SHA']
 digest=hashlib.sha256(p.read_bytes()).hexdigest();assert digest==d['Sha256']
 with zipfile.ZipFile(p) as z:assert set(z.namelist())=={'LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json'} and len(z.namelist())==3
 h,old,protected=snap();before=read();assert (before['Version'],before['Sha256'])==PIN
-tag=f'client-{C}-v{V}-logon-backup'
-notes='Loja: corrige LOGON no primeiro clique e fechamento durante backup. Preserva selo, dados, licença, personalizações e recuperação. Canal exclusivo da Loja.'
+tag=f'client-{C}-v{V}-selo-fundo'
+notes='Loja: remove o retangulo escuro do selo, mantendo tamanho, arte e posicao. Preserva LOGON, backup, dados, licenca e personalizacoes. GLOBAL e demais clientes inalterados.'
 subprocess.run(['gh','release','create',tag,str(p),'--repo',REPO,'--target',h,'--title',f'{C} {V} — selo aprovado','--notes',notes,'--latest=false'],check=True)
 url=f'https://github.com/{REPO}/releases/download/{tag}/{p.name}'
 assert hashlib.sha256(get(url)).hexdigest()==digest

@@ -1,7 +1,7 @@
-name: Selo Loja - fundo integrado - validacao Windows
+name: Loja 10.466 selo fundo - validar e publicar exclusivo
 on:
   push:
-    branches: [fix/loja-selo-fundo-20261110]
+    branches: [release/loja-selo-fundo-10466]
 permissions:
   contents: read
   actions: read
@@ -52,9 +52,9 @@ jobs:
             [IO.File]::WriteAllText((Join-Path $pwd $file),$text.Replace($old,$pinned),[Text.UTF8Encoding]::new($false))
           }
           $file='removal/qa/lia-removal/all/prepare.py'
-          [IO.File]::WriteAllText((Join-Path $pwd $file),(Get-Content $file -Raw).Replace('10.463','10.465'),[Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText((Join-Path $pwd $file),(Get-Content $file -Raw).Replace('10.463','10.466'),[Text.UTF8Encoding]::new($false))
           $file='removal/qa/lia-removal/all/package.py'
-          [IO.File]::WriteAllText((Join-Path $pwd $file),(Get-Content $file -Raw).Replace('10.463','10.465'),[Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText((Join-Path $pwd $file),(Get-Content $file -Raw).Replace('10.463','10.466'),[Text.UTF8Encoding]::new($false))
           python -m unittest discover -s removal/qa/lia-removal -v
           if($LASTEXITCODE -ne 0){throw 'Structural tests failed'}
           python removal/qa/lia-removal/all/prepare.py baseline
@@ -137,3 +137,25 @@ jobs:
           path: |
             release-output/
             evidence/
+  publish:
+    needs: windows
+    runs-on: ubuntu-latest
+    concurrency:
+      group: seal-updates-exclusive
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: lia-removal-10463-001
+          path: proof
+      - name: Publicar correcao somente Loja com feed fixado e testes aprovados
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+          SEAL_CLIENT: '001'
+        run: python qa/logon-loja/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: publicacao-logon-loja
+          path: publication-proof.json
