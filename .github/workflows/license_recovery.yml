@@ -1,0 +1,18 @@
+name: Recuperacao de licenca apos interrupcao
+on:
+  push:
+    branches: ['codex/loja-license-recovery-20261110']
+  pull_request:
+    branches: ['client/001']
+    paths: ['Network/NetworkLicense.cs', 'qa/license-recovery/**', '.github/workflows/license_recovery.yml']
+permissions:
+  contents: read
+jobs:
+  recovery:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet run --project qa/license-recovery/LicenseRecovery.csproj -c Release

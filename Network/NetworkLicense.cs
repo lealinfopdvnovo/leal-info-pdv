@@ -29,8 +29,20 @@ public sealed class NetworkLicense
     public NetworkLicense(string path, string serial, string? verificationKey = null)
     {
         this.path = path; this.serial = serial; publicKey = verificationKey ?? SellerPublicKey.Pem;
-        state = File.Exists(path) ? ProtectedFile.Read<LicenseState>(path) : new();
+        state = LoadState();
         if (!File.Exists(path)) Save();
+    }
+    private LicenseState LoadState()
+    {
+        if (!File.Exists(path)) return new();
+        try { return ProtectedFile.Read<LicenseState>(path); }
+        catch (Exception ex) when (ex is CryptographicException or JsonException or InvalidDataException)
+        {
+            // Preserve the original. Never activate an older backup automatically.
+            var quarantine = path + ".corrupt-" + Guid.NewGuid().ToString("N");
+            File.Move(path, quarantine); // Preservation must succeed before replacement.
+            return new(); // InstallationLicense still requires a valid signed activation.
+        }
     }
     public static string LimitNotice(int limit, string contact = "") =>
         "LIMITE DE COMPUTADORES ATINGIDO\n\nSua licença já está utilizando todos os computadores disponíveis.\n\n" +
@@ -143,7 +155,13 @@ internal static class ProtectedFile
         var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
-            File.WriteAllBytes(temp, ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(value), null, DataProtectionScope.CurrentUser));
+            using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                4096, FileOptions.WriteThrough))
+            {
+                var bytes = ProtectedData.Protect(JsonSerializer.SerializeToUtf8Bytes(value), null, DataProtectionScope.CurrentUser);
+                stream.Write(bytes);
+                stream.Flush(flushToDisk: true);
+            }
             File.Move(temp, path, true);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
