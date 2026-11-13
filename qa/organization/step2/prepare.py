@@ -31,8 +31,12 @@ if sys.argv[1]=='prepare':
  # Reuse published project package references without compiling its business logic.
  source=ET.parse('published-source/LealInfoPDV.csproj').getroot()
  project=ET.Element('Project',Sdk='Microsoft.NET.Sdk');g=ET.SubElement(project,'PropertyGroup')
- values=dict(OutputType='WinExe',TargetFramework='net8.0-windows10.0.19041.0',TargetPlatformMinVersion='10.0.17763.0',UseWindowsForms='true',ImplicitUsings='enable',AssemblyName='LealInfoPDV',Version='10.456.0',RuntimeFrameworkVersion=runtime,WindowsSdkPackageVersion=sdk,TargetLatestRuntimePatch='false')
+ values=dict(OutputType='WinExe',TargetFramework='net8.0-windows10.0.19041.0',TargetPlatformMinVersion='10.0.17763.0',UseWindowsForms='true',ImplicitUsings='enable',AssemblyName='LealInfoPDV',Version='10.456.0',WindowsSdkPackageVersion=sdk)
  for n,v in values.items():ET.SubElement(g,n).text=v
+ pin=ET.SubElement(project,'Target',Name='PinOnlyDotnetRuntimePacks',BeforeTargets='ProcessFrameworkReferences')
+ known=ET.SubElement(pin,'ItemGroup')
+ for name in ['Microsoft.NETCore.App','Microsoft.WindowsDesktop.App','Microsoft.WindowsDesktop.App.WindowsForms','Microsoft.WindowsDesktop.App.WPF']:
+  ET.SubElement(known,'KnownFrameworkReference',Update=name,DefaultRuntimeFrameworkVersion=runtime,LatestRuntimeFrameworkVersion=runtime)
  items=ET.SubElement(project,'ItemGroup')
  for item in source.iter('PackageReference'):ET.SubElement(items,'PackageReference',dict(item.attrib))
  ET.ElementTree(project).write(carrier/'LealInfoPDV.csproj',encoding='utf-8',xml_declaration=True)
