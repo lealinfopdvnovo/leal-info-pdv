@@ -43,6 +43,20 @@ jobs:
           if(Test-Path candidate/global.json){Copy-Item candidate/global.json global.json}
           New-Item -ItemType Directory qa/organization -Force|Out-Null
           Copy-Item controller/qa/organization/PetTransactionalUpdate.ps1 qa/organization/
+      - name: Inventariar publicacoes reais da Loja sem presumir instalacao
+        shell: pwsh
+        run: |
+          python controller/qa/organization/inventory_reference_packages.py
+          if($LASTEXITCODE -ne 0){throw 'Published Loja reference inventory failed'}
+      - name: Compilar coletor de conferencia somente leitura
+        shell: pwsh
+        run: |
+          dotnet publish controller/qa/organization/collector/Collector.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o collector-output
+          if($LASTEXITCODE -ne 0){throw 'Read-only collector compilation failed'}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coletor-conferencia-somente-leitura
+          path: collector-output/Collector.exe
       - name: Recuperar arte e preparar selo exclusivo dos dois PETs
         shell: pwsh
         run: |
@@ -60,6 +74,15 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Approved financial compatibility integration failed'}
           python controller/qa/organization/prepare_compatibility.py
           if($LASTEXITCODE -ne 0){throw 'Component compatibility integration failed'}
+      - name: Preservar correcao LOGON da publicacao Loja 10.465 na candidata
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory logon-probe,evidence -Force|Out-Null
+          Copy-Item controller/qa/organization/logon-probe/* logon-probe/
+          python controller/qa/organization/preserve_logon.py
+          if($LASTEXITCODE -ne 0){throw 'Exact LOGON preservation failed'}
+          dotnet run --project logon-probe/LogonProbe.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Real LOGON handler regression failed'}
       - name: Compilar PDV real com atualizador independente
         shell: pwsh
         run: |

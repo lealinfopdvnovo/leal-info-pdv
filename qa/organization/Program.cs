@@ -129,6 +129,16 @@ static class Tests
                 Check(!reactivated.WithActivity("004",false).IsActive("004"),"Deactivation not reversible");
                 Check(new[]{"001","002","003"}.All(id=>reactivated.IsActive(id)&&ClientPolicy.Default.IsActive(id)),"Active clients affected");
             }));
+            await Case("collector excludes database license configuration and absolute paths",()=>Done(()=>{
+                var folder=Path.Combine(root,"collector");Directory.CreateDirectory(folder);
+                File.WriteAllText(Path.Combine(folder,"LealInfoPDV.dll"),"binary");
+                foreach(var secret in new[]{"lealinfo.db","network.license","settings.config","password.key"})File.WriteAllText(Path.Combine(folder,secret),"SECRET-CONTENT");
+                var report=LealInfo.Inventory.InstallationInventory.Collect(folder);
+                var serialized=LealInfo.Inventory.InstallationInventory.Serialize(report);
+                Check(report.Files.Count==1&&report.Missing.Count==3&&!serialized.Contains("SECRET-CONTENT")&&!serialized.Contains(folder),"Private material escaped collector");
+                Check(report.Files[0].Sha256==Hash(Encoding.UTF8.GetBytes("binary")).ToLowerInvariant(),"Collector SHA mismatch");
+                Check(File.ReadAllText(Path.Combine(folder,"network.license"))=="SECRET-CONTENT","Collector modified data");
+            }));
             Check(Hash(File.ReadAllBytes(protectedFile))==sentinel,"Protected base changed after rejection");
             Directory.CreateDirectory("pair-evidence");
             File.WriteAllText("pair-evidence/component-tests.json",JsonSerializer.Serialize(new{Passed=passed,InstallationUntouched=true,ProductionPublished=false,Scope="selection and verified staging; activation/UI/migration pending"}));
