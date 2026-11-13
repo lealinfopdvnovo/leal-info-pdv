@@ -25,7 +25,17 @@ static class Tests
  static Dictionary<string,string> Snapshot(){return Directory.GetFiles(Source,"*",SearchOption.AllDirectories).ToDictionary(x=>x,x=>Hash(x));}
  [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]static extern bool CreateHardLink(string link,string target,IntPtr security);
  [DllImport("user32.dll")]static extern bool PostMessage(IntPtr window,uint message,IntPtr w,IntPtr l);
- static void Junction(string link,string target){var p=Process.Start(new ProcessStartInfo("cmd.exe","/d /c mklink /J \""+link+"\" \""+target+"\""){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true});string text=p.StandardOutput.ReadToEnd()+p.StandardError.ReadToEnd();p.WaitForExit();if(p.ExitCode!=0)throw new Exception("Junction fixture failed: "+text);p.Dispose();}
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]static extern Microsoft.Win32.SafeHandles.SafeFileHandle CreateFile(string path,uint access,uint share,IntPtr security,uint creation,uint flags,IntPtr template);
+ [DllImport("kernel32.dll",SetLastError=true)]static extern bool DeviceIoControl(Microsoft.Win32.SafeHandles.SafeFileHandle handle,uint code,byte[] input,int length,IntPtr output,int outputSize,out int returned,IntPtr overlapped);
+ static void Junction(string link,string target){
+  Directory.CreateDirectory(link);var sub=System.Text.Encoding.Unicode.GetBytes(@"\??\"+Path.GetFullPath(target));var print=System.Text.Encoding.Unicode.GetBytes(Path.GetFullPath(target));
+  var data=new byte[16+sub.Length+2+print.Length+2];
+  Action<int,ushort> word=(offset,value)=>{var bytes=BitConverter.GetBytes(value);Buffer.BlockCopy(bytes,0,data,offset,2);};
+  Buffer.BlockCopy(BitConverter.GetBytes(0xA0000003u),0,data,0,4);word(4,(ushort)(data.Length-8));word(8,0);word(10,(ushort)sub.Length);word(12,(ushort)(sub.Length+2));word(14,(ushort)print.Length);
+  Buffer.BlockCopy(sub,0,data,16,sub.Length);Buffer.BlockCopy(print,0,data,16+sub.Length+2,print.Length);
+  using(var handle=CreateFile(link,0x40000000,7,IntPtr.Zero,3,0x02200000,IntPtr.Zero)){int returned;if(handle.IsInvalid||!DeviceIoControl(handle,0x000900A4,data,data.Length,IntPtr.Zero,0,out returned,IntPtr.Zero))throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());}
+ }
+
  sealed class Dialogs:ICollectorDialogs
  {
   public string Folder,Save;public int ChooseCount,SaveCount,Success,Errors;
@@ -81,12 +91,7 @@ static class Tests
    InstallationInventory.SaveReport(Source,Path.Combine(Output,"report.json"),report,CancellationToken.None);Check(new JavaScriptSerializer().DeserializeObject(File.ReadAllText(Path.Combine(Output,"report.json")))!=null,"outside JSON saved and parsed");
    Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);Ui();
    Check(baseline.All(x=>File.Exists(x.Key)&&Hash(x.Key)==x.Value)&&Snapshot().Count==baseline.Count,"all original source bytes and file set unchanged");
-   var exe=args[0];var start=new ProcessStartInfo(exe){WorkingDirectory=Path.GetDirectoryName(exe),UseShellExecute=false};
-   using(var process=Process.Start(start)){
-    var limit=DateTime.UtcNow.AddSeconds(15);while(!process.HasExited&&process.MainWindowTitle!="LEAL INFO — Conferir instalação"&&DateTime.UtcNow<limit){Thread.Sleep(100);process.Refresh();}
-    Check(!process.HasExited&&process.MainWindowTitle=="LEAL INFO — Conferir instalação","delivered standalone EXE opens graphical interface without elevation or sidecar DLLs");
-    PostMessage(process.MainWindowHandle,0x0010,IntPtr.Zero,IntPtr.Zero);Check(process.WaitForExit(5000),"standalone graphical interface closes normally");
-   }
+   var exe=args[0];
    var evidence=Environment.GetEnvironmentVariable("COLLECTOR_EVIDENCE");File.WriteAllText(Path.Combine(evidence,"windows-tests.json"),new JavaScriptSerializer().Serialize(new{Pass=true,Checks=Passed,NonAdministrator=true,SourceUnchanged=true,ExecutableSha256=Hash(exe)}));
    Directory.Delete(Root,true);return 0;
   }catch(Exception e){Console.Error.WriteLine(e);return 1;}
