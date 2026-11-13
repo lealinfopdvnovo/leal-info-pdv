@@ -1,7 +1,7 @@
 name: Organizacao GLOBAL PET - integracao e aplicador externo
 on:
   push:
-    branches: [prepare/organizacao-global-pet-20261104]
+    branches: [candidate/global-pet-independent-20261113]
     paths: ['qa/organization/**', '!qa/organization/PreservedPresentation.cs.source', '.github/workflows/organization_integration_tests.yml']
 permissions:
   contents: read
@@ -58,6 +58,8 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Original presentation extraction failed'}
           python controller/qa/organization/prepare_finance_compat.py
           if($LASTEXITCODE -ne 0){throw 'Approved financial compatibility integration failed'}
+          python controller/qa/organization/prepare_compatibility.py
+          if($LASTEXITCODE -ne 0){throw 'Component compatibility integration failed'}
       - name: Compilar PDV real com atualizador independente
         shell: pwsh
         run: |

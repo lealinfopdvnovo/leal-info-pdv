@@ -2,6 +2,7 @@ param(
  [ValidateSet('PrepareApply','Prepare','Apply','Recover')][string]$Mode='Recover',
  [Parameter(Mandatory=$true)][string]$App,
  [string]$Package='', [string]$Sha256='', [string]$Version='',
+ [string]$GlobalVersion='',
  [ValidateSet('PET')][string]$Channel='PET',
  [Parameter(Mandatory=$true)][ValidatePattern('^[0-9]{3,9}$')][string]$Identity,
  [int]$PreviousPid=0, [long]$PreviousStarted=0,
@@ -116,6 +117,10 @@ function Prepare{
   foreach($e in $z.Entries){$dest=Join-Path $root ('stage/'+$e.Name);[IO.Compression.ZipFileExtensions]::ExtractToFile($e,$dest,$true);FlushFile $dest;$targets[$e.Name]=HashFile $dest}
   $m=Get-Content (Join-Path $root 'stage/manifest.json') -Raw|ConvertFrom-Json
   if($m.Identity -ne $Identity -or $m.Version -ne $Version -or $m.ApiVersion -ne 1 -or $m.Assembly -ne 'Pet.dll' -or $m.Sha256.ToLowerInvariant() -ne (HashFile (Join-Path $root 'stage/Pet.dll'))){throw 'PET manifest mismatch'}
+  if($m.MinGlobalVersion -or $m.MaxGlobalVersionExclusive){
+   $minimum=$null;$maximum=$null;$currentGlobal=$null
+   if(![Version]::TryParse($m.MinGlobalVersion,[ref]$minimum) -or ![Version]::TryParse($m.MaxGlobalVersionExclusive,[ref]$maximum) -or ![Version]::TryParse($GlobalVersion,[ref]$currentGlobal) -or $minimum.Major -ne 10 -or $maximum -le $minimum -or $currentGlobal -lt $minimum -or $currentGlobal -ge $maximum){throw 'Incompatible GLOBAL version for PET'}
+  }
   $current=Get-Content (Join-Path $targetPath 'manifest.json') -Raw|ConvertFrom-Json
   if($current.Identity -ne $Identity -or $current.Assembly -ne 'Pet.dll' -or $current.Sha256.ToLowerInvariant() -ne (HashFile (Join-Path $targetPath 'Pet.dll'))){throw 'Installed PET identity/integrity mismatch'}
   if([Version]$Version -le [Version]$current.Version){throw 'PET update must be newer'}

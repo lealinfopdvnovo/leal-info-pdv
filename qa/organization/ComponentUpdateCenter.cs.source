@@ -6,7 +6,7 @@ namespace LealInfoPDV;
 internal static class ComponentUpdateCenter
 {
  const string Root="https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/";
- internal static async Task ShowAsync(IWin32Window? owner,string identity,string commonVersion)
+ internal static async Task ShowAsync(IWin32Window? owner,string identity,string commonVersion,bool silent=false)
  {
   using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(15)};
   http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-Components/1");
@@ -20,10 +20,14 @@ internal static class ComponentUpdateCenter
     response.EnsureSuccessStatusCode();
     using var doc=JsonDocument.Parse(await response.Content.ReadAsStringAsync());
     var d=doc.RootElement;
+    if(!d.TryGetProperty("SchemaVersion",out var schema)||schema.GetInt32()!=2)throw new InvalidDataException("Feed ainda não migrado ao contrato independente v2");
     if(d.GetProperty("Component").GetString()!=kind.ToString())throw new InvalidDataException("Componente incompatível");
     if(d.GetProperty("PetApiVersion").GetInt32()!=PetRuntime.ApiVersion)throw new InvalidDataException("Contrato incompatível");
     string? target=d.TryGetProperty("TargetClientCode",out var t)?t.GetString():null;
-    return new Release(kind,d.GetProperty("Version").GetString()!,target,d.GetProperty("Sha256").GetString()!,d.GetProperty("PackageUrl").GetString()!);
+    string? min=kind==ComponentKind.PET?d.GetProperty("MinGlobalVersion").GetString():null;
+    string? max=kind==ComponentKind.PET?d.GetProperty("MaxGlobalVersionExclusive").GetString():null;
+    if(kind==ComponentKind.PET && (min is null || max is null))throw new InvalidDataException("Compatibilidade PET ausente");
+    return new Release(kind,d.GetProperty("Version").GetString()!,target,d.GetProperty("Sha256").GetString()!,d.GetProperty("PackageUrl").GetString()!,min,max,d.GetProperty("PetApiVersion").GetInt32());
    }
    catch(Exception e)when(e is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException or InvalidDataException)
    {issues.Add(kind+": "+e.Message);return null;}
@@ -32,9 +36,21 @@ internal static class ComponentUpdateCenter
   var global=await Load("version.json",ComponentKind.GLOBAL);
   var pet=ClientUpdateIdentity.IsValidClientCode(identity)?await Load("clients/"+identity+"/pet/version.json",ComponentKind.PET):null;
   if(!ClientUpdateIdentity.IsValidClientCode(identity)){MessageBox.Show(owner,"Não foi possível verificar a identidade da instalação.","Atualizações");return;}
-  var installed=new Installed(commonVersion,PetRuntime.CurrentVersion??"",identity);
+  using var installedManifest=JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"Extensions","PET","manifest.json")));
+  var manifest=installedManifest.RootElement;
+  string? Bound(string name)=>manifest.TryGetProperty(name,out var value)?value.GetString():null;
+  var minimum=Bound("MinGlobalVersion");var maximum=Bound("MaxGlobalVersionExclusive");
+  if(minimum is null || maximum is null){MessageBox.Show(owner,"PET sem compatibilidade declarada. Migração precisa ser validada antes de atualizar componentes.","Atualizações");return;}
+  IndependentUpdater.ValidateCompatibility(commonVersion,minimum,maximum);
+  var installed=new Installed(commonVersion,PetRuntime.CurrentVersion??"",identity,minimum,maximum,PetRuntime.ApiVersion);
   var selection=IndependentUpdater.Plan(installed,global,pet);
   selection=new Selection(selection.Available,selection.Errors.Concat(issues).ToArray());
+  if(silent)
+  {
+   if(selection.Available.Count>0 && owner is Form main)
+    new UpdateNotificationForm(main,"GLOBAL / PET",()=>ShowAsync(owner,identity,commonVersion)).Show(main);
+   return;
+  }
   ComponentUpdateForm? view=null;
   using(view=new ComponentUpdateForm(installed,selection,async release=>
   {
