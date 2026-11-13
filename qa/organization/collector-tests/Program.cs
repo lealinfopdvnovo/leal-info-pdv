@@ -52,7 +52,7 @@ static class Tests
    d.Save=Path.Combine(Output,"gui.json");Button(form,"collect").PerformClick();Pump(()=>!form.Busy);Check(File.Exists(d.Save)&&d.Success==1&&d.Errors==0,"GUI saves report outside PDV");
    d.Folder=Path.Combine(Root,"wrong");Button(form,"collect").PerformClick();Pump(()=>!form.Busy);Check(d.Errors==1,"wrong folder has a graphical error");
    d.Folder=Source;d.Save=Path.Combine(Output,"cancelled.json");Button(form,"collect").PerformClick();Button(form,"cancel").PerformClick();Pump(()=>!form.Busy);Check(!File.Exists(d.Save),"active cancellation creates no report");
-   using(var image=new Bitmap(form.Width,form.Height)){form.DrawToBitmap(image,form.ClientRectangle);image.Save(Path.Combine(Environment.GetEnvironmentVariable("COLLECTOR_EVIDENCE"),"collector-gui.png"));}
+   using(var image=new Bitmap(form.Width,form.Height)){form.DrawToBitmap(image,new Rectangle(Point.Empty,form.Size));image.Save(Path.Combine(Environment.GetEnvironmentVariable("COLLECTOR_EVIDENCE"),"collector-gui.png"));}
    form.Close();
   }
  }
