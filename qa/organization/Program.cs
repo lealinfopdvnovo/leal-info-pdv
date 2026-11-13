@@ -92,6 +92,53 @@ static class Tests
                 catch(OperationCanceledException){}
                 Check(Hash(File.ReadAllBytes(protectedFile))==sentinel,"Base changed");
             });
+            foreach(var id in new[]{"001","002","003"})
+            foreach(var global in new[]{"10.465","10.470"})
+            await Case("compatible PET " + id + " with GLOBAL " + global,()=>Done(()=>{
+                var r=ReleaseFor(Pet(),ComponentKind.PET,id) with {MinGlobalVersion="10.465",MaxGlobalVersionExclusive="10.480"};
+                var plan=IndependentUpdater.Plan(new(global,"1.1",id),null,r);
+                Check(plan.Available.Count==1 && plan.Errors.Count==0,"Compatible PET suppressed");
+            }));
+            await Case("incompatible PET cannot suppress compatible GLOBAL",()=>Done(()=>{
+                var r=ReleaseFor(Pet()) with{MinGlobalVersion="10.470",MaxGlobalVersionExclusive="10.480"};
+                var plan=IndependentUpdater.Plan(new("10.465","1.1","003"),ReleaseFor(Global(),ComponentKind.GLOBAL),r);
+                Check(plan.Available.Count==1 && plan.Available[0].Component==ComponentKind.GLOBAL && plan.Errors.Count==1,"Compatibility not isolated");
+            }));
+            await Case("GLOBAL rejected when installed PET excludes target version",()=>Done(()=>{
+                var plan=IndependentUpdater.Plan(new("10.465","1.1","003","10.465","10.480"),ReleaseFor(Global(),ComponentKind.GLOBAL),null);
+                Check(plan.Available.Count==0 && plan.Errors.Count==1,"Incompatible GLOBAL offered");
+            }));
+            await Case("compatibility upper bound exclusive",()=>Done(()=>{
+                var r=ReleaseFor(Pet()) with{MinGlobalVersion="10.465",MaxGlobalVersionExclusive="10.480"};
+                var plan=IndependentUpdater.Plan(new("10.480","1.1","003"),null,r);
+                Check(plan.Available.Count==0 && plan.Errors.Count==1,"Exclusive bound ignored");
+            }));
+            await Case("extra PET resource rejected rather than silently ignored by worker",()=>Reject(()=>Stage(Zip(
+                ("Extensions/PET/Pet.dll",Dll),("Extensions/PET/logo.png",Dll)),staging)));
+            await Case("feed cannot claim compatibility absent from package",()=>Reject(()=>Stage(Pet(),staging,
+                ReleaseFor(Pet()) with{MinGlobalVersion="10.465",MaxGlobalVersionExclusive="10.480"})));
+            await Case("unsupported API rejected",()=>Reject(()=>Stage(Pet(),staging,ReleaseFor(Pet()) with{PetApiVersion=2})));
+            await Case("inactive Genilson receives no GLOBAL or PET offers",()=>Done(()=>{
+                var plan=IndependentUpdater.Plan(new("10.465","1.1","004"),ReleaseFor(Global(),ComponentKind.GLOBAL),ReleaseFor(Pet("004"),ComponentKind.PET,"004"));
+                Check(plan.Available.Count==0 && plan.Errors.Count==1,"Inactive offers escaped");
+            }));
+            await Case("inactive direct staging refused before download",()=>Reject(()=>IndependentUpdater.StageAsync(ReleaseFor(Pet("004"),ComponentKind.PET,"004"),"004",staging,(_,_)=>throw new Exception("Inactive download attempted"))));
+            await Case("reactivation is reversible and isolated",()=>Done(()=>{
+                var reactivated=ClientPolicy.Default.WithActivity("004",true);
+                Check(reactivated.IsActive("004")&&!ClientPolicy.Default.IsActive("004"),"Default policy mutated");
+                Check(!reactivated.WithActivity("004",false).IsActive("004"),"Deactivation not reversible");
+                Check(new[]{"001","002","003"}.All(id=>reactivated.IsActive(id)&&ClientPolicy.Default.IsActive(id)),"Active clients affected");
+            }));
+            await Case("collector excludes database license configuration and absolute paths",()=>Done(()=>{
+                var folder=Path.Combine(root,"collector");Directory.CreateDirectory(folder);
+                File.WriteAllText(Path.Combine(folder,"LealInfoPDV.dll"),"binary");
+                foreach(var secret in new[]{"lealinfo.db","network.license","settings.config","password.key"})File.WriteAllText(Path.Combine(folder,secret),"SECRET-CONTENT");
+                var report=LealInfo.Inventory.InstallationInventory.Collect(folder);
+                var serialized=LealInfo.Inventory.InstallationInventory.Serialize(report);
+                Check(report.Files.Count==1&&report.Missing.Count==3&&!serialized.Contains("SECRET-CONTENT")&&!serialized.Contains(folder),"Private material escaped collector");
+                Check(report.Files[0].Sha256==Hash(Encoding.UTF8.GetBytes("binary")).ToLowerInvariant(),"Collector SHA mismatch");
+                Check(File.ReadAllText(Path.Combine(folder,"network.license"))=="SECRET-CONTENT","Collector modified data");
+            }));
             Check(Hash(File.ReadAllBytes(protectedFile))==sentinel,"Protected base changed after rejection");
             Directory.CreateDirectory("pair-evidence");
             File.WriteAllText("pair-evidence/component-tests.json",JsonSerializer.Serialize(new{Passed=passed,InstallationUntouched=true,ProductionPublished=false,Scope="selection and verified staging; activation/UI/migration pending"}));

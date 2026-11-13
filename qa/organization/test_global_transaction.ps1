@@ -1,0 +1,58 @@
+$ErrorActionPreference='Stop'
+function ReadRecoveryState([string]$path){
+ # The SYSTEM worker atomically replaces this journal. Share delete/rename and retry
+ # transient read failures; the existing deadline still fails missing/corrupt state.
+ try{
+  $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+  try{$reader=[IO.StreamReader]::new($stream);try{return ($reader.ReadToEnd()|ConvertFrom-Json)}finally{$reader.Dispose()}}finally{$stream.Dispose()}
+ }catch{return $null}
+}
+
+if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated Windows only'}
+$worker=(Resolve-Path candidate/TransactionalUpdate.ps1).Path
+$build=Split-Path (Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.exe -Recurse|Select-Object -First 1).FullName
+$names=@('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')
+$payload=Join-Path $env:RUNNER_TEMP ('global-payload-'+[Guid]::NewGuid().ToString('N'));New-Item -ItemType Directory $payload|Out-Null
+foreach($name in $names){Copy-Item (Join-Path $build $name) (Join-Path $payload $name)}
+$package=$payload+'.zip';Compress-Archive ($payload+'/*') $package
+$hash=(Get-FileHash $package).Hash.ToLowerInvariant()
+function TaskName($app){$h=[Security.Cryptography.SHA256]::Create();try{'LealInfoPDV-Recovery-'+([BitConverter]::ToString($h.ComputeHash([Text.Encoding]::UTF8.GetBytes($app.ToUpperInvariant()))).Replace('-','').Substring(0,16))}finally{$h.Dispose()}}
+$results=@()
+foreach($identity in @('001','002','003')){
+foreach($scenario in @('success','interruption','bad-sha')){
+ $app=Join-Path $env:RUNNER_TEMP ('global-preserve-'+[Guid]::NewGuid().ToString('N'));New-Item -ItemType Directory $app|Out-Null
+ Set-Content (Join-Path $app 'QA-ISOLATED') 'Disposable fixture'
+ $before=@{}
+ foreach($n in $names){[IO.File]::WriteAllText((Join-Path $app $n),'PREVIOUS-'+$n);$before[$n]=(Get-FileHash (Join-Path $app $n)).Hash}
+ $sentinels=@('lealinfo.db','license.dat','network.config','stock.dat','cash.dat','settings.json','Extensions/PET/manifest.json','Extensions/PET/Local.dll')
+ $protected=@{}
+ foreach($n in $sentinels){$p=Join-Path $app $n;New-Item -ItemType Directory (Split-Path $p) -Force|Out-Null;[IO.File]::WriteAllText($p,'PRESERVED-'+$identity+'-'+$n);$protected[$n]=(Get-FileHash $p).Hash}
+ try{
+  $supplied=if($scenario -eq 'bad-sha'){'0'*64}else{$hash}
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Prepare -App $app -Channel GLOBAL -Version 10.463 -Package $package -Sha256 $supplied
+  if($scenario -eq 'bad-sha'){if($LASTEXITCODE -eq 0){throw 'Wrong SHA accepted'}}else{
+   if($LASTEXITCODE -ne 0){throw 'GLOBAL preparation failed'}
+   foreach($n in $names){if((Get-FileHash (Join-Path $app ('.pdv-update/previous/'+$n))).Hash -ne $before[$n]){throw 'Backup integrity failure'}}
+   $fault=if($scenario -eq 'interruption'){'copy-LealInfoPDV.dll'}else{''}
+   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Apply -App $app -Channel GLOBAL -Version 10.463 -Package $package -Sha256 $hash -Fault $fault
+   if($scenario -eq 'success'){if($LASTEXITCODE -ne 0){throw 'Apply failed'}}else{
+    if($LASTEXITCODE -ne 73 -or (Test-Path (Join-Path $app 'LealInfoPDV.exe'))){throw 'Interrupted executable set exposed'}
+    Start-ScheduledTask -TaskName (TaskName $app);$limit=(Get-Date).AddSeconds(35)
+    do{Start-Sleep -Milliseconds 250;$state=ReadRecoveryState (Join-Path $app '.pdv-update/journal.json')}while($state.Phase -ne 'Recovered' -and (Get-Date) -lt $limit)
+    if($state.Phase -ne 'Recovered'){throw 'SYSTEM recovery failed'}
+   }
+  }
+  foreach($n in $names){$expected=if($scenario -eq 'success'){(Get-FileHash (Join-Path $payload $n)).Hash}else{$before[$n]};if((Get-FileHash (Join-Path $app $n)).Hash -ne $expected){throw 'Final executable set mismatch'}}
+  foreach($n in $sentinels){if((Get-FileHash (Join-Path $app $n)).Hash -ne $protected[$n]){throw 'Changed customer/PET file'}}
+  Write-Output "PASS GLOBAL $scenario; PET version files data license inventory cash preserved"
+  $results+=@{Identity=$identity;ProtectedHashes=$protected;Scenario=$scenario;Pass=$true;PetFilesPreserved=$true;CommonOnly=$true}
+ }finally{
+  Stop-ScheduledTask -TaskName (TaskName $app) -ErrorAction SilentlyContinue
+  Unregister-ScheduledTask -TaskName (TaskName $app) -Confirm:$false -ErrorAction SilentlyContinue
+  Remove-Item $app -Recurse -Force
+ }
+}
+}
+$results|ConvertTo-Json -Depth 6|Set-Content pair-evidence/global-independent-rollback.json -Encoding UTF8
+$global:LASTEXITCODE=0
+

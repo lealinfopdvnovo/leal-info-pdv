@@ -6,18 +6,35 @@ using System.Text.RegularExpressions;
 namespace LealInfo.Components;
 
 public enum ComponentKind { GLOBAL, PET }
-public sealed record Release(ComponentKind Component, string Version, string? Identity, string Sha256, string PackageUrl);
-public sealed record Installed(string GlobalVersion, string PetVersion, string Identity);
+public sealed record Release(ComponentKind Component, string Version, string? Identity, string Sha256, string PackageUrl,
+    string? MinGlobalVersion=null, string? MaxGlobalVersionExclusive=null, int PetApiVersion=1);
+public sealed record Installed(string GlobalVersion, string PetVersion, string Identity,
+    string? PetMinGlobalVersion=null, string? PetMaxGlobalVersionExclusive=null, int PetApiVersion=1);
 public sealed record Selection(IReadOnlyList<Release> Available, IReadOnlyList<string> Errors);
 public sealed record Staged(Release Release, string Folder, IReadOnlyDictionary<string,string> Hashes);
 
 // Preparation only. Activation requires the external transactional worker.
 // This module never writes the application installation or a distribution feed.
+public sealed class ClientPolicy
+{
+    public static ClientPolicy Default { get; }=new(new Dictionary<string,bool>{{"001",true},{"002",true},{"003",true},{"004",false}});
+    private readonly IReadOnlyDictionary<string,bool> clients;
+    public ClientPolicy(IReadOnlyDictionary<string,bool> values)=>clients=new Dictionary<string,bool>(values);
+    public bool IsActive(string identity)=>clients.TryGetValue(identity,out var active)&&active;
+    public void AssertActive(string identity){if(!IsActive(identity))throw new InvalidDataException("Cliente inativo ou não cadastrado: atualização/migração bloqueada.");}
+    public ClientPolicy WithActivity(string identity,bool active)
+    {
+        if(!clients.ContainsKey(identity))throw new InvalidDataException("Cliente não cadastrado.");
+        var next=clients.ToDictionary(x=>x.Key,x=>x.Value);next[identity]=active;return new(next);
+    }
+}
+
 public static class IndependentUpdater
 {
     public static Selection Plan(Installed installed, Release? global, Release? pet)
     {
         if (!Regex.IsMatch(installed.Identity, @"\A[0-9]{3,9}\z")) throw new InvalidDataException("Invalid installation identity");
+        if(!ClientPolicy.Default.IsActive(installed.Identity))return new Selection(Array.Empty<Release>(),new[]{"Cliente inativo ou não cadastrado: nenhuma oferta disponível."});
         var result=new List<Release>();var errors=new List<string>();
         void Check(Release? release,ComponentKind kind,string current)
         {
@@ -26,6 +43,9 @@ public static class IndependentUpdater
             {
                 ValidateManifest(release,installed.Identity);
                 if(release.Component!=kind)throw new InvalidDataException("Wrong feed component");
+                if(release.PetApiVersion!=installed.PetApiVersion)throw new InvalidDataException("Incompatible PET API");
+                if(kind==ComponentKind.PET)ValidateCompatibility(installed.GlobalVersion,release.MinGlobalVersion,release.MaxGlobalVersionExclusive);
+                else ValidateCompatibility(release.Version,installed.PetMinGlobalVersion,installed.PetMaxGlobalVersionExclusive);
                 if(Version.Parse(release.Version)>Version.Parse(current))result.Add(release);
             }
             catch(Exception error) when(error is InvalidDataException or FormatException or ArgumentException or OverflowException)
@@ -38,6 +58,7 @@ public static class IndependentUpdater
 
     public static void ValidateManifest(Release release, string identity)
     {
+        ClientPolicy.Default.AssertActive(identity);
         bool pet = release.Component == ComponentKind.PET;
         if(release.Component is not (ComponentKind.GLOBAL or ComponentKind.PET)) throw new InvalidDataException("Unknown component");
         if(pet ? release.Identity != identity : !string.IsNullOrEmpty(release.Identity))
@@ -45,12 +66,24 @@ public static class IndependentUpdater
         if(!Regex.IsMatch(release.Version,pet ? @"\A1\.\d+(?:\.\d+)*\z" : @"\A10\.\d+(?:\.\d+)*\z"))
             throw new InvalidDataException("Wrong component version scheme");
         if(!Regex.IsMatch(release.Sha256,@"\A[0-9a-fA-F]{64}\z")) throw new InvalidDataException("Invalid package hash");
+        if(release.PetApiVersion!=1)throw new InvalidDataException("Unsupported PET API");
+        ValidateCompatibility("10.465",release.MinGlobalVersion,release.MaxGlobalVersionExclusive,false);
         if(!Uri.TryCreate(release.PackageUrl,UriKind.Absolute,out var uri) || uri.Scheme!="https" || uri.Host!="github.com"
            || !string.IsNullOrEmpty(uri.UserInfo) || !string.IsNullOrEmpty(uri.Query) || !string.IsNullOrEmpty(uri.Fragment))
             throw new InvalidDataException("Invalid package URL");
         string prefix="/lealinfopdvnovo/leal-info-pdv-updates/releases/download/"+(pet ? "client-"+identity+"-pet-v" : "v");
         if(!uri.AbsolutePath.StartsWith(prefix,StringComparison.Ordinal) || !uri.AbsolutePath.EndsWith(".zip",StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Wrong package channel");
+    }
+
+    public static void ValidateCompatibility(string global,string? minimum,string? maximum,bool checkVersion=true)
+    {
+        // Schema 1 remains readable for migration. Schema 2 feeds require both bounds.
+        if(minimum is null && maximum is null)return;
+        if(minimum is null || maximum is null || !Version.TryParse(minimum,out var min) ||
+           !Version.TryParse(maximum,out var max) || min.Major!=10 || max<=min ||
+           !Version.TryParse(global,out var current))throw new InvalidDataException("Invalid compatibility range");
+        if(checkVersion && (current<min || current>=max))throw new InvalidDataException("GLOBAL outside PET compatibility range");
     }
 
     public static async Task<Staged> StageAsync(Release release,string identity,string stagingRoot,
@@ -82,11 +115,10 @@ public static class IndependentUpdater
             }
             else
             {
-                if(!name.StartsWith("Extensions/PET/",StringComparison.Ordinal)) throw new InvalidDataException("PET cannot write base files");
-                string leaf=Path.GetFileName(name);
-                if(!Regex.IsMatch(leaf,@"\A[A-Za-z0-9_.-]+\z") ||
-                   !(name=="Extensions/PET/manifest.json" || new[]{".dll",".png",".jpg",".jpeg"}.Contains(Path.GetExtension(name).ToLowerInvariant())))
-                    throw new InvalidDataException("Forbidden PET payload");
+                // The transactional worker activates exactly these two files.
+                // Resources/dependencies must be embedded in Pet.dll, never staged then silently ignored.
+                if(name is not ("Extensions/PET/manifest.json" or "Extensions/PET/Pet.dll"))
+                    throw new InvalidDataException("PET payload must contain only manifest.json and Pet.dll");
             }
             using var stream=entry.Open();using var output=new MemoryStream();
             byte[] buffer=new byte[81920];int count;
@@ -106,10 +138,13 @@ public static class IndependentUpdater
             using var json=JsonDocument.Parse(manifest);var root=json.RootElement;
             string assembly=root.GetProperty("Assembly").GetString()??"";
             if(root.GetProperty("Identity").GetString()!=identity||root.GetProperty("Version").GetString()!=release.Version||
-               root.GetProperty("ApiVersion").GetInt32()!=1||assembly!=Path.GetFileName(assembly)||
+               root.GetProperty("ApiVersion").GetInt32()!=release.PetApiVersion||assembly!="Pet.dll"||files.Count!=2||
                !files.TryGetValue("Extensions/PET/"+assembly,out var dll)||
                !Convert.ToHexString(SHA256.HashData(dll)).Equals(root.GetProperty("Sha256").GetString(),StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("PET assembly identity or integrity mismatch");
+            string? Bound(string name)=>root.TryGetProperty(name,out var p)?p.GetString():null;
+            if(Bound("MinGlobalVersion")!=release.MinGlobalVersion || Bound("MaxGlobalVersionExclusive")!=release.MaxGlobalVersionExclusive)
+                throw new InvalidDataException("PET package and feed compatibility differ");
         }
         string full=Path.GetFullPath(stagingRoot);
         for(var parent=new DirectoryInfo(full);parent is not null;parent=parent.Parent)

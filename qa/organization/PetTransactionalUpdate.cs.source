@@ -53,6 +53,7 @@ internal static class PetTransactionalUpdate
     }
     internal static async Task BeginAsync(string package,string sha256,string version,string channel,string identity)
     {
+        LealInfo.Components.ClientPolicy.Default.AssertActive(identity);
         if(channel != "PET" || !ClientUpdateIdentity.IsValidClientCode(identity))throw new InvalidOperationException("Atualização não autorizada para este canal.");
         if(Application.OpenForms.Cast<Form>().Any(f=>f.Visible && f is not MainForm))
             throw new InvalidOperationException("Feche as telas de vendas e demais janelas antes de atualizar.");
@@ -99,7 +100,7 @@ $acl.SetOwner((New-Object Security.Principal.SecurityIdentifier 'S-1-5-32-544'))
 (Get-Item -LiteralPath $root).SetAccessControl($acl)
 $dest=Join-Path $root ('entry-{{nonce}}.ps1')
 $f=[IO.File]::Open($dest,'CreateNew','Write','None');try{$f.Write($bytes,0,$bytes.Length);$f.Flush($true)}finally{$f.Dispose()}
-& $dest -Mode PrepareApply -App $app -Package {{Q(package)}} -Sha256 {{Q(sha256)}} -Version {{Q(version)}} -Channel {{Q(channel)}} -Identity {{Q(identity)}} -PreviousPid {{Environment.ProcessId}} -PreviousStarted {{current.StartTime.ToUniversalTime().Ticks}} -Nonce '{{nonce}}'
+& $dest -Mode PrepareApply -App $app -Package {{Q(package)}} -Sha256 {{Q(sha256)}} -Version {{Q(version)}} -GlobalVersion {{Q(UpdateManager.CurrentVersion)}} -Channel {{Q(channel)}} -Identity {{Q(identity)}} -PreviousPid {{Environment.ProcessId}} -PreviousStarted {{current.StartTime.ToUniversalTime().Ticks}} -Nonce '{{nonce}}'
 exit $LASTEXITCODE
 """;
         var encoded=Convert.ToBase64String(Encoding.Unicode.GetBytes(bootstrap));

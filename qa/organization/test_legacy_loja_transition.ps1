@@ -1,4 +1,13 @@
 $ErrorActionPreference='Stop'
+function ReadRecoveryState([string]$path){
+ # The SYSTEM worker atomically replaces this journal. Share delete/rename and retry
+ # transient read failures; the existing deadline still fails missing/corrupt state.
+ try{
+  $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+  try{$reader=[IO.StreamReader]::new($stream);try{return ($reader.ReadToEnd()|ConvertFrom-Json)}finally{$reader.Dispose()}}finally{$stream.Dispose()}
+ }catch{return $null}
+}
+
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated runner only'}
 $worker=(Resolve-Path pair-evidence/legacy-001-worker.ps1).Path
 if((Get-FileHash $worker).Hash -ne 'A760F78DF6B2D3D11B037727CA642BE8E3D5EFEF802D0AC6898EA54F9D819968'){throw 'Original Loja worker hash mismatch'}
@@ -45,7 +54,7 @@ try{
       if($LASTEXITCODE -ne 73){throw 'Original legacy fault checkpoint failed'}
       Start-ScheduledTask -TaskName (TaskName $app)
       $deadline=(Get-Date).AddSeconds(40)
-      do{Start-Sleep -Milliseconds 250;$state=Get-Content (Join-Path $app '.pdv-update/journal.json') -Raw|ConvertFrom-Json}while($state.Phase -ne 'Recovered' -and (Get-Date) -lt $deadline)
+      do{Start-Sleep -Milliseconds 250;$state=ReadRecoveryState (Join-Path $app '.pdv-update/journal.json')}while($state.Phase -ne 'Recovered' -and (Get-Date) -lt $deadline)
       if($state.Phase -ne 'Recovered'){throw 'Original legacy SYSTEM recovery failed'}
      }
     }

@@ -34,6 +34,10 @@ class Tests
    rt.GetMethod("Load",BindingFlags.NonPublic|BindingFlags.Static)!.Invoke(null,new object[]{petFolder,"002"});
    Check(Property("CurrentVersion") as string=="1.1"&&Property("FinancialMovements") is IFinancialMovementsPet,"original Gelamaq financial capability retained by independent PET");
 
+   var financial=(IFinancialMovementsPet)Property("FinancialMovements")!;
+   Check(financial.PrepareSql("SELECT COALESCE(CAST(m.sale_id AS TEXT),'') AS Venda FROM cash_movements m")=="SELECT m.sale_id AS Venda FROM cash_movements m","PET adapts common projection and preserves numeric nullable sale contract");
+   bool rejected=false;try{financial.PrepareSql("SELECT incompatible_projection");}catch(InvalidOperationException){rejected=true;}
+   Check(rejected,"unknown financial projection remains rejected");
    using(var cn=Database.Open())using(var q=cn.CreateCommand()){
     q.CommandText="INSERT INTO settings(key,value) VALUES('client_update_id','002') ON CONFLICT(key) DO UPDATE SET value='002'; INSERT OR REPLACE INTO sales(id,sold_at,payment,subtotal,discount,total,operator) VALUES(700,datetime('now','localtime'),'PIX',12.5,0,12.5,'QA'); INSERT INTO sale_items(sale_id,product_id,description,qty,unit_price,total) VALUES(700,NULL,'Fixture',1,12.5,12.5); INSERT INTO sale_payments(sale_id,method,amount) VALUES(700,'PIX',12.5);";q.ExecuteNonQuery();
    }

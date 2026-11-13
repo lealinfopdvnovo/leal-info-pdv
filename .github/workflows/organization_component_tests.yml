@@ -1,8 +1,8 @@
 name: Organizacao par1-2 - selecao e staging C#
 on:
   push:
-    branches: [prepare/organizacao-global-pet-20261104]
-    paths: ['qa/organization/IndependentUpdater.cs', 'qa/organization/Program.cs', 'qa/organization/ComponentTests.csproj', '.github/workflows/organization_component_tests.yml']
+    branches: [candidate/global-pet-independent-20261113]
+    paths: ['qa/organization/IndependentUpdater.cs', 'qa/organization/Program.cs', 'qa/organization/ComponentTests.csproj', 'qa/organization/collector/**', '.github/workflows/organization_component_tests.yml']
 permissions:
   contents: read
 jobs:

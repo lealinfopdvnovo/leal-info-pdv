@@ -23,7 +23,13 @@ internal static class PreservedPresentation
  sealed class Financial(IPetExtension original):IPetExtension,IFinancialMovementsPet{
   readonly IPetExtension owner=ProfilePresentation.Create();
   public void Customize(Form form){original.Customize(form);owner.Customize(form);}
-  public string PrepareSql(string sql)=>((IFinancialMovementsPet)original).PrepareSql(sql);
+  public string PrepareSql(string sql)
+  {
+   // Adapt only the known common projection; retain the original module's fail-closed guard.
+   const string common="COALESCE(CAST(m.sale_id AS TEXT),'') AS Venda";
+   const string legacy="COALESCE(m.sale_id,'') AS Venda";
+   return ((IFinancialMovementsPet)original).PrepareSql(sql.Replace(common,legacy,StringComparison.Ordinal));
+  }
   public System.Data.DataTable ReadTable(System.Data.IDataReader reader)=>((IFinancialMovementsPet)original).ReadTable(reader);
  }
  internal static IPetExtension Create(){
