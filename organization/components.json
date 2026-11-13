@@ -95,5 +95,28 @@
     "positiveActivatedStartupQualified": false,
     "operationalCustomerTested": false,
     "migrationVerified": false
+  },
+  "candidate": {
+    "branch": "candidate/global-pet-independent-20261113",
+    "pullRequest": 37,
+    "codeCommit": "10b7c42f1560a472869f04ef509b9c1bf94132e0",
+    "feedSchemaVersion": 2,
+    "payloadFiles": [
+      "Extensions/PET/manifest.json",
+      "Extensions/PET/Pet.dll"
+    ],
+    "compatibilityBounds": [
+      "MinGlobalVersion",
+      "MaxGlobalVersionExclusive"
+    ],
+    "componentSelectionChecks": 31,
+    "petTransactionScenarios": 26,
+    "productionPublished": false,
+    "installedOnRealComputers": false,
+    "migrationVerified": false,
+    "positiveActivatedStartupQualified": false,
+    "report": "organization/CANDIDATA-20261113.md",
+    "integrationRun": "https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/43479008291",
+    "isolatedIntegrationPassed": true
   }
 }

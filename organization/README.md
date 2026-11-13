@@ -2,7 +2,7 @@
 
 Decisão de Adriano em 04/11/2026: mudanças específicas devem ocorrer somente no PET do cliente; GLOBAL somente com autorização explícita. GLOBAL deve alcançar todos os clientes, preservando PETs. Não bloquear o atualizador.
 
-## Diagnóstico confirmado nos feeds
+## Diagnóstico histórico de 04/11 (não representa feeds/instalações atuais)
 | Canal atual | Versão anunciada | Problema de separação |
 |---|---|---|
 | version.json | GLOBAL10.463 | Base comum existente; não promover por iniciativa própria |
@@ -16,7 +16,7 @@ Instalação real não pode ser deduzida dos feeds. Usuário mostrou Casa10.463 
 
 ## Contrato proposto
 - Uma base GLOBAL canônica, um pacote e uma versão10.xxx. Mesmo hash disponibilizado a todos os clientes registrados, sem forçar instalação. Compatibilidade verificada por cliente; se algum cliente precisar de adaptação, preparar no PET e não alegar GLOBAL universal concluído antes disso.
-- Um PET por cliente, versão1.x independente, identidade e SHA256 próprios. O pacote PET contém apenas Extensions/PET/manifest.json, assembly da extensão e seus recursos. Nunca inclui LealInfoPDV.exe/dll, atualizador, banco, licença ou scripts operacionais.
+- Um PET por cliente, versão1.x independente, identidade e SHA256 próprios. O pacote PET contém apenas Extensions/PET/manifest.json, exatamente Pet.dll e manifesto; recursos ficam incorporados no módulo. Nunca inclui LealInfoPDV.exe/dll, atualizador, banco, licença ou scripts operacionais.
 - Feed GLOBAL version.json; feeds PET clients/<identidade>/pet/version.json. Nomes Loja Leal Info, Casa do Adriano, Gelamaq e Casa do Genilson na interface. IDs somente no roteamento técnico.
 - Atualizador apresenta GLOBAL e PET separadamente, conserva ambas as versões e instala cada componente pelo botão ATUALIZAR.
 - Recurso individual nunca entra em LoginForm.cs da base comum. Selo e demais personalizações pertencem à extensão PET. O carregamento deve alcançar também o login/primeiro frame, sem depender apenas de Application.Idle após a animação.
@@ -33,7 +33,10 @@ Instalação real não pode ser deduzida dos feeds. Usuário mostrou Casa10.463 
 6. Produzir relatório com hashes, versões, capturas e diferenças exatas. Submeter a migração concreta à autorização explícita antes de publicar qualquer mudança de GLOBAL.
 7. Fazer transição compatível pelo ATUALIZAR, sem setup/ZIP/comandos manuais. Não trocar só rótulos, não apagar feeds legados antes de provar a migração, não rebaixar instalações, não misturar executáveis reconstruídos de clientes diferentes.
 
-## Estado desta entrega
-Preparação: contrato, diagnóstico e verificador offline com10testes aprovados.
-Ainda pendentes: inventário binário completo, implementação C#/atualizador, migração, testes Windows por cliente e publicação autorizada.
-Nenhum feed, pacote operacional, banco, licença, Firebase ou APK alterado por esta preparação.
+## Estado da candidata de 13/11/2026
+
+Implementação isolada em `candidate/global-pet-independent-20261113`, derivada do PR #34. Ver [relatório da candidata](CANDIDATA-20261113.md) para commits, provas e impedimentos.
+
+O contrato v2 exige `PetApiVersion`, `MinGlobalVersion` inclusivo e `MaxGlobalVersionExclusive`. Pacotes PET contêm exatamente `Extensions/PET/manifest.json` e `Extensions/PET/Pet.dll`. Recursos são incorporados na biblioteca do próprio cliente. Não existe publicação autorizada.
+
+A preparação recompõe a base comum histórica 10.463 e perfis preservados; não é uma cópia fiel já qualificada do GLOBAL 10.465/PET 1.3 instalado. `migrationVerified` e `positiveActivatedStartupQualified` permanecem falsos até validação completa. Nenhum feed ou computador real foi alterado.

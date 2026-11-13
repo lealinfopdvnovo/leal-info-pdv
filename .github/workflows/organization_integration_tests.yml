@@ -2,7 +2,7 @@ name: Organizacao GLOBAL PET - integracao e aplicador externo
 on:
   push:
     branches: [candidate/global-pet-independent-20261113]
-    paths: ['qa/organization/**', '!qa/organization/PreservedPresentation.cs.source', '.github/workflows/organization_integration_tests.yml']
+    paths: ['qa/organization/**', '.github/workflows/organization_integration_tests.yml']
 permissions:
   contents: read
 env:
