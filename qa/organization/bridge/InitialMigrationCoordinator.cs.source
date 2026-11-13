@@ -1,0 +1,112 @@
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text.Json;
+using LealInfo.Components;
+namespace LealInfoPDV;
+
+// Initial 10.467 Loja transition only. Ordinary GLOBAL/PET flows are unchanged.
+// Armed before PetBootstrap writes the first module; the original core worker
+// continues to own its transaction. The joint task waits on the SAME core lock.
+internal static class InitialMigrationCoordinator
+{
+ internal static bool Active {get;private set;}
+ internal static bool ReadyForCoreHealth {get;private set;}
+ static string Root=>Path.Combine(AppContext.BaseDirectory,".pdv-initial");
+ static string? Nonce {get;set;}
+ static string? PetHash {get;set;}
+ static JsonDocument Core()=>JsonDocument.Parse(InitialMigrationBridge.ReadPlainFile(Path.Combine(AppContext.BaseDirectory,".pdv-update","journal.json"),65536));
+ static string Hash(byte[] bytes)=>Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+ static bool CapsulePresent(){
+  var bytes=InitialMigrationBridge.ReadPlainFile(Path.Combine(AppContext.BaseDirectory,"LealInfoPDV.exe"));
+  if(bytes.Length<120||!bytes.AsSpan(bytes.Length-16).SequenceEqual(System.Text.Encoding.ASCII.GetBytes("LEAL-PET-BOOT-01")))return false;
+  long size=System.Buffers.Binary.BinaryPrimitives.ReadInt64LittleEndian(bytes.AsSpan(bytes.Length-56));
+  if(size<=0||size>32*1024*1024||size>bytes.Length-120)throw new InvalidDataException("Cápsula inicial inválida.");
+  var payload=bytes.AsSpan(bytes.Length-56-(int)size,(int)size).ToArray();
+  if(!SHA256.HashData(payload).AsSpan().SequenceEqual(bytes.AsSpan(bytes.Length-48,32)))throw new InvalidDataException("Cápsula inicial adulterada.");
+  using var zip=new System.IO.Compression.ZipArchive(new MemoryStream(payload),System.IO.Compression.ZipArchiveMode.Read);
+  using var stream=zip.GetEntry("manifest.json")?.Open()??throw new InvalidDataException("Manifesto inicial ausente.");
+  using var manifest=JsonDocument.Parse(stream);
+  return manifest.RootElement.GetProperty("Identity").GetString()=="001";
+ }
+ internal static void GuardStartup(){
+  var journal=Path.Combine(Root,"journal.json");if(!File.Exists(journal))return;
+  using var doc=JsonDocument.Parse(InitialMigrationBridge.ReadPlainFile(journal,65536));var phase=doc.RootElement.GetProperty("Phase").GetString();
+  if(phase=="Committed")return;
+  var args=Environment.GetCommandLineArgs();
+  using var core=Core();
+  if(phase is not ("Armed" or "Recovered")||core.RootElement.GetProperty("Phase").GetString()!="AwaitingHealth"||args.Length!=3||args[1]!="--update-transaction"||args[2]!=core.RootElement.GetProperty("Nonce").GetString()||(phase=="Armed"&&args[2]!=doc.RootElement.GetProperty("Nonce").GetString()))
+   throw new InvalidOperationException("A primeira migração está em recuperação automática. Aguarde a proteção concluir.");
+ }
+ internal static void BeforePetLoad(){
+  if(!CapsulePresent())return; // Neutral common host, not a first migration.
+  var journal=Path.Combine(Root,"journal.json");
+  bool archiveRecovered=false;
+  if(File.Exists(journal)){
+   using var old=JsonDocument.Parse(InitialMigrationBridge.ReadPlainFile(journal,65536));
+   if(old.RootElement.GetProperty("Phase").GetString()=="Committed")return;
+   archiveRecovered=old.RootElement.GetProperty("Phase").GetString()=="Recovered";
+   if(!archiveRecovered)throw new InvalidOperationException("Primeira migração incompleta: aguarde recuperação externa.");
+  }
+  var folder=AppContext.BaseDirectory;
+  var contract=InitialMigrationBridge.InspectHost(InitialMigrationBridge.ReadPlainFile(Path.Combine(folder,"LealInfoPDV.dll")));
+  InitialMigrationBridge.ValidateHostContract(contract);
+  using var core=Core();var c=core.RootElement;
+  var args=Environment.GetCommandLineArgs();
+  if(c.GetProperty("Phase").GetString()!="AwaitingHealth"||c.GetProperty("Channel").GetString()!="001"||args.Length!=3||args[1]!="--update-transaction"||args[2]!=c.GetProperty("Nonce").GetString()||c.GetProperty("Version").GetString()!=UpdateManager.CurrentVersion)
+   throw new InvalidOperationException("A ponte inicial exige o aplicador protegido da origem 10.467.");
+  foreach(var item in InitialMigrationBridge.OriginHashes){
+   var path=item.Key.EndsWith("runtimeconfig.json")?Path.Combine(folder,item.Key):Path.Combine(folder,".pdv-update","previous",item.Key);
+   if(Hash(InitialMigrationBridge.ReadPlainFile(path))!=item.Value)throw new InvalidDataException("Origem da primeira migração não identificada.");
+  }
+  foreach(var name in new[]{"LealInfoPDV.exe","LealInfoPDV.dll","LealInfoPDV.deps.json"})
+   if(!Hash(InitialMigrationBridge.ReadPlainFile(Path.Combine(folder,name))).Equals(c.GetProperty("Target").GetProperty(name).GetString(),StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Destino difere do diário protegido.");
+  var capsule=InitialMigrationBridge.InspectCapsule(InitialMigrationBridge.ReadPlainFile(Path.Combine(folder,"LealInfoPDV.exe")),UpdateManager.CurrentVersion);
+  Nonce=args[2];PetHash=capsule.Sha256;
+  if(archiveRecovered)Directory.Move(Root,Root+"-history-"+Guid.NewGuid().ToString("N"));
+  Directory.CreateDirectory(Root);
+  using(var resource=typeof(InitialMigrationCoordinator).Assembly.GetManifestResourceStream("JointInitialRecoveryWorker")??throw new InvalidDataException("Recuperação conjunta ausente.")){
+   var memory=new MemoryStream();resource.CopyTo(memory);var bytes=memory.ToArray();
+   if(Hash(bytes)!=contract.Resources["JointInitialRecoveryWorker"])throw new InvalidDataException("Recurso de recuperação divergente.");
+   var path=Path.Combine(Root,"worker.ps1");
+   if(File.Exists(path)){if(Hash(InitialMigrationBridge.ReadPlainFile(path))!=Hash(bytes))throw new InvalidDataException("Aplicador inicial anterior divergente.");}
+   else{using var file=new FileStream(path,FileMode.CreateNew,FileAccess.Write,FileShare.None);file.Write(bytes);file.Flush(true);}
+  }
+  RunWorker("Prepare",Nonce,PetHash,capsule.ManifestSha256);
+  // No PET is created until SYSTEM recovery and original backups are verified.
+  Active=true;
+ }
+ static int RunWorker(string mode,params string[] values){
+  var start=new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"WindowsPowerShell","v1.0","powershell.exe")){UseShellExecute=false,CreateNoWindow=true,RedirectStandardError=true,RedirectStandardOutput=true};
+  foreach(var arg in new[]{"-NoProfile","-ExecutionPolicy","Bypass","-File",Path.Combine(Root,"worker.ps1"),"-Mode",mode,"-App",AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar)})start.ArgumentList.Add(arg);
+  if(values.Length!=0)foreach(var arg in new[]{"-Nonce",values[0],"-PetSha256",values[1],"-ManifestSha256",values[2],"-Version",UpdateManager.CurrentVersion})start.ArgumentList.Add(arg);
+  using var worker=Process.Start(start)??throw new IOException("Recuperação conjunta não iniciou.");
+  var output=worker.StandardOutput.ReadToEndAsync();var error=worker.StandardError.ReadToEndAsync();
+  if(!worker.WaitForExit(45000))throw new TimeoutException("A proteção inicial não confirmou a operação.");
+  Task.WaitAll(output,error);
+  if(worker.ExitCode!=0&&worker.ExitCode!=75)throw new IOException("Proteção inicial: "+error.Result);
+  return worker.ExitCode;
+ }
+ internal static void DelayCoreHealth(){if(Active&&!ReadyForCoreHealth)throw new InvalidOperationException("Initial health requested before authenticated main window");}
+ internal static async Task CommitAfterLoginAsync(Form main){
+  if(!Active)return;main.Enabled=false;
+  try{
+   if(PetRuntime.CurrentVersion!="1.3")throw new InvalidDataException("O PET Loja 1.3 não foi carregado.");
+   var pet=Path.Combine(AppContext.BaseDirectory,"Extensions","PET","Pet.dll");
+   if(Hash(InitialMigrationBridge.ReadPlainFile(pet))!=PetHash)throw new InvalidDataException("PET ativo difere da cápsula.");
+   using var process=Process.GetCurrentProcess();
+   var bytes=JsonSerializer.SerializeToUtf8Bytes(new{Nonce,Version=UpdateManager.CurrentVersion,PetSha256=PetHash,Pid=process.Id,StartedTicks=process.StartTime.ToUniversalTime().Ticks,SyntheticHealth=false});
+   var temp=Path.Combine(Root,"ready.json.tmp");using(var file=new FileStream(temp,FileMode.CreateNew,FileAccess.Write,FileShare.None)){file.Write(bytes);file.Flush(true);}File.Move(temp,Path.Combine(Root,"ready.json"));
+   ReadyForCoreHealth=true;TransactionalUpdate.ReportReady();
+   var deadline=DateTime.UtcNow.AddSeconds(50);
+   while(true){
+    using(var core=Core())if(core.RootElement.GetProperty("Phase").GetString()=="Committed")break;
+    if(DateTime.UtcNow>=deadline)throw new TimeoutException("Núcleo não confirmou a transição.");await Task.Delay(200);
+   }
+   while(await Task.Run(()=>RunWorker("Commit"))==75){if(DateTime.UtcNow>=deadline)throw new TimeoutException("Aplicador ainda ocupa a transição.");await Task.Delay(200);}
+   Active=false;main.Enabled=true;
+  }catch{
+   // Keep all business controls disabled. The SYSTEM task restores both components.
+   main.Close();throw;
+  }
+ }
+}

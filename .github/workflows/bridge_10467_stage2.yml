@@ -1,8 +1,6 @@
 name: Etapa 2 - ponte inicial 10467 somente preparacao
 on:
-  push:
-    branches: [candidate/bridge-10467-stage2-20261113]
-    paths: ['qa/organization/bridge/**', '.github/workflows/bridge_10467_stage2.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

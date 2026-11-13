@@ -10,8 +10,8 @@ try{
  foreach(var version in new[]{"10.463","10.464","10.465","10.466","10.467","10.0467","1.4","10.468-beta","10.468.1"})
   Reject(()=>InitialMigrationBridge.ValidateTargetVersion(version),"old/replay/unsupported destination refused: "+version);
  InitialMigrationBridge.ValidateTargetVersion("10.468");Check(true,"new candidate version allowed by ordering only; not an approval");
- var types=new HashSet<string>(new[]{"LealInfoPDV.PetRuntime","LealInfoPDV.PetBootstrap","LealInfoPDV.IPetExtension","LealInfoPDV.IPetStartup","LealInfoPDV.IPetReady","LealInfoPDV.IFinancialMovementsPet"});
- var resources=new Dictionary<string,string>{{"PetTransactionalUpdateWorker",new string('a',64)}};
+ var types=new HashSet<string>(new[]{"LealInfoPDV.PetRuntime","LealInfoPDV.PetBootstrap","LealInfoPDV.IPetExtension","LealInfoPDV.IPetStartup","LealInfoPDV.IPetReady","LealInfoPDV.IFinancialMovementsPet","LealInfoPDV.InitialMigrationCoordinator"});
+ var resources=new Dictionary<string,string>{{"PetTransactionalUpdateWorker",new string('a',64)},{"JointInitialRecoveryWorker",new string('b',64)}};
  var contract=new InitialMigrationBridge.HostContract("10.468",types,resources);
  InitialMigrationBridge.ValidateHostContract(contract);Check(true,"synthetic modular contract accepted for preflight only");
  foreach(var type in types){var missing=types.Where(x=>x!=type).ToHashSet();Reject(()=>InitialMigrationBridge.ValidateHostContract(contract with{Types=missing}),"missing contract refused: "+type);}

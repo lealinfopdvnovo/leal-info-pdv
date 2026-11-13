@@ -1,0 +1,80 @@
+name: Etapa 2 completar destino modular e recuperacao conjunta
+on:
+  push:
+    branches: [candidate/bridge-10467-stage2-20261113]
+    paths: ['qa/organization/bridge/**', '.github/workflows/bridge_10467_completion.yml']
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  initial-transition:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+      - uses: actions/checkout@v4
+        with:
+          path: recipe
+          ref: 78c0d348d210f9c9b2672746e09bcddbf4ba4474
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Preparar somente o novo destino com as receitas ja aprovadas
+        shell: pwsh
+        run: |
+          python controller/qa/organization/prepare_current_common.py
+          if($LASTEXITCODE -ne 0){throw 'Existing common recipe failed'}
+          pwsh -NoProfile -File controller/qa/organization/common_resource_contract.ps1 -Mode Extract
+          if($LASTEXITCODE -ne 0){throw 'Existing notifier extraction failed'}
+          python controller/qa/organization/prepare_integration.py
+          if($LASTEXITCODE -ne 0){throw 'Existing modular integration failed'}
+          python controller/qa/organization/bridge/fetch_origin.py
+          if($LASTEXITCODE -ne 0){throw 'Pinned origin unavailable'}
+          pwsh -NoProfile -File controller/qa/organization/extract_loja_worker.ps1
+          if($LASTEXITCODE -ne 0){throw 'Original Loja resources differ'}
+          python controller/qa/organization/prepare_pet_seal.py
+          if($LASTEXITCODE -ne 0){throw 'Existing PET recipe failed'}
+          python controller/qa/organization/extract_gelamaq_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Preserved Gelamaq resource unavailable'}
+          pwsh -NoProfile -File controller/qa/organization/extract_preserved_presentations.ps1
+          if($LASTEXITCODE -ne 0){throw 'Original PET resource preservation failed'}
+          python controller/qa/organization/prepare_finance_compat.py
+          if($LASTEXITCODE -ne 0){throw 'Existing compatibility recipe failed'}
+          python controller/qa/organization/prepare_compatibility.py
+          if($LASTEXITCODE -ne 0){throw 'Existing contracts preparation failed'}
+          New-Item -ItemType Directory logon-probe -Force|Out-Null
+          python controller/qa/organization/preserve_logon.py
+          if($LASTEXITCODE -ne 0){throw 'Preserved LOGON source differs'}
+          python controller/qa/organization/bridge/prepare_destination.py
+          if($LASTEXITCODE -ne 0){throw 'New initial coordinator integration failed'}
+      - name: Compilar o destino real e apenas o PET Loja ja existente
+        shell: pwsh
+        run: |
+          dotnet build candidate/LealInfoPDV.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'New modular destination build failed'}
+          dotnet build candidate/extensions/profiles/001/Pet.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Existing Loja PET build failed'}
+          $build=Split-Path (Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.exe -Recurse|Select-Object -First 1).FullName
+          $pet=(Get-ChildItem candidate/extensions/profiles/001/bin/Release -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
+          dotnet run --project controller/qa/organization/bridge/DestinationProbe.csproj -c Release -- $build $pet
+          if($LASTEXITCODE -ne 0){throw 'New destination contract/capsule validation failed'}
+      - name: Executar somente os novos cenarios de recuperacao conjunta
+        shell: pwsh
+        run: |
+          ./controller/qa/organization/bridge/test_joint_recovery.ps1
+          if($LASTEXITCODE -ne 0){throw 'New joint rollback failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: etapa2-destino-e-recuperacao-evidencias
+          path: |
+            completion-evidence/
+            pair-evidence/destination-source.json

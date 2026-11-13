@@ -81,8 +81,9 @@ public static class InitialMigrationBridge
         foreach(var type in new[]{"LealInfoPDV.PetRuntime","LealInfoPDV.PetBootstrap","LealInfoPDV.IPetExtension","LealInfoPDV.IPetStartup","LealInfoPDV.IPetReady","LealInfoPDV.IFinancialMovementsPet"})
             Require(target.Types.Contains(type),"Missing modular contract: "+type);
         Require(target.Resources.ContainsKey("PetTransactionalUpdateWorker"),"Independent PET recovery missing");
+        Require(target.Types.Contains("LealInfoPDV.InitialMigrationCoordinator")&&target.Resources.ContainsKey("JointInitialRecoveryWorker"),"Initial joint recovery handoff missing");
     }
-    static (string Version,string Sha256) Capsule(byte[] host,string targetVersion){
+    public static (string Version,string Sha256,string ManifestSha256) InspectCapsule(byte[] host,string targetVersion){
         Require(host.Length>=120&&host.AsSpan(host.Length-16).SequenceEqual(Magic),"Missing existing bootstrap capsule");
         var trailer=host.AsSpan(host.Length-56);long length=BinaryPrimitives.ReadInt64LittleEndian(trailer);
         Require(length>0&&length<=Limit&&host.Length-56-length>=64,"Invalid bootstrap size");
@@ -91,14 +92,14 @@ public static class InitialMigrationBridge
         using var zip=new ZipArchive(new MemoryStream(payload),ZipArchiveMode.Read);
         Require(zip.Entries.Count==2&&zip.Entries.Select(x=>x.FullName).ToHashSet(StringComparer.Ordinal).SetEquals(new[]{"manifest.json","Pet.dll"}),"Bootstrap must use existing two-file format");
         byte[] Get(string name,int limit){using var stream=zip.GetEntry(name)!.Open();return Read(stream,limit);}
-        var module=Get("Pet.dll",Limit);using var doc=JsonDocument.Parse(Get("manifest.json",16384));var m=doc.RootElement;
+        var module=Get("Pet.dll",Limit);var manifest=Get("manifest.json",16384);using var doc=JsonDocument.Parse(manifest);var m=doc.RootElement;
         Require(m.GetProperty("Identity").GetString()==Identity&&m.GetProperty("Version").GetString()==PetVersion&&m.GetProperty("Assembly").GetString()=="Pet.dll"&&m.GetProperty("ApiVersion").GetInt32()==1,"Loja 1.3 bootstrap identity/version/API mismatch");
         string hash=Hash(module);Require(hash.Equals(m.GetProperty("Sha256").GetString(),StringComparison.OrdinalIgnoreCase),"Bootstrap module hash mismatch");
         IndependentUpdater.ValidateCompatibility(targetVersion,m.GetProperty("MinGlobalVersion").GetString(),m.GetProperty("MaxGlobalVersionExclusive").GetString());
         // Keep the legacy Loja binary byte-for-byte inside the approved profile wrapper.
         var pet=InspectModuleResources(module);
         Require(pet.Values.Contains("054e30f5ed5d40a0b539511f50c4415f346b8ec20cbefb325acf364d0f2acd8f"),"Original Loja customization not preserved in profile");
-        return (PetVersion,hash);
+        return (PetVersion,hash,Hash(manifest));
     }
     static IReadOnlyDictionary<string,string> InspectModuleResources(byte[] bytes){
         using var stream=new MemoryStream(bytes);using var pe=new PEReader(stream);Require(pe.HasMetadata,"Invalid profile binary");var md=pe.GetMetadataReader();
@@ -115,16 +116,16 @@ public static class InitialMigrationBridge
         Require(zip.Entries.Count==3&&zip.Entries.Select(x=>x.FullName).ToHashSet(StringComparer.Ordinal).SetEquals(CoreNames),"First transition permits only existing three-file worker payload");
         var files=new Dictionary<string,byte[]>();foreach(var entry in zip.Entries){Require(((entry.ExternalAttributes>>16)&0xf000)!=0xa000,"Package link refused");using var stream=entry.Open();files.Add(entry.FullName,Read(stream,Limit));}
         var contract=InspectHost(files["LealInfoPDV.dll"]);ValidateHostContract(contract);
-        var capsule=Capsule(files["LealInfoPDV.exe"],contract.CurrentVersion);
+        var capsule=InspectCapsule(files["LealInfoPDV.exe"],contract.CurrentVersion);
         using var deps=JsonDocument.Parse(files["LealInfoPDV.deps.json"]);Require(deps.RootElement.TryGetProperty("targets",out _),"Invalid destination dependency manifest");
         return new(OriginVersion,contract.CurrentVersion,Identity,capsule.Version,Hash(bytes),previous,
             files.ToDictionary(x=>x.Key,x=>Hash(x.Value)),capsule.Sha256,true,false,false);
     }
     public static void RequireTransactionalRecovery(Plan plan){
-        // The identified legacy worker backs up/restores only the three core files.
-        // A boolean/operator override cannot turn that into a two-component rollback.
-        // Stage 3 must supply and test the handoff before this gate can be replaced.
-        throw new InvalidOperationException("Migration activation blocked: qualify the existing worker handoff for both core and first external PET, then licensed Windows startup. No update was applied.");
+        // A preflight plan is not authority to modify an installation. Runtime
+        // handoff now arms JointInitialRecoveryWorker before PetBootstrap, and
+        // requires positive authenticated startup before either component commits.
+        throw new InvalidOperationException("Preflight cannot activate installations. Use the controlled initial coordinator and licensed validation; production remains unauthorized.");
     }
 
     public static void VerifyPreparedBackup(string app,Plan plan){
