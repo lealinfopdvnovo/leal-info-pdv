@@ -16,7 +16,8 @@ $sha=(Get-FileHash $package).Hash
 $names=@('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')
 $build=(Resolve-Path step2-work/identified-clone).Path
 $status=Get-Content step2-evidence/clone-integrity.json -Raw|ConvertFrom-Json
-if(!$status.StartupPermitted){@{Executed=$false;Blocked='Verified runtime copy unavailable'}|ConvertTo-Json|Set-Content step2-evidence/transactions-blocked.json;exit 0}
+$scenarios=@('success','bad-sha','interruption-system')
+if($status.StartupPermitted){$scenarios+=@('unqualified-startup-rollback','identified-10467-unlicensed-rollback')}else{@{StartupCasesBlocked='Exact runtime copy unavailable';DiskTransactionCasesStillRun=$true}|ConvertTo-Json|Set-Content step2-evidence/transactions-startup-blocked.json}
 dotnet run --project qa/organization/step2/DataFixture.csproj -c Release -- step2-work/data-fixture
 if($LASTEXITCODE -ne 0){throw 'Synthetic SQLite fixture failed'}
 $previousTemp=$env:RUNNER_TEMP
@@ -27,7 +28,7 @@ function Hash($p){(Get-FileHash -LiteralPath $p).Hash}
 function TaskName($p){$h=[Security.Cryptography.SHA256]::Create();try{'LealInfoPDV-Recovery-'+([BitConverter]::ToString($h.ComputeHash([Text.Encoding]::UTF8.GetBytes($p.ToUpperInvariant()))).Replace('-','').Substring(0,16))}finally{$h.Dispose()}}
 $results=@()
 try{
- foreach($scenario in @('success','bad-sha','interruption-system','unqualified-startup-rollback','identified-10467-unlicensed-rollback')){
+ foreach($scenario in $scenarios){
   $app=Join-Path $root $scenario;New-Item -ItemType Directory $app|Out-Null
   Copy-Item (Join-Path $build '*') $app -Recurse
   $origin=if($scenario -eq 'identified-10467-unlicensed-rollback'){'step2-work/10.467'}else{'step2-work/10.465'}

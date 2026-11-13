@@ -2,7 +2,7 @@
 No customer computer, database, license, feed or source of GLOBAL/PET is modified.
 """
 from pathlib import Path
-import hashlib,json,urllib.request,zipfile,io,xml.etree.ElementTree as ET,sys
+import hashlib,json,urllib.request,zipfile,io,xml.etree.ElementTree as ET,sys,base64
 root=Path('step2-work');root.mkdir(exist_ok=True)
 evidence=Path('step2-evidence');evidence.mkdir(exist_ok=True)
 installed=json.loads(Path('qa/organization/step2/installed-inventory.json').read_text(encoding='utf-8'))
@@ -43,6 +43,38 @@ if sys.argv[1]=='prepare':
  print('PASS identified original 10.467 triplet; exact dependency carrier prepared')
 elif sys.argv[1]=='assemble':
  publish=root/'dependency-publish';clone=root/'identified-clone';clone.mkdir(exist_ok=True)
+ deps=json.loads((root/'10.467/LealInfoPDV.deps.json').read_text(encoding='utf-8-sig'))
+ runtime=next(k.split('/')[1] for k in deps['libraries'] if k.startswith('runtimepack.Microsoft.NETCore.App.Runtime.win-x64/'))
+ provenance=[]
+ for package in ['microsoft.netcore.app.runtime.win-x64','microsoft.windowsdesktop.app.runtime.win-x64']:
+  url=f'https://api.nuget.org/v3-flatcontainer/{package}/{runtime}/{package}.{runtime}.nupkg'
+  raw=fetch(url);sha512=fetch(url+'.sha512').decode().strip()
+  assert base64.b64encode(hashlib.sha512(raw).digest()).decode()==sha512,'Official package SHA-512 mismatch'
+  count=0
+  with zipfile.ZipFile(io.BytesIO(raw)) as z:
+   for entry in z.infolist():
+    if entry.is_dir() or not entry.filename.startswith('runtimes/win-x64/'):continue
+    name=Path(entry.filename).name
+    if name not in expected:continue
+    data=z.read(entry)
+    if digest(data)==expected[name]['Sha256']:(publish/name).write_bytes(data);count+=1
+  provenance.append(dict(Package=package,Version=runtime,Sha512=sha512,ExactInstalledFilesRecovered=count))
+ (evidence/'official-runtime-recovery.json').write_text(json.dumps(provenance,indent=2))
+ config_path=publish/'LealInfoPDV.runtimeconfig.json'
+ config=json.loads(config_path.read_text(encoding='utf-8-sig'))
+ for fw in config['runtimeOptions'].get('includedFrameworks',[]):fw['version']=runtime
+ # Accept reconstructed SDK text only when it is byte-identical to the collected hash.
+ text=json.dumps(config,indent=2)
+ candidates=[text,text+'\n',text.replace('\n','\r\n'),text.replace('\n','\r\n')+'\r\n']
+ for candidate in candidates:
+  if digest(candidate.encode())==expected['LealInfoPDV.runtimeconfig.json']['Sha256']:config_path.write_bytes(candidate.encode());break
+ # A published runtime can carry an additional DAC alias; recover by exact content hash.
+ available={digest(p.read_bytes()):p for p in publish.rglob('*') if p.is_file()}
+ for name,row in expected.items():
+  target=publish/name
+  if not target.exists() and row['Sha256'] in available:
+   target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(available[row['Sha256']].read_bytes())
+
  matched=[];unavailable=[];mismatch=[]
  for name,row in expected.items():
   if name in ['LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json']:path=root/'10.467'/name
