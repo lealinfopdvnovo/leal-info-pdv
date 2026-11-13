@@ -40,8 +40,7 @@ namespace LealInfo.Inventory
   public PathGuard(string root)
   {
    Root=Local(root);try{
-    if(!Directory.Exists(Root))throw new IOException("Pasta não encontrada. Selecione a pasta do PDV.");
-    if(!Windows){NoLink(Root);Canonical=Root;Identity=Root;return;}
+    if(!Windows){if(!Directory.Exists(Root))throw new IOException("Pasta não encontrada.");NoLink(Root);Canonical=Root;Identity=Root;return;}
     string drive=Path.GetPathRoot(Root);string current=drive;
     var parts=Root.Substring(drive.Length).Split(new[]{Path.DirectorySeparatorChar},StringSplitOptions.RemoveEmptyEntries);
     LockDirectory(current);
@@ -50,12 +49,14 @@ namespace LealInfo.Inventory
    }catch{Dispose();throw;}
   }
   internal static void NoLink(string path){if((File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0)throw new IOException("Pasta ou arquivo redirecionado não permitido. Selecione a pasta original.");}
-  internal void LockDirectory(string path)
+  internal void LockDirectory(string path){if(!TryLockDirectory(path))throw new IOException("Pasta não encontrada. Selecione a pasta original do PDV.");}
+  internal bool TryLockDirectory(string path)
   {
-   if(!Windows){NoLink(path);return;}
+   if(!Windows){if(!Directory.Exists(path))return false;NoLink(path);return true;}
+   // OPEN_REPARSE_POINT: even presence checks must not follow a link outside scope.
    var file=CreateFile(path,0x80,1,IntPtr.Zero,3,0x02200000,IntPtr.Zero);
-   if(file.IsInvalid){file.Dispose();throw Error();}
-   try{if((Describe(file).Attributes&Reparse)!=0)throw new IOException("Pasta redirecionada não permitida. Selecione a pasta original.");directories.Add(file);}catch{file.Dispose();throw;}
+   if(file.IsInvalid){int error=Marshal.GetLastWin32Error();file.Dispose();if(error==2||error==3)return false;throw new IOException("Sem acesso à pasta. Escolha a pasta original à qual você tem acesso.",new Win32Exception(error));}
+   try{var info=Describe(file);if((info.Attributes&Reparse)!=0)throw new IOException("Pasta redirecionada não permitida. Selecione a pasta original.");if((info.Attributes&0x10)==0)throw new IOException("Selecione uma pasta.");directories.Add(file);return true;}catch{file.Dispose();throw;}
   }
   internal FileStream OpenRead(string path,out Info info)
   {

@@ -34,8 +34,9 @@ namespace LealInfo.Inventory
   {
    using(var guard=new PathGuard(folder)){
     var files=new List<InventoryFile>();var missing=new List<string>();
-    if(!File.Exists(Path.Combine(guard.Root,"LealInfoPDV.dll"))&&!File.Exists(Path.Combine(guard.Root,"LealInfoPDV.exe")))throw new IOException("Pasta incorreta. Selecione a pasta que contém LealInfoPDV.exe ou LealInfoPDV.dll.");
-    foreach(var name in Required)if(!File.Exists(Path.Combine(guard.Root,name)))missing.Add(name);
+    var topFiles=Directory.EnumerateFiles(guard.Root).ToArray();var topNames=topFiles.Select(Path.GetFileName).ToArray();
+    if(!topNames.Contains("LealInfoPDV.dll",StringComparer.OrdinalIgnoreCase)&&!topNames.Contains("LealInfoPDV.exe",StringComparer.OrdinalIgnoreCase))throw new IOException("Pasta incorreta. Selecione a pasta que contém LealInfoPDV.exe ou LealInfoPDV.dll.");
+    foreach(var name in Required)if(!topNames.Contains(name,StringComparer.OrdinalIgnoreCase))missing.Add(name);
     Action<string> add=path=>{
      cancel.ThrowIfCancellationRequested();PathGuard.Info before;
      using(var stream=guard.OpenRead(path,out before)){
@@ -51,20 +52,20 @@ namespace LealInfo.Inventory
       files.Add(new InventoryFile(path.Substring(guard.Root.TrimEnd(Path.DirectorySeparatorChar).Length+1).Replace('\\','/'),stream.Length,hash,version,product));
      }
     };
-    foreach(var path in Directory.EnumerateFiles(guard.Root)){
+    foreach(var path in topFiles){
      cancel.ThrowIfCancellationRequested();var name=Path.GetFileName(path);var ext=Path.GetExtension(path);
      if(Required.Contains(name,StringComparer.OrdinalIgnoreCase)||ext.Equals(".dll",StringComparison.OrdinalIgnoreCase)||ext.Equals(".exe",StringComparison.OrdinalIgnoreCase))add(path);
     }
     Action<string,bool> tree=null;
     tree=(path,pet)=>{
-     cancel.ThrowIfCancellationRequested();if(!Directory.Exists(path))return;guard.LockDirectory(path);
+     cancel.ThrowIfCancellationRequested();if(!guard.TryLockDirectory(path))return;
      foreach(var file in Directory.EnumerateFiles(path)){
       var ext=Path.GetExtension(file);
       if(ext.Equals(".dll",StringComparison.OrdinalIgnoreCase)||ext.Equals(".exe",StringComparison.OrdinalIgnoreCase)||(pet&&Path.GetFileName(file).Equals("manifest.json",StringComparison.OrdinalIgnoreCase)))add(file);
      }
      foreach(var child in Directory.EnumerateDirectories(path))tree(child,pet);
     };
-    var extensions=Path.Combine(guard.Root,"Extensions");if(Directory.Exists(extensions)){guard.LockDirectory(extensions);tree(Path.Combine(extensions,"PET"),true);}
+    var extensions=Path.Combine(guard.Root,"Extensions");if(guard.TryLockDirectory(extensions)){tree(Path.Combine(extensions,"PET"),true);}
     tree(Path.Combine(guard.Root,"runtimes"),false);
     cancel.ThrowIfCancellationRequested();
     return new InventoryReport(files.OrderBy(x=>x.Name,StringComparer.Ordinal).ToArray(),missing){RootIdentity=guard.Identity,CanonicalRoot=guard.Canonical};
