@@ -1,0 +1,50 @@
+name: Etapa02 - referencia instalada 10.467 isolada
+on:
+  push:
+    branches: [diagnostic/installed-10467-20261113]
+    paths: ['qa/organization/step2/**', '.github/workflows/step2_installed_validation.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  reference:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: 7aa5d38336e94659c07f0afc6ddfe40169c41a3a
+          path: published-source
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Identificar os binarios e preparar dependencias confiaveis
+        shell: pwsh
+        run: |
+          python qa/organization/step2/prepare.py prepare
+          if($LASTEXITCODE -ne 0){throw 'Published reference verification failed'}
+          dotnet publish step2-work/dependency-carrier/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o step2-work/dependency-publish
+          if($LASTEXITCODE -ne 0){throw 'Exact dependency carrier publish failed'}
+          python qa/organization/step2/prepare.py assemble
+          if($LASTEXITCODE -ne 0){throw 'Verified clone assembly failed'}
+      - name: Validar versoes literais e contrato do carregador original
+        shell: pwsh
+        run: |
+          dotnet run --project qa/organization/step2/MetadataProbe.csproj -c Release -- step2-work/10.467/LealInfoPDV.dll
+          if($LASTEXITCODE -ne 0){throw 'Published metadata verification failed'}
+      - name: Inicializar somente ate a barreira real de licenciamento
+        shell: pwsh
+        run: ./qa/organization/step2/startup.ps1
+      - name: Validar aplicador original com arquivos da origem identificada
+        shell: pwsh
+        run: ./qa/organization/step2/transaction.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: etapa02-instalacao-identificada-evidencias
+          path: step2-evidence/
