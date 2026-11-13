@@ -51,12 +51,14 @@ jobs:
       - name: Compilar coletor de conferencia somente leitura
         shell: pwsh
         run: |
-          dotnet publish controller/qa/organization/collector/Collector.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o collector-output
+          dotnet build controller/qa/organization/collector/Collector.csproj -c Release
+          New-Item -ItemType Directory collector-output -Force|Out-Null
+          Copy-Item controller/qa/organization/collector/bin/Release/net48/LealInfo_Conferir_Instalacao.exe collector-output/
           if($LASTEXITCODE -ne 0){throw 'Read-only collector compilation failed'}
       - uses: actions/upload-artifact@v4
         with:
           name: coletor-conferencia-somente-leitura
-          path: collector-output/Collector.exe
+          path: collector-output/LealInfo_Conferir_Instalacao.exe
       - name: Recuperar arte e preparar selo exclusivo dos dois PETs
         shell: pwsh
         run: |

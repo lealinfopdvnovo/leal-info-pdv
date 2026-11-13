@@ -1,0 +1,77 @@
+name: Coletor - seguranca e entrega Windows isolada
+on:
+  push:
+    branches: [diagnostic/collector-secure-20261113]
+    paths: ['qa/organization/collector/**', 'qa/organization/collector-tests/**', '.github/workflows/collector_diagnostic_tests.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  collector:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: '14066110808'
+          run-id: '43482048217'
+          github-token: ${{ github.token }}
+          path: original-collector
+      - name: Verificar executavel original e abertura isolada
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory collector-evidence -Force|Out-Null
+          $original=(Get-ChildItem original-collector -Filter Collector.exe -Recurse|Select-Object -First 1).FullName
+          if((Get-FileHash $original -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'c8d93500f30c987bb926ac834f8e6c0b06ee37ca58f6603a0a3faf4b3dcc06e1'){throw 'Original collector hash mismatch'}
+          $process=Start-Process $original -PassThru -WorkingDirectory (Split-Path $original)
+          Start-Sleep -Seconds 4
+          $process.Refresh()
+          $opened=!$process.HasExited -and $process.MainWindowTitle -eq 'LEAL INFO — Conferir instalação'
+          @{ExpectedHashVerified=$true;GraphicalStandaloneOpened=$opened;ReplacedDueToPathSecurity=$true}|ConvertTo-Json|Set-Content collector-evidence/original-collector.json
+          if(!$process.HasExited){$process.CloseMainWindow()|Out-Null;if(!$process.WaitForExit(3000)){$process.Kill();$process.WaitForExit()}}
+      - name: Compilar o mesmo coletor portatil com runtime do Windows
+        shell: pwsh
+        run: |
+          dotnet build qa/organization/collector/Collector.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Collector build failed'}
+          dotnet build qa/organization/collector-tests/Tests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Collector tests build failed'}
+          New-Item -ItemType Directory standalone -Force|Out-Null
+          Copy-Item qa/organization/collector/bin/Release/net48/LealInfo_Conferir_Instalacao.exe standalone/
+          $exe=(Resolve-Path standalone/LealInfo_Conferir_Instalacao.exe).Path
+          $assembly=[Reflection.Assembly]::LoadFile($exe)
+          $references=@($assembly.GetReferencedAssemblies()|ForEach-Object{$_.Name})
+          $allowed=@('mscorlib','System','System.Core','System.Windows.Forms','System.Drawing','System.Web.Extensions')
+          if(@($references|Where-Object{$_ -notin $allowed}).Count -ne 0){throw 'Unexpected executable dependency'}
+          $framework=(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full').Release
+          if($framework -lt 528040){throw 'Windows .NET Framework 4.8 missing in test host'}
+          @{Sha256=(Get-FileHash $exe).Hash.ToLowerInvariant();Size=(Get-Item $exe).Length;Dependencies=$references;Runtime='Windows .NET Framework 4.8';Portable=$true;AdminRequested=$false}|ConvertTo-Json -Depth 5|Set-Content collector-evidence/executable.json
+      - name: Testar com token sem grupo administrador
+        shell: pwsh
+        run: |
+          $env:COLLECTOR_EVIDENCE=(Resolve-Path collector-evidence).Path
+          ./qa/organization/collector-tests/restricted.ps1 -Exe qa/organization/collector-tests/bin/Release/net48/Tests.exe -Collector standalone/LealInfo_Conferir_Instalacao.exe
+      - name: Verificar chamadas permitidas e isolamento do escopo
+        shell: pwsh
+        run: |
+          $files=Get-ChildItem qa/organization/collector -Filter *.cs
+          $text=($files|Get-Content -Raw)-join "`n"
+          if($text -match 'Process\.(Start|GetProcesses)|\.Kill\(|RegistryKey|Registry\.|HttpClient|WebRequest|Socket\(|TcpClient|DownloadFile|DeleteFile|MoveFile'){throw 'Forbidden operational API in collector'}
+          [xml]$manifest=Get-Content qa/organization/collector/app.manifest
+          $execution=$manifest.SelectSingleNode("//*[local-name()='requestedExecutionLevel']")
+          if($execution.level -ne 'asInvoker' -or $execution.uiAccess -ne 'false'){throw 'Collector requests elevation'}
+          if((Get-ChildItem standalone -File).Count -ne 1){throw 'Sidecar dependencies delivered'}
+          @{Pass=$true;NoProcessControl=$true;NoNetworkApi=$true;NoRegistryWriteApi=$true;AsInvoker=$true;OnlyApplicationWrite='new JSON outside selected installation'}|ConvertTo-Json|Set-Content collector-evidence/security.json
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: coletor-verificado-executavel
+          path: standalone/LealInfo_Conferir_Instalacao.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coletor-evidencias-Windows
+          path: collector-evidence/
