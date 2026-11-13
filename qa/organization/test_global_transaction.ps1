@@ -1,4 +1,13 @@
 $ErrorActionPreference='Stop'
+function ReadRecoveryState([string]$path){
+ # The SYSTEM worker atomically replaces this journal. Share delete/rename and retry
+ # transient read failures; the existing deadline still fails missing/corrupt state.
+ try{
+  $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+  try{$reader=[IO.StreamReader]::new($stream);try{return ($reader.ReadToEnd()|ConvertFrom-Json)}finally{$reader.Dispose()}}finally{$stream.Dispose()}
+ }catch{return $null}
+}
+
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated Windows only'}
 $worker=(Resolve-Path candidate/TransactionalUpdate.ps1).Path
 $build=Split-Path (Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.exe -Recurse|Select-Object -First 1).FullName
@@ -29,7 +38,7 @@ foreach($scenario in @('success','interruption','bad-sha')){
    if($scenario -eq 'success'){if($LASTEXITCODE -ne 0){throw 'Apply failed'}}else{
     if($LASTEXITCODE -ne 73 -or (Test-Path (Join-Path $app 'LealInfoPDV.exe'))){throw 'Interrupted executable set exposed'}
     Start-ScheduledTask -TaskName (TaskName $app);$limit=(Get-Date).AddSeconds(35)
-    do{Start-Sleep -Milliseconds 250;$state=Get-Content (Join-Path $app '.pdv-update/journal.json') -Raw|ConvertFrom-Json}while($state.Phase -ne 'Recovered' -and (Get-Date) -lt $limit)
+    do{Start-Sleep -Milliseconds 250;$state=ReadRecoveryState (Join-Path $app '.pdv-update/journal.json')}while($state.Phase -ne 'Recovered' -and (Get-Date) -lt $limit)
     if($state.Phase -ne 'Recovered'){throw 'SYSTEM recovery failed'}
    }
   }

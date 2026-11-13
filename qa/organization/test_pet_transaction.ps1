@@ -1,4 +1,13 @@
 $ErrorActionPreference='Stop'
+function ReadRecoveryState([string]$path){
+ # The SYSTEM worker atomically replaces this journal. Share delete/rename and retry
+ # transient read failures; the existing deadline still fails missing/corrupt state.
+ try{
+  $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete))
+  try{$reader=[IO.StreamReader]::new($stream);try{return ($reader.ReadToEnd()|ConvertFrom-Json)}finally{$reader.Dispose()}}finally{$stream.Dispose()}
+ }catch{return $null}
+}
+
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated runner only'}
 $worker=(Resolve-Path (Join-Path $PSScriptRoot 'PetTransactionalUpdate.ps1')).Path
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -70,7 +79,7 @@ foreach($case in @('inactive-client','compatible-range','incompatible-range','wr
      if($LASTEXITCODE -ne 73){throw 'Interruption checkpoint failed'}
      Start-ScheduledTask -TaskName (TaskName $app)
      $deadline=(Get-Date).AddSeconds(40)
-     do{Start-Sleep -Milliseconds 250;$state=Get-Content (Join-Path $app '.pdv-pet-update/journal.json') -Raw|ConvertFrom-Json}while($state.Phase -ne 'Recovered' -and (Get-Date) -lt $deadline)
+     do{Start-Sleep -Milliseconds 250;$state=ReadRecoveryState (Join-Path $app '.pdv-pet-update/journal.json')}while($state.Phase -ne 'Recovered' -and (Get-Date) -lt $deadline)
      if($state.Phase -ne 'Recovered'){
       Write-Output ($state|ConvertTo-Json -Depth 12)
       Get-ScheduledTaskInfo -TaskName (TaskName $app)|Format-List|Out-String|Write-Output
