@@ -13,8 +13,8 @@ $fixtureRoot=Join-Path $env:ProgramFiles ('LealInfoPDV-QA-PET-'+[Guid]::NewGuid(
 New-Item -ItemType Directory $fixtureRoot|Out-Null
 $env:RUNNER_TEMP=$fixtureRoot
 try{
-foreach($owner in @('001','003')){
-foreach($case in @('compatible-range','incompatible-range','wrong-api','success','bad-hash','wrong-identity','wrong-manifest','downgrade','traversal','global-pending','tampered-stage','interruption-system-recovery','health-failure')){
+foreach($owner in @('001','002','003')){
+foreach($case in @('inactive-client','compatible-range','incompatible-range','wrong-api','success','bad-hash','wrong-identity','wrong-manifest','downgrade','traversal','global-pending','tampered-stage','interruption-system-recovery','health-failure')){
  $app=Join-Path $env:RUNNER_TEMP ('pet-transaction-'+[Guid]::NewGuid().ToString('N'))
  $pet=Join-Path $app 'Extensions/PET';New-Item -ItemType Directory $pet -Force|Out-Null
  Set-Content (Join-Path $app 'QA-ISOLATED') 'disposable fixture'
@@ -40,7 +40,7 @@ foreach($case in @('compatible-range','incompatible-range','wrong-api','success'
   if($case -eq 'traversal'){$e=$z.CreateEntry('../LealInfoPDV.dll');$s=$e.Open();try{$s.WriteByte(1)}finally{$s.Dispose()}}
  }finally{$z.Dispose()}
  $sha=Hash $package
- $identity=if($case -eq 'wrong-identity'){'004'}else{$owner}
+ $identity=if($case -in @('wrong-identity','inactive-client')){'004'}else{$owner}
  if($case -eq 'bad-hash'){$sha='0'*64}
  try{
   if($case -eq 'global-pending'){
@@ -54,7 +54,7 @@ foreach($case in @('compatible-range','incompatible-range','wrong-api','success'
    if($LASTEXITCODE -eq 0){throw 'Invalid executable was accepted as healthy'}
   }else{
    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Prepare -App $app -Package $package -Sha256 $sha -Version $version -Channel PET -Identity $identity -GlobalVersion 10.470
-   $reject=$case -in @('bad-hash','wrong-identity','wrong-manifest','downgrade','traversal','global-pending','incompatible-range','wrong-api')
+   $reject=$case -in @('bad-hash','wrong-identity','wrong-manifest','downgrade','traversal','global-pending','incompatible-range','wrong-api','inactive-client')
    if($reject){if($LASTEXITCODE -eq 0){throw "Unsafe prepare accepted: $case"}}
    else{
     if($LASTEXITCODE -ne 0){throw "Prepare failed: $case"}

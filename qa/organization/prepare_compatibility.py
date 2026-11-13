@@ -28,3 +28,25 @@ gate='''        using(var compatibility=JsonDocument.Parse(File.ReadAllText(Path
 '''
 p.write_text(s.replace(marker,gate+marker),encoding='utf-8')
 print('PASS direct GLOBAL update entry point enforces installed PET compatibility')
+
+# Inactive clients retain existing modules/data but receive no first migration or updates.
+p=root/'PetBootstrap.cs';s=p.read_text(encoding='utf-8-sig')
+marker=' internal static bool EnsurePresent(string app,string identity,Action<string>? checkpoint=null){'
+assert s.count(marker)==1
+s=s.replace(marker,marker+'\n  LealInfo.Components.ClientPolicy.Default.AssertActive(identity);')
+p.write_text(s,encoding='utf-8')
+p=root/'PetRuntime.cs';s=p.read_text(encoding='utf-8-sig')
+marker='        PetBootstrap.EnsurePresent(AppContext.BaseDirectory,identity);'
+assert s.count(marker)==1
+s=s.replace(marker,'        if(LealInfo.Components.ClientPolicy.Default.IsActive(identity))PetBootstrap.EnsurePresent(AppContext.BaseDirectory,identity);')
+p.write_text(s,encoding='utf-8')
+p=root/'TransactionalUpdate.cs';s=p.read_text(encoding='utf-8-sig')
+marker='    internal static async Task BeginAsync(string package,string sha256,string version,string channel)\n    {'
+assert s.count(marker)==1
+s=s.replace(marker,marker+'\n        LealInfo.Components.ClientPolicy.Default.AssertActive(UpdateManager.GetClientCode());')
+p.write_text(s,encoding='utf-8')
+print('PASS lifecycle: update/first-migration blocked for inactive; existing PET load and recovery retained')
+p=root/'UpdateManager.cs';s=p.read_text(encoding='utf-8-sig')
+marker=' private static string GetClientCode()'
+assert s.count(marker)==1
+p.write_text(s.replace(marker,' internal static string GetClientCode()'),encoding='utf-8')

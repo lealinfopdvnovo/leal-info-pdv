@@ -8,8 +8,7 @@
     "audience": [
       "001",
       "002",
-      "003",
-      "004"
+      "003"
     ],
     "payload": [
       "LealInfoPDV.exe",
@@ -27,7 +26,9 @@
       "legacyVersion": "1.2",
       "legacyResource": "Loja.PET.1.2",
       "legacyResourceSha256": "054E30F5ED5D40A0B539511F50C4415F346B8EC20CBEFB325ACF364D0F2ACD8F",
-      "extractionAndMigrationVerified": false
+      "extractionAndMigrationVerified": false,
+      "active": true,
+      "operationalMigrationIncluded": true
     },
     {
       "id": "002",
@@ -38,7 +39,9 @@
       "legacyVersion": "1.1",
       "legacyResource": "Gelamaq.PET.payload",
       "legacyResourceSha256": "887AD549A9764770FC2E8924B13FF9D56E96E5511BF90A2647670C6830987034",
-      "extractionAndMigrationVerified": false
+      "extractionAndMigrationVerified": false,
+      "active": true,
+      "operationalMigrationIncluded": true
     },
     {
       "id": "003",
@@ -49,7 +52,9 @@
       "legacyVersion": "1.1",
       "legacyResource": "Casa.Gemini.Bundle",
       "legacyResourceSha256": "3BD817CEFB3AC5C815813D144D5442C062162E20C26B725A51DCE32309E73918",
-      "extractionAndMigrationVerified": false
+      "extractionAndMigrationVerified": false,
+      "active": true,
+      "operationalMigrationIncluded": true
     },
     {
       "id": "004",
@@ -60,7 +65,9 @@
       "legacyVersion": null,
       "legacyResource": null,
       "legacyResourceSha256": null,
-      "extractionAndMigrationVerified": false
+      "extractionAndMigrationVerified": false,
+      "active": false,
+      "operationalMigrationIncluded": false
     }
   ],
   "rules": {
@@ -117,6 +124,14 @@
     "positiveActivatedStartupQualified": false,
     "report": "organization/CANDIDATA-20261113.md",
     "integrationRun": "https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/43479008291",
-    "isolatedIntegrationPassed": true
+    "isolatedIntegrationPassed": true,
+    "activeClients": [
+      "001",
+      "002",
+      "003"
+    ],
+    "inactiveClients": [
+      "004"
+    ]
   }
 }

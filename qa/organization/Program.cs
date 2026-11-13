@@ -92,7 +92,7 @@ static class Tests
                 catch(OperationCanceledException){}
                 Check(Hash(File.ReadAllBytes(protectedFile))==sentinel,"Base changed");
             });
-            foreach(var id in new[]{"001","003"})
+            foreach(var id in new[]{"001","002","003"})
             foreach(var global in new[]{"10.465","10.470"})
             await Case("compatible PET " + id + " with GLOBAL " + global,()=>Done(()=>{
                 var r=ReleaseFor(Pet(),ComponentKind.PET,id) with {MinGlobalVersion="10.465",MaxGlobalVersionExclusive="10.480"};
@@ -118,6 +118,17 @@ static class Tests
             await Case("feed cannot claim compatibility absent from package",()=>Reject(()=>Stage(Pet(),staging,
                 ReleaseFor(Pet()) with{MinGlobalVersion="10.465",MaxGlobalVersionExclusive="10.480"})));
             await Case("unsupported API rejected",()=>Reject(()=>Stage(Pet(),staging,ReleaseFor(Pet()) with{PetApiVersion=2})));
+            await Case("inactive Genilson receives no GLOBAL or PET offers",()=>Done(()=>{
+                var plan=IndependentUpdater.Plan(new("10.465","1.1","004"),ReleaseFor(Global(),ComponentKind.GLOBAL),ReleaseFor(Pet("004"),ComponentKind.PET,"004"));
+                Check(plan.Available.Count==0 && plan.Errors.Count==1,"Inactive offers escaped");
+            }));
+            await Case("inactive direct staging refused before download",()=>Reject(()=>IndependentUpdater.StageAsync(ReleaseFor(Pet("004"),ComponentKind.PET,"004"),"004",staging,(_,_)=>throw new Exception("Inactive download attempted"))));
+            await Case("reactivation is reversible and isolated",()=>Done(()=>{
+                var reactivated=ClientPolicy.Default.WithActivity("004",true);
+                Check(reactivated.IsActive("004")&&!ClientPolicy.Default.IsActive("004"),"Default policy mutated");
+                Check(!reactivated.WithActivity("004",false).IsActive("004"),"Deactivation not reversible");
+                Check(new[]{"001","002","003"}.All(id=>reactivated.IsActive(id)&&ClientPolicy.Default.IsActive(id)),"Active clients affected");
+            }));
             Check(Hash(File.ReadAllBytes(protectedFile))==sentinel,"Protected base changed after rejection");
             Directory.CreateDirectory("pair-evidence");
             File.WriteAllText("pair-evidence/component-tests.json",JsonSerializer.Serialize(new{Passed=passed,InstallationUntouched=true,ProductionPublished=false,Scope="selection and verified staging; activation/UI/migration pending"}));

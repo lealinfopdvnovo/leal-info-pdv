@@ -53,6 +53,7 @@ internal static class PetTransactionalUpdate
     }
     internal static async Task BeginAsync(string package,string sha256,string version,string channel,string identity)
     {
+        LealInfo.Components.ClientPolicy.Default.AssertActive(identity);
         if(channel != "PET" || !ClientUpdateIdentity.IsValidClientCode(identity))throw new InvalidOperationException("Atualização não autorizada para este canal.");
         if(Application.OpenForms.Cast<Form>().Any(f=>f.Visible && f is not MainForm))
             throw new InvalidOperationException("Feche as telas de vendas e demais janelas antes de atualizar.");

@@ -93,6 +93,7 @@ function StopPendingStartup($s){
  }
 }
 function Prepare{
+ if($Identity -notin @('001','002','003')){throw 'Inactive or unregistered client: update refused'}
  if($Channel -notin @('PET') -or !($Version -match '^1\.\d+(\.\d+)*$')){throw 'Unsupported channel/version'}
  if(Test-Path $journal){$old=Get-Content $journal -Raw|ConvertFrom-Json;if($old.Phase -eq 'Prepared'){$old.Phase='Aborted';SaveState $old};if($old.Phase -notin @('Committed','Recovered','Aborted')){throw 'Pending transaction must recover before another update'}
   # Preserve all earlier verified backups/journals for diagnosis and rollback.

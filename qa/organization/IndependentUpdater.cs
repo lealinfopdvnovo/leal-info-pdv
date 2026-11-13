@@ -15,11 +15,26 @@ public sealed record Staged(Release Release, string Folder, IReadOnlyDictionary<
 
 // Preparation only. Activation requires the external transactional worker.
 // This module never writes the application installation or a distribution feed.
+public sealed class ClientPolicy
+{
+    public static ClientPolicy Default { get; }=new(new Dictionary<string,bool>{{"001",true},{"002",true},{"003",true},{"004",false}});
+    private readonly IReadOnlyDictionary<string,bool> clients;
+    public ClientPolicy(IReadOnlyDictionary<string,bool> values)=>clients=new Dictionary<string,bool>(values);
+    public bool IsActive(string identity)=>clients.TryGetValue(identity,out var active)&&active;
+    public void AssertActive(string identity){if(!IsActive(identity))throw new InvalidDataException("Cliente inativo ou não cadastrado: atualização/migração bloqueada.");}
+    public ClientPolicy WithActivity(string identity,bool active)
+    {
+        if(!clients.ContainsKey(identity))throw new InvalidDataException("Cliente não cadastrado.");
+        var next=clients.ToDictionary(x=>x.Key,x=>x.Value);next[identity]=active;return new(next);
+    }
+}
+
 public static class IndependentUpdater
 {
     public static Selection Plan(Installed installed, Release? global, Release? pet)
     {
         if (!Regex.IsMatch(installed.Identity, @"\A[0-9]{3,9}\z")) throw new InvalidDataException("Invalid installation identity");
+        if(!ClientPolicy.Default.IsActive(installed.Identity))return new Selection(Array.Empty<Release>(),new[]{"Cliente inativo ou não cadastrado: nenhuma oferta disponível."});
         var result=new List<Release>();var errors=new List<string>();
         void Check(Release? release,ComponentKind kind,string current)
         {
@@ -43,6 +58,7 @@ public static class IndependentUpdater
 
     public static void ValidateManifest(Release release, string identity)
     {
+        ClientPolicy.Default.AssertActive(identity);
         bool pet = release.Component == ComponentKind.PET;
         if(release.Component is not (ComponentKind.GLOBAL or ComponentKind.PET)) throw new InvalidDataException("Unknown component");
         if(pet ? release.Identity != identity : !string.IsNullOrEmpty(release.Identity))

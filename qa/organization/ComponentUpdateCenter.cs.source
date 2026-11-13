@@ -8,6 +8,7 @@ internal static class ComponentUpdateCenter
  const string Root="https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv-updates/main/";
  internal static async Task ShowAsync(IWin32Window? owner,string identity,string commonVersion,bool silent=false)
  {
+  if(!ClientPolicy.Default.IsActive(identity)){if(!silent)MessageBox.Show(owner,"Cliente inativo. Atualizações indisponíveis.","Atualizações");return;}
   using var http=new HttpClient{Timeout=TimeSpan.FromSeconds(15)};
   http.DefaultRequestHeaders.UserAgent.ParseAdd("LEAL-INFO-Components/1");
   var issues=new List<string>();

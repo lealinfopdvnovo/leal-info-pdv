@@ -76,7 +76,12 @@ jobs:
           $env:PET_FIXTURE=$fixture
           dotnet run --project controller/qa/organization/StartupProbe.csproj -c Release -- --update-transaction isolated-startup-probe
           if($LASTEXITCODE -ne 0){throw 'Independent startup health regression failed'}
-      - name: Testar os quatro perfis reais na base comum atual
+      - name: Validar cliente inativo sem migrar ou consultar feeds
+        shell: pwsh
+        run: |
+          dotnet run --project controller/qa/organization/LifecycleProbe.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Inactive lifecycle validation failed'}
+      - name: Testar os tres perfis ativos na base comum candidata
         shell: pwsh
         run: |
           dotnet build controller/qa/organization/ProfileProbe.csproj -c Release
@@ -84,7 +89,7 @@ jobs:
           dotnet build controller/qa/organization/BootstrapProbe.csproj -c Release
           if($LASTEXITCODE -ne 0){throw 'Bootstrap probe compilation failed'}
           $hostExe=(Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.exe -Recurse|Select-Object -First 1).FullName
-          foreach($id in @('001','003','002','004')){
+          foreach($id in @('001','003','002')){
             dotnet build "candidate/extensions/profiles/$id/Pet.csproj" -c Release
             if($LASTEXITCODE -ne 0){throw "Actual profile build failed $id"}
             $module=(Get-ChildItem "candidate/extensions/profiles/$id/bin/Release" -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
