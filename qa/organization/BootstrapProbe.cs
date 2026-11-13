@@ -39,7 +39,7 @@ static class BootstrapProbe
    using(var memory=new MemoryStream()){
     using(var zip=new ZipArchive(memory,ZipArchiveMode.Create,true)){
      using(var output=zip.CreateEntry("Pet.dll").Open())output.Write(dll);
-     using(var output=zip.CreateEntry("manifest.json").Open())JsonSerializer.Serialize(output,new{Identity=identity,Version=version,ApiVersion=1,Assembly="Pet.dll",Sha256=Convert.ToHexString(SHA256.HashData(dll))});
+     using(var output=zip.CreateEntry("manifest.json").Open())JsonSerializer.Serialize(output,new{Identity=identity,Version=version,ApiVersion=1,Assembly="Pet.dll",MinGlobalVersion=UpdateManager.CurrentVersion,MaxGlobalVersionExclusive="10."+(int.Parse(UpdateManager.CurrentVersion.Split('.')[1])+1),Sha256=Convert.ToHexString(SHA256.HashData(dll))});
     }capsule=memory.ToArray();
    }
    byte[] trailer=new byte[56];BinaryPrimitives.WriteInt64LittleEndian(trailer,capsule.Length);SHA256.HashData(capsule).CopyTo(trailer,8);Encoding.ASCII.GetBytes("LEAL-PET-BOOT-01").CopyTo(trailer,40);
