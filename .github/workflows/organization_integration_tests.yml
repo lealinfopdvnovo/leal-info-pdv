@@ -137,6 +137,14 @@ jobs:
           $common=(Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.dll -Recurse|Select-Object -First 1).FullName
           dotnet run --project controller/qa/organization/LegacyModuleContracts.csproj -c Release -- $common
           if($LASTEXITCODE -ne 0){throw 'Legacy PET common API contract mismatch'}
+      - name: Validar botoes independentes no Windows Forms
+        shell: pwsh
+        run: |
+          dotnet run --project controller/qa/organization/WindowsUiTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Independent update UI validation failed'}
+      - name: Validar transacao GLOBAL preservando os tres PETs ativos
+        shell: pwsh
+        run: ./controller/qa/organization/test_global_transaction.ps1
       - name: Testar aplicador PET e recuperacao independente SYSTEM
         if: success() || failure()
         shell: pwsh
