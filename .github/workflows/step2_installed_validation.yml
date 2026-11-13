@@ -28,7 +28,8 @@ jobs:
         run: |
           python qa/organization/step2/prepare.py prepare
           if($LASTEXITCODE -ne 0){throw 'Published reference verification failed'}
-          dotnet publish step2-work/dependency-carrier/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o step2-work/dependency-publish
+          $sdk=(Get-Content step2-evidence/dependency-provenance.json -Raw|ConvertFrom-Json).WindowsSdkPackage
+          dotnet publish step2-work/dependency-carrier/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o step2-work/dependency-publish "-p:WindowsSdkPackageVersion=$sdk"
           if($LASTEXITCODE -ne 0){throw 'Exact dependency carrier publish failed'}
           python qa/organization/step2/prepare.py assemble
           if($LASTEXITCODE -ne 0){throw 'Verified clone assembly failed'}
