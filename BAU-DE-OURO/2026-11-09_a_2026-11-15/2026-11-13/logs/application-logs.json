@@ -1,0 +1,46 @@
+[
+  {
+    "verb": "GET",
+    "urlPath": "/order/v1.0/orders/dae27b3f-f0c2-4912-af6d-09bf91d01235/virtual-bag",
+    "response": "200",
+    "timestamp": "2026-11-13T13:52:47.546Z",
+    "responseTime": "0.019",
+    "applicationSlug": "adriano-leal-dos-santos-teste-c",
+    "ifoodRequestId": "9cf84233-f8b9-45b7-9913-e02e2fef326b",
+    "useragent": "",
+    "clientId": "756879ff-e999-4782-ae2d-a782619c7e26"
+  },
+  {
+    "verb": "POST",
+    "urlPath": "/events/v1.0/events/acknowledgment",
+    "response": "202",
+    "timestamp": "2026-11-13T13:52:46.615Z",
+    "responseTime": "0.010",
+    "applicationSlug": "adriano-leal-dos-santos-teste-c",
+    "ifoodRequestId": "97c49a1e-2ad1-425e-9c3b-71cac4eff26b",
+    "useragent": "",
+    "clientId": "756879ff-e999-4782-ae2d-a782619c7e26"
+  },
+  {
+    "verb": "GET",
+    "urlPath": "/events/v1.0/events:polling",
+    "response": "200",
+    "timestamp": "2026-11-13T13:52:45.796Z",
+    "responseTime": "0.011",
+    "applicationSlug": "adriano-leal-dos-santos-teste-c",
+    "ifoodRequestId": "2f70bd41-f915-4d5f-b788-637f7a0aa826",
+    "useragent": "",
+    "clientId": "756879ff-e999-4782-ae2d-a782619c7e26"
+  },
+  {
+    "verb": "GET",
+    "urlPath": "/merchant/v1.0/merchants/84a8976b-0559-48c6-84ce-fc2502f1364a",
+    "response": "200",
+    "timestamp": "2026-11-13T13:52:44.746Z",
+    "responseTime": "0.011",
+    "applicationSlug": "adriano-leal-dos-santos-teste-c",
+    "ifoodRequestId": "0916c542-5b33-42c2-82e4-960fe4b76833",
+    "useragent": "",
+    "clientId": "756879ff-e999-4782-ae2d-a782619c7e26"
+  }
+]

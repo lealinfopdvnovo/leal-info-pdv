@@ -1,0 +1,122 @@
+LEAL INFO - IFOOD CONFERENCIA R8.5.2
+Origem: CONEXAO DE TESTES / CONFERENCIA LOCAL
+UTC: 2026-11-13T14:07:00.8629233+00:00
+Loja de testes: 84a8976b-0559-48c6-84ce-fc2502f1364a
+Autenticacao nesta sessao: CONFIRMADA
+Acesso a loja nesta sessao: CONFIRMADO
+Consultas de eventos bem-sucedidas nesta sessao: 6
+Eventos em ciclos concluidos nesta sessao: 0; repetidos: 0
+Ultima falha fatal: Nenhuma falha.
+Recepcao ativa: True
+Eventos tecnicos persistidos: 37; ACK pendentes: 0
+Historico pode incluir sessoes anteriores. HTTP 204 confirma comunicacao, nao recebimento de pedido.
+ACK confirma apenas transporte. Sacolas RFI e consultas diretas ficam separadas; consulta direta nao cria eventos nem altera o pedido.
+Sacolas finais persistidas: 3
+SACOLAS (IDs, quantidades e valores tecnicos; sem dados do consumidor):
+PEDIDO #nao informado na API | ID: 0f683d37-6ebf-4298-ba19-2dcdcca891a9
+Status (ultimo evento): CONCLUDED | 30/10/2026 10:52:28 -03:00
+Criado: nao informado na API | Modalidade: DELIVERY / IMMEDIATE
+Aplicativo de teste client_id: 756879ff-e999-4782-ae2d-a782619c7e26
+Origem: sacola associada a evento RFI local
+Subtotal dos produtos apos separacao (API): R$ 25,96
+Frete bruto (API): nao informado na API | Frete liquido (API): nao informado na API
+Taxas do cliente, bruto (API): nao informado na API | Liquido (API): nao informado na API
+TOTAL / pagamento informado (API): R$ 36,85
+Beneficios informados: 0 | Soma dos patrocinios: R$ 0,00
+Leitura da sacola: aguardando releitura
+Linha indisponivel: valor informado preservado; quantidade e valor bruto disponivel = zero.
+Dados ausentes permanecem identificados; subtotal original anterior a separacao nao e reconstruido.
+Campos tecnicos: 
+Pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | DELIVERY | IMMEDIATE | janela 2026-10-30T14:02:44.302Z / 2026-10-30T14:12:44.302Z | total centavos 2596 | pagamento centavos 3685
+Item 95a91779-84ca-46e4-a55f-fe968c836c43 | quantidade informada 1 | unavailable False | disponivel 1 | valor informado centavos 799
+Item 2f248cb9-7796-4a15-b082-f5b514d14979 | quantidade informada 3 | unavailable False | disponivel 3 | valor informado centavos 1797
+Item adef5ebd-bb43-4607-b6e9-11b80f5515ba | quantidade informada 3 | unavailable True | disponivel 0 | valor informado centavos 1497
+PEDIDO #3284 | ID: a4670cd4-2c32-4593-ba4c-c0299059f4af
+Status (ultimo evento): CONCLUDED | 05/11/2026 15:57:28 -03:00
+Criado: 05/11/2026 15:27:19 -03:00 | Modalidade: DELIVERY / IMMEDIATE
+Aplicativo de teste client_id: 756879ff-e999-4782-ae2d-a782619c7e26
+Origem: CONSULTA DIRETA GET /virtual-bag; sem criar ou reproduzir eventos
+Subtotal dos produtos apos separacao (API): R$ 25,96
+Frete bruto (API): R$ 8,90 | Frete liquido (API): nao informado na API
+Taxas do cliente, bruto (API): R$ 1,99 | Liquido (API): R$ 1,99
+TOTAL / pagamento informado (API): R$ 36,85
+Beneficios informados: 0 | Soma dos patrocinios: R$ 0,00
+Leitura da sacola: 13/11/2026 11:04:10 -03:00
+Linha indisponivel: valor informado preservado; quantidade e valor bruto disponivel = zero.
+Dados ausentes permanecem identificados; subtotal original anterior a separacao nao e reconstruido.
+Campos tecnicos: operationMode: type,schedulingType,delivery,takeout,preparation | delivery: provider,type,destination,prices,deliveryTime,code | fees: array
+Pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | DELIVERY | IMMEDIATE | janela 2026-11-05T19:07:19.908Z / 2026-11-05T19:17:19.908Z | total centavos 2596 | pagamento centavos 3685
+Item c0f21862-74da-4c92-838f-c2911f013165 | quantidade informada 1 | unavailable False | disponivel 1 | valor informado centavos 799
+Item fd719554-38ed-43f6-9aef-973884766125 | quantidade informada 3 | unavailable False | disponivel 3 | valor informado centavos 1797
+Item 2ba60920-3a33-4a76-955c-811d6620836d | quantidade informada 3 | unavailable True | disponivel 0 | valor informado centavos 1497
+PEDIDO #9407 | ID: dae27b3f-f0c2-4912-af6d-09bf91d01235
+Status (ultimo evento): CONCLUDED | 13/11/2026 10:28:33 -03:00
+Criado: 13/11/2026 09:58:54 -03:00 | Modalidade: DELIVERY / IMMEDIATE
+Aplicativo de teste client_id: 756879ff-e999-4782-ae2d-a782619c7e26
+Origem: sacola associada a evento RFI local
+Subtotal dos produtos apos separacao (API): R$ 25,96
+Frete bruto (API): R$ 8,90 | Frete liquido (API): nao informado na API
+Taxas do cliente, bruto (API): R$ 1,99 | Liquido (API): R$ 1,99
+TOTAL / pagamento informado (API): R$ 36,85
+Beneficios informados: 0 | Soma dos patrocinios: R$ 0,00
+Leitura da sacola: 13/11/2026 11:04:10 -03:00
+Linha indisponivel: valor informado preservado; quantidade e valor bruto disponivel = zero.
+Dados ausentes permanecem identificados; subtotal original anterior a separacao nao e reconstruido.
+Campos tecnicos: operationMode: type,schedulingType,delivery,takeout,preparation | delivery: provider,type,destination,prices,deliveryTime,code | fees: array
+Pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | DELIVERY | IMMEDIATE | janela 2026-11-13T13:38:54.416Z / 2026-11-13T13:48:54.416Z | total centavos 2596 | pagamento centavos 3685
+Item 1ed3ac11-a821-4424-b668-42add634c5d2 | quantidade informada 1 | unavailable False | disponivel 1 | valor informado centavos 799
+Item 10f0669b-d3ab-4ab2-b9c8-b74ca86e3c9e | quantidade informada 3 | unavailable False | disponivel 3 | valor informado centavos 1797
+Item e8d7bf56-f014-4f0a-8112-74914b3f4e99 | quantidade informada 3 | unavailable True | disponivel 0 | valor informado centavos 1497
+Beneficio nao comprova cupom; unavailable nao comprova solicitacao de cancelamento. Evidencias reais permanecem pendentes.
+Cadastro Item: Nenhum envio de produtos nesta sessao.
+Videos, logs oficiais e homologacao permanecem pendentes.
+EVENTOS (IDs tecnicos; sem cliente, endereco, itens ou credenciais):
+2026-10-29T16:32:25.027Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento e6a30471-a11c-40bf-bb0c-b267490d49f9 | PLC / PLACED | ACK True | sacola persistida False
+2026-10-29T16:32:25.869Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento 91298518-bda5-450a-8105-7a0ccf7d4fde | CFM / CONFIRMED | ACK True | sacola persistida False
+2026-10-29T16:32:25.996Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento f932fb3e-a34f-43d8-9c4a-65d65e032f82 | DDCR / DELIVERY_DROP_CODE_REQUESTED | ACK True | sacola persistida False
+2026-10-29T16:46:05.539Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento dfe988f8-f84b-49e3-b215-7ab7d76ae084 | SPS / SEPARATION_STARTED | ACK True | sacola persistida False
+2026-10-29T17:02:01.248Z | pedido 205cba3b-a3f9-4cdc-ac46-8f8a286782e6 | evento 7f4284ff-311a-4030-8a60-59e64017ad65 | CON / CONCLUDED | ACK True | sacola persistida False
+2026-10-30T13:22:44.9Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento b8264edc-c46e-4f8f-9113-987cd668b9dd | PLC / PLACED | ACK True | sacola persistida False
+2026-10-30T13:22:45.736Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento 68f76a2e-263f-4515-ba9b-7b1da4ef90c1 | CFM / CONFIRMED | ACK True | sacola persistida False
+2026-10-30T13:22:45.883Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento a5d53caf-8f39-4519-ad87-95fd066b5c35 | DDCR / DELIVERY_DROP_CODE_REQUESTED | ACK True | sacola persistida False
+2026-10-30T13:30:59.952Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento 3db2d7bc-0467-40cd-9c2a-107a4c6746a7 | SPS / SEPARATION_STARTED | ACK True | sacola persistida False
+2026-10-30T13:41:28.548Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento 05e2617b-4257-4f85-b8ab-b74d086bc160 | PRQ / PATCH_REQUESTED | ACK True | sacola persistida False
+2026-10-30T13:41:28.811Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento cbe95a0c-75e5-4a20-996d-90e1fdae3026 | OPA / ORDER_PATCHED | ACK True | sacola persistida False
+2026-10-30T13:41:30.596Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento e641e284-f212-4d0f-bcf3-c1cd65b1cac6 | SPE / SEPARATION_ENDED | ACK True | sacola persistida False
+2026-10-30T13:41:31.741Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento 62284224-faea-4126-ba30-49fb3d01f041 | RFI / READY_FOR_INVOICE | ACK True | sacola persistida True
+2026-10-30T13:52:28.194Z | pedido 0f683d37-6ebf-4298-ba19-2dcdcca891a9 | evento 767059b9-b8fa-45e2-b994-6a70f53bec49 | CON / CONCLUDED | ACK True | sacola persistida False
+2026-11-05T16:41:41.358Z | pedido 7f0d810d-6998-42ce-8123-650217e3a7f3 | evento e1742650-e0e5-4857-9643-6959026ff3d5 | PLC / PLACED | ACK True | sacola persistida False
+2026-11-05T16:41:42.214Z | pedido 7f0d810d-6998-42ce-8123-650217e3a7f3 | evento b8780651-db6c-41de-8877-b49f37479dd3 | CFM / CONFIRMED | ACK True | sacola persistida False
+2026-11-05T16:41:42.372Z | pedido 7f0d810d-6998-42ce-8123-650217e3a7f3 | evento a2f87b1e-ce7d-41ab-a681-f3ed1fffe00a | DDCR / DELIVERY_DROP_CODE_REQUESTED | ACK True | sacola persistida False
+2026-11-05T16:48:21.015Z | pedido 7f0d810d-6998-42ce-8123-650217e3a7f3 | evento 9f15401c-e6e1-4b8c-801d-631fde29d2e5 | SPS / SEPARATION_STARTED | ACK True | sacola persistida False
+2026-11-05T17:11:33.177Z | pedido 7f0d810d-6998-42ce-8123-650217e3a7f3 | evento 275c828a-04fe-4c03-b7ec-495fcf430dfe | CON / CONCLUDED | ACK True | sacola persistida False
+2026-11-05T18:27:20.812Z | pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | evento 4d36e704-577d-4130-8ead-23c8f8f542e6 | PLC / PLACED | ACK True | sacola persistida False
+2026-11-05T18:27:21.79Z | pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | evento 0645d4a7-8284-41f0-91d9-a5be885b4b94 | CFM / CONFIRMED | ACK True | sacola persistida False
+2026-11-05T18:27:21.972Z | pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | evento 17cea6fc-5729-47ad-909c-8fbbe116484d | DDCR / DELIVERY_DROP_CODE_REQUESTED | ACK True | sacola persistida False
+2026-11-05T18:28:27.413Z | pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | evento 213bfc80-6460-4009-bdcf-3bd9f559c55d | SPS / SEPARATION_STARTED | ACK True | sacola persistida False
+2026-11-05T18:53:04.799Z | pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | evento e76449f9-f681-4219-a737-4e43797b1c49 | PRQ / PATCH_REQUESTED | ACK True | sacola persistida False
+2026-11-05T18:53:05.148Z | pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | evento cd67bffd-b31a-4018-9625-829c6298afe4 | OPA / ORDER_PATCHED | ACK True | sacola persistida False
+2026-11-05T18:53:07.139Z | pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | evento ba6536b9-3627-4cf1-b2d3-b747221b47bd | SPE / SEPARATION_ENDED | ACK True | sacola persistida False
+2026-11-05T18:53:08.326Z | pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | evento ed66839c-1537-4531-a99d-10737191857e | RFI / READY_FOR_INVOICE | ACK True | sacola persistida True
+2026-11-05T18:57:28.23Z | pedido a4670cd4-2c32-4593-ba4c-c0299059f4af | evento 76e54a43-09a7-4af9-b05d-bd83e0767fa4 | CON / CONCLUDED | ACK True | sacola persistida False
+2026-11-13T12:58:55.149Z | pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | evento 42954ae2-1126-4736-9165-f88aa5e01cf6 | PLC / PLACED | ACK True | sacola persistida False
+2026-11-13T12:58:55.92Z | pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | evento d2d446cf-7240-4f3b-a0de-e72db4626c6c | CFM / CONFIRMED | ACK True | sacola persistida False
+2026-11-13T12:58:56.035Z | pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | evento c02bf584-6556-4876-a725-dd5e0f309456 | DDCR / DELIVERY_DROP_CODE_REQUESTED | ACK True | sacola persistida False
+2026-11-13T13:01:01.491Z | pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | evento 125b6e8a-7624-4319-b3d8-1d005f0f9f95 | SPS / SEPARATION_STARTED | ACK True | sacola persistida False
+2026-11-13T13:04:23.754Z | pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | evento 72ac8a5e-4d04-4cf2-b9f5-93bc1b871529 | PRQ / PATCH_REQUESTED | ACK True | sacola persistida False
+2026-11-13T13:04:24.024Z | pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | evento e582e2a3-b194-4253-b191-2ea38fae078e | OPA / ORDER_PATCHED | ACK True | sacola persistida False
+2026-11-13T13:04:25.877Z | pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | evento 05d79369-a241-4ea2-ae5e-b509b20b0f00 | SPE / SEPARATION_ENDED | ACK True | sacola persistida False
+2026-11-13T13:04:27.018Z | pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | evento a8d9e6e5-5154-4279-ac54-22f834a0e6dc | RFI / READY_FOR_INVOICE | ACK True | sacola persistida True
+2026-11-13T13:28:33.26Z | pedido dae27b3f-f0c2-4912-af6d-09bf91d01235 | evento 309911da-1005-489b-a510-c9700dc6bb98 | CON / CONCLUDED | ACK True | sacola persistida False
+HTTP (metadados; sem corpos, cabecalhos, chaves ou tokens):
+2026-11-13T14:04:09.7336234+00:00 | POST | /authentication/v1.0/oauth/token | HTTP 200 | 264 ms | received
+2026-11-13T14:04:09.9012952+00:00 | GET | /merchant/v1.0/merchants/{merchantId} | HTTP 200 | 160 ms | received
+2026-11-13T14:04:10.2472054+00:00 | GET | /order/v1.0/orders/{id}/virtual-bag | HTTP 200 | 307 ms | received
+2026-11-13T14:04:10.7264527+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 180 ms | empty
+2026-11-13T14:04:10.9021504+00:00 | GET | /order/v1.0/orders/{id}/virtual-bag | HTTP 200 | 164 ms | received
+2026-11-13T14:04:40.7261276+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 164 ms | empty
+2026-11-13T14:05:10.8590364+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 160 ms | empty
+2026-11-13T14:05:41.0053077+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 164 ms | empty
+2026-11-13T14:06:11.1411769+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 156 ms | empty
+2026-11-13T14:06:41.2278154+00:00 | GET | /events/v1.0/events:polling | HTTP 204 | 148 ms | empty
+Registros antigos omitidos por limite: 0
