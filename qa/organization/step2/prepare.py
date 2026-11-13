@@ -2,7 +2,7 @@
 No customer computer, database, license, feed or source of GLOBAL/PET is modified.
 """
 from pathlib import Path
-import hashlib,json,urllib.request,zipfile,io,xml.etree.ElementTree as ET,sys,base64
+import hashlib,json,urllib.request,zipfile,io,xml.etree.ElementTree as ET,sys,base64,gzip,urllib.error
 root=Path('step2-work');root.mkdir(exist_ok=True)
 evidence=Path('step2-evidence');evidence.mkdir(exist_ok=True)
 installed=json.loads(Path('qa/organization/step2/installed-inventory.json').read_text(encoding='utf-8'))
@@ -48,7 +48,16 @@ elif sys.argv[1]=='assemble':
  provenance=[]
  for package in ['microsoft.netcore.app.runtime.win-x64','microsoft.windowsdesktop.app.runtime.win-x64']:
   url=f'https://api.nuget.org/v3-flatcontainer/{package}/{runtime}/{package}.{runtime}.nupkg'
-  raw=fetch(url);sha512=fetch(url+'.sha512').decode().strip()
+  raw=fetch(url)
+  try:sha512=fetch(url+'.sha512').decode().strip()
+  except urllib.error.HTTPError as error:
+   if error.code!=404:raise
+   def metadata(address):
+    data=fetch(address);return json.loads(gzip.decompress(data) if data[:2]==b'\x1f\x8b' else data)
+   registration=metadata(f'https://api.nuget.org/v3/registration5-gz-semver2/{package}/{runtime}.json')
+   catalog_url=registration['catalogEntry'];assert catalog_url.startswith('https://api.nuget.org/v3/catalog0/')
+   catalog=metadata(catalog_url);assert catalog['id'].lower()==package and catalog['version']==runtime and catalog['packageHashAlgorithm']=='SHA512'
+   sha512=catalog['packageHash']
   assert base64.b64encode(hashlib.sha512(raw).digest()).decode()==sha512,'Official package SHA-512 mismatch'
   count=0
   with zipfile.ZipFile(io.BytesIO(raw)) as z:
