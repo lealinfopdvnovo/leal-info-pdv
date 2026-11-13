@@ -1,0 +1,28 @@
+name: Etapa 2 - ponte inicial 10467 somente preparacao
+on:
+  push:
+    branches: [candidate/bridge-10467-stage2-20261113]
+    paths: ['qa/organization/bridge/**', '.github/workflows/bridge_10467_stage2.yml']
+permissions:
+  contents: read
+jobs:
+  bridge:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Compilar somente a ponte de preflight
+        run: dotnet build qa/organization/bridge/BridgePrepare.csproj -c Release -warnaserror
+      - name: Testar somente os novos controles de migracao
+        run: dotnet run --project qa/organization/bridge/BridgeTests.csproj -c Release -- evidence/bridge-tests.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bridge-stage2-${{ matrix.os }}
+          path: evidence/bridge-tests.json
