@@ -1,3 +1,5 @@
+> Estado atual: [missão de três clientes ativos](MISSAO-FINAL-20261113.md). Casa do Genilson está INATIVO na candidata. As referências de quatro perfis abaixo são históricas; não autorizam migração ou atualização do cliente 004.
+
 # Candidata GLOBAL/PET — 13/11/2026
 
 Estado: implementação e validação isoladas; NÃO autorizada para distribuição. PR #37 deriva do PR #34, sem merge no GLOBAL.

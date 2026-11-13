@@ -1,3 +1,5 @@
+> Estado atual: [missão de três clientes ativos](MISSAO-FINAL-20261113.md). Casa do Genilson está INATIVO na candidata. As referências de quatro perfis abaixo são históricas; não autorizam migração ou atualização do cliente 004.
+
 # Organização GLOBAL/PET — preparação de migração
 
 Decisão de Adriano em 04/11/2026: mudanças específicas devem ocorrer somente no PET do cliente; GLOBAL somente com autorização explícita. GLOBAL deve alcançar todos os clientes, preservando PETs. Não bloquear o atualizador.

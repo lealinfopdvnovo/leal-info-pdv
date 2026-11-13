@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "candidate-integrated-migration-qa-not-published",
+  "status": "candidate-three-active-qa-passed-operational-migration-pending",
   "global": {
     "name": "GLOBAL",
     "feed": "version.json",
@@ -101,12 +101,13 @@
     "legacyLojaWorkerScenarios": 4,
     "positiveActivatedStartupQualified": false,
     "operationalCustomerTested": false,
-    "migrationVerified": false
+    "migrationVerified": false,
+    "historicalRecord": true
   },
   "candidate": {
     "branch": "candidate/global-pet-independent-20261113",
     "pullRequest": 37,
-    "codeCommit": "10b7c42f1560a472869f04ef509b9c1bf94132e0",
+    "codeCommit": "d1af022bfdf1b515e1e9800072569b79d06ab442",
     "feedSchemaVersion": 2,
     "payloadFiles": [
       "Extensions/PET/manifest.json",
@@ -116,14 +117,14 @@
       "MinGlobalVersion",
       "MaxGlobalVersionExclusive"
     ],
-    "componentSelectionChecks": 31,
-    "petTransactionScenarios": 26,
+    "componentSelectionChecks": 37,
+    "petTransactionScenarios": 42,
     "productionPublished": false,
     "installedOnRealComputers": false,
     "migrationVerified": false,
     "positiveActivatedStartupQualified": false,
-    "report": "organization/CANDIDATA-20261113.md",
-    "integrationRun": "https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/43479008291",
+    "report": "organization/MISSAO-FINAL-20261113.md",
+    "integrationRun": "https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/43482979755",
     "isolatedIntegrationPassed": true,
     "activeClients": [
       "001",
@@ -132,6 +133,11 @@
     ],
     "inactiveClients": [
       "004"
-    ]
+    ],
+    "globalTransactionScenarios": 9,
+    "logonChecks": 10,
+    "inactiveLifecycleChecks": 6,
+    "integrationArtifactSha256": "77227ede89a579b24575bd4a39467d404bf74483f3618c48dc34ee6a54c9cd3b",
+    "publicationReady": false
   }
 }
