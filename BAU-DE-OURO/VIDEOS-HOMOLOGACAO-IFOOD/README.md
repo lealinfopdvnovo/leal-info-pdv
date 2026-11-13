@@ -6,7 +6,7 @@ Chamado de homologação: 35288437.
 
 ## Estado atual
 
-**Nenhum vídeo recebido nesta pasta.** Pasta preparada para as próximas gravações; não representa envio ao suporte nem aprovação do iFood.
+**Atualização 13/11/2026: dois vídeos recebidos e conferidos.** [Inventário, resultados e acesso privado aos originais](./2026-11-13/README.md). Os binários permanecem privados, fora deste repositório público. Não representa envio ao suporte nem aprovação do iFood.
 
 ## Combinado com Adriano
 
@@ -22,7 +22,8 @@ Chamado de homologação: 35288437.
 
 | Arquivo | Data e hora da execução | Cenário / pedido | Estado |
 | --- | --- | --- | --- |
-| — | — | — | Aguardando o primeiro vídeo |
+| [Vídeo 01](./2026-11-13/README.md) | 13/11/2026, tela aproximadamente 09:58–09:59 | Criação e confirmação | Conferido visualmente; original privado |
+| [Vídeo 02](./2026-11-13/README.md) | 13/11/2026, tela aproximadamente 10:00–10:04 | Separação parcial #9407 | Conferido visualmente; original privado |
 
 ## Organização dos próximos arquivos
 
@@ -39,3 +40,7 @@ Adriano confirmou que esta pasta reunirá **todo o material exigido pelo suporte
 Ao concluir a coleta e a conferência, preparar **um ZIP completo**, verificar seu conteúdo e fornecer download a Adriano. Ele vai descompactar e encaminhar ao suporte. O ZIP ainda não foi criado; nenhum vídeo foi recebido nesta pasta. O pedido anterior do suporte por links de vídeos continua registrado; não presumir que o ZIP substitui o formato de envio exigido.
 
 **Retomada atual:** loja aberta confirmada no Separador e no app, R8 conectado segundo Adriano, arroz 3 e feijão 3 na sacola; açúcar indisponível. Orientada consulta em Produtos → Inativos, mas reativação ainda não confirmada. Agora é ensaio; depois será criado um novo pedido com gravação desde o início. Cupom dispensado segundo relato do usuário.
+
+
+## Retomada atualizada — 13/11/2026
+Dois vídeos corretos recebidos; criação confirmada e separação parcial #9407 concluída até expedição. Cupom dispensado segundo Adriano, já registrado em 05/11. Logs desta execução ainda não conferidos. [Conversa e decisões](../2026-11-09_a_2026-11-15/2026-11-13/conversas/IFOOD-E-SALAO-MJ.md).
