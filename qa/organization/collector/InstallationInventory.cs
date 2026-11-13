@@ -92,8 +92,8 @@ namespace LealInfo.Inventory
    using(var source=new PathGuard(selectedFolder)){
     if(source.Identity!=report.RootIdentity||source.Canonical!=report.CanonicalRoot)throw new IOException("A pasta mudou desde a conferência. Faça a leitura novamente.");
     var full=PathGuard.Local(output);var name=Path.GetFileName(full);
-    var stem=Path.GetFileNameWithoutExtension(name).TrimEnd(' ','.').ToUpperInvariant();
-    if(new[]{"CON","PRN","AUX","NUL","COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9","LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"}.Contains(stem)||name.EndsWith(" ",StringComparison.Ordinal)||name.EndsWith(".",StringComparison.Ordinal))throw new IOException("Escolha um nome comum para o arquivo JSON.");
+    var stem=name.Split('.')[0].TrimEnd(' ','.').ToUpperInvariant();
+    if(new[]{"CON","PRN","AUX","NUL","CONIN$","CONOUT$","COM¹","COM²","COM³","LPT¹","LPT²","LPT³","COM1","COM2","COM3","COM4","COM5","COM6","COM7","COM8","COM9","LPT1","LPT2","LPT3","LPT4","LPT5","LPT6","LPT7","LPT8","LPT9"}.Contains(stem)||name.EndsWith(" ",StringComparison.Ordinal)||name.EndsWith(".",StringComparison.Ordinal))throw new IOException("Escolha um nome comum para o arquivo JSON.");
     if(!name.EndsWith(".json",StringComparison.OrdinalIgnoreCase)||name.IndexOf(':')>=0)throw new IOException("Salve o relatório com a extensão .json.");
     using(var target=new PathGuard(Path.GetDirectoryName(full))){
      if(PathGuard.Inside(target.Canonical,source.Canonical))throw new IOException("Salve o relatório fora da pasta do PDV.");

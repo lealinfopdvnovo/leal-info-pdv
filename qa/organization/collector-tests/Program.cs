@@ -88,6 +88,9 @@ static class Tests
    report=InstallationInventory.Collect(Source);Refuse(()=>InstallationInventory.SaveReport(Source,Path.Combine(Source,"unsafe.json"),report,CancellationToken.None),"saving JSON inside installation rejected");
    var outputAlias=Path.Combine(Output,"Alias");Junction(outputAlias,Source);try{Refuse(()=>InstallationInventory.SaveReport(Source,Path.Combine(outputAlias,"unsafe.json"),report,CancellationToken.None),"redirected save destination into PDV refused");}finally{Directory.Delete(outputAlias);}
    var outputHard=Path.Combine(Output,"existing.json");if(!CreateHardLink(outputHard,Path.Combine(Source,"network.license"),IntPtr.Zero))throw new Exception("Output hardlink fixture failed");try{Refuse(()=>InstallationInventory.SaveReport(Source,outputHard,report,CancellationToken.None),"saving over existing hardlink refused without modifying source");}finally{File.Delete(outputHard);}
+   Refuse(()=>InstallationInventory.SaveReport(Source,Path.Combine(Output,"NUL.extra.json"),report,CancellationToken.None),"reserved device names with extra extensions rejected");
+   Refuse(()=>InstallationInventory.SaveReport(Source,Path.Combine(Output,"COM¹.json"),report,CancellationToken.None),"reserved unicode device names rejected");
+   Refuse(()=>InstallationInventory.Collect(@"\\server.invalid\share"),"network collection path rejected before access");
    InstallationInventory.SaveReport(Source,Path.Combine(Output,"report.json"),report,CancellationToken.None);Check(new JavaScriptSerializer().DeserializeObject(File.ReadAllText(Path.Combine(Output,"report.json")))!=null,"outside JSON saved and parsed");
    Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);Ui();
    Check(baseline.All(x=>File.Exists(x.Key)&&Hash(x.Key)==x.Value)&&Snapshot().Count==baseline.Count,"all original source bytes and file set unchanged");
