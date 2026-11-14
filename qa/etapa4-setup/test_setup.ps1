@@ -1,10 +1,17 @@
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated Windows runner only'}
-$setup=(Resolve-Path setup-output/LEAL_INFO_TESTE_ANGRA_ETAPA4.exe).Path
+$setup=(Resolve-Path setup-output/LEAL_INFO_TESTE_ANGRA_ETAPA4_CORRIGIDO.exe).Path
 $local=[Environment]::GetFolderPath('LocalApplicationData')
-$app=Join-Path $env:ProgramFiles 'LEAL INFO PDV - TESTE ANGRA ETAPA4'
+$app=Join-Path $env:ProgramFiles 'LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO'
 $qa=Join-Path $local 'LEAL-INFO-QA/ANGRA-ETAPA4-20261114'
 if(Test-Path $app){throw 'Runner test install folder already exists'}
+$oldQa=Join-Path $env:ProgramFiles 'LEAL INFO PDV - TESTE ANGRA ETAPA4'
+New-Item -ItemType Directory $oldQa -Force|Out-Null
+$oldCanary=Join-Path $oldQa 'LealInfoPDV.exe';Set-Content $oldCanary 'OLD QA BINARIES MUST REMAIN UNCHANGED'
+$oldHash=(Get-FileHash $oldCanary).Hash
+New-Item -ItemType Directory $qa -Force|Out-Null
+$existingData=Join-Path $qa 'existing-activation-canary';Set-Content $existingData 'EXISTING QA DATA'
+$existingHash=(Get-FileHash $existingData).Hash
 $canaries=@();$process=$null;$before=@{}
 try{
  foreach($folder in @('LealInfoPDV','LEAL INFO PDV')){
@@ -47,13 +54,14 @@ try{
  $after=@{};foreach($folder in @('LealInfoPDV','LEAL INFO PDV')){foreach($f in Get-ChildItem (Join-Path $local $folder) -Recurse -File){$after[$f.FullName]=(Get-FileHash $f.FullName).Hash}}
  if($before.Count -ne $after.Count -or @($before.Keys|Where-Object{$after[$_] -ne $before[$_]}).Count -ne 0){throw 'A production data path was accessed for writes'}
  $manifest=Get-Content (Join-Path $app 'Extensions/PET/manifest.json') -Raw|ConvertFrom-Json
- if($manifest.Identity -ne '001' -or $manifest.Version -ne '1.3' -or (Get-FileHash (Join-Path $app 'Extensions/PET/Pet.dll')).Hash.ToLowerInvariant() -ne $manifest.Sha256){throw 'Installed PET integrity mismatch'}
+ if($manifest.Identity -ne '005' -or $manifest.Version -ne '1.3' -or (Get-FileHash (Join-Path $app 'Extensions/PET/Pet.dll')).Hash.ToLowerInvariant() -ne $manifest.Sha256){throw 'Installed PET integrity mismatch'}
  $shortcut=Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'LEAL INFO PDV - TESTE ANGRA (Etapa 4).lnk'
  if(!(Test-Path $shortcut)){throw 'Separate test shortcut missing'}
  $installedHash=(Get-FileHash $exe).Hash
  $again=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait -PassThru
  if($again.ExitCode -eq 0 -or (Get-FileHash $exe).Hash -ne $installedHash){throw 'Existing QA installation was overwritten'}
- $result=@{Pass=$true;DirectoryOverrideRejected=$true;ExistingDestinationPreserved=$true;SetupSha256=(Get-FileHash $setup).Hash.ToLowerInvariant();InstalledInSeparateFolder=$true;SeparateWritableRoots=$true;ProductionCanariesUnchanged=$true;GenuineActivationObserved=$true;LicenseBypassed=$false;LicensedLoginTested=$false;ExternalPetIdentity='001';ExternalPetVersion='1.3';MigrationValidated=$false;ProductionUpdated=$false;FreshFunctionalQABuild=$true}
+ if((Get-FileHash $oldCanary).Hash -ne $oldHash -or (Get-FileHash $existingData).Hash -ne $existingHash){throw 'Old QA/data changed'}
+ $result=@{OldQAUnchanged=$true;ExistingDataUnchanged=$true;Pass=$true;DirectoryOverrideRejected=$true;ExistingDestinationPreserved=$true;SetupSha256=(Get-FileHash $setup).Hash.ToLowerInvariant();InstalledInSeparateFolder=$true;SeparateWritableRoots=$true;ProductionCanariesUnchanged=$true;GenuineActivationObserved=$true;LicenseBypassed=$false;LicensedLoginTested=$false;ExternalPetIdentity='005';ExternalPetVersion='1.3';MigrationValidated=$false;ProductionUpdated=$false;FreshFunctionalQABuild=$true}
  $result|ConvertTo-Json -Depth 8|Set-Content qa-setup-evidence/setup-validation.json -Encoding UTF8
  Write-Output ('SETUP_VALIDATION='+($result|ConvertTo-Json -Depth 8 -Compress))
  $global:LASTEXITCODE=0

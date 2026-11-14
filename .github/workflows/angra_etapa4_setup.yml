@@ -88,10 +88,15 @@ jobs:
         run: |
           ./controller/qa/etapa4-setup/test_setup.ps1
           if($LASTEXITCODE -ne 0){throw 'QA installer safety validation failed'}
+      - name: Validar contrato PET 005 com licenca de fixture assinada e login
+        shell: pwsh
+        run: |
+          ./controller/qa/etapa4-setup/test_contract.ps1
+          if($LASTEXITCODE -ne 0){throw 'Licensed PET 005 contract regression failed'}
       - uses: actions/upload-artifact@v4
         with:
           name: BAIXAR-SETUP-TESTE-ANGRA-ETAPA4
-          path: setup-output/LEAL_INFO_TESTE_ANGRA_ETAPA4.exe
+          path: setup-output/LEAL_INFO_TESTE_ANGRA_ETAPA4_CORRIGIDO.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:

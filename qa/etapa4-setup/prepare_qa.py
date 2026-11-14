@@ -25,3 +25,17 @@ Path('qa-setup-evidence').mkdir(exist_ok=True)
 Path('qa-setup-evidence/isolation-source.json').write_text(json.dumps(dict(Changes=changes,CanonicalRepositoryFilesModified=False,ClientUpdates=False,LicenseBypassed=False,NotAMigrationPackage=True),indent=2))
 assert 'Database.cs' in changes and 'Program.cs' in changes and 'UpdateNotifierHost.cs' in changes
 print('PASS QA-only build uses separate writable roots, no startup notifier and no client update channel; activation code retained')
+
+# QA license belongs to 005. Rebuild a QA-only copy of the Loja profile;
+# never alias the license identity or weaken the runtime identity check.
+p=root/'extensions/profiles/001/Pet.csproj'
+s=p.read_text(encoding='utf-8-sig')
+assert 'Include="PetIdentity" Value="001"' in s
+p.write_text(s.replace('Include="PetIdentity" Value="001"','Include="PetIdentity" Value="005"'),encoding='utf-8')
+p=root/'extensions/profiles/PreservedPresentation.cs'
+s=p.read_text(encoding='utf-8-sig')
+assert 'var id=ProfileExtension.Identity;' in s
+s=s.replace('var id=ProfileExtension.Identity;', 'var id=ProfileExtension.Identity;\n  if(id=="005")id="001"; // QA-only presentation provenance; manifest/license remain 005.')
+p.write_text(s,encoding='utf-8')
+# Activation, signature, serial, plan and PET loader checks remain unchanged.
+print('PASS QA profile identity 005, original presentation hash checks retained; production profiles unchanged')

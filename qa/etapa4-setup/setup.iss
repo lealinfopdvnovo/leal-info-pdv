@@ -1,15 +1,15 @@
 [Setup]
-AppId={{D9039426-FA24-4C37-91E4-B9AD30AC2026}
-AppName=LEAL INFO PDV - TESTE ANGRA ETAPA4
-AppVersion=10.468.0
+AppId={{A8005005-FA24-4C37-91E4-B9AD30AC2026}
+AppName=LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO
+AppVersion=10.468.1
 AppPublisher=LEAL INFO
-DefaultDirName={autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4
+DefaultDirName={autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO
 DisableDirPage=yes
 UsePreviousAppDir=no
 MinVersion=10.0.17763
-DefaultGroupName=LEAL INFO PDV - TESTE ANGRA ETAPA4
+DefaultGroupName=LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO
 OutputDir=setup-output
-OutputBaseFilename=LEAL_INFO_TESTE_ANGRA_ETAPA4
+OutputBaseFilename=LEAL_INFO_TESTE_ANGRA_ETAPA4_CORRIGIDO
 Compression=lzma2
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
@@ -26,13 +26,13 @@ Name: "{autodesktop}\LEAL INFO PDV - TESTE ANGRA (Etapa 4)"; Filename: "{app}\Le
 [Code]
 function InitializeSetup(): Boolean;
 begin
- Result := not DirExists(ExpandConstant('{autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4'));
+ Result := not DirExists(ExpandConstant('{autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO'));
  if not Result then SuppressibleMsgBox('A pasta exclusiva de testes já existe. Nada será sobrescrito. Feche esta instalação para preservar esse ambiente.',mbError,MB_OK,IDOK);
 end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Expected: String;
 begin
- Expected := ExpandConstant('{autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4');
+ Expected := ExpandConstant('{autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO');
  Result := '';
  if CompareText(ExpandFileName(WizardDirValue), Expected) <> 0 then
   Result := 'Pasta recusada. Este setup só instala no diretório exclusivo de testes ANGRA ETAPA4.'
