@@ -1,0 +1,17 @@
+{
+  "InstalledInSeparateFolder": true,
+  "DirectoryOverrideRejected": true,
+  "ExternalPetVersion": "1.3",
+  "GenuineActivationObserved": true,
+  "SetupSha256": "a85296fa3e9c87aff9ca2f433da01a71618435263e58d19356d15fcd863a740d",
+  "Pass": true,
+  "MigrationValidated": false,
+  "SeparateWritableRoots": true,
+  "FreshFunctionalQABuild": true,
+  "ExternalPetIdentity": "001",
+  "ProductionCanariesUnchanged": true,
+  "LicensedLoginTested": false,
+  "ExistingDestinationPreserved": true,
+  "LicenseBypassed": false,
+  "ProductionUpdated": false
+}
