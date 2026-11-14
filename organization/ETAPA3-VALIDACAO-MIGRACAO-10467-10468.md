@@ -1,3 +1,5 @@
+> **Atualização — correção complementar:** a falha de compartilhamento foi corrigida na candidata `d902bf3` e validada no Actions 43542417535. A aprovação operacional permanece bloqueada por falta da validação licenciada completa. O texto abaixo preserva o diagnóstico anterior; consulte o [relatório da correção](ETAPA3-CORRECAO-LEITURA-DIARIOS.md) para o estado atual.
+
 # Etapa 3 — validação da migração 10.467 → 10.468 — 13/11/2026
 
 **STATUS: BLOQUEADA PARA APROVAÇÃO OPERACIONAL.**

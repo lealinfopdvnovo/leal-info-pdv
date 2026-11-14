@@ -1,0 +1,66 @@
+{
+  "Code": "d902bf3c598203dc937f6dd8f9b676f2d99fec1b",
+  "Run": 43542417535,
+  "ReaderChecksFromActualLog": [
+    "atomic replacement succeeds while the actual journal reader remains open",
+    "successful snapshots release every file handle before returning",
+    "returned JSON owns its immutable snapshot and does not pin the file",
+    "restrictive binary sharing remains restrictive; fix is limited to journals",
+    "concurrent atomic writes and actual snapshot reads complete without sharing errors or mixed JSON",
+    "transient exclusive lock is retried and read succeeds after release",
+    "persistent contention fails closed within a bounded deadline",
+    "malformed persistent journal is rejected and no handle remains locked",
+    "journal size bound remains enforced without a leaked handle",
+    "cancellation during a transient retry releases the reader",
+    "complete original binary/hash reader implementation remains byte-equivalent apart from checkout line endings",
+    "joint recovery engine, core/PET backup and interruption checkpoints are unchanged",
+    "all affected coordinator journal reads use the corrected snapshot reader"
+  ],
+  "ConcurrentAtomicWritesVerified": 300,
+  "ConcurrentSnapshotReadsMinimumVerified": 300,
+  "Compiled": {
+    "CandidateVersion": "10.468",
+    "Published": false,
+    "PackageGenerated": false,
+    "OperationalApproval": false,
+    "Hashes": {
+      "LealInfoPDV.exe": "f9dbc2f39b263d1bdad694726bca4167c6afbc3c5b84f6136ebb49c2bce678b0",
+      "LealInfoPDV.deps.json": "6ed2675a0c592fd46ae972c550a1c92d0a814551d66de0d8da85a9963a59c627",
+      "LealInfoPDV.dll": "114d79968eaf13682b67428e54c24d35d3d74cd479d9f1874592a07e622b86e7"
+    }
+  },
+  "Recovery": {
+    "ProductionTouched": false,
+    "NewScenario": "concurrent-actual-journal-readers-during-interrupted-SYSTEM-joint-recovery",
+    "Snapshots": 626,
+    "ProtectedFixtureHashes": {
+      "data.keep": "295ed683f38f0a9ac058f4ab714ba164ffb166be80ba3c398155e6dbaf4f8510",
+      "LealInfoPDV.runtimeconfig.json": "ba718921ff07c69ff09a9b80d3c1f0312f1b6ddf78025dce745241ab78c33ec5",
+      "configuration.keep": "9f83a5c056ddcb0f3aeae66f865a3f78683faf71b0d7daa1bced16e506828510"
+    },
+    "OperationalApproval": false,
+    "CoreRecovered": true,
+    "OriginalCoreHashes": {
+      "LealInfoPDV.dll": "61ec4bdbbcdb7be92cee0fcac421c360cae5e58cd6604b73ef2eaad0717ca0d7",
+      "LealInfoPDV.exe": "45cada6874ed2450cf3ae5564dfdfc7faabe749213d45126de42ef69d9d7d040",
+      "LealInfoPDV.deps.json": "73477964d61c59ccf92d0532da4b8c46a18ade13ed0f1f69253b79127424d9e1"
+    },
+    "Pass": true,
+    "ActualCorrectedJournalReader": true,
+    "RuntimeAndDataSynthetic": true,
+    "RecoveryWorkerSha256": "c8a9cb678b2b33c0e39d70ac55629a8f7df2fd28d3e60c050376b23cd87883fe",
+    "SystemRecovery": true,
+    "ReaderErrors": [],
+    "ActualUnchangedRecoveryEngine": true,
+    "FirstPetRemovedFromActivePath": true,
+    "LicensedStartup": false,
+    "TargetAndPetSynthetic": true
+  },
+  "Artifact": {
+    "Id": 14091824883,
+    "DigestReportedByGitHub": "sha256:19335353c221d009adc43d3bfd6895a620025fc808192789f3ef3b695e1a80f7",
+    "LocallyRehashed": false
+  },
+  "OperationalApproval": false,
+  "Stage4Started": false
+}
