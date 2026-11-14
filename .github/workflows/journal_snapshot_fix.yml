@@ -31,6 +31,14 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.401
+      - name: Compilar consumidores do preflight sem executar a bateria aprovada
+        shell: pwsh
+        run: |
+          dotnet build controller/qa/organization/bridge/BridgePrepare.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Preflight helper reference failed to compile'}
+          dotnet build controller/qa/organization/bridge/BridgeTests.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Historical test project no longer compiles'}
+          # Build only: do not run the approved preflight tests.
       - name: Conferir sintaxe dos scripts novos
         shell: pwsh
         run: |
