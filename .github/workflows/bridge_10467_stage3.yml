@@ -1,0 +1,27 @@
+name: Etapa 3 - contrato independente do diario Windows
+on:
+  push:
+    branches: [candidate/bridge-10467-stage2-20261113]
+    paths: ['qa/organization/stage3/**', '.github/workflows/bridge_10467_stage3.yml']
+permissions:
+  contents: read
+jobs:
+  independent-journal-contract:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: harness}
+      - uses: actions/checkout@v4
+        with:
+          path: approved
+          ref: a0f49da19885c87415fa01f7848dbd85b0577f0b
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: 8.0.x}
+      - name: Executar apenas o novo contrato de leitura e substituicao atomica
+        run: dotnet run --project harness/qa/organization/stage3/JournalShareProbe.csproj -c Release -- approved stage3-evidence/journal-sharing.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: etapa3-contrato-diario-evidencias
+          path: stage3-evidence/
