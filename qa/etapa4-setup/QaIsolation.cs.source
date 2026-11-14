@@ -1,0 +1,21 @@
+using System.Text.Json;
+namespace LealInfoPDV;
+public static class QaIsolation
+{
+ public static bool Isolated=>true;
+ private static readonly string ActualLocal=Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+ public static string LocalRoot=>Path.Combine(ActualLocal,"LEAL-INFO-QA","ANGRA-ETAPA4-20261114");
+ public static string RoamingRoot=>Path.Combine(LocalRoot,"Roaming");
+ public static string CommonRoot=>Path.Combine(LocalRoot,"Common");
+ public static void Initialize(){
+  var folder=Path.GetFileName(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar));
+  if(folder!="LEAL INFO PDV - TESTE ANGRA ETAPA4"||!File.Exists(Path.Combine(AppContext.BaseDirectory,".qa-test-only")))throw new InvalidOperationException("Esta compilação só pode executar na pasta exclusiva TESTE ANGRA ETAPA4.");
+  for(var d=new DirectoryInfo(LocalRoot);d!=null;d=d.Parent)if(d.Exists&&(d.Attributes&FileAttributes.ReparsePoint)!=0)throw new InvalidDataException("Pasta de testes redirecionada.");
+  Directory.CreateDirectory(LocalRoot);Directory.CreateDirectory(RoamingRoot);Directory.CreateDirectory(CommonRoot);
+  Environment.SetEnvironmentVariable("LOCALAPPDATA",LocalRoot);Environment.SetEnvironmentVariable("APPDATA",RoamingRoot);Environment.SetEnvironmentVariable("PROGRAMDATA",CommonRoot);File.WriteAllText(Path.Combine(LocalRoot,"AMBIENTE-DE-TESTES.txt"),"LEAL INFO PDV — QA ANGRA ETAPA4. Dados e licença independentes. Não homologado para produção.");
+ }
+ public static void Diagnostic(){
+  var data=new{Isolated=true,DatabaseFolder=Database.AppFolder,DatabasePath=Database.DbPath,BackupFolder=Database.BackupFolder,LocalRoot,RoamingRoot,CommonRoot,ProductionUpdates=false,LicenseBypassed=false,FreshFunctionalEnvironment=true,MigrationValidated=false};
+  File.WriteAllText(Path.Combine(LocalRoot,"isolamento.json"),JsonSerializer.Serialize(data,new JsonSerializerOptions{WriteIndented=true}));
+ }
+}

@@ -1,0 +1,99 @@
+name: SETUP TESTE ANGRA ETAPA4 - DOWNLOAD
+on:
+  push:
+    branches: [qa/angra-etapa4-setup-20261114]
+    paths: ['qa/etapa4-setup/**', '.github/workflows/angra_etapa4_setup.yml']
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  qa-installer:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with:
+          path: approved
+          ref: a0f49da19885c87415fa01f7848dbd85b0577f0b
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+      - uses: actions/checkout@v4
+        with:
+          path: recipe
+          ref: 78c0d348d210f9c9b2672746e09bcddbf4ba4474
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Preparar somente o novo destino com as receitas ja aprovadas
+        shell: pwsh
+        run: |
+          python controller/qa/organization/prepare_current_common.py
+          if($LASTEXITCODE -ne 0){throw 'Existing common recipe failed'}
+          pwsh -NoProfile -File controller/qa/organization/common_resource_contract.ps1 -Mode Extract
+          if($LASTEXITCODE -ne 0){throw 'Existing notifier extraction failed'}
+          python controller/qa/organization/prepare_integration.py
+          if($LASTEXITCODE -ne 0){throw 'Existing modular integration failed'}
+          python controller/qa/organization/bridge/fetch_origin.py
+          if($LASTEXITCODE -ne 0){throw 'Pinned origin unavailable'}
+          pwsh -NoProfile -File controller/qa/organization/extract_loja_worker.ps1
+          if($LASTEXITCODE -ne 0){throw 'Original Loja resources differ'}
+          python controller/qa/organization/prepare_pet_seal.py
+          if($LASTEXITCODE -ne 0){throw 'Existing PET recipe failed'}
+          python controller/qa/organization/extract_gelamaq_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Preserved Gelamaq resource unavailable'}
+          pwsh -NoProfile -File controller/qa/organization/extract_preserved_presentations.ps1
+          if($LASTEXITCODE -ne 0){throw 'Original PET resource preservation failed'}
+          python controller/qa/organization/prepare_finance_compat.py
+          if($LASTEXITCODE -ne 0){throw 'Existing compatibility recipe failed'}
+          python controller/qa/organization/prepare_compatibility.py
+          if($LASTEXITCODE -ne 0){throw 'Existing contracts preparation failed'}
+          New-Item -ItemType Directory logon-probe -Force|Out-Null
+          python controller/qa/organization/preserve_logon.py
+          if($LASTEXITCODE -ne 0){throw 'Preserved LOGON source differs'}
+          pwsh -NoProfile -File controller/qa/organization/bridge/preserve_origin_notifier.ps1
+          if($LASTEXITCODE -ne 0){throw 'Identified notifier preservation failed'}
+          python controller/qa/organization/bridge/prepare_destination.py
+          if($LASTEXITCODE -ne 0){throw 'New initial coordinator integration failed'}
+      - name: Isolar somente a copia de testes
+        shell: pwsh
+        run: |
+          python controller/qa/etapa4-setup/prepare_qa.py
+          if($LASTEXITCODE -ne 0){throw 'QA data isolation preparation failed'}
+      - name: Compilar payload offline e PET Loja existente
+        shell: pwsh
+        run: |
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -p:UseSharedCompilation=false -o qa-publish
+          if($LASTEXITCODE -ne 0){throw 'QA app publish failed'}
+          dotnet build candidate/extensions/profiles/001/Pet.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Existing Loja PET compilation failed'}
+          ./controller/qa/etapa4-setup/package_payload.ps1
+          if($LASTEXITCODE -ne 0){throw 'QA payload validation failed'}
+      - name: Gerar apenas instalador de testes independente
+        shell: pwsh
+        run: |
+          Copy-Item controller/qa/etapa4-setup/setup.iss setup.iss
+          $compiler=Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Inno Setup 6/ISCC.exe'
+          if(!(Test-Path $compiler)){choco install innosetup --no-progress -y; if($LASTEXITCODE -ne 0){throw 'Installer compiler unavailable'}}
+          & $compiler setup.iss
+          if($LASTEXITCODE -ne 0){throw 'QA installer compilation failed'}
+      - name: Instalar no runner e observar isolamento e ativacao real
+        shell: pwsh
+        run: |
+          ./controller/qa/etapa4-setup/test_setup.ps1
+          if($LASTEXITCODE -ne 0){throw 'QA installer safety validation failed'}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BAIXAR-SETUP-TESTE-ANGRA-ETAPA4
+          path: setup-output/LEAL_INFO_TESTE_ANGRA_ETAPA4.exe
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidencias-setup-angra-etapa4
+          path: qa-setup-evidence/
