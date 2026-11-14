@@ -8,7 +8,8 @@ root=Path('candidate');source=Path('controller/qa/organization/bridge')
 protected=[root/'Auth.cs',root/'Database.cs',root/'Licensing/InstallationLicense.cs']
 before={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in protected}
 origin_sources={'Auth.cs':'233437d2fa7fc4bf181750430073a9d970a58a25aea1766d45d5c6b2e5a9c881','Database.cs':'434653be7d70e5bf4260812ac7c0668fe8bbb805feb80ff9be9ac924c0c62aed','Licensing/InstallationLicense.cs':'53edac7183650ca22759b66235e2583e0d0bd1832b21bd898488ae273d159f6c'}
-assert all(before[str(root/name)]==sha for name,sha in origin_sources.items()),'Origin 10.467 authentication/database/licensing source differs'
+normalized_origin={name:hashlib.sha256((root/name).read_text(encoding='utf-8-sig').replace('\r\n','\n').encode('utf-8')).hexdigest() for name in origin_sources}
+assert normalized_origin==origin_sources,'Origin 10.467 authentication/database/licensing source differs (ignoring only checkout CRLF/BOM)'
 
 profiles={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in (root/'extensions').rglob('*') if p.is_file()}
 for a,b in [('InitialMigrationBridge.cs','InitialMigrationBridge.cs'),('InitialMigrationCoordinator.cs.source','InitialMigrationCoordinator.cs'),('JointInitialRecovery.ps1','JointInitialRecovery.ps1')]:shutil.copyfile(source/a,root/b)
@@ -44,5 +45,5 @@ p.write_text(s,encoding='utf-8')
 assert all(hashlib.sha256(p.read_bytes()).hexdigest()==before[str(p)] for p in protected)
 assert all(hashlib.sha256(Path(p).read_bytes()).hexdigest()==sha for p,sha in profiles.items())
 Path('pair-evidence').mkdir(exist_ok=True)
-Path('pair-evidence/destination-source.json').write_text(json.dumps(dict(CandidateVersion='10.468',SourceBase='PR37 existing modular reconstruction, not an identical historical binary',Origin='10.467',ProtectedSources=before,MatchesPublishedOriginSource='7aa5d38336e94659c07f0afc6ddfe40169c41a3a',AllExistingPetSourcesUnchanged=True,NewCode=['InitialMigrationBridge','InitialMigrationCoordinator','JointInitialRecoveryWorker'],ProductionPublished=False),indent=2))
+Path('pair-evidence/destination-source.json').write_text(json.dumps(dict(CandidateVersion='10.468',SourceBase='PR37 existing modular reconstruction, not an identical historical binary',Origin='10.467',ProtectedSources=before,MatchesPublishedOriginSource='7aa5d38336e94659c07f0afc6ddfe40169c41a3a',NormalizedOriginSourceHashes=normalized_origin,SourceNormalization='UTF8 BOM removed and CRLF to LF only; raw before/after hashes also compared',AllExistingPetSourcesUnchanged=True,NewCode=['InitialMigrationBridge','InitialMigrationCoordinator','JointInitialRecoveryWorker'],ProductionPublished=False),indent=2))
 print('PASS existing modular candidate extended to UNPUBLISHED 10.468; authentication/database/license and all PET sources unchanged')

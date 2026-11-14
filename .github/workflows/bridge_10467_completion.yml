@@ -27,6 +27,14 @@ jobs:
           dotnet-version: |
             8.0.x
             10.0.401
+      - name: Conferir sintaxe dos scripts novos
+        shell: pwsh
+        run: |
+          foreach($script in @('JointInitialRecovery.ps1','test_joint_recovery.ps1')){
+            $tokens=$null;$parseErrors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd ('controller/qa/organization/bridge/'+$script)),[ref]$tokens,[ref]$parseErrors)|Out-Null
+            if($parseErrors){throw ($parseErrors|Out-String)}
+          }
       - name: Preparar somente o novo destino com as receitas ja aprovadas
         shell: pwsh
         run: |
