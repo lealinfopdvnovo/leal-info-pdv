@@ -22,6 +22,6 @@ for p in root.rglob('*.cs'):
  if s!=old:p.write_text(s,encoding='utf-8');changes[str(p.relative_to(root))]=hashlib.sha256(s.encode()).hexdigest()
 shutil.copyfile(here/'QaIsolation.cs.source',root/'QaIsolation.cs')
 Path('qa-setup-evidence').mkdir(exist_ok=True)
-Path('qa-setup-evidence/isolation-source.json').write_text(json.dumps(dict(Changes=changes,CanonicalCandidateModified=False,ClientUpdates=False,LicenseBypassed=False,NotAMigrationPackage=True),indent=2))
+Path('qa-setup-evidence/isolation-source.json').write_text(json.dumps(dict(Changes=changes,CanonicalRepositoryFilesModified=False,ClientUpdates=False,LicenseBypassed=False,NotAMigrationPackage=True),indent=2))
 assert 'Database.cs' in changes and 'Program.cs' in changes and 'UpdateNotifierHost.cs' in changes
 print('PASS QA-only build uses separate writable roots, no startup notifier and no client update channel; activation code retained')

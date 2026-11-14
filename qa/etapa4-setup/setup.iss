@@ -5,6 +5,8 @@ AppVersion=10.468.0
 AppPublisher=LEAL INFO
 DefaultDirName={autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4
 DisableDirPage=yes
+UsePreviousAppDir=no
+MinVersion=10.0.17763
 DefaultGroupName=LEAL INFO PDV - TESTE ANGRA ETAPA4
 OutputDir=setup-output
 OutputBaseFilename=LEAL_INFO_TESTE_ANGRA_ETAPA4
@@ -26,4 +28,14 @@ function InitializeSetup(): Boolean;
 begin
  Result := not DirExists(ExpandConstant('{autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4'));
  if not Result then MsgBox('A pasta exclusiva de testes já existe. Nada será sobrescrito. Feche esta instalação para preservar esse ambiente.',mbError,MB_OK);
+end;
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var Expected: String;
+begin
+ Expected := ExpandConstant('{autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4');
+ Result := '';
+ if CompareText(ExpandFileName(WizardDirValue), Expected) <> 0 then
+  Result := 'Pasta recusada. Este setup só instala no diretório exclusivo de testes ANGRA ETAPA4.'
+ else if DirExists(Expected) or FileExists(Expected) then
+  Result := 'A pasta de testes já existe. Nada será sobrescrito.';
 end;
