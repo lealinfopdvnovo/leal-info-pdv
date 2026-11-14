@@ -12,6 +12,11 @@ try{
   $file=Join-Path $dir ('QA-CANARY-'+[Guid]::NewGuid().ToString('N'));Set-Content $file 'SYNTHETIC PRODUCTION-PATH CANARY';$canaries+=@{Path=$file;Hash=(Get-FileHash $file).Hash}
  }
  foreach($folder in @('LealInfoPDV','LEAL INFO PDV')){foreach($f in Get-ChildItem (Join-Path $local $folder) -Recurse -File){$before[$f.FullName]=(Get-FileHash $f.FullName).Hash}}
+ $blocked=Join-Path $env:ProgramFiles ('LEAL-QA-DO-NOT-OVERWRITE-'+[Guid]::NewGuid().ToString('N'));New-Item -ItemType Directory $blocked|Out-Null
+ $sentinel=Join-Path $blocked 'LealInfoPDV.exe';Set-Content $sentinel 'SYNTHETIC EXISTING INSTALLATION';$sentinelHash=(Get-FileHash $sentinel).Hash
+ $denied=Start-Process $setup -ArgumentList ('/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="'+$blocked+'"') -Wait -PassThru
+ if($denied.ExitCode -eq 0 -or (Get-FileHash $sentinel).Hash -ne $sentinelHash -or (Test-Path $app)){throw 'Setup accepted unsafe directory override'}
+ Remove-Item $blocked -Recurse -Force
  $installer=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait -PassThru
  if($installer.ExitCode -ne 0){throw ('Setup installation failed '+$installer.ExitCode)}
  $exe=Join-Path $app 'LealInfoPDV.exe'
@@ -45,7 +50,11 @@ try{
  if($manifest.Identity -ne '001' -or $manifest.Version -ne '1.3' -or (Get-FileHash (Join-Path $app 'Extensions/PET/Pet.dll')).Hash.ToLowerInvariant() -ne $manifest.Sha256){throw 'Installed PET integrity mismatch'}
  $shortcut=Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'LEAL INFO PDV - TESTE ANGRA (Etapa 4).lnk'
  if(!(Test-Path $shortcut)){throw 'Separate test shortcut missing'}
- $result=@{Pass=$true;SetupSha256=(Get-FileHash $setup).Hash.ToLowerInvariant();InstalledInSeparateFolder=$true;SeparateWritableRoots=$true;ProductionCanariesUnchanged=$true;GenuineActivationObserved=$true;LicenseBypassed=$false;LicensedLoginTested=$false;ExternalPetIdentity='001';ExternalPetVersion='1.3';MigrationValidated=$false;ProductionUpdated=$false;FreshFunctionalQABuild=$true}
+ $installedHash=(Get-FileHash $exe).Hash
+ $again=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait -PassThru
+ if($again.ExitCode -eq 0 -or (Get-FileHash $exe).Hash -ne $installedHash){throw 'Existing QA installation was overwritten'}
+ $result=@{Pass=$true;DirectoryOverrideRejected=$true;ExistingDestinationPreserved=$true;SetupSha256=(Get-FileHash $setup).Hash.ToLowerInvariant();InstalledInSeparateFolder=$true;SeparateWritableRoots=$true;ProductionCanariesUnchanged=$true;GenuineActivationObserved=$true;LicenseBypassed=$false;LicensedLoginTested=$false;ExternalPetIdentity='001';ExternalPetVersion='1.3';MigrationValidated=$false;ProductionUpdated=$false;FreshFunctionalQABuild=$true}
  $result|ConvertTo-Json -Depth 8|Set-Content qa-setup-evidence/setup-validation.json -Encoding UTF8
  Write-Output ('SETUP_VALIDATION='+($result|ConvertTo-Json -Depth 8 -Compress))
+ $global:LASTEXITCODE=0
 }finally{if($process -and !$process.HasExited){$process.Kill();$process.WaitForExit()};foreach($c in $canaries){Remove-Item $c.Path -Force -ErrorAction SilentlyContinue}}

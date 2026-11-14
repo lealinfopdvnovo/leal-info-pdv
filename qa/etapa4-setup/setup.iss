@@ -27,7 +27,7 @@ Name: "{autodesktop}\LEAL INFO PDV - TESTE ANGRA (Etapa 4)"; Filename: "{app}\Le
 function InitializeSetup(): Boolean;
 begin
  Result := not DirExists(ExpandConstant('{autopf}\LEAL INFO PDV - TESTE ANGRA ETAPA4'));
- if not Result then MsgBox('A pasta exclusiva de testes já existe. Nada será sobrescrito. Feche esta instalação para preservar esse ambiente.',mbError,MB_OK);
+ if not Result then SuppressibleMsgBox('A pasta exclusiva de testes já existe. Nada será sobrescrito. Feche esta instalação para preservar esse ambiente.',mbError,MB_OK,IDOK);
 end;
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Expected: String;
