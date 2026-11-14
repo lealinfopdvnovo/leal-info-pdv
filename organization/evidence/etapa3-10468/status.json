@@ -1,0 +1,30 @@
+{
+  "Stage": 3,
+  "Status": "BLOCKED_OPERATIONAL",
+  "ApprovedCode": "a0f49da19885c87415fa01f7848dbd85b0577f0b",
+  "NewProbeCode": "c87a495dd6cc5941ed9ea99f2eb761a3cfc846ea",
+  "Run": 43539868352,
+  "Finding": "Reader sharing blocks atomic journal replacement on Windows",
+  "CurrentContract": "FileShare.Read",
+  "CurrentAtomicReplacement": "blocked",
+  "ControlContract": "FileShare.ReadWrite | FileShare.Delete",
+  "ControlAtomicReplacement": "succeeded",
+  "LicensedStartupExecuted": false,
+  "MigrationExecuted": false,
+  "OperationalApproval": false,
+  "PreviousSuitesRerun": false,
+  "PriorEvidenceConsistency": {
+    "ApprovedRunMatchesCode": true,
+    "EvidenceVersionsCoherent": true,
+    "NoLicensedApprovalInDestination": true,
+    "PriorCasesExplicitlyNonOperational": true,
+    "OnlyOneSyntheticHealthCase": true,
+    "OriginPinnedInPreflight": true,
+    "ProductionReferencesStillProtected": true
+  },
+  "Artifact": {
+    "Id": 14091295951,
+    "Sha256ReportedByGitHub": "7c4821a0d2a943ff51909829890c17e1de6b48fa47e0387dfa22c5fb937860e7",
+    "DownloadedAndRehashedLocally": false
+  }
+}
