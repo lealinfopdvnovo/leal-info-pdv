@@ -69,3 +69,12 @@ Fontes: histórico visível desta conversa, contexto disponibilizado e documento
 
 ## Próxima retomada
 Prioridade mais recente explicitada por Adriano: iFood. GLOBAL/PET permanece pausado. Esta consolidação não altera prioridades nem concede autorização de desenvolvimento.
+
+
+## PRIORIDADE CRÍTICA — LICENCIAMENTO AUTOMÁTICO E IDENTIDADE PET (decisão de 14/11/2026)
+- **Prioridade definida pelo proprietário:** eliminar falhas recorrentes entre painel gerador de licenças, ativação do PDV, identidade do cliente e contrato/versão do PET. O fluxo comercial deve ser: cadastrar cliente e plano (Standard/Plus/Pro) no painel → gerar chave → inserir no PDV instalado → validar automaticamente e abrir o sistema com o PET correto, sem edição manual de arquivos, nomes ou códigos.
+- **Falha real observada no QA Angra, Etapa 4:** após instalação e ativação, mensagem “Identidade, versão ou contrato PET incompatível.” A instalação corrigida posteriormente chegou à tela principal e o usuário relatou funcionamento; contudo, a interface ainda mostrou “LOJA LEAL INFO — PET V1.3” no ambiente Angra, exigindo verificar a correspondência efetiva entre licença, identidade e PET, sem presumir que o defeito estrutural foi resolvido para novos clientes.
+- **Missão futura do Work:** investigar e corrigir a causa raiz de ponta a ponta no gerador/painel e no PDV; garantir geração, associação de identidade, assinatura e validação da licença, seleção/carregamento do PET compatível e mensagens de erro úteis; testar cliente novo, clientes existentes, planos e rejeição segura de licença/PET incompatível. Não contornar validações nem alterar licenças existentes.
+- **Critério de aceite:** chave legítima de novo cliente ativa e abre na primeira tentativa com identidade/PET corretos; licenças inválidas continuam bloqueadas; nenhum cliente ou canal de produção é afetado. Testes automatizados e instalação Windows real com evidências antes de declarar concluído.
+- **Execução:** registrar como prioridade obrigatória do roteiro antes de transbordo/escala comercial, sem interromper a personalização QA Angra em andamento. GLOBAL e PETs de produção só podem ser alterados com autorização expressa e testes; esta atualização do Baú é exclusivamente documental.
+- **Visão comercial relacionada:** iFood como módulo GLOBAL opcional, botão visível no Standard mas bloqueado pela licença; acesso nos planos Plus/Pro sujeito a habilitação e requisitos do iFood. Não implementar nesta tarefa documental.
