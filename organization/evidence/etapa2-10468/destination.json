@@ -1,0 +1,27 @@
+{
+  "Pass": true,
+  "Checks": [
+    "actual compiled updater constant is 10.468, newer than identified 10.467",
+    "real destination contains initial handoff and joint recovery worker",
+    "compiled entry arms joint recovery after legitimate activation and before data initialization/PET creation",
+    "compiled core health is deferred during the first migration until authenticated main window",
+    "existing modular loader reused",
+    "existing capsule parser accepts compiled Loja PET 1.3 and preserved original module",
+    "original 10.467 resource retained: ReadyKitchen.photos.zip",
+    "original 10.467 resource retained: Kitchen.TablesPremium",
+    "original 10.467 resource retained: LealInfoPDV.UpdateNotifier.Native"
+  ],
+  "Origin": "10.467",
+  "Target": "10.468",
+  "Pet": "1.3",
+  "TargetHashes": {
+    "LealInfoPDV.exe": "06ebd5bbb538214a2df40573553084b600b0e907b7c9d52c91caee18efb66309",
+    "LealInfoPDV.dll": "cffee5e8aa35aea372247322c10f57faddc670b9ff41ac72e8fa61cc6aaf4b70",
+    "LealInfoPDV.deps.json": "6ed2675a0c592fd46ae972c550a1c92d0a814551d66de0d8da85a9963a59c627"
+  },
+  "PackageSha256": "2e447fbd3183e04b28f9d68d6579f6717d855282319532bf850136eb95e10eec",
+  "PetSha256": "795305d9520f8c93f6c0f0b6cfbcc08e9bad2c71827286ec12f0b2795ca6a4b6",
+  "JointRecoveryWorkerSha256": "c8a9cb678b2b33c0e39d70ac55629a8f7df2fd28d3e60c050376b23cd87883fe",
+  "LicensedOperationalStartup": false,
+  "Published": false
+}

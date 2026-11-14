@@ -1,0 +1,86 @@
+[
+  {
+    "Original10467Core": true,
+    "Pass": true,
+    "SyntheticRuntimeMarker": true,
+    "Scenario": "before-first-pet",
+    "Published": false,
+    "ActualLojaPet13": true,
+    "SyntheticData": true,
+    "LicensedStartup": false,
+    "Actual10468Candidate": true,
+    "SyntheticHealth": false
+  },
+  {
+    "Original10467Core": true,
+    "Pass": true,
+    "SyntheticRuntimeMarker": true,
+    "Scenario": "after-first-pet",
+    "Published": false,
+    "ActualLojaPet13": true,
+    "SyntheticData": true,
+    "LicensedStartup": false,
+    "Actual10468Candidate": true,
+    "SyntheticHealth": false
+  },
+  {
+    "Original10467Core": true,
+    "Pass": true,
+    "SyntheticRuntimeMarker": true,
+    "Scenario": "interrupted-joint-recovery-SYSTEM",
+    "Published": false,
+    "ActualLojaPet13": true,
+    "SyntheticData": true,
+    "LicensedStartup": false,
+    "Actual10468Candidate": true,
+    "SyntheticHealth": false
+  },
+  {
+    "Original10467Core": true,
+    "Pass": true,
+    "SyntheticRuntimeMarker": true,
+    "Scenario": "corrupt-original-backup",
+    "Published": false,
+    "ActualLojaPet13": true,
+    "SyntheticData": true,
+    "LicensedStartup": false,
+    "Actual10468Candidate": true,
+    "SyntheticHealth": false
+  },
+  {
+    "Original10467Core": true,
+    "Pass": true,
+    "SyntheticRuntimeMarker": true,
+    "Scenario": "global-lock-held",
+    "Published": false,
+    "ActualLojaPet13": true,
+    "SyntheticData": true,
+    "LicensedStartup": false,
+    "Actual10468Candidate": true,
+    "SyntheticHealth": false
+  },
+  {
+    "Original10467Core": true,
+    "Pass": true,
+    "SyntheticRuntimeMarker": true,
+    "Scenario": "unexpected-pet-file",
+    "Published": false,
+    "ActualLojaPet13": true,
+    "SyntheticData": true,
+    "LicensedStartup": false,
+    "Actual10468Candidate": true,
+    "SyntheticHealth": false
+  },
+  {
+    "Original10467Core": true,
+    "Pass": true,
+    "SyntheticRuntimeMarker": true,
+    "Scenario": "synthetic-joint-commit",
+    "Published": false,
+    "ActualLojaPet13": true,
+    "SyntheticData": true,
+    "LicensedStartup": false,
+    "Actual10468Candidate": true,
+    "SyntheticHealth": true
+  }
+]

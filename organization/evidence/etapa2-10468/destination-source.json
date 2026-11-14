@@ -1,0 +1,24 @@
+{
+  "CandidateVersion": "10.468",
+  "SourceBase": "PR37 existing modular reconstruction, not an identical historical binary",
+  "Origin": "10.467",
+  "ProtectedSources": {
+    "candidate\\Auth.cs": "ab7d07d50b2b3af8692ff20e87cad7e42d3c1ac43d4a56f85f53145b6663e17c",
+    "candidate\\Database.cs": "4487fe8f131664deb445aea2ae63f867af2a91180efd0f86239f76dda3499814",
+    "candidate\\Licensing\\InstallationLicense.cs": "21e259dc6f097a2d610c04354e158f1d0ca3040de2ce5d2f76306d0ce4e87ffd"
+  },
+  "MatchesPublishedOriginSource": "7aa5d38336e94659c07f0afc6ddfe40169c41a3a",
+  "NormalizedOriginSourceHashes": {
+    "Auth.cs": "233437d2fa7fc4bf181750430073a9d970a58a25aea1766d45d5c6b2e5a9c881",
+    "Database.cs": "434653be7d70e5bf4260812ac7c0668fe8bbb805feb80ff9be9ac924c0c62aed",
+    "Licensing/InstallationLicense.cs": "53edac7183650ca22759b66235e2583e0d0bd1832b21bd898488ae273d159f6c"
+  },
+  "SourceNormalization": "UTF8 BOM removed and CRLF to LF only; raw before/after hashes also compared",
+  "AllExistingPetSourcesUnchanged": true,
+  "NewCode": [
+    "InitialMigrationBridge",
+    "InitialMigrationCoordinator",
+    "JointInitialRecoveryWorker"
+  ],
+  "ProductionPublished": false
+}
