@@ -53,6 +53,8 @@ jobs:
           New-Item -ItemType Directory logon-probe -Force|Out-Null
           python controller/qa/organization/preserve_logon.py
           if($LASTEXITCODE -ne 0){throw 'Preserved LOGON source differs'}
+          pwsh -NoProfile -File controller/qa/organization/bridge/preserve_origin_notifier.ps1
+          if($LASTEXITCODE -ne 0){throw 'Identified notifier preservation failed'}
           python controller/qa/organization/bridge/prepare_destination.py
           if($LASTEXITCODE -ne 0){throw 'New initial coordinator integration failed'}
       - name: Compilar o destino real e apenas o PET Loja ja existente
