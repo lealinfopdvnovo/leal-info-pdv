@@ -1,0 +1,104 @@
+name: Etapa 3 complementar - corrigir leitura atomica do diario
+on:
+  push:
+    branches: [candidate/journal-reader-fix-20261113]
+    paths: ['qa/organization/journal-fix/**', 'qa/organization/bridge/**', '.github/workflows/journal_snapshot_fix.yml']
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  journal-reader-correction:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with:
+          path: approved
+          ref: a0f49da19885c87415fa01f7848dbd85b0577f0b
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+      - uses: actions/checkout@v4
+        with:
+          path: recipe
+          ref: 78c0d348d210f9c9b2672746e09bcddbf4ba4474
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Conferir sintaxe dos scripts novos
+        shell: pwsh
+        run: |
+          foreach($script in @('JointInitialRecovery.ps1')){
+            $tokens=$null;$parseErrors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd ('controller/qa/organization/bridge/'+$script)),[ref]$tokens,[ref]$parseErrors)|Out-Null
+            if($parseErrors){throw ($parseErrors|Out-String)}
+          }
+      - name: Preparar somente o novo destino com as receitas ja aprovadas
+        shell: pwsh
+        run: |
+          python controller/qa/organization/prepare_current_common.py
+          if($LASTEXITCODE -ne 0){throw 'Existing common recipe failed'}
+          pwsh -NoProfile -File controller/qa/organization/common_resource_contract.ps1 -Mode Extract
+          if($LASTEXITCODE -ne 0){throw 'Existing notifier extraction failed'}
+          python controller/qa/organization/prepare_integration.py
+          if($LASTEXITCODE -ne 0){throw 'Existing modular integration failed'}
+          python controller/qa/organization/bridge/fetch_origin.py
+          if($LASTEXITCODE -ne 0){throw 'Pinned origin unavailable'}
+          pwsh -NoProfile -File controller/qa/organization/extract_loja_worker.ps1
+          if($LASTEXITCODE -ne 0){throw 'Original Loja resources differ'}
+          python controller/qa/organization/prepare_pet_seal.py
+          if($LASTEXITCODE -ne 0){throw 'Existing PET recipe failed'}
+          python controller/qa/organization/extract_gelamaq_legacy.py
+          if($LASTEXITCODE -ne 0){throw 'Preserved Gelamaq resource unavailable'}
+          pwsh -NoProfile -File controller/qa/organization/extract_preserved_presentations.ps1
+          if($LASTEXITCODE -ne 0){throw 'Original PET resource preservation failed'}
+          python controller/qa/organization/prepare_finance_compat.py
+          if($LASTEXITCODE -ne 0){throw 'Existing compatibility recipe failed'}
+          python controller/qa/organization/prepare_compatibility.py
+          if($LASTEXITCODE -ne 0){throw 'Existing contracts preparation failed'}
+          New-Item -ItemType Directory logon-probe -Force|Out-Null
+          python controller/qa/organization/preserve_logon.py
+          if($LASTEXITCODE -ne 0){throw 'Preserved LOGON source differs'}
+          pwsh -NoProfile -File controller/qa/organization/bridge/preserve_origin_notifier.ps1
+          if($LASTEXITCODE -ne 0){throw 'Identified notifier preservation failed'}
+          python controller/qa/organization/bridge/prepare_destination.py
+          if($LASTEXITCODE -ne 0){throw 'New initial coordinator integration failed'}
+      - name: Compilar somente a correcao no destino; nao gerar pacote de atualizacao
+        shell: pwsh
+        run: |
+          dotnet build candidate/LealInfoPDV.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Corrected candidate compilation failed'}
+          New-Item -ItemType Directory journal-fix-evidence -Force|Out-Null
+          $build=Split-Path (Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.exe -Recurse|Select-Object -First 1).FullName
+          $hashes=@{};foreach($n in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){$hashes[$n]=(Get-FileHash (Join-Path $build $n)).Hash.ToLowerInvariant()}
+          $result=@{CandidateVersion='10.468';Hashes=$hashes;PackageGenerated=$false;OperationalApproval=$false;Published=$false}
+          $result|ConvertTo-Json -Depth 8|Set-Content journal-fix-evidence/compiled-correction.json -Encoding UTF8
+          Write-Output ('BUILD_EVIDENCE='+($result|ConvertTo-Json -Depth 8 -Compress))
+      - name: Executar apenas novos testes do leitor de diarios
+        shell: pwsh
+        run: |
+          dotnet run --project controller/qa/organization/journal-fix/JournalSnapshotTests.csproj -c Release -- journal-fix-evidence/reader.json approved controller
+          if($LASTEXITCODE -ne 0){throw 'Corrected journal snapshot tests failed'}
+          dotnet build controller/qa/organization/journal-fix/RecoveryJournalPolling.csproj -c Release
+          if($LASTEXITCODE -ne 0){throw 'Actual journal reader harness failed to compile'}
+      - name: Novo ensaio de interrupcao SYSTEM com leitores concorrentes
+        shell: pwsh
+        run: |
+          $tokens=$null;$parseErrors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd 'controller/qa/organization/journal-fix/test_concurrent_recovery.ps1'),[ref]$tokens,[ref]$parseErrors)|Out-Null
+          if($parseErrors){throw ($parseErrors|Out-String)}
+          ./controller/qa/organization/journal-fix/test_concurrent_recovery.ps1
+          if($LASTEXITCODE -ne 0){throw 'Concurrent reader joint recovery failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: etapa3-correcao-diarios-evidencias
+          path: |
+            journal-fix-evidence/
+            pair-evidence/destination-source.json

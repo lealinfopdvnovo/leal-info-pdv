@@ -14,7 +14,7 @@ internal static class InitialMigrationCoordinator
  static string Root=>Path.Combine(AppContext.BaseDirectory,".pdv-initial");
  static string? Nonce {get;set;}
  static string? PetHash {get;set;}
- static JsonDocument Core()=>JsonDocument.Parse(InitialMigrationBridge.ReadPlainFile(Path.Combine(AppContext.BaseDirectory,".pdv-update","journal.json"),65536));
+ static JsonDocument Core()=>JournalSnapshot.Read(Path.Combine(AppContext.BaseDirectory,".pdv-update","journal.json"));
  static string Hash(byte[] bytes)=>Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
  static bool CapsulePresent(){
   var bytes=InitialMigrationBridge.ReadPlainFile(Path.Combine(AppContext.BaseDirectory,"LealInfoPDV.exe"));
@@ -30,7 +30,7 @@ internal static class InitialMigrationCoordinator
  }
  internal static void GuardStartup(){
   var journal=Path.Combine(Root,"journal.json");if(!File.Exists(journal))return;
-  using var doc=JsonDocument.Parse(InitialMigrationBridge.ReadPlainFile(journal,65536));var phase=doc.RootElement.GetProperty("Phase").GetString();
+  using var doc=JournalSnapshot.Read(journal);var phase=doc.RootElement.GetProperty("Phase").GetString();
   if(phase=="Committed")return;
   var args=Environment.GetCommandLineArgs();
   using var core=Core();
@@ -42,7 +42,7 @@ internal static class InitialMigrationCoordinator
   var journal=Path.Combine(Root,"journal.json");
   bool archiveRecovered=false;
   if(File.Exists(journal)){
-   using var old=JsonDocument.Parse(InitialMigrationBridge.ReadPlainFile(journal,65536));
+   using var old=JournalSnapshot.Read(journal);
    if(old.RootElement.GetProperty("Phase").GetString()=="Committed")return;
    archiveRecovered=old.RootElement.GetProperty("Phase").GetString()=="Recovered";
    if(!archiveRecovered)throw new InvalidOperationException("Primeira migração incompleta: aguarde recuperação externa.");

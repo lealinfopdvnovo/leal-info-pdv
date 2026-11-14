@@ -12,7 +12,7 @@ normalized_origin={name:hashlib.sha256((root/name).read_text(encoding='utf-8-sig
 assert normalized_origin==origin_sources,'Origin 10.467 authentication/database/licensing source differs (ignoring only checkout CRLF/BOM)'
 
 profiles={str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in (root/'extensions').rglob('*') if p.is_file()}
-for a,b in [('InitialMigrationBridge.cs','InitialMigrationBridge.cs'),('InitialMigrationCoordinator.cs.source','InitialMigrationCoordinator.cs'),('JointInitialRecovery.ps1','JointInitialRecovery.ps1')]:shutil.copyfile(source/a,root/b)
+for a,b in [('InitialMigrationBridge.cs','InitialMigrationBridge.cs'),('JournalSnapshot.cs','JournalSnapshot.cs'),('InitialMigrationCoordinator.cs.source','InitialMigrationCoordinator.cs'),('JointInitialRecovery.ps1','JointInitialRecovery.ps1')]:shutil.copyfile(source/a,root/b)
 p=root/'LealInfoPDV.csproj';tree=ET.parse(p);pr=tree.getroot();items=ET.SubElement(pr,'ItemGroup');ET.SubElement(items,'EmbeddedResource',Include='JointInitialRecovery.ps1',LogicalName='JointInitialRecoveryWorker')
 for name in ['Version','AssemblyVersion','FileVersion']:
  for value in pr.iter(name):value.text='10.468.0' if name=='Version' else '10.468.0.0'

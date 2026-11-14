@@ -133,7 +133,7 @@ public static class InitialMigrationBridge
         Require(plan.Previous.Count==OriginHashes.Count&&OriginHashes.All(x=>plan.Previous.TryGetValue(x.Key,out var value)&&value==x.Value),"Untrusted previous hashes");
         foreach(var name in CoreNames)Require(Hash(ReadPlainFile(Path.Combine(app,".pdv-update","previous",name)))==OriginHashes[name],"Original worker backup mismatch: "+name);
         Require(Hash(ReadPlainFile(Path.Combine(app,"LealInfoPDV.runtimeconfig.json")))==OriginHashes["LealInfoPDV.runtimeconfig.json"],"Runtimeconfig must remain identical");
-        using var journal=JsonDocument.Parse(ReadPlainFile(Path.Combine(app,".pdv-update","journal.json"),65536));var j=journal.RootElement;
+        using var journal=JournalSnapshot.Read(Path.Combine(app,".pdv-update","journal.json"));var j=journal.RootElement;
         Require(j.GetProperty("Phase").GetString()=="Prepared"&&j.GetProperty("Channel").GetString()==Identity&&j.GetProperty("Version").GetString()==plan.TargetVersion,"Wrong initial transaction journal");
         Require(j.GetProperty("PackageSha256").GetString()!.Equals(plan.PackageSha256,StringComparison.OrdinalIgnoreCase),"Wrong prepared package");
         Require(Path.GetFullPath(j.GetProperty("App").GetString()!).TrimEnd(Path.DirectorySeparatorChar)==Path.GetFullPath(app).TrimEnd(Path.DirectorySeparatorChar),"Prepared backup belongs to another installation");
