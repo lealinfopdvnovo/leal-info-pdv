@@ -39,3 +39,17 @@ public static class Resume
   void Closed(object? sender,FormClosedEventArgs e){closed=true;timer.Stop();timer.Dispose();form.Activated-=Activated;form.FormClosed-=Closed;}
  }
 }
+
+/// <summary>Preserves server-authoritative authorship when rebuilding a local PDV payload.</summary>
+public static class Authorship
+{
+ public static object? Merge(object link,object? payload){
+  if(payload is not System.Text.Json.Nodes.JsonObject json)return payload;
+  var type=link.GetType();
+  var entity=type.GetProperty("Entity",BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)?.GetValue(link) as string;
+  if(entity!="projects")return payload;
+  var baseline=type.GetProperty("Baseline",BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)?.GetValue(link) as System.Text.Json.Nodes.JsonObject;
+  if(baseline?["authorship"] is System.Text.Json.Nodes.JsonObject author)json["authorship"]=author.DeepClone();
+  return json;
+ }
+}

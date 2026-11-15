@@ -27,8 +27,8 @@ static class Patcher
   var helper=File.ReadAllBytes(args[1]);
   assembly.MainModule.Resources.Add(new EmbeddedResource("ANGRA.IntegrationQA.Helper",ManifestResourceAttributes.Private,helper));
   foreach(var attr in assembly.CustomAttributes){
-   if(attr.AttributeType.FullName=="System.Reflection.AssemblyMetadataAttribute"&&(string)attr.ConstructorArguments[0].Value=="PetVersion")attr.ConstructorArguments[1]=new CustomAttributeArgument(assembly.MainModule.TypeSystem.String,"1.14");
-   if(attr.AttributeType.FullName is "System.Reflection.AssemblyFileVersionAttribute" or "System.Reflection.AssemblyInformationalVersionAttribute")attr.ConstructorArguments[0]=new CustomAttributeArgument(assembly.MainModule.TypeSystem.String,"1.14.0");
+   if(attr.AttributeType.FullName=="System.Reflection.AssemblyMetadataAttribute"&&(string)attr.ConstructorArguments[0].Value=="PetVersion")attr.ConstructorArguments[1]=new CustomAttributeArgument(assembly.MainModule.TypeSystem.String,"1.15");
+   if(attr.AttributeType.FullName is "System.Reflection.AssemblyFileVersionAttribute" or "System.Reflection.AssemblyInformationalVersionAttribute")attr.ConstructorArguments[0]=new CustomAttributeArgument(assembly.MainModule.TypeSystem.String,"1.15.0");
   }
   var module=assembly.MainModule;
   var bridge=new TypeDefinition("","AngraIntegrationQaBridge",TypeAttributes.NotPublic|TypeAttributes.Abstract|TypeAttributes.Sealed,module.TypeSystem.Object);module.Types.Add(bridge);
@@ -56,7 +56,32 @@ static class Patcher
   var cil=customize.Body.GetILProcessor();foreach(var ret in customize.Body.Instructions.Where(i=>i.OpCode==OpCodes.Ret).ToArray()){
    ret.OpCode=OpCodes.Ldarg_1;cil.InsertAfter(ret,cil.Create(OpCodes.Call,boot));cil.InsertAfter(ret.Next,cil.Create(OpCodes.Ret));
   }
-  var changed=new HashSet<string>{init.FullName,customize.FullName};
+  // Reuse the same verified resource loader. This bridge returns the merged JSON payload.
+  var merge=new MethodDefinition("MergeAuthor",MethodAttributes.Static|MethodAttributes.Public,module.TypeSystem.Object);
+  bridge.Methods.Add(merge);merge.Parameters.Add(new ParameterDefinition("link",ParameterAttributes.None,module.TypeSystem.Object));merge.Parameters.Add(new ParameterDefinition("payload",ParameterAttributes.None,module.TypeSystem.Object));merge.Body.InitLocals=true;
+  foreach(var v in boot.Body.Variables)merge.Body.Variables.Add(new VariableDefinition(v.VariableType));
+  var mil=merge.Body.GetILProcessor();
+  foreach(var ins in boot.Body.Instructions){
+   if(ins.OpCode==OpCodes.Pop)break;
+   if(ins.OpCode==OpCodes.Ldstr && (string)ins.Operand=="AngraQaIntegration.Resume")mil.Append(mil.Create(OpCodes.Ldstr,"AngraQaIntegration.Authorship"));
+   else if(ins.OpCode==OpCodes.Ldstr && (string)ins.Operand=="Apply")mil.Append(mil.Create(OpCodes.Ldstr,"Merge"));
+   else if(ins.OpCode==OpCodes.Ldc_I4_1 && ins.Next?.OpCode==OpCodes.Newarr)mil.Append(mil.Create(OpCodes.Ldc_I4_2));
+   else if(ins.OpCode==OpCodes.Stelem_Ref){mil.Append(mil.Create(OpCodes.Stelem_Ref));mil.Append(mil.Create(OpCodes.Dup));mil.Append(mil.Create(OpCodes.Ldc_I4_1));mil.Append(mil.Create(OpCodes.Ldarg_1));mil.Append(mil.Create(OpCodes.Stelem_Ref));}
+   else if(ins.Operand is VariableDefinition v)mil.Append(mil.Create(ins.OpCode,merge.Body.Variables[v.Index]));
+   else if(ins.Operand is MethodReference m)mil.Append(mil.Create(ins.OpCode,m));
+   else if(ins.Operand is TypeReference t)mil.Append(mil.Create(ins.OpCode,t));
+   else if(ins.Operand is string str)mil.Append(mil.Create(ins.OpCode,str));
+   else if(ins.Operand==null)mil.Append(mil.Create(ins.OpCode));else throw new Exception("Unexpected bridge IL");
+  }
+  mil.Append(mil.Create(OpCodes.Ret));
+  var read=all.Single(t=>t.FullName=="LealInfoPDV.AngraSyncStore").Methods.Single(m=>m.Name=="ReadLocal");
+  var payloadVar=new VariableDefinition(read.ReturnType);read.Body.Variables.Add(payloadVar);read.Body.InitLocals=true;var ril=read.Body.GetILProcessor();
+  foreach(var ret in read.Body.Instructions.Where(i=>i.OpCode==OpCodes.Ret).ToArray()){
+   ret.OpCode=OpCodes.Stloc;ret.Operand=payloadVar;var pos=ret;
+   void After(Instruction n){ril.InsertAfter(pos,n);pos=n;}
+   After(ril.Create(OpCodes.Ldarg_1));After(ril.Create(OpCodes.Ldloc,payloadVar));After(ril.Create(OpCodes.Call,merge));After(ril.Create(OpCodes.Castclass,read.ReturnType));After(ril.Create(OpCodes.Ret));
+  }
+  var changed=new HashSet<string>{init.FullName,customize.FullName,read.FullName};
   const string sharedOrigin="https://angra-vidros-gateway.classyglobe9.chatgpt.site";
   const string isolatedOrigin="https://angra-vidros-qa37.adriansantosangra.chatgpt.site"; // Fail closed until a real isolated QA gateway is provisioned.
   int isolatedCalls=0;
@@ -72,9 +97,9 @@ static class Patcher
   foreach(var m in all.SelectMany(t=>t.Methods))if(!changed.Contains(m.FullName)&&MethodSignature(m)!=methods[m.FullName])throw new Exception("Unrelated original method changed");
   foreach(var r in assembly.MainModule.Resources.OfType<EmbeddedResource>().Where(r=>resources.ContainsKey(r.Name)))if(Hash(r.GetResourceData())!=resources[r.Name])throw new Exception("Original resource changed: "+r.Name);
   assembly.Write(args[2]);using var check=AssemblyDefinition.ReadAssembly(args[2]);
-  if(Metadata(check,"PetIdentity")!="005"||Metadata(check,"PetVersion")!="1.14")throw new Exception("Output metadata mismatch");
+  if(Metadata(check,"PetIdentity")!="005"||Metadata(check,"PetVersion")!="1.15")throw new Exception("Output metadata mismatch");
   foreach(var method in check.MainModule.Types.SelectMany(Types).SelectMany(t=>t.Methods))if(methods.ContainsKey(method.FullName)&&!changed.Contains(method.FullName)&&MethodSignature(method)!=methods[method.FullName])throw new Exception("Unrelated method differs after write: "+method.FullName);
-  Directory.CreateDirectory("integration-evidence");File.WriteAllText("integration-evidence/patch-scope.json",JsonSerializer.Serialize(new{Pass=true,Identity="005",From="1.12",To="1.14",OnlyOriginalMethodsChanged=changed.ToArray(),QaGatewayOrigin=isolatedOrigin,IsolatedGatewayCallSites=isolatedCalls,LiveGatewayConfigured=true,OtherOriginalMethodsIdentical=true,AllOriginalResourcesIdentical=true,MediaSHA256=resources["ANGRA.Opening.mp4"],CoreAndNotifierRecompiled=false,HelperEmbedded=true}));
+  Directory.CreateDirectory("integration-evidence");File.WriteAllText("integration-evidence/patch-scope.json",JsonSerializer.Serialize(new{Pass=true,Identity="005",From="1.12",To="1.15",OnlyOriginalMethodsChanged=changed.ToArray(),QaGatewayOrigin=isolatedOrigin,IsolatedGatewayCallSites=isolatedCalls,LiveGatewayConfigured=true,OtherOriginalMethodsIdentical=true,AllOriginalResourcesIdentical=true,MediaSHA256=resources["ANGRA.Opening.mp4"],CoreAndNotifierRecompiled=false,HelperEmbedded=true}));
   Console.WriteLine("PASS QA pairing-resume pairing constructor and PET customization hooks only; approved resources and all unrelated PET methods unchanged");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }

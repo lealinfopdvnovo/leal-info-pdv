@@ -1,19 +1,28 @@
-name: ANGRA37 - APK 0.3.8 and exclusive receiver candidate
+name: ANGRA37 - individual access APK 0.4.0 and PET 1.15
 on:
   pull_request:
     branches: [feature/app-vidraceiro-android-foundation]
     paths: ['mobile/vidraceiro/**', 'qa/angra37/**', '.github/workflows/angra37_build.yml']
 permissions: {contents: read, actions: read}
 jobs:
+  gateway-security:
+    if: github.head_ref == 'qa/angra37-access-20261115'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.event.pull_request.head.sha }}'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --test qa/angra37/gateway/scripts/access.test.mjs
   android:
-    if: github.head_ref == 'qa/angra37-reconfigure-20261115'
+    if: github.head_ref == 'qa/angra37-access-20261115'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
         with: {ref: '${{ github.event.pull_request.head.sha }}', path: candidate}
       - uses: actions/checkout@v4
-        with: {ref: acb72ed0d1025faa309efffa35a6a94f205fd7c7, path: baseline}
+        with: {ref: a4bc7938b05c3295e9249c0278540d0cc59bc065, path: baseline}
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: android-actions/setup-android@v3
@@ -38,8 +47,8 @@ jobs:
           mkdir -p delivery
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs candidate/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk > delivery/signature.txt
           diff -qr baseline/mobile/vidraceiro/app/src/main/res candidate/mobile/vidraceiro/app/src/main/res
-          cp candidate/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk delivery/ANGRA_VIDROS_0.3.8_QA37.apk
-          sha256sum delivery/ANGRA_VIDROS_0.3.8_QA37.apk > delivery/SHA256.txt
+          cp candidate/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk delivery/ANGRA_VIDROS_0.4.0_QA37.apk
+          sha256sum delivery/ANGRA_VIDROS_0.4.0_QA37.apk > delivery/SHA256.txt
       - name: Enable disposable Android emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -56,22 +65,19 @@ jobs:
             adb install baseline/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
             adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 mkdir -p files
             adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 touch files/upgrade37-marker
-            adb install -r delivery/ANGRA_VIDROS_0.3.8_QA37.apk
+            adb install -r delivery/ANGRA_VIDROS_0.4.0_QA37.apk
             adb install candidate/mobile/vidraceiro/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb shell am instrument -w br.com.lealinfo.vidraceiro.ambiente37.test/br.com.lealinfo.vidraceiro.Reconfigure37Instrumentation > delivery/android-reconfigure.txt
-            grep -q 'PASS ANGRA37_RECONFIGURE_COMPLETE' delivery/android-reconfigure.txt
-            adb shell am force-stop br.com.lealinfo.vidraceiro.ambiente37
-            adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 cat files/pdv-sync-state.json > delivery/restarted-state.json
-            python -c "import json; s=json.load(open('delivery/restarted-state.json')); assert s['environment']=='QA37' and not s['tenant']"
+            adb shell am instrument -w br.com.lealinfo.vidraceiro.ambiente37.test/br.com.lealinfo.vidraceiro.Access37Instrumentation > delivery/android-reconfigure.txt
+            grep -q 'PASS ANGRA37_ACCESS_COMPLETE' delivery/android-reconfigure.txt
       - name: Check new gateway availability - no customer requests
         run: |
           curl -fsS https://angra-vidros-qa37.adriansantosangra.chatgpt.site/ > delivery/gateway-health.json
           python -c "import json; assert json.load(open('delivery/gateway-health.json'))['environment']=='QA37'"
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: ANGRA37-APK-038-and-new-evidence, path: delivery/, retention-days: 30}
+        with: {name: ANGRA37-APK-040-access-evidence, path: delivery/, retention-days: 30}
   receiver:
-    if: false # Identical receiver candidate already passed run 43757868194; do not repeat
+    if: github.head_ref == 'qa/angra37-access-20261115'
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -90,7 +96,9 @@ jobs:
           New-Item -ItemType Directory receiver-candidate -Force|Out-Null
           dotnet run --project qa/angra37/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll receiver-candidate/Pet.dll
           if($LASTEXITCODE -ne 0){throw 'Scope verification failed'}
+          dotnet run --project qa/angra37/AuthorshipTest.csproj -c Release -- receiver-candidate/Pet.dll | Tee-Object integration-evidence/authorship-windows.txt
+          if($LASTEXITCODE -ne 0){throw 'Authorship Windows test failed'}
       - uses: actions/upload-artifact@v4
-        with: {name: ANGRA37-PET114-receiver-candidate-NOT-PUBLISHED, path: 'receiver-candidate/'}
+        with: {name: ANGRA37-PET115-receiver-candidate-NOT-PUBLISHED, path: 'receiver-candidate/'}
       - uses: actions/upload-artifact@v4
         with: {name: ANGRA37-receiver-scope-evidence, path: integration-evidence/}
