@@ -35,13 +35,14 @@ static class Probe {
   var raw=JsonSerializer.SerializeToUtf8Bytes(terms);var signed=JsonSerializer.Serialize(new SignedLicense(Convert.ToBase64String(raw),Convert.ToBase64String(rsa.SignData(raw,HashAlgorithmName.SHA256,RSASignaturePadding.Pss))));Call("Licensing.InstallationLicense","AcceptServer",signed,serial,rsa.ExportSubjectPublicKeyInfoPem());
   Database.Initialize();if(Auth.UserCount()==0)Auth.CreateUser("QA","qa","qa-test-123!","ADMINISTRADOR","qa@example.invalid","");Check(Auth.Login("qa","qa-test-123!")!=null,"QA login remains functional");
   var pet=AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.Combine(AppContext.BaseDirectory,"Extensions/PET/Pet.dll"));var extension=(IPetExtension)Activator.CreateInstance(pet.GetExportedTypes().Single(t=>!t.IsAbstract&&typeof(IPetExtension).IsAssignableFrom(t)))!;
+  TryLargerTestDesktop();
   var output=Environment.GetEnvironmentVariable("TRANSITION_EVIDENCE")!;var screen=Screen.PrimaryScreen!.Bounds;var proofs=new List<JsonElement>();
   for(int scenario=0;scenario<3;scenario++){
    using var main=new MainForm();const BindingFlags instance=BindingFlags.Instance|BindingFlags.NonPublic;
    ((System.Windows.Forms.Timer)typeof(MainForm).GetField("licenseTimer",instance)!.GetValue(main)!).Stop();typeof(MainForm).GetField("automaticBackupCompleted",instance)!.SetValue(main,true);
    // Existing native UI fixture isolation: suppress unrelated onboarding, backup and update popups.
    var handlers=(EventHandlerList)typeof(Component).GetProperty("Events",instance)!.GetValue(main)!;var shownKey=typeof(Form).GetFields(BindingFlags.Static|BindingFlags.NonPublic).Single(x=>x.Name.Contains("Shown",StringComparison.OrdinalIgnoreCase)).GetValue(null)!;handlers.RemoveHandler(shownKey,handlers[shownKey]);
-   main.WindowState=FormWindowState.Normal;main.Bounds=new Rectangle(12+scenario*7,28+scenario*5,980,690);
+   main.WindowState=FormWindowState.Normal;main.MaximumSize=new Size(4000,2400);main.Bounds=new Rectangle(screen.Width>=1366?12:-scenario*145,28+scenario*5,Math.Max(980,Math.Min(1400,screen.Width-40)),Math.Min(820,screen.Height-70));
    var menu=Walk(main).OfType<MenuStrip>().First();float scale=1+scenario*.25f;menu.Font=new Font(menu.Font.FontFamily,menu.Font.Size*scale,menu.Font.Style);
    extension.Customize(main);extension.Customize(main);extension.Customize(main);
    var coach=AssemblyLoadContext.Default.Assemblies.Single(a=>a.GetName().Name=="AngraHelpPremium").GetType("AngraHelpPremium.Coach",true)!;
@@ -52,7 +53,7 @@ static class Probe {
    monitor.Tick+=(_,_)=>{
     try{
      if(timeout.Elapsed.TotalSeconds>12)throw new Exception("Help animation did not complete");
-     using var doc=JsonDocument.Parse(Evidence());var d=doc.RootElement;if(!d.TryGetProperty("Started",out var started)||!started.GetBoolean())return;
+     using var doc=JsonDocument.Parse(Evidence());var d=doc.RootElement;if(!d.TryGetProperty("Started",out var started)||!started.GetBoolean()){handlesBefore=GetGuiResources(Process.GetCurrentProcess().Handle,0);return;}
      double seconds=d.GetProperty("Elapsed").GetDouble();bool ended=d.GetProperty("Finished").GetBoolean();
      if(!ended){
       var overlay=Application.OpenForms.Cast<Form>().Single(f=>f.Name=="AngraHelpCoach");long style=GetWindowLongPtr(overlay.Handle,-20).ToInt64();
@@ -79,14 +80,31 @@ static class Probe {
       var layout=Walk(main).Select(c=>(c,c.Bounds,c.Font,c.Visible,c.Enabled)).ToArray();extension.Customize(main);extension.Customize(main);
       Check(layout.All(x=>x.c.Bounds==x.Bounds&&x.c.Font==x.Font&&x.c.Visible==x.Visible&&x.c.Enabled==x.Enabled),"all buttons and controls retain geometry, visibility, font and enabled state");
       using var again=JsonDocument.Parse(Evidence());Check(again.RootElement.GetProperty("Plays").GetInt32()==1&&again.RootElement.GetProperty("Finished").GetBoolean(),"re-customization cannot repeat animation in the same session");
-      Check(GetGuiResources(Process.GetCurrentProcess().Handle,0)-handlesBefore<20,"temporary GDI resources released");
+      int handlesAfter=GetGuiResources(Process.GetCurrentProcess().Handle,0);
+      File.WriteAllText(Path.Combine(output,$"gdi-{scenario}.json"),JsonSerializer.Serialize(new{Before=handlesBefore,After=handlesAfter,Delta=handlesAfter-handlesBefore,MainUiPaintedBeforeBaseline=true}));
+      Check(handlesAfter-handlesBefore<20,"temporary GDI resources released");
       proofs.Add(d.Clone());File.WriteAllText(Path.Combine(output,$"help-session-{scenario}.json"),d.GetRawText());done=true;main.Close();
      }
     }catch(Exception ex){failure=ex;monitor.Stop();main.Close();}
    };
    monitor.Start();main.Show();main.Activate();Application.Run(new TestContext(main));if(failure!=null)throw failure;Check(done,"main login session "+scenario+" completed at menu font scale "+scale);
   }
-  File.WriteAllText(Path.Combine(output,"help-proof.json"),JsonSerializer.Serialize(new{Pass=true,Identity="005",Version="1.10",Sessions=proofs,NativeWindowsForms=true,MenuFontScales=new[]{100,125,150},ActualOperatingSystemDpi=Screen.PrimaryScreen!.Bounds,WindowsDpiSettingChanged=false,RealMouseClickThrough=true,EachNewLoginPlayedOnce=true,CustomerMachineTested=false}));return 0;
+  File.WriteAllText(Path.Combine(output,"help-proof.json"),JsonSerializer.Serialize(new{Pass=true,Identity="005",Version="1.10",Sessions=proofs,NativeWindowsForms=true,MenuFontScales=new[]{100,125,150},DesktopBounds=Screen.PrimaryScreen!.Bounds,WindowsDpiSettingChanged=false,RealMouseClickThrough=true,EachNewLoginPlayedOnce=true,CustomerMachineTested=false}));return 0;
  }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}}
+ [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)]struct DisplayMode {
+  [MarshalAs(UnmanagedType.ByValTStr,SizeConst=32)]public string Device;
+  public ushort Spec,Driver,Size,Extra;public uint Fields;
+  public int X,Y;public uint Orientation,FixedOutput;
+  public short Color,Duplex,YResolution,TTOption,Collate;
+  [MarshalAs(UnmanagedType.ByValTStr,SizeConst=32)]public string Form;
+  public ushort LogPixels;public uint Bits,Width,Height,Flags,Frequency,ICMMethod,ICMIntent,MediaType,Dither,Reserved1,Reserved2,PanningWidth,PanningHeight;
+ }
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern bool EnumDisplaySettings(string? device,int mode,ref DisplayMode settings);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern int ChangeDisplaySettings(ref DisplayMode settings,uint flags);
+ static void TryLargerTestDesktop(){
+  var mode=new DisplayMode{Size=(ushort)Marshal.SizeOf<DisplayMode>()};DisplayMode? selected=null;
+  for(int i=0;i<300&&EnumDisplaySettings(null,i,ref mode);i++)if(mode.Width>=1366&&mode.Width<=1920&&mode.Height>=768&&mode.Height<=1080&&(!selected.HasValue||mode.Width>selected.Value.Width))selected=mode;
+  if(selected.HasValue){var candidate=selected.Value;int result=ChangeDisplaySettings(ref candidate,0);Console.WriteLine($"Test desktop mode {candidate.Width}x{candidate.Height}: {result}");Application.DoEvents();}
+ }
  sealed class TestContext:ApplicationContext{public TestContext(Form form):base(form){}}
 }
