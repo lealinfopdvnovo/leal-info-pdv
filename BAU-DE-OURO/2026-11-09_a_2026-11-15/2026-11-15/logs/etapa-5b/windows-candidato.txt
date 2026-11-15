@@ -1,0 +1,31 @@
+2026-11-15T17:17:23.1802216Z PASS unapproved never generates
+2026-11-15T17:17:23.2827004Z PASS offline never reports success
+2026-11-15T17:17:23.3938523Z PASS return from approval generates full code and refreshes native fields
+2026-11-15T17:17:25.5967460Z PASS no duplicate code generation / renewal loop
+2026-11-15T17:17:27.8339918Z PASS closed form stops polling
+2026-11-15T17:17:27.8365424Z PASS SpeedFood hook inert without QA isolation/configuration
+2026-11-15T17:17:27.8366502Z PASS WINDOWS_QA_PAIRING_RESUME
+2026-11-15T17:17:33.2928629Z PASS authenticated completion updates matching delivery
+2026-11-15T17:17:33.2933391Z PASS retry does not duplicate completion
+2026-11-15T17:17:33.2936258Z PASS cancelled delivery not reopened
+2026-11-15T17:17:33.2942480Z PASS another delivery code refused
+2026-11-15T17:17:33.2947598Z PASS another publisher refused
+2026-11-15T17:17:33.2960149Z PASS nonterminal order not marked delivered
+2026-11-15T17:17:33.2963458Z PASS missing server timestamp refused
+2026-11-15T17:17:33.2965604Z PASS unauthorized response preserves pending order
+2026-11-15T17:17:33.2969637Z PASS missing session never opens a background login
+2026-11-15T17:17:33.2970486Z PASS offline keeps delivery pending
+2026-11-15T17:17:33.2971142Z PASS reconnection recovers pending completion
+2026-11-15T17:17:33.2971856Z PASS QA cannot contact production Firebase
+2026-11-15T17:17:33.2972498Z PASS malformed identity type rejected without crash
+2026-11-15T17:17:33.2973198Z PASS malformed timestamp type rejected without crash
+2026-11-15T17:17:33.2974046Z PASS oversize response refused before unbounded allocation
+2026-11-15T17:17:38.5739009Z PASS QA pairing-resume pairing constructor and PET customization hooks only; approved resources and all unrelated PET methods unchanged
+2026-11-15T17:17:41.2166067Z PASS unapproved never generates
+2026-11-15T17:17:41.3197276Z PASS offline never reports success
+2026-11-15T17:17:41.4301114Z PASS return from approval generates full code and refreshes native fields
+2026-11-15T17:17:43.6274006Z PASS no duplicate code generation / renewal loop
+2026-11-15T17:17:45.8529841Z PASS closed form stops polling
+2026-11-15T17:17:45.8555332Z PASS SpeedFood hook inert without QA isolation/configuration
+2026-11-15T17:17:46.0141352Z PASS actual patched PET resource bridge loads repeatedly and resumes approval once
+2026-11-15T17:17:46.0276199Z PASS WINDOWS_QA_PAIRING_RESUME

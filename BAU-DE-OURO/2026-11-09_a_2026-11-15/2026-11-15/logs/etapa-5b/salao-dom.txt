@@ -1,0 +1,1 @@
+PASS: domingo salvo e confirmação JPEG; alerta 1 dia antes salvo/reaberto com opções antigas preservadas; startup; agendamento salvo; ficha ausente em início, formulário, agenda e detalhes; confirmação JPEG com cliente/data/hora; destinatário correto; Business preservado.

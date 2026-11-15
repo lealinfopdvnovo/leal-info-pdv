@@ -1,0 +1,13 @@
+2026-11-15T17:17:09.7356455Z BUILD SUCCESSFUL in 42s
+2026-11-15T17:18:18.3208359Z PASS isolated QA applicationId
+2026-11-15T17:18:18.3233098Z PASS DNS failure persists pending unlink rather than false success
+2026-11-15T17:18:18.3263459Z PASS five synthetic pending projects preserved while offline
+2026-11-15T17:18:18.3275301Z PASS photo bytes preserved on network failure
+2026-11-15T17:18:18.3275950Z PASS pending unlink resumes after coordinator restart and confirmed server response
+2026-11-15T17:18:18.3276697Z PASS all pending projects archived under original tenant
+2026-11-15T17:18:18.3277252Z PASS operation IDs and revisions preserved exactly
+2026-11-15T17:18:18.3277721Z PASS unlink does not delete archived photos
+2026-11-15T17:18:18.3278204Z PASS old tenant projects and outbox never sent to new tenant
+2026-11-15T17:18:18.3278724Z PASS reconnect restores same IDs, pending payloads and revisions
+2026-11-15T17:18:18.3279224Z PASS original photo recoverable after tenant round trip
+2026-11-15T17:18:18.3279699Z PASS ANDROID_QA005_INTEGRATION

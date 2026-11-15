@@ -1,0 +1,25 @@
+2026-11-15T17:11:57.5206503Z # tests 19
+2026-11-15T17:11:57.5207774Z # pass 19
+2026-11-15T17:12:16.3261546Z PASS persist event
+2026-11-15T17:12:16.3272239Z PASS queue bytes encrypted by injected protector
+2026-11-15T17:12:16.3274990Z PASS second process handle rejected
+2026-11-15T17:12:16.3277822Z PASS offline retains queue
+2026-11-15T17:12:16.3280528Z PASS restart preserves queue
+2026-11-15T17:12:16.3283047Z PASS retry uses original id
+2026-11-15T17:12:16.3286187Z PASS acknowledged event removed exactly once
+2026-11-15T17:12:16.5414558Z PASS permanent rejection held for review
+2026-11-15T17:12:16.5430109Z PASS corrupt event quarantined
+2026-11-15T17:12:16.5442923Z PASS wrong client rejected
+2026-11-15T17:12:20.4348998Z PASS capacity includes quarantined records
+2026-11-15T17:12:20.4970586Z PASS HMAC covers exact body and timestamp
+2026-11-15T17:12:20.5168797Z PASS matching receipt accepted
+2026-11-15T17:12:20.5174076Z PASS HTTP 401 retained
+2026-11-15T17:12:20.5177988Z PASS HTTP 403 retained
+2026-11-15T17:12:20.6297497Z PASS HTTP 429 retained
+2026-11-15T17:12:20.6303133Z PASS HTTP 500 retained
+2026-11-15T17:12:20.6306501Z PASS HTTP 503 retained
+2026-11-15T17:12:20.6310062Z PASS HTTP 302 retained
+2026-11-15T17:12:20.6313861Z PASS wrong id retained
+2026-11-15T17:12:20.6317178Z PASS oversize response retained
+2026-11-15T17:12:20.6320267Z PASS ID conflict quarantined
+2026-11-15T17:12:20.6323416Z TOTAL PASS 22; no real HTTP; DPAPI/WinForms host not exercised on Linux

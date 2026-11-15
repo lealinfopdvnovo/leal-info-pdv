@@ -1,0 +1,8 @@
+test_no_symlink_or_overwrite (test_private_archive.BackupTests.test_no_symlink_or_overwrite) ... ok
+test_private_roundtrip (test_private_archive.BackupTests.test_private_roundtrip) ... ok
+test_tamper_never_extracts (test_private_archive.BackupTests.test_tamper_never_extracts) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.004s
+
+OK

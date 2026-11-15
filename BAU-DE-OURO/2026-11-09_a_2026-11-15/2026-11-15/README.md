@@ -18,3 +18,7 @@
 - Etapa 5B: **escopo aprovado em conversa, execução não confirmada**.
 - Etapas 6 e 7: não autorizadas a iniciar.
 - Conferir com o Work os relatórios e evidências antes de mudar status. Este README não substitui testes nem acesso ao Firebase.
+
+
+## Execução técnica da Etapa 5B — registrada
+Candidatos e testes QA executados; **NÃO HOMOLOGADO ponta a ponta remoto**. Ver [relatório](ETAPA-5B-INTEGRACOES-QA.md), [matriz](ETAPA-5B-MATRIZ.json), [plano de backup](ETAPA-5B-PLANO-BACKUP-34.md) e logs em `logs/etapa-5b/`. Firebase sem sessão autenticada; serviços QA e testes físicos pendentes. Fonte Alerta V1.2 ainda não reconciliada. Produção e 34 preservados; nenhuma autorização para Etapa 6.

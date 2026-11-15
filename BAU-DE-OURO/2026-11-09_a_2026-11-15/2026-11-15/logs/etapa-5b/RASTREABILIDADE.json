@@ -1,0 +1,311 @@
+{
+  "Status": "ETAPA_5B_NAO_CONCLUIDA",
+  "Branch": "qa/etapa5b-integrations-20261115",
+  "PdvCode": "11f6b50dedc33d18528ab81975cca1d92264b926",
+  "PdvReport": "f1654323c25299bc38726f218b022d03fa905c5d",
+  "AlertPrivateCode": "b290a2a069e76469c54f5a40e287d0d967c9d01d",
+  "AlertPrivateReport": "4858417710d85b29c8f45c09559785fd337175e8",
+  "PdvActions": 43740129386,
+  "AlertPrivateActions": 43739635956,
+  "PdvArtifacts": [
+    {
+      "id": 14172485512,
+      "name": "QA005-Windows-evidence",
+      "digest": "sha256:96aa3b88e97a4e336a89fa75c5dda03eda50a406c30b40aa5265d34d7adce6fe"
+    },
+    {
+      "id": 14172251736,
+      "name": "QA005-PET113-CANDIDATE-NOT-PUBLISHED",
+      "digest": "sha256:ca3ed985f35aad21de5abf8051f088436014716307952f361a2d1c7b22aefdc1"
+    },
+    {
+      "id": 14172106891,
+      "name": "QA005-protocol-evidence",
+      "digest": "sha256:4ac93015bd17745249c689861c6f6d37840468703ac04f32539badb981042383"
+    },
+    {
+      "id": 14171109558,
+      "name": "QA005-Android-evidence-and-isolated-APK",
+      "digest": "sha256:d498cdea1894885ac51455dc5a7d910261eed542fb16b4fa9cf8731ed1e327dc"
+    }
+  ],
+  "AlertPrivateArtifacts": [
+    {
+      "id": 14172320449,
+      "name": "QA37-alert005-windows",
+      "digest": "sha256:239e11fe2b7ed8c0e6774faf94d70e92c5e3a4a0ad28aaa97f0d8ebd0153e47d"
+    },
+    {
+      "id": 14171433083,
+      "name": "QA37-latest05E-D1-queue-FCM-fixtures",
+      "digest": "sha256:20d98d8035167b757fd109ae79ab28974dbc0d79f2c71e9bec1a8ebddbc6694c"
+    },
+    {
+      "id": 14171273197,
+      "name": "QA37-alert005-worker",
+      "digest": "sha256:98133e7783a32353af9511b891220ff90745d53ea0968717203b2cfaa67da1e8"
+    }
+  ],
+  "PreservedRefs": [
+    {
+      "label": "global",
+      "sha": "48d8f50f00a16bc2457b5ebd04383dfaf9cf16d1"
+    },
+    {
+      "label": "updates",
+      "sha": "6f641fc6941b573f94393a437191761243cfa69e"
+    },
+    {
+      "label": "source34",
+      "sha": "24a58c77a4f052d86fc6681a8c7a540f7f052d03"
+    },
+    {
+      "label": "source37",
+      "sha": "a9713b8c7810d09d667947c6cca869c9bc5c62c0"
+    },
+    {
+      "label": "approvedQa",
+      "sha": "2fd998403a5826bc665ee6fd33c6363cd75a2cfe"
+    }
+  ],
+  "PdvChangedFiles": [
+    {
+      "path": ".github/workflows/etapa5b_integrations_qa.yml",
+      "status": "added"
+    },
+    {
+      "path": "organization/ETAPA5B-INTEGRACOES-20261115.md",
+      "status": "added"
+    },
+    {
+      "path": "organization/evidence/etapa5b/BACKUP-TESTES.txt",
+      "status": "added"
+    },
+    {
+      "path": "organization/evidence/etapa5b/INVENTARIO-RESULTADOS.json",
+      "status": "added"
+    },
+    {
+      "path": "organization/evidence/etapa5b/PLANO-BACKUP-34.md",
+      "status": "added"
+    },
+    {
+      "path": "organization/evidence/etapa5b/private_archive.py",
+      "status": "added"
+    },
+    {
+      "path": "organization/evidence/etapa5b/test_private_archive.py",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/README.md",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/android/QaIntegrationInstrumentation.java",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/android/SyncCoordinator.java",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/gateway/package.json",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/gateway/scripts/auth.test.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/gateway/scripts/sync.test.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/gateway/worker/index.js",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/package_candidate.py",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/prepare_android.py",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/speedfood/Completion.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/speedfood/CompletionTests.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/speedfood/CompletionTests.csproj",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/test_android.py",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/windows/Directory.Build.props",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/windows/Patcher.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/windows/Patcher.csproj",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/windows/Probe.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/windows/Probe.csproj",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/windows/Resume.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/windows/Resume.csproj",
+      "status": "added"
+    },
+    {
+      "path": "qa/etapa5b/windows/SpeedFoodBridge.cs",
+      "status": "added"
+    }
+  ],
+  "PrivateAlertChangedFiles": [
+    {
+      "path": ".github/workflows/qa37_integrations_005.yml",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/README.md",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/package.json",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/pet005/Alert003.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/pet005/Core.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/pet005/CredentialStore.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/pet005/Transport.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/pet005/WindowsSelfTest.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/tests/fcm.test.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/tests/pet/PetTests.csproj",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/tests/pet/Program.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/tests/windows/Program.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/tests/windows/Windows.csproj",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/tests/worker.test.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/worker/fcm.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/worker/index.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/worker/notification-schema.sql",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/worker/schema.sql",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/worker/with-fcm.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005-d1/wrangler.jsonc",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/bridge.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/package.json",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/pet/Alert005.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/pet/Test.cs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/pet/Test.csproj",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/queue.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/runtime-test.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/test.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/worker.mjs",
+      "status": "added"
+    },
+    {
+      "path": "qa37-005/wrangler.jsonc",
+      "status": "added"
+    }
+  ],
+  "ProductionPublished": false,
+  "ClientsMigrated": false,
+  "Etapa6Started": false,
+  "RealPhonePendingOperationsRecovered": false
+}

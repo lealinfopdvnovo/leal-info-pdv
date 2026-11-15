@@ -51,3 +51,13 @@ O proprietário autorizou o escopo de migração seletiva/homologação rápida.
 - Backup histórico do 34 com inventário e pacotes organizados para recuperação excepcional; não usar o Baú documental como depósito público de bancos, segredos ou dados pessoais.
 - Preservar a estrutura semanal/diária existente do Baú; sincronizar os índices e registrar resultados sem presumir execução. O registro da Etapa 5 está nos documentos centrais, mas o README de 15/11 estava desatualizado e foi corrigido nesta atualização.
 **Próximo passo:** conferir aceite da Etapa 5; preparar auditoria 5B em modo leitura e submeter resultados ao proprietário antes do transbordo.
+
+
+## 15/11/2026 — Etapa 5B executada em QA; homologação remota NÃO concluída
+- Candidatos preparados e testados: ANGRA (retomada da autorização, desvinculação persistente, isolamento e fotos), conclusão Speed Food no PET QA/emulador e Alerta privado reaproveitando 05E D1/filas com remetente FCM desativado por padrão. Nenhuma publicação. Salão MJ 1.9.5 inventariado e preservado como independente.
+- PDV: branch qa/etapa5b-integrations-20261115, código 11f6b50dedc33d18528ab81975cca1d92264b926, Actions 43740129386 SUCCESS (Windows, protocolo e emulador Android); relatório/inventário f1654323c25299bc38726f218b022d03fa905c5d. Alerta privado: código b290a2a069e76469c54f5a40e287d0d967c9d01d, Actions 43739635956 SUCCESS, documentação 4858417710d85b29c8f45c09559785fd337175e8.
+- Firebase Console encontrado sem sessão autenticada; estado administrativo implantado não auditado. Serviços QA exclusivos e circuito real Android/PDV não qualificados. Fonte Git do Alerta encontrada em 1.1/code2, enquanto APK aprovado é V1.2/code5; fonte exata atual ainda requer reconciliação. Não apagar/revogar/migrar as cinco pendências reais.
+- Testes seguros não equivalem a homologação remota: 18 protocolo ANGRA; 11 verificações no Android de laboratório; 15 Speed Food/SQLite; Alerta 19 D1/FCM simulado + 22 fila/transporte + DPAPI Windows; Salão dois scripts DOM/API + 18 política Java; três casos de backup sintético.
+- Produto aprovado permanece PET 1.12; candidata 1.13 não publicada. Origem 34, PR37, GLOBAL/PETs de produção e assinaturas APK preservados. Backup operacional do 34 não executado; plano e ferramenta candidatos com restauração sintética.
+- **Etapa 5B NÃO CONCLUÍDA. Etapa 6 NÃO iniciada/autorizada.** Retomar com autenticação administrativa segura e serviços/dispositivos QA; resolver os bloqueios dentro da 5B antes do transbordo.
+- Registro: `2026-11-09_a_2026-11-15/2026-11-15/ETAPA-5B-INTEGRACOES-QA.md`, matriz, plano e logs na estrutura semanal existente.

@@ -1,0 +1,18 @@
+PASS 1 dia antes cruza dia corretamente
+PASS alerta 24 horas antes
+PASS não avisar antes da janela de 1 dia
+PASS domingo aceito pelo agendador nativo
+PASS horário local São Paulo para instante Android
+PASS uma hora antes
+PASS 30 minutos antes
+PASS 15 minutos antes
+PASS cadastro dentro da janela avisa em seguida
+PASS não reagendar atendimento passado
+PASS alerta na janela
+PASS não avisar cedo
+PASS não avisar tarde após início
+PASS lembrete exclusivo da profissional
+PASS cancelado não notifica
+PASS concluído não notifica
+PASS em atendimento não notifica
+PASS dados inválidos rejeitados

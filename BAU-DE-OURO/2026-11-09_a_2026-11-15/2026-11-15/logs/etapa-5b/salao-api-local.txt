@@ -1,0 +1,2 @@
+PASS duas interfaces conectadas à API local autenticada
+PASS agendamento da interface A recebido na B sem duplicação

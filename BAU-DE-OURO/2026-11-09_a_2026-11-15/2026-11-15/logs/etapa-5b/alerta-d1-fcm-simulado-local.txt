@@ -1,0 +1,27 @@
+✔ D1 receipt to fake FCM accepts once; retry never duplicates notification (381.946249ms)
+✔ timeout/crash quarantine prevents automatic duplicate (257.378495ms)
+✔ disabled FCM never invokes sender (157.696991ms)
+✔ D1 stores once; canonical duplicate returns same receipt (363.265242ms)
+✔ same ID with different payload is a conflict (35.063417ms)
+✔ unsigned, bad MAC, changed body, stale/future timestamp rejected (13.570698ms)
+✔ clients 001 002 004, extra fields and private text are rejected (10.372779ms)
+✔ oversize streamed request, invalid JSON/UTF8 and content type (6.789636ms)
+✔ event retention admission window enforced (7.10893ms)
+✔ 32 concurrent retries insert exactly one row (414.807565ms)
+✔ concurrent minute quota allows exactly six, duplicates still acknowledged (150.837374ms)
+✔ daily quota 100 across minute boundaries; next day accepted (717.751091ms)
+✔ expired tombstones removed, current retained (13.18845ms)
+✔ send flag cannot activate FCM; disabled ingestion never stores (4.455523ms)
+✔ D1 failure returns sanitized 503 and a retry later stores once (13.849901ms)
+✔ D1 survives runtime restart and prevents replay (147.729654ms)
+✔ actual Worker runtime executes authenticated health and event without outbound network (15.033676ms)
+✔ TLS, unconfigured secret and unknown paths fail closed (3.841886ms)
+✔ D1 stores only allowlisted technical metadata (17.119823ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2209.509437
