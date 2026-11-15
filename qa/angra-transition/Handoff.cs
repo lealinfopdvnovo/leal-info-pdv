@@ -70,7 +70,7 @@ public static class Handoff
    if(login==null)return;
    loginAt=Clock.Elapsed.TotalSeconds;originalEnabled=login.Enabled;login.Enabled=false;
    if(login.Owner==opening)login.Owner=null;
-   login.StartPosition=FormStartPosition.Manual;login.WindowState=FormWindowState.Normal;login.MaximizedBounds=bounds;login.Bounds=bounds;
+   login.StartPosition=FormStartPosition.Manual;login.WindowState=FormWindowState.Normal;login.Bounds=bounds;
    login.FormClosed+=(_,_)=>Finish(false);
   }
   if(login.IsDisposed||!login.Visible){Finish(false);return;}
