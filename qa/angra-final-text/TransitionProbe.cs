@@ -41,7 +41,7 @@ static class Probe
      g.CopyFromScreen(screen.Location,Point.Empty,screen.Size);int purple=0;
      for(int y=4;y<image.Height;y+=24)for(int x=4;x<image.Width;x+=24){var c=image.GetPixel(x,y);if(c.R>25&&c.B>25&&c.G<12&&Math.Abs(c.R-c.B)<8)purple++;}
      Interlocked.Increment(ref frames);if(purple>15&&Interlocked.Increment(ref desktopFrames)==1)image.Save(Path.Combine(Environment.GetEnvironmentVariable("TRANSITION_EVIDENCE")!,"first-marker.png"));
-     if(revealing&&ForeignAboveLogin(screen)&&Interlocked.Increment(ref foreignFrames)==1)image.Save(Path.Combine(Environment.GetEnvironmentVariable("TRANSITION_EVIDENCE")!,"first-foreign.png"));
+     if(guard&&revealing&&ForeignAboveLogin(screen)&&guard&&Interlocked.Increment(ref foreignFrames)==1)image.Save(Path.Combine(Environment.GetEnvironmentVariable("TRANSITION_EVIDENCE")!,"first-foreign.png"));
     }catch{}
    }
    Thread.Sleep(20);

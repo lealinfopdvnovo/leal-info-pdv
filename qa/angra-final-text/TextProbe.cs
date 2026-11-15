@@ -8,6 +8,7 @@ static class Probe {
  const BindingFlags F=BindingFlags.Public|BindingFlags.NonPublic|BindingFlags.Static;
  static Assembly Host=>typeof(MainForm).Assembly;
  static object? Call(string type,string method,params object?[] args)=>Host.GetType("LealInfoPDV."+type,true)!.GetMethod(method,F)!.Invoke(null,args);
+ static void CheckPixel(bool same){if(!same)throw new Exception("Approved artwork changed outside establishment footer text");}
  static void Check(bool ok,string name){if(!ok)throw new Exception(name);Console.WriteLine("PASS "+name);}
  static IEnumerable<Control> Walk(Control c){yield return c;foreach(Control child in c.Controls)foreach(var x in Walk(child))yield return x;}
  [STAThread]static int Main(string[] args){try{
@@ -37,6 +38,15 @@ static class Probe {
   var shownKey=typeof(Form).GetFields(BindingFlags.Static|BindingFlags.NonPublic).Single(x=>x.Name.Contains("Shown",StringComparison.OrdinalIgnoreCase)).GetValue(null)!;
   events.RemoveHandler(shownKey,events[shownKey]);
   main.Show();Application.DoEvents();
+  var home=(PictureBox)typeof(MainForm).GetField("mainScreenPicture",instance)!.GetValue(main)!;
+  using(var original=new Bitmap(Path.Combine(AppContext.BaseDirectory,"Assets","tela_principal.png")))using(var actual=new Bitmap(home.Image!)){
+   bool changed=false;for(int y=0;y<original.Height;y+=3)for(int x=0;x<original.Width;x+=3){
+    bool same=original.GetPixel(x,y)==actual.GetPixel(x,y);
+    if(x>=70&&x<420&&y>=903&&y<935)changed|=!same;else CheckPixel(same);
+   }
+   Check(changed,"visible baked footer identifies establishment while all sampled pixels outside text area remain identical");
+   actual.Save(Path.Combine(output,"home-art-"+plan+".png"));
+  }
   var strips=Walk(main).OfType<StatusStrip>().ToArray();
   Check(main.Text.StartsWith("ANGRA VIDROS")&&main.Text.Contains("LEAL INFO CONECTADO"),"upper title identifies establishment and retains manufacturer");
   Check(strips.Any(s=>s.Items.Cast<ToolStripItem>().Any(i=>i.Text=="ANGRA VIDROS")),"main lower bar identifies ANGRA VIDROS");
