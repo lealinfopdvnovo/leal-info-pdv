@@ -30,6 +30,12 @@ static class Probe {
   // All edits must be text-only: bounds, font and control identities survive repeated application.
   var layout=Walk(main).Select(c=>(c,c.Bounds,c.Font,c.Dock)).ToArray();extension.Customize(main);
   Check(layout.All(x=>x.c.Bounds==x.Bounds&&x.c.Font==x.Font&&x.c.Dock==x.Dock),"main layout and fonts preserved");
+  // Reuse the existing ProfileProbe isolation: show the genuine UI without onboarding/update dialogs.
+  const BindingFlags instance=BindingFlags.Instance|BindingFlags.NonPublic;
+  typeof(MainForm).GetField("automaticBackupCompleted",instance)!.SetValue(main,true);
+  var events=(System.ComponentModel.EventHandlerList)typeof(System.ComponentModel.Component).GetProperty("Events",instance)!.GetValue(main)!;
+  var shownKey=typeof(Form).GetFields(BindingFlags.Static|BindingFlags.NonPublic).Single(x=>x.Name.Contains("Shown",StringComparison.OrdinalIgnoreCase)).GetValue(null)!;
+  events.RemoveHandler(shownKey,events[shownKey]);
   main.Show();Application.DoEvents();
   var strips=Walk(main).OfType<StatusStrip>().ToArray();
   Check(main.Text.StartsWith("ANGRA VIDROS")&&main.Text.Contains("LEAL INFO CONECTADO"),"upper title identifies establishment and retains manufacturer");
