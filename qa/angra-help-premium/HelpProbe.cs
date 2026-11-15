@@ -52,7 +52,10 @@ static class Probe {
    using var monitor=new System.Windows.Forms.Timer{Interval=30};DateTime? finished=null;
    monitor.Tick+=(_,_)=>{
     try{
-     if(timeout.Elapsed.TotalSeconds>12)throw new Exception("Help animation did not complete");
+     if(timeout.Elapsed.TotalSeconds>12){
+      File.WriteAllText(Path.Combine(output,$"timeout-{scenario}.json"),JsonSerializer.Serialize(new{Evidence=Evidence(),Main=main.Bounds,Active=Form.ActiveForm?.Text,Foreground=GetForegroundWindow().ToInt64(),Menu=menu.Bounds,Target=menu.RectangleToScreen(help.Bounds),help.Placement,help.Visible,help.Available}));
+      Capture(output,$"timeout-{scenario}",screen);throw new Exception("Help animation did not complete");
+     }
      using var doc=JsonDocument.Parse(Evidence());var d=doc.RootElement;if(!d.TryGetProperty("Started",out var started)||!started.GetBoolean()){handlesBefore=GetGuiResources(Process.GetCurrentProcess().Handle,0);return;}
      double seconds=d.GetProperty("Elapsed").GetDouble();bool ended=d.GetProperty("Finished").GetBoolean();
      if(!ended){
@@ -87,7 +90,11 @@ static class Probe {
      }
     }catch(Exception ex){failure=ex;monitor.Stop();main.Close();}
    };
-   monitor.Start();main.Show();main.Activate();Application.Run(new TestContext(main));if(failure!=null)throw failure;Check(done,"main login session "+scenario+" completed at menu font scale "+scale);
+   monitor.Start();main.Show();
+   // Set native bounds after handle creation: the approved form restores its saved 900px size on first Show.
+   main.WindowState=FormWindowState.Normal;
+   main.Bounds=new Rectangle(screen.Width>=1366?20:-(scenario*145),35+scenario*9,screen.Width>=1366?1400:1400,Math.Min(820,screen.Height-70));
+   main.PerformLayout();main.Activate();Application.Run(new TestContext(main));if(failure!=null)throw failure;Check(done,"main login session "+scenario+" completed at menu font scale "+scale);
   }
   File.WriteAllText(Path.Combine(output,"help-proof.json"),JsonSerializer.Serialize(new{Pass=true,Identity="005",Version="1.10",Sessions=proofs,NativeWindowsForms=true,MenuFontScales=new[]{100,125,150},DesktopBounds=Screen.PrimaryScreen!.Bounds,WindowsDpiSettingChanged=false,RealMouseClickThrough=true,EachNewLoginPlayedOnce=true,CustomerMachineTested=false}));return 0;
  }catch(Exception ex){Console.Error.WriteLine(ex);return 1;}}

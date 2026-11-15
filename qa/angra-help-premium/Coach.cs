@@ -19,7 +19,7 @@ public static class Coach {
  }
  static void Observe(object? s,EventArgs e){foreach(var main in Application.OpenForms.OfType<MainForm>().ToArray())Apply(main);}
  public static string Evidence(Form form)=>form is MainForm main&&Sessions.TryGetValue(main,out var session)?session.Evidence():"{}";
- static ToolStripItem? Help(MainForm owner)=>Walk(owner).OfType<MenuStrip>().Where(m=>m.Visible).SelectMany(m=>m.Items.Cast<ToolStripItem>()).FirstOrDefault(i=>i.Visible&&i.Available&&i.Enabled&&i.Text.Replace("&","").Trim().Equals("AJUDA",StringComparison.OrdinalIgnoreCase));
+ static ToolStripItem? Help(MainForm owner)=>Walk(owner).OfType<MenuStrip>().Where(m=>m.Visible).SelectMany(m=>m.Items.Cast<ToolStripItem>()).FirstOrDefault(i=>i.Visible&&i.Available&&i.Enabled&&i.Placement==ToolStripItemPlacement.Main&&i.Text.Replace("&","").Trim().Equals("AJUDA",StringComparison.OrdinalIgnoreCase));
  static Rectangle ScreenBounds(ToolStripItem item)=>item.Owner!.RectangleToScreen(item.Bounds);
  sealed class Session {
   readonly MainForm owner;readonly System.Windows.Forms.Timer tick=new(){Interval=16};readonly Stopwatch clock=new();
@@ -36,7 +36,7 @@ public static class Coach {
     if(!started){
      if(!owner.Visible||!owner.Enabled||owner.WindowState==FormWindowState.Minimized||Form.ActiveForm!=owner||help==null){readySince=default;return;}
      var candidate=ScreenBounds(help);
-     if(candidate.IsEmpty||!owner.RectangleToScreen(owner.ClientRectangle).IntersectsWith(candidate)){readySince=default;return;}
+     if(candidate.IsEmpty||!owner.RectangleToScreen(owner.ClientRectangle).Contains(candidate)||!Screen.FromRectangle(candidate).WorkingArea.Contains(candidate)){readySince=default;return;}
      if(candidate!=lastTarget||readySince==default){lastTarget=candidate;readySince=DateTime.UtcNow;return;}
      if((DateTime.UtcNow-readySince).TotalMilliseconds<200)return;
      started=true;plays++;overlay=new Overlay();clock.Start();Draw(help,0);overlay.Show(owner);return;
@@ -49,6 +49,7 @@ public static class Coach {
   }
   void Draw(ToolStripItem help,double seconds){
    float scale=Math.Max(0.75f,owner.DeviceDpi/96f);target=ScreenBounds(help);
+   if(!owner.RectangleToScreen(owner.ClientRectangle).Contains(target)||!Screen.FromRectangle(target).WorkingArea.Contains(target)){Finish();return;}
    var area=Rectangle.Intersect(owner.RectangleToScreen(owner.ClientRectangle),Screen.FromRectangle(target).WorkingArea);
    if(area.Width<100||area.Height<100){Finish();return;}
    int S(float value)=>(int)Math.Round(value*scale);
