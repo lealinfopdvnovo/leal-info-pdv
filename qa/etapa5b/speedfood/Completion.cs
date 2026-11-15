@@ -15,12 +15,12 @@ public sealed class Completion : IDisposable {
   if(string.IsNullOrEmpty(testIdToken))return false; // Never prompt for login in background.
   using var response=await http.GetAsync(new Uri(root,"pedidos/"+code+".json?auth="+Uri.EscapeDataString(testIdToken)),stop.Token);
   if(!response.IsSuccessStatusCode)return false; // Network/auth failures never mark an order delivered.
-  byte[] raw=await response.Content.ReadAsByteArrayAsync(stop.Token);if(raw.Length>65536)throw new InvalidDataException("Bounded order response required");
+  await using var stream=await response.Content.ReadAsStreamAsync(stop.Token);using var output=new MemoryStream();byte[] buffer=new byte[4096];int read;while((read=await stream.ReadAsync(buffer,stop.Token))>0){if(output.Length+read>65536)return false;await output.WriteAsync(buffer.AsMemory(0,read),stop.Token);}byte[] raw=output.ToArray();
   using var doc=JsonDocument.Parse(raw);var r=doc.RootElement;
-  if(r.ValueKind!=JsonValueKind.Object||!r.TryGetProperty("codigo",out var c)||c.GetString()!=code||!r.TryGetProperty("pdvUid",out var p)||p.GetString()!=publisher)return false;
-  string status=r.TryGetProperty("status",out var s)?s.GetString()??"":"";
+  if(r.ValueKind!=JsonValueKind.Object||!r.TryGetProperty("codigo",out var c)||c.ValueKind!=JsonValueKind.String||c.GetString()!=code||!r.TryGetProperty("pdvUid",out var p)||p.ValueKind!=JsonValueKind.String||p.GetString()!=publisher)return false;
+  string status=r.TryGetProperty("status",out var s)&&s.ValueKind==JsonValueKind.String?s.GetString()??"":"";
   if(!new[]{"ENTREGA CONCLUÍDA","ENTREGUE","FINALIZADA"}.Contains(status.ToUpperInvariant()))return false;
-  long stamp=0;foreach(string key in new[]{"finalizadoEm","atualizadoEm"})if(r.TryGetProperty(key,out var t)&&t.TryGetInt64(out stamp)&&stamp>0)break;
+  long stamp=0;foreach(string key in new[]{"finalizadoEm","atualizadoEm"})if(r.TryGetProperty(key,out var t)&&t.ValueKind==JsonValueKind.Number&&t.TryGetInt64(out stamp)&&stamp>0)break;
   if(stamp<=0)return false;DateTimeOffset ended;try{ended=DateTimeOffset.FromUnixTimeMilliseconds(stamp);}catch(ArgumentOutOfRangeException){return false;}
   using var update=db.CreateCommand();update.CommandText="UPDATE deliveries SET status='ENTREGUE',delivered_at=$date WHERE id=$id AND status NOT IN ('ENTREGUE','CANCELADA') AND EXISTS(SELECT 1 FROM delivery_tracking WHERE delivery_id=$id AND code=$code)";
   void Param(string name,object value){var param=update.CreateParameter();param.ParameterName=name;param.Value=value;update.Parameters.Add(param);}

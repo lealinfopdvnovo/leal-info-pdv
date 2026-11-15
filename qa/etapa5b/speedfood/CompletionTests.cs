@@ -20,6 +20,9 @@ class Tests {
  w.Offline=true;try{await service.ReadAndApply(db,3,"OTH123ERX456","synthetic");throw new Exception("offline accepted");}catch(HttpRequestException){Check(true,"offline keeps delivery pending");}w.Offline=false;
  Check(await service.ReadAndApply(db,3,"OTH123ERX456","synthetic"),"reconnection recovers pending completion");
  try{using var blocked=new Completion(new Uri("https://novo-91da7436-default-rtdb.firebaseio.com/"),"qa",new Wire());throw new Exception("production allowed");}catch(ArgumentException){Check(true,"QA cannot contact production Firebase");}
+ w.Body=new{codigo=123,pdvUid="qa-publisher",status="Entrega concluída",finalizadoEm=1794760000000L};Check(!await service.ReadAndApply(db,3,"OTH123ERX456","synthetic"),"malformed identity type rejected without crash");
+ w.Body=Record("OTH123ERX456",at:"invalid timestamp");Check(!await service.ReadAndApply(db,3,"OTH123ERX456","synthetic"),"malformed timestamp type rejected without crash");
+ w.Body=new{codigo="OTH123ERX456",pdvUid="qa-publisher",status="Entrega concluída",finalizadoEm=1794760000000L,padding=new string('x',70000)};Check(!await service.ReadAndApply(db,3,"OTH123ERX456","synthetic"),"oversize response refused before unbounded allocation");
  Directory.CreateDirectory("integration-evidence");File.WriteAllText("integration-evidence/speedfood-completion.json",JsonSerializer.Serialize(new{Pass=true,Checks=count,SQLiteDatabase="memory",Transport="fixture",RealFirebase=false,HostPetAttached=false}));
  }
 }

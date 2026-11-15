@@ -16,9 +16,10 @@ public static class SpeedFoodBridge {
   if(isolation?.GetProperty("Isolated")?.GetValue(null) is not true)return;
   string root=(string)isolation.GetProperty("LocalRoot")!.GetValue(null)!;
   string config=Path.Combine(root,"speedfood-qa.json");if(!File.Exists(config))return;
-  using var doc=JsonDocument.Parse(File.ReadAllText(config));string origin=doc.RootElement.GetProperty("EmulatorOrigin").GetString()!;string publisher=doc.RootElement.GetProperty("TestPublisherUid").GetString()!;
+  try{using var doc=JsonDocument.Parse(File.ReadAllText(config));string origin=doc.RootElement.GetProperty("EmulatorOrigin").GetString()!;string publisher=doc.RootElement.GetProperty("TestPublisherUid").GetString()!;
   var endpoint=new Uri(origin);if(endpoint.Scheme!="http"||endpoint.Host!="127.0.0.1"||endpoint.UserInfo!=""||endpoint.Query!="")throw new InvalidDataException("QA emulator only");
-  sessions.Add(form,new Session(form,root,endpoint,publisher));
+  sessions.Add(form,new Session(form,root,endpoint,publisher));}
+  catch(Exception ex)when(ex is IOException or JsonException or ArgumentException or KeyNotFoundException or InvalidOperationException){System.Diagnostics.Trace.TraceInformation("SpeedFood QA configuration pending: "+ex.GetType().Name);}
  }
  sealed class Session {
   readonly Form form;readonly string root;readonly Completion completion;readonly System.Windows.Forms.Timer timer=new(){Interval=15000};bool busy,closed;
@@ -31,7 +32,7 @@ public static class SpeedFoodBridge {
    var rows=new List<(long,string)>();using(var reader=await query.ExecuteReaderAsync())while(await reader.ReadAsync())rows.Add((reader.GetInt64(0),reader.GetString(1)));
    bool changed=false;foreach(var (id,code) in rows){if(closed)return;changed|=await completion.ReadAndApply(db,id,code,token);}
    if(changed&&!closed&&!form.IsDisposed)form.GetType().GetMethod("LoadDeliveries",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(form,null);
-  }catch(Exception ex)when(ex is IOException or HttpRequestException or CryptographicException or JsonException or DbException or OperationCanceledException){System.Diagnostics.Trace.TraceInformation("SpeedFood QA: pending; "+ex.GetType().Name);}finally{busy=false;}}
+  }catch(Exception ex)when(ex is IOException or HttpRequestException or CryptographicException or JsonException or DbException or OperationCanceledException or InvalidOperationException or TargetInvocationException){System.Diagnostics.Trace.TraceInformation("SpeedFood QA: pending; "+ex.GetType().Name);}finally{busy=false;}}
   void Close(object? sender,FormClosedEventArgs e){closed=true;timer.Dispose();completion.Dispose();form.Shown-=Poll;form.FormClosed-=Close;}
  }
 }
