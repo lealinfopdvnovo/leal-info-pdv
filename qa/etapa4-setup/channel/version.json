@@ -1,8 +1,8 @@
 {
   "MaxGlobalVersionExclusive": "10.469",
-  "Sha256": "c2ee306da15e99699f49b8f2b67dffb9e5548d8865bf0003326ff2e0d50ce765",
-  "Version": "1.5",
-  "PackageUrl": "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv/qa/angra-etapa4-setup-20261114/qa/etapa4-setup/channel/ANGRA_005_PET_1_5.zip",
+  "Sha256": "25ab1b7ed0ffbb5b6bf8278d644384707fd11ced20ae6ef3e379ee3a0668c21b",
+  "Version": "1.6",
+  "PackageUrl": "https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv/qa/angra-etapa4-setup-20261114/qa/etapa4-setup/channel/ANGRA_005_PET_1_6.zip",
   "Component": "PET",
   "TargetClientCode": "005",
   "SchemaVersion": 2,
