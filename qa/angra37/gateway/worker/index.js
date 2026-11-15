@@ -254,6 +254,8 @@ async function syncRoutes(request,env){
  }
  if(g?.role==='app'&&g.pdv){const parent=(await readObject(env.BUCKET,grantKey(g.pdv)))?.data;if(!usable(parent)||(parent.linkEpoch||'')!==(g.linkEpoch||''))return answer(403,{error:'DESCONECTADO — vínculo revogado no PDV. Gere um novo código para reconectar.'});g.bindingOnly=parent.bindingOnly===true;g.workshopOnly=parent.workshopOnly===true;}
  if(!usable(g))return answer(403,{error:'Conecte este aparelho ao PDV antes de sincronizar'});
+ if(path.startsWith('/sync/access/')&&raw.length>12000)throw new Accounts.Error(413,'Requisição de acesso excede o limite.');
+ if(['/sync/access/login','/sync/access/activate'].includes(path)&&!await counter(env.BUCKET,'access/attempt/'+id+'/'+Math.floor(Date.now()/600000),20))throw new Accounts.Error(429,'Muitas tentativas. Aguarde dez minutos.');
  const accessReply=await Accounts.api(request,env,g,id,path,body);if(accessReply)return accessReply;
  const actor=g.role==='app'&&path!=='/sync/status'?await Accounts.authenticated(env,g,id,request.headers.get('X-Angra-Session')):null;
  if(actor&&path==='/sync/exchange'&&!Accounts.permission(actor,'send')&&!Accounts.permission(actor,'history'))throw new Accounts.Error(403,'Sincronização não autorizada.');
