@@ -24,6 +24,24 @@ static class ContractProbe
   var staged=LealInfo.Components.IndependentUpdater.StageAsync(release,"005",Path.Combine(Path.GetTempPath(),"angra-stage-"+Guid.NewGuid()),(_,_)=>Task.FromResult(File.ReadAllBytes(Environment.GetEnvironmentVariable("QA_PACKAGE")!))).GetAwaiter().GetResult();
   Check(staged.Hashes.Count==2,"actual PET package passes integrity/contract staging");
  }
+ static void LiveFeed(){
+  Database.Initialize();Call("PetRuntime","Load",Environment.GetEnvironmentVariable("QA_BASE_PET")!,"005");
+  using var owner=new Form();var handle=owner.Handle;bool detected=false;
+  using var timer=new System.Windows.Forms.Timer{Interval=200};var deadline=DateTime.UtcNow.AddSeconds(25);
+  timer.Tick+=(_,_)=>{
+   var window=Application.OpenForms.Cast<Form>().FirstOrDefault(f=>f is LealInfo.Components.ComponentUpdateForm);
+   if(window!=null){
+    var pet=Walk(window).OfType<Button>().Single(x=>x.Name=="updatePET");
+    var global=Walk(window).OfType<Button>().Single(x=>x.Name=="updateGLOBAL");
+    detected=pet.Enabled&&!global.Enabled&&Walk(window).Any(c=>c.Text.Contains("Disponível: 1.4"));
+    using var image=new System.Drawing.Bitmap(window.Width,window.Height);window.DrawToBitmap(image,new System.Drawing.Rectangle(0,0,image.Width,image.Height));image.Save(Path.Combine(Environment.GetEnvironmentVariable("QA_EVIDENCE")!,"update-center-live-qa.png"));window.Close();timer.Stop();
+   }else if(DateTime.UtcNow>deadline){timer.Stop();Application.ExitThread();}
+  };
+  timer.Start();var task=(Task)Call("ComponentUpdateCenter","ShowAsync",owner,"005","10.468",false)!;
+  while(!task.IsCompleted&&DateTime.UtcNow<deadline.AddSeconds(2)){Application.DoEvents();Thread.Sleep(10);}task.GetAwaiter().GetResult();
+  Check(detected,"actual update dialog detects live QA 005 PET 1.4 and disables GLOBAL");
+  File.WriteAllText(Path.Combine(Environment.GetEnvironmentVariable("QA_EVIDENCE")!,"live-feed.json"),JsonSerializer.Serialize(new{Pass=true,ActualUpdateDialog=true,NetworkFeed="QA branch only",Identity="005",Version="1.4",GlobalDisabled=true}));
+ }
  [STAThread] static int Main(string[] args)
  {
   if(Environment.GetEnvironmentVariable("GITHUB_ACTIONS")!="true"||args.Length!=1)return 91;
@@ -47,6 +65,7 @@ static class ContractProbe
    }finally{File.Delete(state);}
    var mode=args[0];
    if(mode=="planner"){Planner(folder);return 0;}
+   if(mode=="live-feed"){LiveFeed();return 0;}
    if(mode!="success"){
     var path=Path.Combine(folder,"manifest.json");var original=File.ReadAllBytes(path);
     try{
@@ -63,7 +82,7 @@ static class ContractProbe
    }
    Database.Initialize();
    Call("PetRuntime","Initialize","005");
-   Check((string?)Host.GetType("LealInfoPDV.PetRuntime")!.GetProperty("CurrentVersion",F)!.GetValue(null)=="1.4","installed PET 005 / 1.3 loads with all identity/API/hash/range guards enabled");
+   Check((string?)Host.GetType("LealInfoPDV.PetRuntime")!.GetProperty("CurrentVersion",F)!.GetValue(null)=="1.4","installed PET 005 / 1.4 loads with all identity/API/hash/range guards enabled");
    var module=AppDomain.CurrentDomain.GetAssemblies().Single(a=>a.GetName().Name=="LealInfoPDV.Pet.Profile");
    Check(module.GetCustomAttributes<AssemblyMetadataAttribute>().Single(x=>x.Key=="PetIdentity").Value=="005","compiled PET metadata declares 005");
    if(Auth.UserCount()==0)Auth.CreateUser("QA","qa","qa-test-123!","ADMINISTRADOR","qa@example.invalid","");
@@ -77,6 +96,9 @@ static class ContractProbe
     var labels=Walk(login).Select(c=>c.Text).ToArray();Check(labels.Contains("ANGRA")&&labels.Contains("VIDROS")&&!labels.Contains("CONECTADO"),"login displays ANGRA VIDROS");
     using var image=new System.Drawing.Bitmap(login.Width,login.Height);login.DrawToBitmap(image,new System.Drawing.Rectangle(0,0,image.Width,image.Height));
     image.Save(Path.Combine(Environment.GetEnvironmentVariable("QA_EVIDENCE")!,"login-pet005.png"));login.Close();
+   }
+   using(var db=Database.Open())using(var command=db.CreateCommand()){
+    command.CommandText="INSERT INTO settings(key,value) VALUES('company_registered','1'),('security_setup_completed','1') ON CONFLICT(key) DO UPDATE SET value=excluded.value";command.ExecuteNonQuery();
    }
    using(var main=new MainForm()){
     // The fixture license remains loaded through the supported network-license verifier.

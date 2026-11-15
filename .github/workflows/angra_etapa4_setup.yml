@@ -149,6 +149,21 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'QA channel commit failed'}
           git -C controller push origin HEAD:refs/heads/qa/angra-etapa4-setup-20261114
           if($LASTEXITCODE -ne 0){throw 'QA channel push failed'}
+      - name: Conferir canal publicado na janela verdadeira de atualizacoes
+        shell: pwsh
+        run: |
+          $url='https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv/qa/angra-etapa4-setup-20261114/qa/etapa4-setup/channel/version.json'
+          $ready=$false
+          for($i=0;$i -lt 8;$i++){
+            try{$offer=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds());if($offer.Version -eq '1.4' -and $offer.TargetClientCode -eq '005'){$ready=$true;break}}catch{}
+            Start-Sleep -Seconds 3
+          }
+          if(!$ready){throw 'QA public feed not visible'}
+          $app=Join-Path $env:ProgramFiles 'LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO'
+          $env:QA_BASE_PET=(Resolve-Path qa-publish/Extensions/PET).Path
+          $env:QA_EVIDENCE=(Resolve-Path qa-setup-evidence).Path
+          dotnet exec --runtimeconfig "$app/LealInfoPDV.runtimeconfig.json" --depsfile "$app/LealInfoPDV.deps.json" "$app/ContractProbe.dll" live-feed
+          if($LASTEXITCODE -ne 0){throw 'Live QA update dialog validation failed'}
       - uses: actions/upload-artifact@v4
         with:
           name: BAIXAR-SETUP-TESTE-ANGRA-ETAPA4

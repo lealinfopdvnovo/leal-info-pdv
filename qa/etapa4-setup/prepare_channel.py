@@ -61,3 +61,5 @@ test=test[:a]+"foreach($case in @('success','bad-hash','wrong-identity','wrong-m
 Path('qa-005-tests').mkdir(exist_ok=True)
 Path('qa-005-tests/test.ps1').write_text(test,encoding='utf-8')
 shutil.copyfile(root/'PetTransactionalUpdate.ps1','qa-005-tests/PetTransactionalUpdate.ps1')
+
+p=root/'ComponentUpdateForm.cs';s=p.read_text(encoding='utf-8-sig').replace('LEAL INFO — Atualizações por componente','ANGRA VIDROS — Atualizações QA').replace('var clientName=installed.Identity switch{','var clientName=installed.Identity switch{"005"=>"ANGRA VIDROS (QA)",');p.write_text(s,encoding='utf-8')

@@ -61,6 +61,7 @@ internal static class AngraBrand
   };
   form.ShowDialog();timeout.Stop();
   File.WriteAllText(Path.Combine(QaIsolation.LocalRoot,"opening-result.json"),JsonSerializer.Serialize(new{Identity="005",Version=ProfileExtension.Version,Played=played,Ended=ended,LastSeconds=last,Offline=true,VideoHash,Error=error}));
+  if(error!=null&&Environment.GetEnvironmentVariable("GITHUB_ACTIONS")=="true")throw new InvalidOperationException(error);
   if(error!=null)MessageBox.Show("Não foi possível reproduzir a abertura. O acesso ao PDV continuará. "+error,"ANGRA VIDROS",MessageBoxButtons.OK,MessageBoxIcon.Information);
  }
 }
