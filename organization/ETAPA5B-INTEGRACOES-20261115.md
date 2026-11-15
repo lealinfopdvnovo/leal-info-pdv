@@ -86,3 +86,25 @@ Próxima dependência humana: indicar projeto QA existente autorizado ou autoriz
 Roteiro físico preparado: celular de teste com notificações permitidas; PDV QA legitimamente ativado; um evento sintético com identificador único; conferir fila persistida, recibo do serviço e recebimento com som no telefone; testar reconexão sem duplicação. Recibo de aceite não equivale à entrega. Proprietário participa apenas da instalação/autorizações do aparelho e confirmação de recebimento. Nenhum desses testes reais foi executado neste checkpoint.
 
 Sem novos testes/workflows, backup, envio de push, geração de chaves, implantação, publicação ou alteração em GLOBAL/PET/produção. Checkpoint f165432 preservado como ancestral; atualização documental apenas. Etapa 5B NÃO HOMOLOGADA ponta a ponta; Etapa 6 bloqueada.
+
+## Provisionamento Firebase QA autorizado — 2026-11-15
+
+Após autorização expressa do proprietário, a lista autenticada foi verificada: só havia novo-91da7436; nenhum QA adequado. Foi criado o projeto **LEAL INFO ALERTA QA37 005**, ID **leal-info-qa37-005**. A criação havia ficado em preparação antes de interrupção por limite da ferramenta; na retomada foi verificada a existência, sem repetir a criação.
+
+Verificações no Console:
+- Plano Spark; indicação "Sem custos (US$ 0/mês)". Não foi vinculado faturamento, ativado Blaze ou serviço pago.
+- Android registrado: **com.example.lealinfoalerta.qa005**, apelido LEAL INFO Alerta V1.2 QA005. Identidade separada para futura instalação paralela, não atualização do APK operacional.
+- API Firebase Cloud Messaging (V1): **Ativado**; API legada: **Desativada**.
+- Gemini e Analytics foram desmarcados no assistente de criação.
+- Página verificada: https://console.firebase.google.com/project/leal-info-qa37-005/settings/cloudmessaging/android:com.example.lealinfoalerta.qa005
+- Nenhuma nova consulta/escrita no projeto compartilhado após selecionar o QA.
+
+O download google-services.json foi tentado pelo botão oficial, mas a espera expirou sem caminho de arquivo confirmado. Não alegar configuração Android integrada, download validado ou APK compilado. O app está cadastrado; isso não comprova push.
+
+Dependência seguinte: criar identidade técnica dedicada com permissão de envio FCM somente neste projeto QA e configurar autenticação exclusivamente no runtime privado do remetente. A conta Admin automática do Firebase não foi usada para gerar chave ampla. Criação de credencial/permissão exige confirmação específica no momento; nenhuma chave foi gerada ou exportada.
+
+Serviço Worker/D1 QA segue sem implantação; ingestão/envio continuam desativados. Não habilitar Functions/Blaze nem provisionar serviços pagos para contornar. Fonte rastreável exata V1.2 e futura variante Android QA continuam pendentes; nenhuma reconstrução foi apresentada como reprodução do APK aprovado.
+
+Testes novos: verificações administrativas de existência, identidade, Spark e API ativa. Nenhum teste aprovado ou workflow foi repetido. Não houve envio de notificação nem homologação física PDV→serviço→Android. Próximo teste físico depende de remetente QA autenticado, APK QA configurado e aparelho do proprietário.
+
+Checkpoint f165432 e commit 935ad20 mantidos como ancestrais; alteração somente documental nesta branch. Produção, GLOBAL, PETs, Speed Food, Gerador de Licenças e ambiente 34 preservados. Sem backup real, publicação ou Etapa 6. ETAPA 5B AINDA NÃO CONCLUÍDA.
