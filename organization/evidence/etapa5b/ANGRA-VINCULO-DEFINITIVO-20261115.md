@@ -33,3 +33,27 @@ Obter diagnóstico somente de leitura no computador ANGRA: cliente mostrado/esta
 5. Promoção futura do QA deve preservar tenant/deviceId/chaves/grant/epoch e infraestrutura. Licença e contrato continuam validados; troca de rótulo/versão não preserva identidade sozinha.
 
 Resultado desta retomada: investigação e preparação documental concluídas; **vinculação real NÃO EXECUTADA / ponta a ponta NÃO HOMOLOGADO**. Nenhum dado, vínculo, código do produto, feed ou serviço publicado foi modificado. Nenhum teste aprovado repetido. Bloqueio concreto: identificação/acesso de teste aos equipamentos reais e ausência de fluxo transacional de troca que cumpra validar antes de revogar. Não declarar missão concluída.
+
+## Decisão substitutiva — limpar pareamento provisório e refazer no 37
+
+**Nova autorização do proprietário (15/11/2026) substitui o portão anterior "validar novo antes de desvincular".** Pode revogar agora exclusivamente o pareamento ANGRA Android→Casa e gerar novo no PDV Angra 37. Não exigir fotos antigas. Autorização não é execução.
+
+Verificação dos mecanismos existentes:
+- Android unlink() faz flush, arquiva estado/dados por tenant e chama /sync/unlink assinado com a identidade local; só limpa a seleção/estado ativo depois de revoked=true. Falha de internet mantém operação pendente. Candidata já aprovada acrescenta retry persistente; não presumir que essa candidata esteja instalada.
+- Gateway /sync/unlink permite apenas role=app assinando o próprio grant. Marca approved=false e unlinkedAt, com comparação ETag; não apaga sync/data, sync/photos nem o grant do PDV pai.
+- /sync/pair recusa códigos emitidos antes do unlinkedAt para essa identidade e códigos expirados/já consumidos/incompatíveis com ticketEpoch. Isso não é revogação global dos códigos Casa.
+- Não usar /sync/revoke do PDV Casa, não limpar BUCKET, não apagar chave AndroidKeyStore nem revogar aprovação de criação de imagens, que é separada do pareamento.
+- Não existe endpoint administrativo de desvinculação arbitrária na versão auditada; /admin/approve autoriza outro recurso e não substitui a assinatura do aparelho.
+- Novo código deve ser produzido pelo PDV Angra via /sync/ticket; não inventar código, forjar identidade ou usar chaves sintéticas para alterar vínculo real.
+
+**Acesso disponível nesta sessão:** repositório/fontes e metadados do gateway. Sem sessão de controle no Android físico e sem conexão ao Windows do proprietário; adb não está disponível e nenhuma ferramenta conectada de controle desses equipamentos foi encontrada. Portanto a assinatura de /sync/unlink e /sync/ticket reais não está acessível. Nenhuma limpeza real executada, código emitido, grant alterado ou solicitação reenviada.
+
+**Única dependência operacional imediata:** executar nos equipamentos o fluxo já existente:
+1. Android ANGRA → integração → DESVINCULAR PDV; aguardar confirmação do servidor. Não desinstalar/limpar dados. Se falhar, interromper a troca e preservar pendência.
+2. No PDV ANGRA do 37 → conectar/autorizar, se necessário, e GERAR/RENOVAR código; autenticação do proprietário somente na tela oficial.
+3. Android → informar diretamente o novo código exibido pelo PDV. Conferir nome ANGRA e fazer pedido sintético novo com foto/medidas/serviço/modelo/detalhes/imagem.
+4. Confirmar recibo no PDV Angra e repetir somente a verificação nova de persistência ao reabrir/reiniciar. Conferir que dados antigos permanecem arquivados e que Casa não recebeu o teste. Não transportar automaticamente cinco pendências antigas.
+
+Sem acesso remoto aos equipamentos, esses passos físicos não podem ser executados pelo agente; não transferir códigos de assinatura/chaves ao chat. Acesso físico ou sessão de controle legítima é requisito técnico, não nova autorização do escopo.
+
+**Resultado:** sequência segura identificada; execução nos aparelhos e homologação ponta a ponta PENDENTES. Código do produto, serviços, feeds, GLOBAL, PETs, Firebase/FCM/Alerta, Speed Food, Casa, produção e ambiente 34 intocados. Nenhum backup, teste aprovado repetido ou início da Etapa 6.
