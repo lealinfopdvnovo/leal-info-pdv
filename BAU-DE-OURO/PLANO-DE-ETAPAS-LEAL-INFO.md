@@ -37,3 +37,7 @@ Ver também: `BAU-DE-OURO/PAINEL-MESTRE.md` e `BAU-DE-OURO/DIARIO-DE-CONTINUIDAD
 - Não apagar ou modificar acervo 34; arquivo não importado continua disponível, não é automaticamente obsoleto.
 - Preservar funcionalidades homologadas do 37, isolamento GLOBAL/PET e atualizações; não tocar produção nem iniciar etapas posteriores sem aprovação.
 **Status:** planejamento registrado, não implementação executada.
+
+
+## 15/11/2026 — Etapa 5: execução seletiva comprovada
+O proprietário autorizou o escopo de migração seletiva/homologação rápida. Comparação de 28 componentes: o QA aprovado já contém as versões necessárias do 37; nenhuma importação/modificação de produto foi necessária. Preservados os 252 arquivos rastreados do 34. Branch QA `qa/etapa5-selective-20261115`, código `64b5ed6a057cbfdfd9d3ce9212ac001b1b6cdf19`. Windows Actions `43735576962` SUCCESS: 37 verificações existentes e 14 do pacote QA005 real. Dez testes locais de política aprovados. Etapa 5 tecnicamente concluída, aguardando homologação do proprietário. Sem produção, migração de clientes ou início da Etapa 6. Integração Android permanece pausada. Registro detalhado: `TRANSBORDO-CLIENTES/ETAPA-05/RELATORIO.md` e `RESULTADOS.json`. Esta entrada atualiza o estado provisório anterior; não declara transbordo operacional concluído.

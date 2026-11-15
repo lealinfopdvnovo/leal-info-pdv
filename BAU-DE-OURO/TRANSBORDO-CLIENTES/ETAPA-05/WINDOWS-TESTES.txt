@@ -1,0 +1,54 @@
+Run 43735576962 / job 132877323700 / Windows / commit 64b5ed6a057cbfdfd9d3ce9212ac001b1b6cdf19
+2026-11-15T16:28:22.8686794Z PASS comparison: 28 selected components, zero runtime imports/modifications; 252 origin files preserved
+2026-11-15T16:28:36.1994657Z PASS independent GLOBAL and PET versions
+2026-11-15T16:28:36.1999690Z PASS same GLOBAL does not suppress newer PET
+2026-11-15T16:28:36.2002536Z PASS same PET does not suppress newer GLOBAL
+2026-11-15T16:28:36.2005841Z PASS wrong PET identity does not block GLOBAL
+2026-11-15T16:28:36.2006681Z PASS wrong GLOBAL does not block PET
+2026-11-15T16:28:36.2180486Z PASS valid PET staged outside installation
+2026-11-15T16:28:36.2573165Z PASS valid GLOBAL staged independently
+2026-11-15T16:28:36.2587593Z PASS wrong ZIP hash rejected before writes
+2026-11-15T16:28:36.2589176Z PASS PET replacing base rejected
+2026-11-15T16:28:36.2596316Z PASS GLOBAL replacing PET rejected
+2026-11-15T16:28:36.2598897Z PASS ZIP traversal rejected
+2026-11-15T16:28:36.2601268Z PASS ZIP backslash traversal rejected
+2026-11-15T16:28:36.2604376Z PASS case-insensitive duplicate rejected
+2026-11-15T16:28:36.2607415Z PASS missing manifest rejected
+2026-11-15T16:28:36.2613390Z PASS inner identity rejected
+2026-11-15T16:28:36.2616946Z PASS inner version rejected
+2026-11-15T16:28:36.2621446Z PASS inner assembly hash rejected
+2026-11-15T16:28:36.2624524Z PASS PET script rejected
+2026-11-15T16:28:36.2630926Z PASS foreign release URL rejected
+2026-11-15T16:28:36.2632358Z PASS invalid PET numbering rejected
+2026-11-15T16:28:36.2654571Z PASS cancellation preserves installation
+2026-11-15T16:28:36.2658084Z PASS compatible PET 001 with GLOBAL 10.465
+2026-11-15T16:28:36.2659125Z PASS compatible PET 001 with GLOBAL 10.470
+2026-11-15T16:28:36.2661496Z PASS compatible PET 002 with GLOBAL 10.465
+2026-11-15T16:28:36.2663296Z PASS compatible PET 002 with GLOBAL 10.470
+2026-11-15T16:28:36.2664921Z PASS compatible PET 003 with GLOBAL 10.465
+2026-11-15T16:28:36.2666180Z PASS compatible PET 003 with GLOBAL 10.470
+2026-11-15T16:28:36.2667911Z PASS incompatible PET cannot suppress compatible GLOBAL
+2026-11-15T16:28:36.2669326Z PASS GLOBAL rejected when installed PET excludes target version
+2026-11-15T16:28:36.2673673Z PASS compatibility upper bound exclusive
+2026-11-15T16:28:36.2677320Z PASS extra PET resource rejected rather than silently ignored by worker
+2026-11-15T16:28:36.2682435Z PASS feed cannot claim compatibility absent from package
+2026-11-15T16:28:36.2685497Z PASS unsupported API rejected
+2026-11-15T16:28:36.2688988Z PASS inactive Genilson receives no GLOBAL or PET offers
+2026-11-15T16:28:36.2692435Z PASS inactive direct staging refused before download
+2026-11-15T16:28:36.2707209Z PASS reactivation is reversible and isolated
+2026-11-15T16:28:36.3053211Z PASS collector excludes database license configuration and absolute paths
+2026-11-15T16:28:36.3069568Z TOTAL 37
+2026-11-15T16:28:38.9202825Z PASS approved QA PET offered independently
+2026-11-15T16:28:39.0700227Z PASS actual approved QA PET stages only its two permitted files
+2026-11-15T16:28:39.0700873Z PASS QA offer refused for 001
+2026-11-15T16:28:39.0701999Z PASS QA staging refuses 001
+2026-11-15T16:28:39.0704267Z PASS QA offer refused for 002
+2026-11-15T16:28:39.0705505Z PASS QA staging refuses 002
+2026-11-15T16:28:39.0707151Z PASS QA offer refused for 003
+2026-11-15T16:28:39.0709145Z PASS QA staging refuses 003
+2026-11-15T16:28:39.0710853Z PASS QA offer refused for 004
+2026-11-15T16:28:39.0712530Z PASS QA staging refuses 004
+2026-11-15T16:28:39.0739951Z PASS corrupt archive rejected
+2026-11-15T16:28:39.0741504Z PASS production endpoint rejected by QA copy
+2026-11-15T16:28:39.0743169Z PASS installed PET not offered again
+2026-11-15T16:28:39.0748473Z PASS incompatible GLOBAL blocks QA PET

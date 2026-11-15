@@ -38,3 +38,7 @@ Registro verificável de decisões, motivos, pendências e próximo passo. Conve
 - Não espelhar integralmente o 34 nem propagar duplicações, configurações antigas e acoplamentos indevidos.
 - Cada etapa precisa ficar funcional no seu próprio escopo e passar por homologação antes de avançar. Não antecipar migração de clientes ou publicação.
 **Próximo passo:** consolidar esta regra no prompt único da Etapa 5; enviar ao Work apenas quando o proprietário decidir.
+
+
+## 15/11/2026 — Etapa 5: execução seletiva comprovada
+O proprietário autorizou o escopo de migração seletiva/homologação rápida. Comparação de 28 componentes: o QA aprovado já contém as versões necessárias do 37; nenhuma importação/modificação de produto foi necessária. Preservados os 252 arquivos rastreados do 34. Branch QA `qa/etapa5-selective-20261115`, código `64b5ed6a057cbfdfd9d3ce9212ac001b1b6cdf19`. Windows Actions `43735576962` SUCCESS: 37 verificações existentes e 14 do pacote QA005 real. Dez testes locais de política aprovados. Etapa 5 tecnicamente concluída, aguardando homologação do proprietário. Sem produção, migração de clientes ou início da Etapa 6. Integração Android permanece pausada. Registro detalhado: `TRANSBORDO-CLIENTES/ETAPA-05/RELATORIO.md` e `RESULTADOS.json`. Esta entrada atualiza o estado provisório anterior; não declara transbordo operacional concluído.
