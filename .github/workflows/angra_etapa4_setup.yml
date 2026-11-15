@@ -149,12 +149,24 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'QA channel commit failed'}
           git -C controller push origin HEAD:refs/heads/qa/angra-etapa4-setup-20261114
           if($LASTEXITCODE -ne 0){throw 'QA channel push failed'}
+      - name: Guardar binarios ja testados para verificacoes sem recompilar
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory validation-bundle/base-pet -Force|Out-Null
+          Copy-Item setup-output/LEAL_INFO_ANGRA_QA_ATUALIZADOR.exe validation-bundle/
+          $app=Join-Path $env:ProgramFiles 'LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO'
+          Copy-Item "$app/ContractProbe.dll" validation-bundle/
+          Copy-Item qa-publish/Extensions/PET/* validation-bundle/base-pet/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANGRA-QA-BINARIOS-TESTADOS
+          path: validation-bundle/
       - name: Conferir canal publicado na janela verdadeira de atualizacoes
         shell: pwsh
         run: |
           $url='https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv/qa/angra-etapa4-setup-20261114/qa/etapa4-setup/channel/version.json'
           $ready=$false
-          for($i=0;$i -lt 8;$i++){
+          for($i=0;$i -lt 40;$i++){
             try{$offer=Invoke-RestMethod ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds());if($offer.Version -eq '1.4' -and $offer.TargetClientCode -eq '005'){$ready=$true;break}}catch{}
             Start-Sleep -Seconds 3
           }
