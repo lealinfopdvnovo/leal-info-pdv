@@ -2,7 +2,8 @@ $ErrorActionPreference='Stop'
 Add-Type -AssemblyName UIAutomationClient;Add-Type -AssemblyName UIAutomationTypes
 $app=Join-Path $env:ProgramFiles 'LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO'
 $exe=Join-Path $app 'LealInfoPDV.exe'
-$p=Start-Process $exe -ArgumentList '--qa-start-notifier' -PassThru -Wait
+$p=Start-Process $exe -ArgumentList '--qa-start-notifier' -PassThru
+if(!$p.WaitForExit(15000)){throw 'Notifier bootstrap parent timeout'}
 if($p.ExitCode -ne 0){throw 'QA notifier bootstrap failed'}
 $root=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LEAL-INFO-QA/ANGRA-ETAPA4-20261114/LealInfoPDV/Notificador'
 $ini=Get-ChildItem $root -Filter agent.ini -Recurse|Select-Object -First 1

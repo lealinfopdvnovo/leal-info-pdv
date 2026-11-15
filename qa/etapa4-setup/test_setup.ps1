@@ -21,14 +21,17 @@ try{
  foreach($folder in @('LealInfoPDV','LEAL INFO PDV')){foreach($f in Get-ChildItem (Join-Path $local $folder) -Recurse -File){$before[$f.FullName]=(Get-FileHash $f.FullName).Hash}}
  $blocked=Join-Path $env:ProgramFiles ('LEAL-QA-DO-NOT-OVERWRITE-'+[Guid]::NewGuid().ToString('N'));New-Item -ItemType Directory $blocked|Out-Null
  $sentinel=Join-Path $blocked 'LealInfoPDV.exe';Set-Content $sentinel 'SYNTHETIC EXISTING INSTALLATION';$sentinelHash=(Get-FileHash $sentinel).Hash
- $denied=Start-Process $setup -ArgumentList ('/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="'+$blocked+'"') -Wait -PassThru
+ $denied=Start-Process $setup -ArgumentList ('/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="'+$blocked+'"') -PassThru
+ if(!$denied.WaitForExit(120000)){throw 'Installer parent did not finish in 120 seconds'}
  if($denied.ExitCode -eq 0 -or (Get-FileHash $sentinel).Hash -ne $sentinelHash -or (Test-Path $app)){throw 'Setup accepted unsafe directory override'}
  Remove-Item $blocked -Recurse -Force
  # Reproduce the exact previously delivered QA binary, then apply the one-time QA bridge.
- $previous=Start-Process (Resolve-Path previous-qa/LEAL_INFO_TESTE_ANGRA_ETAPA4_CORRIGIDO.exe).Path -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait -PassThru
+ $previous=Start-Process (Resolve-Path previous-qa/LEAL_INFO_TESTE_ANGRA_ETAPA4_CORRIGIDO.exe).Path -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -PassThru
+ if(!$previous.WaitForExit(120000)){throw 'Installer parent did not finish in 120 seconds'}
  if($previous.ExitCode -ne 0){throw 'Previous approved QA setup failed'}
  if((Get-FileHash (Join-Path $app 'LealInfoPDV.dll')).Hash.ToLowerInvariant() -ne '165f58c122a511a09d4ccd39465bdfddf9b935635d1bbd6ccc5b4da2c717184f'){throw 'Wrong old QA source'}
- $installer=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait -PassThru
+ $installer=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -PassThru
+ if(!$installer.WaitForExit(120000)){throw 'Installer parent did not finish in 120 seconds'}
  if($installer.ExitCode -ne 0){throw ('Setup installation failed '+$installer.ExitCode)}
  $exe=Join-Path $app 'LealInfoPDV.exe'
  $process=Start-Process $exe -ArgumentList '--qa-check-isolation' -PassThru
@@ -62,7 +65,8 @@ try{
  $shortcut=Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'LEAL INFO PDV - TESTE ANGRA (Etapa 4).lnk'
  if(!(Test-Path $shortcut)){throw 'Separate test shortcut missing'}
  $installedHash=(Get-FileHash $exe).Hash
- $again=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait -PassThru
+ $again=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -PassThru
+ if(!$again.WaitForExit(120000)){throw 'Installer parent did not finish in 120 seconds'}
  if($again.ExitCode -eq 0 -or (Get-FileHash $exe).Hash -ne $installedHash){throw 'Existing QA installation was overwritten'}
  if((Get-FileHash $oldCanary).Hash -ne $oldHash -or (Get-FileHash $existingData).Hash -ne $existingHash){throw 'Old QA/data changed'}
  if(!(Test-Path (Join-Path $app '.qa-bridge-backup/LealInfoPDV.dll'))){throw 'Previous QA binary backup missing'}
