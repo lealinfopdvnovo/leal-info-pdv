@@ -66,3 +66,23 @@ Repositórios de produção, branches 34/37, feed QA aprovado, assinaturas dos A
 5. Só depois registrar homologação ponta a ponta e submeter a liberação da Etapa 6. **A Etapa 5B não está concluída e a Etapa 6 não foi iniciada.**
 
 Execução PDV final: [43740129386](https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/43740129386), código `11f6b50dedc33d18528ab81975cca1d92264b926`, Windows/protocolo/Android SUCCESS. Origem ANGRA dos candidatos bloqueada até provisionar QA. Evidências e APK isolado: artefatos da execução, sem publicação em feed. Prova de inventário e plano de backup em `organization/evidence/etapa5b/`.
+
+## Verificação autenticada Firebase — continuidade após f165432 (2026-11-15)
+
+Consulta somente de leitura no Console Firebase, com sessão Google autenticada pelo proprietário. A integração oficial ChatGPT continua instalada=false; login no Console não equivale à instalação/autorização do plugin. Não repetir login ou instalação já tentados.
+
+Confirmado no projeto existente novo-91da7436 (Spark):
+- Apps Android LEAL INFO ALERTA (com.example.lealinfoalerta) e Speed Food (com.leal.info.novo); terceiro app Web Gerador de Licenças.
+- Cadastro Android do Alerta corresponde ao pacote do APK V1.2 inventariado. A tabela de certificados SHA estava sem entradas; não foi alterada. Isso, isoladamente, não comprova causa de falha de FCM.
+- Configurações / Cloud Messaging: API Firebase Cloud Messaging (V1) ATIVADO; API legada DESATIVADA. Nenhum serviço foi habilitado por esta consulta.
+- Visão geral apresenta campanhas Alerta de 25/10/2026, duas entradas com 2 envios cada; histórico não constitui teste atual de entrega em QA37.
+- Não foi identificado projeto QA separado na lista exibida desta conta. O projeto existente também contém o Gerador de Licenças e Speed Food; não tratá-lo como ambiente descartável.
+- Permissões IAM, regras e serviços restantes não foram integralmente auditados; não inferir privilégios administrativos de escrita pelo acesso ao Console.
+
+Confronto com candidata privada qa37-005-d1: o remetente exige projeto leal-info-qa37-005, ainda não provisionado, e os recursos D1/Worker continuam placeholders/desativados. O login não provisiona esses recursos. Não substituir essa identidade pelo projeto compartilhado automaticamente. APK V1.2 aprovado ainda contém assinatura de tópico de teste 003; não enviar teste 005 para o tópico 003 nem atualizar o aplicativo em uso.
+
+Próxima dependência humana: indicar projeto QA existente autorizado ou autorizar especificamente um projeto separado e seus recursos exclusivos de teste. A instrução vigente impede criar outro projeto ou modificar o existente; portanto não executar provisionamento nem concessões IAM sem decisão específica. Nunca pedir senha/token/chave pelo chat. Depois de haver destino seguro, configurar credencial mínima somente no runtime servidor e preparar APK/PDV de laboratório com identidade 005 isolada; a divergência fonte V1.1 / APK V1.2 continua pendente.
+
+Roteiro físico preparado: celular de teste com notificações permitidas; PDV QA legitimamente ativado; um evento sintético com identificador único; conferir fila persistida, recibo do serviço e recebimento com som no telefone; testar reconexão sem duplicação. Recibo de aceite não equivale à entrega. Proprietário participa apenas da instalação/autorizações do aparelho e confirmação de recebimento. Nenhum desses testes reais foi executado neste checkpoint.
+
+Sem novos testes/workflows, backup, envio de push, geração de chaves, implantação, publicação ou alteração em GLOBAL/PET/produção. Checkpoint f165432 preservado como ancestral; atualização documental apenas. Etapa 5B NÃO HOMOLOGADA ponta a ponta; Etapa 6 bloqueada.
