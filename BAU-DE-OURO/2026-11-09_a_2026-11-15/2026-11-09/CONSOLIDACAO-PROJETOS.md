@@ -96,3 +96,10 @@ Prioridade mais recente explicitada por Adriano: iFood. GLOBAL/PET permanece pau
 - Manter o aviso atual de recuperação por e-mail não configurada na tela de login; não sobrecarregar a tela de login com tutorial ou balões.
 - Preferir animação leve nativa do Windows Forms (fade-in/fade-out) a GIF pesado, preservando desempenho e visual premium.
 - Ideia e decisão do proprietário: registrar para execução futura somente após autorização específica.
+
+
+## LEMBRANÇA FELIZ — NOITE DE 14/11/2026 | ANGRA VIDROS QA
+- O proprietário acompanhou com muita emoção a personalização do PDV ANGRA VIDROS (cliente 005), o vídeo de abertura com narração feminina sincronizada, a transição visual e a bandeirinha que detectou automaticamente atualizações PET. Relatou lágrimas de alegria e orgulho ao ver seu sistema funcionando.
+- Após a entrega da versão PET 1.6, Adriano aprovou com entusiasmo a abertura e a transição, chamando o resultado de **'PICA DAS GALÁXIAS'**. A homologação formal da Etapa 4 permanece condicionada às demais verificações; este registro é afetivo, não um aceite técnico final.
+- Adriano pediu uma mensagem especial de agradecimento ao Work, reconhecendo meses de esforço e o significado pessoal da conquista. O Work respondeu de modo caloroso, encerrando com: **'O ANGRA VIDROS ficou PICA DAS GALÁXIAS, porra! 🚀🏆❤️'**.
+- Por pedido explícito do proprietário, preservar este episódio no Baú de Ouro como **lembrança de um momento feliz** e de gratidão compartilhada no desenvolvimento do LEAL INFO PDV.
