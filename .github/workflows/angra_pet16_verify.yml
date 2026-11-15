@@ -1,0 +1,47 @@
+name: ANGRA QA PET 1.6 - conferir entrega existente
+on:
+  push:
+    branches: [qa/angra-etapa4-setup-20261114]
+    paths: ['.github/workflows/angra_pet16_verify.yml']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir pacote publicado e evidencias Windows sem recompilar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/lealinfopdvnovo/leal-info-pdv/actions/artifacts/14142781434/zip > windows-evidence.zip
+          python - <<'PYCODE'
+          import json,urllib.request,hashlib,zipfile,io,time,pathlib
+          raw='https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv/qa/angra-etapa4-setup-20261114/'
+          def get(url):
+              return urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'ANGRA-QA-PET16-verify'}),timeout=30).read()
+          offer=json.loads(get(raw+'qa/etapa4-setup/channel/version.json?t='+str(time.time_ns())))
+          assert offer['Version']=='1.6' and offer['TargetClientCode']=='005' and offer['Component']=='PET'
+          package=get(offer['PackageUrl']);digest=hashlib.sha256(package).hexdigest()
+          assert digest==offer['Sha256']=='25ab1b7ed0ffbb5b6bf8278d644384707fd11ced20ae6ef3e379ee3a0668c21b'
+          z=zipfile.ZipFile(io.BytesIO(package));assert sorted(z.namelist())==['Extensions/PET/Pet.dll','Extensions/PET/manifest.json']
+          manifest=json.loads(z.read('Extensions/PET/manifest.json'));assert manifest['Version']=='1.6'
+          evidence=pathlib.Path('windows-evidence.zip').read_bytes();assert hashlib.sha256(evidence).hexdigest()=='7abacc66f95aab044482fab3d837afcf1f9e6ce89bcbcea88ffb188066dcc38f'
+          proof=zipfile.ZipFile(io.BytesIO(evidence))
+          for name in ['apply-recovery.json','transition-result.json','visual-coverage.json','patch-scope.json']:
+              assert json.loads(proof.read(name).decode('utf-8-sig'))['Pass']
+          counters=json.loads(proof.read('coverage-counters.json'));assert counters['frames']>=20 and counters['desktopFrames']==counters['foreignFrames']==0
+          refs={}
+          for repo,branch,expected in [('leal-info-pdv','channel/global','48d8f50f00a16bc2457b5ebd04383dfaf9cf16d1'),('leal-info-pdv-updates','main','6f641fc6941b573f94393a437191761243cfa69e')]:
+              actual=json.loads(get('https://api.github.com/repos/lealinfopdvnovo/'+repo+'/git/ref/heads/'+branch))['object']['sha'];assert actual==expected;refs[repo+'/'+branch]=actual
+          pathlib.Path('delivery-proof.json').write_text(json.dumps(dict(Pass=True,Version='1.6',Identity='005',SHA256=digest,PublicPackageVerified=True,WindowsEvidenceVerified=True,ProductionRefs=refs,Recompiled=False),indent=2))
+          print('PASS existing PET 1.6 public package, Windows transition/rollback evidence and protected production refs')
+          PYCODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANGRA-PET16-ENTREGA-CONFERIDA
+          path: |
+            delivery-proof.json
+            windows-evidence.zip
