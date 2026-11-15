@@ -78,3 +78,11 @@ Prioridade mais recente explicitada por Adriano: iFood. GLOBAL/PET permanece pau
 - **Critério de aceite:** chave legítima de novo cliente ativa e abre na primeira tentativa com identidade/PET corretos; licenças inválidas continuam bloqueadas; nenhum cliente ou canal de produção é afetado. Testes automatizados e instalação Windows real com evidências antes de declarar concluído.
 - **Execução:** registrar como prioridade obrigatória do roteiro antes de transbordo/escala comercial, sem interromper a personalização QA Angra em andamento. GLOBAL e PETs de produção só podem ser alterados com autorização expressa e testes; esta atualização do Baú é exclusivamente documental.
 - **Visão comercial relacionada:** iFood como módulo GLOBAL opcional, botão visível no Standard mas bloqueado pela licença; acesso nos planos Plus/Pro sujeito a habilitação e requisitos do iFood. Não implementar nesta tarefa documental.
+
+
+## PRIORIDADE OBRIGATÓRIA — BANDEIRINHA INCLUÍDA EM TODOS OS NOVOS INSTALADORES (14/11/2026)
+- **Decisão expressa do proprietário:** todo novo instalador do LEAL INFO PDV deve entregar a bandeirinha de atualização da bandeja do Windows (setinha junto ao relógio) já incluída, instalada e configurada; não exigir download ou instalação auxiliar depois da instalação principal.
+- **Reutilizar o componente/instalador da bandeirinha já existente no projeto**, sem recriar desnecessariamente. Integrá-lo à matriz/pacote de instalação de novos clientes, respeitando identidade, licença, PET e canal de atualização correto.
+- **QA ANGRA VIDROS:** corrigir a ausência da bandeirinha no instalador de teste, isoladamente na branch QA autorizada; não tocar GLOBAL nem PETs de produção sem autorização específica.
+- **Critério de aceite obrigatório para futuras entregas:** instalar em Windows limpo, verificar bandeirinha na área de notificação, inicialização sem duplicidade, canal correto e botão ATUALIZAR operacional. A presença da bandeirinha deve integrar o checklist de liberação de todo instalador novo.
+- **Natureza deste registro:** prioridade documental no Baú de Ouro; não executa modificações no instalador ou publicação por si só.
