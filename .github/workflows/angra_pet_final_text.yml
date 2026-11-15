@@ -1,0 +1,95 @@
+name: ANGRA QA PET 1.7 - tres textos finais
+on:
+  push:
+    branches: [qa/angra-etapa4-setup-20261114]
+    paths: ['qa/angra-final-text/**', '.github/workflows/angra_pet_final_text.yml']
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: angra-qa-channel
+  cancel-in-progress: true
+jobs:
+  sync:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Reutilizar host e bandeirinha ja aprovados sem recompilar
+        shell: pwsh
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          gh api repos/lealinfopdvnovo/leal-info-pdv/actions/artifacts/14140201060/zip > bundle.zip
+          if($LASTEXITCODE -ne 0){throw 'Approved QA artifact unavailable'}
+          if((Get-FileHash bundle.zip).Hash.ToLowerInvariant() -ne '30d2030f87645ea0d0f391cdba48bee51efcd086a9ca8ee8fb670b28ff91c1c6'){throw 'Approved bundle hash mismatch'}
+          Expand-Archive bundle.zip bundle
+          python controller/qa/angra-final-text/prepare.py
+          if($LASTEXITCODE -ne 0){throw 'Pinned media/baseline verification failed'}
+      - name: Compilar somente os tres textos e incorporar no PET 1.6 existente
+        shell: pwsh
+        run: |
+          $setup=(Resolve-Path bundle/LEAL_INFO_ANGRA_QA_ATUALIZADOR.exe).Path
+          $app=Join-Path $env:ProgramFiles 'LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO'
+          $p=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -PassThru
+          if(!$p.WaitForExit(120000) -or $p.ExitCode -ne 0){throw 'Approved binary baseline install failed'}
+          $dir=Join-Path $env:RUNNER_TEMP 'handoff-build';New-Item -ItemType Directory $dir -Force|Out-Null
+          $project=(Get-Content controller/qa/angra-final-text/TextIdentity.csproj -Raw).Replace('HOST_DLL',(Join-Path $app 'LealInfoPDV.dll')).Replace('HOST_DIR',$app)
+          Set-Content "$dir/TextIdentity.csproj" $project -Encoding UTF8
+          Copy-Item controller/qa/angra-final-text/TextIdentity.cs $dir
+          $deps=Get-Content "$app/LealInfoPDV.deps.json" -Raw|ConvertFrom-Json
+          $sdk=($deps.libraries.PSObject.Properties.Name|Where-Object{$_ -like '*Microsoft.Windows.SDK.NET.Ref/*'}|Select-Object -First 1).Split('/')[-1]
+          dotnet build "$dir/TextIdentity.csproj" -c Release -o handoff-output "-p:WindowsSdkPackageVersion=$sdk"
+          if($LASTEXITCODE -ne 0){throw 'Visual handoff compilation failed'}
+          dotnet run --project controller/qa/angra-final-text/TextPatcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll handoff-output/AngraTextIdentity.dll Pet-1.7.dll
+          if($LASTEXITCODE -ne 0){throw 'Transition-only PET patch failed'}
+          python controller/qa/angra-final-text/package.py
+          if($LASTEXITCODE -ne 0){throw 'PET 1.6 package failed'}
+      - name: Validar cobertura continua, login verdadeiro, midia preservada e recuperacao
+        shell: pwsh
+        run: |
+          ./controller/qa/angra-final-text/test.ps1
+          if($LASTEXITCODE -ne 0){throw 'Opening synchronization validation failed'}
+      - name: Publicar exclusivamente PET 005 1.7 no mesmo canal QA
+        shell: pwsh
+        run: |
+          $actual=(git -C controller ls-remote origin refs/heads/qa/angra-etapa4-setup-20261114).Split("`t")[0]
+          if($actual -ne '${{ github.sha }}'){throw 'QA branch changed: publication refused'}
+          Copy-Item transition-channel/* controller/qa/etapa4-setup/channel/
+          git -C controller config user.name 'LEAL INFO QA Actions'
+          git -C controller config user.email 'qa@users.noreply.github.com'
+          git -C controller add -- qa/etapa4-setup/channel/ANGRA_005_PET_1_7.zip qa/etapa4-setup/channel/version.json
+          git -C controller commit -m 'QA only: publish PET 005 1.7 three final identity texts'
+          if($LASTEXITCODE -ne 0){throw 'QA channel commit failed'}
+          git -C controller push origin HEAD:refs/heads/qa/angra-etapa4-setup-20261114
+          if($LASTEXITCODE -ne 0){throw 'QA channel push failed'}
+      - name: Conferir oferta e hash publicos
+        shell: pwsh
+        run: |
+          $url='https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv/qa/angra-etapa4-setup-20261114/qa/etapa4-setup/channel/version.json'
+          $ready=$false
+          for($i=0;$i -lt 40;$i++){
+            try{
+              $offer=(Invoke-WebRequest ($url+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())).Content | ConvertFrom-Json
+              if($offer.Version -eq '1.7' -and $offer.TargetClientCode -eq '005'){
+                Invoke-WebRequest ($offer.PackageUrl+'?t='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()) -OutFile public-pet.zip
+                if((Get-FileHash public-pet.zip).Hash.ToLowerInvariant() -eq $offer.Sha256){$ready=$true;break}
+              }
+            }catch{Write-Output $_.Exception.Message}
+            Start-Sleep -Seconds 3
+          }
+          if(!$ready){throw 'QA 1.7 public offer/hash not yet visible'}
+          @{Pass=$true;Version='1.7';Identity='005';SHA256=$offer.Sha256;PublicPackageVerified=$true}|ConvertTo-Json|Set-Content text-evidence/public-offer.json -Encoding UTF8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ANGRA-QA-PET17-TRANSICAO-EVIDENCIAS
+          path: text-evidence/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANGRA-QA-PET17-PACOTE
+          path: transition-channel/
