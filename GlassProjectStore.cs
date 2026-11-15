@@ -13,7 +13,7 @@ public sealed record GlassSavedCut(decimal WidthMm, decimal HeightMm, string Wid
     bool AllowRotation, string MaterialSuggestion, int Sequence, GlassSavedPiece[] Pieces, bool WasCalculated);
 public sealed record GlassSavedProject(int FormatVersion, string Model, string Description,
     decimal WidthMm, decimal HeightMm, string WidthUnit, string HeightUnit, int Quantity,
-    GlassSavedQuote Quote, GlassMaterialLink[] Materials, GlassSavedCut? Cut, bool Show3DMeasurements);
+    GlassSavedQuote Quote, GlassMaterialLink[] Materials, GlassSavedCut? Cut, bool Show3DMeasurements, string? ServiceType = null, JsonElement? AppProject = null);
 public sealed record GlassStoredProject(string Id, long Revision, string CreatedUtc, string UpdatedUtc, GlassSavedProject Data);
 public sealed record GlassProjectListItem(string Id, long Revision, string Description, string Customer,
     string Model, string CreatedUtc, string UpdatedUtc);
@@ -51,7 +51,9 @@ public static class GlassProjectStore
             """;
         create.ExecuteNonQuery(); tx.Commit();
     }
-    public static GlassStoredProject Save(GlassSavedProject data, GlassStoredProject? previous = null)
+    public static GlassStoredProject Save(GlassSavedProject data, GlassStoredProject? previous = null) => SaveCore(data, previous, null);
+    internal static GlassStoredProject SaveImported(GlassSavedProject data, GlassStoredProject? previous, Action<PdvConnection,PdvTransaction,string> link) => SaveCore(data,previous,link);
+    private static GlassStoredProject SaveCore(GlassSavedProject data, GlassStoredProject? previous, Action<PdvConnection,PdvTransaction,string>? link)
     {
         Validate(data);
         string payload = JsonSerializer.Serialize(data);
@@ -64,15 +66,15 @@ public static class GlassProjectStore
         if(previous!=null)GlassOperationsStore.CheckCustomer(db,tx,id,data.Quote.CustomerId);
         using var q = db.CreateCommand(); q.Transaction = tx;
         q.CommandText = previous == null
-            ? "INSERT INTO glass_projects_v1(id,revision,created_utc,updated_utc,description,customer_name,model,format_version,payload) VALUES($id,$r,$created,$now,$description,$customer,$model,1,$payload)"
-            : "UPDATE glass_projects_v1 SET revision=$r,updated_utc=$now,description=$description,customer_name=$customer,model=$model,payload=$payload WHERE id=$id AND revision=$old";
-        q.Parameters.AddWithValue("$id", id); q.Parameters.AddWithValue("$r", revision);
+            ? "INSERT INTO glass_projects_v1(id,revision,created_utc,updated_utc,description,customer_name,model,format_version,payload) VALUES($id,$r,$created,$now,$description,$customer,$model,$format,$payload)"
+            : "UPDATE glass_projects_v1 SET revision=$r,updated_utc=$now,description=$description,customer_name=$customer,model=$model,format_version=$format,payload=$payload WHERE id=$id AND revision=$old";
+        q.Parameters.AddWithValue("$format",data.FormatVersion);q.Parameters.AddWithValue("$id", id); q.Parameters.AddWithValue("$r", revision);
         q.Parameters.AddWithValue("$created", previous?.CreatedUtc ?? now); q.Parameters.AddWithValue("$now", now);
         q.Parameters.AddWithValue("$description", data.Description); q.Parameters.AddWithValue("$customer", data.Quote.CustomerName);
         q.Parameters.AddWithValue("$model", data.Model); q.Parameters.AddWithValue("$payload", payload);
         q.Parameters.AddWithValue("$old", previous?.Revision ?? 0);
         if (q.ExecuteNonQuery() != 1) throw new InvalidOperationException("Projeto alterado ou excluído por outra sessão. Reabra antes de salvar; a versão existente foi preservada.");
-        tx.Commit();
+        link?.Invoke(db,tx,id);tx.Commit();
         return new(id, revision, previous?.CreatedUtc ?? now, now, data);
     }
     public static GlassStoredProject Load(string id)
@@ -82,7 +84,7 @@ public static class GlassProjectStore
         q.Parameters.AddWithValue("$id", id); using var r = q.ExecuteReader();
         if (!r.Read()) throw new InvalidOperationException("Projeto não encontrado.");
         string payload = r.GetString(4);
-        if (r.GetInt32(3) != 1 || payload.Length > MaximumPayload) throw new InvalidDataException("Formato de projeto não suportado. O registro original foi preservado.");
+        if (r.GetInt32(3) is not (1 or 2) || payload.Length > MaximumPayload) throw new InvalidDataException("Formato de projeto não suportado. O registro original foi preservado.");
         var data = JsonSerializer.Deserialize<GlassSavedProject>(payload) ?? throw new InvalidDataException("Projeto inválido.");
         Validate(data); return new(id, r.GetInt64(0), r.GetString(1), r.GetString(2), data);
     }
@@ -104,8 +106,9 @@ public static class GlassProjectStore
     }
     public static void Validate(GlassSavedProject p)
     {
-        if (p == null || p.FormatVersion != 1 || p.Model != GlassProject.ModelName || p.Quote == null || p.Materials == null)
+        if (p == null || p.FormatVersion is not (1 or 2) || (p.FormatVersion==1 && p.Model != GlassProject.ModelName) || p.Quote == null || p.Materials == null)
             throw new InvalidDataException("Formato/modelo inválido.");
+        if(p.FormatVersion==2){if(p.AppProject is not JsonElement raw || p.ServiceType==null)throw new InvalidDataException("Projeto genérico sem dados estruturados.");AngraProjectData.Validate(raw);Text(p.ServiceType,100);Text(p.Model,200);}
         Text(p.Description,160); Dimension(p.WidthMm,p.WidthUnit); Dimension(p.HeightMm,p.HeightUnit);
         if (p.Quantity<1 || p.Quantity>9999) throw new InvalidDataException("Quantidade inválida.");
         Text(p.Quote.CustomerName,500); Text(p.Quote.Service,240);

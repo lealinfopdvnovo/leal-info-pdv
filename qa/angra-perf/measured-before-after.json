@@ -1,0 +1,37 @@
+{
+  "baselineRun": 39043734156,
+  "optimizedRun": 39044285805,
+  "environment": "Isolated GitHub Actions Windows; signed HTTPS calls; synthetic per-run tenants. Single measurement per channel, not a store-network guarantee.",
+  "before": {
+    "001": {
+      "status_ms": 10272,
+      "generate_code_ms": 13237,
+      "sync_initial_ms": 16189,
+      "sync_warm_ms": 13321
+    },
+    "003": {
+      "status_ms": 5892,
+      "generate_code_ms": 8029,
+      "sync_initial_ms": 10670,
+      "sync_warm_ms": 7941
+    }
+  },
+  "after": {
+    "001": {
+      "status_ms": 1908,
+      "generate_code_ms": 1661,
+      "sync_initial_ms": 3049,
+      "sync_warm_ms": 2197
+    },
+    "003": {
+      "status_ms": 2041,
+      "generate_code_ms": 1583,
+      "sync_initial_ms": 3561,
+      "sync_warm_ms": 2371
+    }
+  },
+  "pollBeforeMs": 30000,
+  "pollAfterMs": 5000,
+  "gatewayCommit": "99a1604875bf2ee86cb57333f81027317ca2037c",
+  "gatewayDeployment": "appgdep_6ad390fbb15c81918c0f7ed0208003ce"
+}

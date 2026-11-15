@@ -73,6 +73,7 @@ public sealed class GlassWorkshopForm : Form
             if(MessageBox.Show(this,"Iniciar outro projeto descarta alterações não salvas. Continuar?","Novo projeto",MessageBoxButtons.YesNo,MessageBoxIcon.Warning)!=DialogResult.Yes) return;
             ResetSavedProject();
         });
+        var integration=new SalesVisualButton{Name="AngraIntegration",Text="INTEGRAÇÃO COM APP ANGRA VIDROS"};integration.Click+=(_,_)=>RunProjectAction(()=>{using var form=new AngraSyncForm();form.ShowDialog(this);});AddField(general,"APP ANGRA VIDROS",integration);
         AddField(general,"PROJETOS SALVOS",save); AddField(general,"",open); AddField(general,"",fresh); AddField(general,"",saveStatus);
         var finance=new SalesVisualButton{Name="OpenGlassFinance",Text="FINANCEIRO DO PROJETO"};
         finance.Click+=(_,_)=>RunProjectAction(()=>{var saved=OperationsProject(true);OperationsHost().OpenFinanceFromGlass(saved);RefreshOperations();});
@@ -110,7 +111,7 @@ public sealed class GlassWorkshopForm : Form
             return new GlassCutContext(project.CutReferenceProject,client.SelectedIndex>0?client.Text:"Cliente não selecionado",materials.Materials);
         },projectTheme);
     }
-    internal GlassSavedProject CaptureSavedProject()=>project.CaptureSaved(materials.Materials.ToArray(),cutPlan?.CaptureSaved());
+    internal GlassSavedProject CaptureSavedProject()=>AngraProjectData.PreserveNative(project.CaptureSaved(materials.Materials.ToArray(),cutPlan?.CaptureSaved()),stored?.Data);
     internal GlassStoredProject SaveCurrentProject()
     {
         ValidateChildren();
@@ -121,6 +122,7 @@ public sealed class GlassWorkshopForm : Form
     internal void LoadSavedProject(string id)
     {
         var loaded=GlassProjectStore.Load(id);
+        if(loaded.Data.AppProject!=null&&!AngraProjectData.LegacyCompatible(loaded.Data)){using var appProject=new AngraProjectForm(loaded);appProject.ShowDialog(this);return;}
         // Valida antes de alterar os controles. O registro não é modificado ao abrir.
         var prior=CaptureSavedProject();
         try { ApplySavedProject(loaded.Data); stored=loaded; saveStatus.Text="Aberto: " + loaded.Data.Description;RefreshOperations(); }
