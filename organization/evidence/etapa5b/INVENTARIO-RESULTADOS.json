@@ -1,0 +1,125 @@
+{
+  "Status": "NOT_HOMOLOGATED_END_TO_END",
+  "Etapa6Authorized": false,
+  "Source34": "24a58c77a4f052d86fc6681a8c7a540f7f052d03",
+  "Source37": "a9713b8c7810d09d667947c6cca869c9bc5c62c0",
+  "ApprovedQa": "2fd998403a5826bc665ee6fd33c6363cd75a2cfe",
+  "TestedPdvCode": "11f6b50dedc33d18528ab81975cca1d92264b926",
+  "TestedAlertCode": "b290a2a069e76469c54f5a40e287d0d967c9d01d",
+  "PdvActions": 43740129386,
+  "PrivateAlertActions": 43739635956,
+  "Apps": [
+    {
+      "App": "Speed Food",
+      "File": "SpeedFood_1.0.35.apk",
+      "Package": "com.leal.info.novo",
+      "Version": "1.0.35",
+      "VersionCode": "35",
+      "Sha256": "5ede49e8825b329951de55c4f97309c8f890ef4c999a96e46f885bc09733419d",
+      "CertificateSha256": [
+        "2216df3dfcb55dcdd265e1763b9fce165020f86271aa6aafaa790f35e0e2ac51"
+      ],
+      "Permissions": [
+        "android.permission.INTERNET",
+        "com.google.android.providers.gsf.permission.READ_GSERVICES",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ],
+      "InstalledOrChanged": false,
+      "PhysicalDeviceTested": false
+    },
+    {
+      "App": "Salão MJ",
+      "File": "Salao_MJ_Agenda_Fabiana.apk",
+      "Package": "br.com.salaomj.agenda",
+      "Version": "1.9.5",
+      "VersionCode": "24",
+      "Sha256": "cb61ef31f32c8d54dcfcd3673dc9d0b90cef536769936aa36c74d6c8e3be9c77",
+      "CertificateSha256": [
+        "21ef579603185e9b5783d5d1ac19bae4e5a7b6e8beabd75a29aa6c0ec8edd26e"
+      ],
+      "Permissions": [
+        "android.permission.INTERNET",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ],
+      "InstalledOrChanged": false,
+      "PhysicalDeviceTested": false
+    },
+    {
+      "App": "LEAL INFO Alerta",
+      "File": "LEAL_INFO_ALERTA_V1.2_TOPICO_PARTE_02.apk",
+      "Package": "com.example.lealinfoalerta",
+      "Version": "V1.2",
+      "VersionCode": "5",
+      "Sha256": "d7f78ba390663d3219664f6397c08dbc4b26b48c2a59ffcfa8a2ceaba268e781",
+      "CertificateSha256": [
+        "69c5db12911587e85025e3f771c00425d939665f37afacbdbe2367c12816ac71"
+      ],
+      "Permissions": [
+        "android.permission.INTERNET",
+        "com.example.lealinfoalerta.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+        "android.permission.POST_NOTIFICATIONS",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "com.google.android.c2dm.permission.RECEIVE",
+        "android.permission.WAKE_LOCK"
+      ],
+      "InstalledOrChanged": false,
+      "PhysicalDeviceTested": false
+    }
+  ],
+  "PrivateSourceArchives": [
+    {
+      "File": "Salao_MJ_Fabiana_Projeto_Completo.zip",
+      "Sha256": "c64b521e01bb50028a6298df840151775d9f96620dfb5c38ef42472072f04a54",
+      "KeptPrivate": true,
+      "PublishedToPublicRepository": false
+    },
+    {
+      "File": "SpeedFood_PosHomologacao_Fonte.zip",
+      "Sha256": "608efff02a56157279c89268f11d8fda1fbf072bb7138f714d08103965fb8518",
+      "KeptPrivate": true,
+      "PublishedToPublicRepository": false
+    },
+    {
+      "File": "LEAL_INFO_ALERTA_003_ETAPA_05E.zip",
+      "Sha256": "c1c38e7ffdea673f57f80c9c9bd617d4511184f09ee6cc378e6fc9a818f09f4a",
+      "KeptPrivate": true,
+      "PublishedToPublicRepository": false
+    }
+  ],
+  "Tests": {
+    "AngraProtocol": 18,
+    "AngraAndroidNativeAssertions": 11,
+    "SpeedFoodWindowsSQLite": 15,
+    "LatestAlertD1AndFakeFcm": 19,
+    "LatestAlertQueueTransport": 22,
+    "LatestAlertWindowsDPAPI": true,
+    "LegacyAlertReferenceUnit": 7,
+    "SalonNativePolicy": 18,
+    "SalonDomScripts": 2,
+    "SalonAssetsIdentical": 7,
+    "SpeedFoodAssetsIdentical": 5,
+    "SyntheticPrivateBackup": 3
+  },
+  "RemoteQualification": {
+    "FirebaseConsole": "SIGNED_OUT",
+    "LiveFirebaseRulesAndRoles": "UNVERIFIED",
+    "LiveCloudflareQa": "NOT_PROVISIONED_OR_VERIFIED",
+    "LiveFcmDelivery": "NOT_TESTED",
+    "OwnerWindowsAndPhone": "NOT_ACCESSED",
+    "AngraActualFivePendingOperations": "PRESERVED_NOT_READ_OR_RECOVERED",
+    "QaAngraGateway": "FAIL_CLOSED_PLACEHOLDER_UNTIL_PROVISIONED",
+    "AndroidAlertaReleaseSource": "GIT_1_1_CODE2_DIFFERS_FROM_APPROVED_APK_1_2_CODE5"
+  },
+  "ProductionPublished": false,
+  "ProductionDataWritten": false,
+  "ExistingBindingsRevoked": false,
+  "BackupsOfRealDataCreated": false
+}

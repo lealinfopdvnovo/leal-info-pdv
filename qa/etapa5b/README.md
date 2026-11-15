@@ -1,5 +1,7 @@
 # ANGRA VIDROS QA005 — candidato de integração, sem publicação
 
+Atualização da Etapa 5B: relatório completo em `organization/ETAPA5B-INTEGRACOES-20261115.md`. Homologação remota NÃO concluída; não liberar transbordo.
+
 Base aprovada: PET 1.12, commit 2fd998403a5826bc665ee6fd33c6363cd75a2cfe.
 Somente a branch qa/etapa5b-integrations-20261115. Nenhum feed é atualizado.
 
@@ -14,7 +16,7 @@ Somente a branch qa/etapa5b-integrations-20261115. Nenhum feed é atualizado.
 
 ## Candidato
 
-Windows: helper nativo retoma a consulta ao retornar à janela e, apenas após status aprovado do protocolo existente, chama o Generate original. Mantém guardas de administrador/servidor, assinatura, código e validade originais. Para após um código gerado e ao fechar. Patch binário sobre PET 1.12: altera somente o construtor da janela de integração para instalar o helper; adiciona recurso e ponte próprios, metadados PET 1.13. Compara todos os demais métodos e recursos, incluindo abertura e AJUDA, para garantir preservação. GLOBAL, host, bandeirinha e licença não são recompilados.
+Windows: helper nativo retoma a consulta ao retornar à janela e, apenas após status aprovado do protocolo existente, chama o Generate original. Mantém guardas de administrador/servidor, assinatura, código e validade originais. Para após um código gerado e ao fechar. Patch binário sobre PET 1.12: altera o construtor da janela de integração e o ponto de customização PET para instalar os hooks QA (ANGRA e conclusão SpeedFood limitada ao emulador); adiciona recurso e ponte próprios, metadados PET 1.13. Compara todos os demais métodos e recursos, incluindo abertura e AJUDA, para garantir preservação. GLOBAL, host, bandeirinha e licença não são recompilados.
 
 Android: nova tentativa de unlink a cada 30 segundos enquanto o pedido persistido aguarda confirmação; retomada após reinício do coordenador. Nunca informa revogação sem confirmação. Arquivo por tenant mantém cadastros, cinco pendências sintéticas, revisões e operationId. Não envia dados antigos ao novo PDV. Respostas atrasadas de foto são rejeitadas se o estado do vínculo mudou; caminho de foto é capturado antes do trabalho assíncrono.
 
