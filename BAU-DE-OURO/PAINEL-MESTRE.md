@@ -43,3 +43,8 @@ Este painel é um retrato baseado em relatos, evidências disponíveis e documen
 - RELATADO PELO PROPRIETÁRIO: as etapas 5, 6 e 7 do plano de sete etapas tinham como objetivo o transbordo/migração real de todos os clientes para o ambiente novo.
 - NÃO RECUPERADO: divisão exata de atividades e critérios de cada etapa 5, 6 e 7. Não inventar nem tratar uma divisão sugerida como plano original.
 - ORIENTAÇÃO: antes de executar migração, inventariar clientes, versões, PETs, licenças, dados, integrações e mecanismo de rollback; apresentar plano e pedir aprovação específica. Não realizar migração automática com base neste registro.
+
+## Refinamento do plano reconstruído (2026-11-15)
+- RELATO DO PROPRIETÁRIO: a conversa original das sete etapas enfatizava separar GLOBAL de PET e organizar essa arquitetura em ambiente novo, antes do transbordo real dos clientes.
+- RECONSTRUÇÃO PROVISÓRIA (não transcrição original): etapa 5 = auditoria/organização da separação GLOBAL/PET no novo ambiente; etapa 6 = transbordo controlado por cliente; etapa 7 = homologação geral.
+- O prompt anterior da etapa 5 focado em inventário de migração deve ser REVISTO para colocar a separação arquitetural como objetivo central. Não iniciar migração, nem alterar GLOBAL ou PETs de produção sem autorização específica.
