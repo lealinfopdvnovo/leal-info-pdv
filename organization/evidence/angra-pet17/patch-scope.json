@@ -1,0 +1,1 @@
+{"Pass":true,"Identity":"005","From":"1.6","To":"1.7","OnlyOriginalMethodChanged":"System.Void AngraBrand::Apply(System.Windows.Forms.Form)","OtherOriginalMethodsIdentical":true,"AllOriginalResourcesIdentical":true,"MediaSHA256":"a2b5144645a2412fc21dc18f2685cc78ba50ae5cadbaaea22e24c88074fc9d89","CoreAndNotifierRecompiled":false,"HelperEmbedded":true}
