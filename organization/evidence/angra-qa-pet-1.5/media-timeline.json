@@ -1,0 +1,14 @@
+{
+  "VoiceFileSHA256": "95bdd2fd3a4d1752e840ef7011a42c43577a18bf18f90b0cfc564b5e7f897bdf",
+  "VoiceRegenerated": false,
+  "OriginalAnimationPreserved": true,
+  "VoiceDuration": 5.664,
+  "VoiceLeadIn": 1.75,
+  "VoiceEnd": 7.414,
+  "FadeStart": 8.35,
+  "SpeechToFadeMargin": 0.936,
+  "Duration": 9.0,
+  "FinalAudioDrainMs": 350,
+  "MusicVolume": 0.16,
+  "Transcript": "Bem-vindo à Angra Vidros. Na próxima tela, coloque seu usuário e sua senha."
+}

@@ -1,0 +1,15 @@
+{
+  "LicenseModified": false,
+  "CoreRecompiled": false,
+  "NotifierModified": false,
+  "DataCanaryUnchanged": true,
+  "WorkerSHA256": "72418d1962c464dae1717e5bd9d98af9af71c3060974d8230a8e2777352a3aff",
+  "CoreHashes": {
+    "LealInfoPDV.dll": "D225A8C67D6B980626E7E74592BB81B84476C8354887A199C74903EB203767D0",
+    "LealInfoPDV.deps.json": "D2E9903C45774A96EAEE07EF2BDCA9B6347D2F75B8E7DE87458B18472AB3A773",
+    "LealInfoPDV.exe": "F9DBC2F39B263D1BDAD694726BCA4167C6AFBC3C5B84F6136EBB49C2BCE678B0"
+  },
+  "PreviousPetRestoredAfterSystemRecovery": true,
+  "Pass": true,
+  "NewPetApplied": true
+}
