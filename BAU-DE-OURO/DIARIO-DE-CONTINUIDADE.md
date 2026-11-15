@@ -42,3 +42,12 @@ Registro verificável de decisões, motivos, pendências e próximo passo. Conve
 
 ## 15/11/2026 — Etapa 5: execução seletiva comprovada
 O proprietário autorizou o escopo de migração seletiva/homologação rápida. Comparação de 28 componentes: o QA aprovado já contém as versões necessárias do 37; nenhuma importação/modificação de produto foi necessária. Preservados os 252 arquivos rastreados do 34. Branch QA `qa/etapa5-selective-20261115`, código `64b5ed6a057cbfdfd9d3ce9212ac001b1b6cdf19`. Windows Actions `43735576962` SUCCESS: 37 verificações existentes e 14 do pacote QA005 real. Dez testes locais de política aprovados. Etapa 5 tecnicamente concluída, aguardando homologação do proprietário. Sem produção, migração de clientes ou início da Etapa 6. Integração Android permanece pausada. Registro detalhado: `TRANSBORDO-CLIENTES/ETAPA-05/RELATORIO.md` e `RESULTADOS.json`. Esta entrada atualiza o estado provisório anterior; não declara transbordo operacional concluído.
+
+## Entrada — 2026-11-15 — Auditoria 5B, backup do 34 e organização do Baú
+**Origem:** decisões expressas do proprietário na conversa de 15/11. **Status:** planejamento aprovado; nenhuma execução da auditoria, backup ou desativação confirmada.
+- Após a Etapa 5 e antes de qualquer Etapa 6, auditar GitHub, Firebase, configurações e integrações do PDV com ANGRA VIDROS, Speed Food e LEAL INFO Alerta. Inventariar o Salão MJ como projeto independente e preservar seu código/APK sem misturá-lo ao PDV.
+- Comparar dependências do 34 e do 37; conferir código-fonte, capacidade de recompilar APKs e conexões. Evitar retrabalho, mudanças em produção, cópia de segredos e migração indiscriminada.
+- O 37 deve se tornar autônomo e definitivo. Depois da homologação de todos os clientes, serviços e integrações e da verificação de backup histórico privado, íntegro e restaurável, solicitar autorização expressa para desativar e remover a cópia operacional do 34. Não desativar nem excluir agora.
+- Backup histórico do 34 com inventário e pacotes organizados para recuperação excepcional; não usar o Baú documental como depósito público de bancos, segredos ou dados pessoais.
+- Preservar a estrutura semanal/diária existente do Baú; sincronizar os índices e registrar resultados sem presumir execução. O registro da Etapa 5 está nos documentos centrais, mas o README de 15/11 estava desatualizado e foi corrigido nesta atualização.
+**Próximo passo:** conferir aceite da Etapa 5; preparar auditoria 5B em modo leitura e submeter resultados ao proprietário antes do transbordo.
