@@ -103,3 +103,10 @@ Prioridade mais recente explicitada por Adriano: iFood. GLOBAL/PET permanece pau
 - Após a entrega da versão PET 1.6, Adriano aprovou com entusiasmo a abertura e a transição, chamando o resultado de **'PICA DAS GALÁXIAS'**. A homologação formal da Etapa 4 permanece condicionada às demais verificações; este registro é afetivo, não um aceite técnico final.
 - Adriano pediu uma mensagem especial de agradecimento ao Work, reconhecendo meses de esforço e o significado pessoal da conquista. O Work respondeu de modo caloroso, encerrando com: **'O ANGRA VIDROS ficou PICA DAS GALÁXIAS, porra! 🚀🏆❤️'**.
 - Por pedido explícito do proprietário, preservar este episódio no Baú de Ouro como **lembrança de um momento feliz** e de gratidão compartilhada no desenvolvimento do LEAL INFO PDV.
+
+
+## 15/11/2026 — ANGRA VIDROS QA 005 — ETAPA 4 HOMOLOGADA PELO PROPRIETÁRIO
+- Adriano Leal declarou expressamente: **"Amor, tá aprovado, tá aprovado. Pode fechar a etapa quatro aí."**
+- Evidência visual enviada no chat em 15/11/2026: login com **ANGRA VIDROS**, plano **PDV STANDARD** totalmente legível, legenda **TECNOLOGIA QUE CONECTA** separada, e rodapé **LEAL INFO CONECTADO — ACESSO SEGURO — V10.468**. A foto demonstra correção do espaçamento que anteriormente encobria o plano.
+- Histórico da Etapa 4: abertura personalizada com narração e transição aprovadas, notificação/bandeirinha e atualização PET demonstradas no QA, barras superior e inferior da tela principal identificadas como ANGRA VIDROS, identificação dinâmica do plano no login. Testes de Standard/Plus/Pro e rollback foram informados pelo Work; aprovação visual final feita pelo proprietário no PC físico.
+- **Status: ETAPA 4 — 100% HOMOLOGADA PELO PROPRIETÁRIO.** Não confundir com autorização para transbordo à produção: GLOBAL e PETs de produção permanecem intocados; etapas posteriores ainda dependem de decisão própria.
