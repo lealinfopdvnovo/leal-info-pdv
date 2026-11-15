@@ -86,3 +86,13 @@ Prioridade mais recente explicitada por Adriano: iFood. GLOBAL/PET permanece pau
 - **QA ANGRA VIDROS:** corrigir a ausência da bandeirinha no instalador de teste, isoladamente na branch QA autorizada; não tocar GLOBAL nem PETs de produção sem autorização específica.
 - **Critério de aceite obrigatório para futuras entregas:** instalar em Windows limpo, verificar bandeirinha na área de notificação, inicialização sem duplicidade, canal correto e botão ATUALIZAR operacional. A presença da bandeirinha deve integrar o checklist de liberação de todo instalador novo.
 - **Natureza deste registro:** prioridade documental no Baú de Ouro; não executa modificações no instalador ou publicação por si só.
+
+
+## IDEIA APROVADA PARA PLANEJAMENTO — AJUDA COM VÍDEOS E LEMBRETE DE 3 SEGUNDOS (14/11/2026)
+- **Não implementar agora:** guardar para melhorias posteriores à homologação das etapas 1–7 e transbordo; não alterar QA Etapa 4, GLOBAL nem PETs de produção neste registro.
+- Preservar fluxo existente de primeira instalação: instalar e ativar serial/licença → criar usuário e senha → fazer login → abrir tela principal.
+- Após **cada login**, na tela principal, exibir por **aproximadamente 3 segundos** um balão discreto animado com seta apontando ao menu superior **AJUDA**, lembrando que há tutoriais; desaparecer automaticamente, sem bloquear a operação, e sumir ao abrir AJUDA. Evitar reaparecimentos durante a mesma sessão.
+- No menu **AJUDA**, incluir uma **Central de Tutoriais em Vídeo** com controles de pausar, continuar e repetir, começando pelo tutorial de **configuração de recuperação de senha por e-mail** (ex.: Gmail, conforme mecanismo suportado). Não expor credenciais/senhas reais nos vídeos.
+- Manter o aviso atual de recuperação por e-mail não configurada na tela de login; não sobrecarregar a tela de login com tutorial ou balões.
+- Preferir animação leve nativa do Windows Forms (fade-in/fade-out) a GIF pesado, preservando desempenho e visual premium.
+- Ideia e decisão do proprietário: registrar para execução futura somente após autorização específica.
