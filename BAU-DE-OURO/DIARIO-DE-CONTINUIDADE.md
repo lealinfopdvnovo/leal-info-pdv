@@ -26,3 +26,15 @@ Registro verificável de decisões, motivos, pendências e próximo passo. Conve
 **Próximo passo:** definir com o proprietário o escopo preciso da Etapa 5, usando registros e arquitetura existentes, sem alterar produção; só então elaborar prompt final para Work.
 
 **Protocolo:** a cada decisão relevante registrar data, origem (evidência/relato/hipótese), justificativa, impacto, restrições, próximo passo e commit. Não prometer registro automático de toda fala.
+
+## Entrada — 2026-11-15 — Regra aprovada: migração seletiva e progressiva
+**Origem:** decisão expressa do proprietário em conversa. **Estado:** decisão de planejamento, ainda não implementada nem homologada tecnicamente.
+
+- Etapas 1 a 4 foram aprovadas pelo proprietário e não devem ser reabertas ou repetidas sem defeito concreto.
+- Etapa 5: homologação rápida e objetiva do escopo GLOBAL/PET; trazer do ambiente 34 para o 37 apenas componentes e dependências comprovadamente necessários, funcionais e compatíveis. Preservar recursos já homologados no 37.
+- Ambiente 34 permanece íntegro como acervo original; não apagar arquivos deixados para trás.
+- Arquivos não transportados na etapa 5 NÃO são declarados inúteis ou descartados: poderão ser reavaliados nas etapas 6 e 7 se surgirem necessidades concretas.
+- Em cada etapa futura, verificar primeiro se o 37 já resolve a necessidade; depois avaliar substituição/rota mais eficiente; importar seletivamente do 34 apenas se necessário, com dependências, testes e justificativa.
+- Não espelhar integralmente o 34 nem propagar duplicações, configurações antigas e acoplamentos indevidos.
+- Cada etapa precisa ficar funcional no seu próprio escopo e passar por homologação antes de avançar. Não antecipar migração de clientes ou publicação.
+**Próximo passo:** consolidar esta regra no prompt único da Etapa 5; enviar ao Work apenas quando o proprietário decidir.
