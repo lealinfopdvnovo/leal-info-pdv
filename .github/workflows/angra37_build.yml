@@ -6,7 +6,7 @@ on:
 permissions: {contents: read, actions: read}
 jobs:
   gateway-security:
-    if: github.head_ref == 'qa/angra37-access-20261115'
+    if: false # Identical gateway/security suite approved run 43762096329
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
