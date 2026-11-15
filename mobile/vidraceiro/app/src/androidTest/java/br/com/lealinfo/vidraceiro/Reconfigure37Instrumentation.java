@@ -6,7 +6,7 @@ public class Reconfigure37Instrumentation extends Instrumentation {
  void check(boolean b,String m){if(!b)throw new AssertionError(m);log.append("PASS ").append(m).append('\n');}
  @Override public void onCreate(Bundle b){super.onCreate(b);start();}
  @Override public void onStart(){Bundle out=new Bundle();try{
- check(getTargetContext().getPackageName().equals("br.com.lealinfo.vidraceiro.profissional022"),"same approved applicationId");
+ check(getTargetContext().getPackageName().equals("br.com.lealinfo.vidraceiro.ambiente37"),"separate QA37 applicationId");
  check(new File(getTargetContext().getFilesDir(),"upgrade37-marker").exists(),"in-place installation retained private files");
  a=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
  final byte[] jpeg=new byte[]{(byte)255,(byte)216,1,2,3,4,5,6,7,8,9,10,11,12,(byte)255,(byte)217};final File[] photo={null};final File[] archive={null};

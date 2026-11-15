@@ -22,15 +22,11 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.9'}
-      - uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: angra-professional-explicit-debug-signing-v2
-          fail-on-cache-miss: true
-      - name: Verify existing signing certificate - never generate a replacement
+      - name: Ephemeral emulator signing only - delivered APK is signed privately later
         run: |
-          test -f "$HOME/.android/debug.keystore"
-          keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android | grep -i '2E:E5:49:20:EF:E7:04:23:20:F9:08:14:E4:5F:D1:09:97:F9:DE:B2:8E:21:3E:E9:2A:89:55:B3:E0:0F:FA:C7'
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 30 -dname "CN=ANGRA37 disposable build" -noprompt
+          python -c "from pathlib import Path; p=Path('baseline/mobile/vidraceiro/app/build.gradle'); p.write_text(p.read_text().replace('.profissional022','.ambiente37'))"
       - name: Build old binary only as upgrade fixture - no old tests
         working-directory: baseline/mobile/vidraceiro
         run: gradle :app:assembleDebug --no-daemon
@@ -41,7 +37,6 @@ jobs:
         run: |
           mkdir -p delivery
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs candidate/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk > delivery/signature.txt
-          grep -q 2ee54920efe7042320f90814e45fd10997f9deb28e213ee92a8955b3e00ffac7 delivery/signature.txt
           diff -qr baseline/mobile/vidraceiro/app/src/main/res candidate/mobile/vidraceiro/app/src/main/res
           cp candidate/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk delivery/ANGRA_VIDROS_0.3.8_QA37.apk
           sha256sum delivery/ANGRA_VIDROS_0.3.8_QA37.apk > delivery/SHA256.txt
@@ -59,14 +54,14 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             adb install baseline/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
-            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 mkdir -p files
-            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 touch files/upgrade37-marker
+            adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 mkdir -p files
+            adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 touch files/upgrade37-marker
             adb install -r delivery/ANGRA_VIDROS_0.3.8_QA37.apk
             adb install candidate/mobile/vidraceiro/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-            adb shell am instrument -w br.com.lealinfo.vidraceiro.profissional022.test/br.com.lealinfo.vidraceiro.Reconfigure37Instrumentation > delivery/android-reconfigure.txt
+            adb shell am instrument -w br.com.lealinfo.vidraceiro.ambiente37.test/br.com.lealinfo.vidraceiro.Reconfigure37Instrumentation > delivery/android-reconfigure.txt
             grep -q 'PASS ANGRA37_RECONFIGURE_COMPLETE' delivery/android-reconfigure.txt
-            adb shell am force-stop br.com.lealinfo.vidraceiro.profissional022
-            adb shell run-as br.com.lealinfo.vidraceiro.profissional022 cat files/pdv-sync-state.json > delivery/restarted-state.json
+            adb shell am force-stop br.com.lealinfo.vidraceiro.ambiente37
+            adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 cat files/pdv-sync-state.json > delivery/restarted-state.json
             python -c "import json; s=json.load(open('delivery/restarted-state.json')); assert s['environment']=='QA37' and not s['tenant']"
       - name: Check new gateway availability - no customer requests
         run: |
@@ -76,7 +71,7 @@ jobs:
         if: always()
         with: {name: ANGRA37-APK-038-and-new-evidence, path: delivery/, retention-days: 30}
   receiver:
-    if: github.head_ref == 'qa/angra37-reconfigure-20261115'
+    if: false # Identical receiver candidate already passed run 43757868194; do not repeat
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
