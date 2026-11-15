@@ -19,7 +19,9 @@ static class Probe
  static object? Call(string type,string method,params object?[] args)=>Host.GetType("LealInfoPDV."+type,true)!.GetMethod(method,F)!.Invoke(null,args);
  static void Check(bool value,string text){if(!value)throw new Exception(text);Console.WriteLine("PASS "+text);}
  static IEnumerable<Control> Walk(Control c){yield return c;foreach(Control child in c.Controls)foreach(var x in Walk(child))yield return x;}
- static volatile bool guard,revealing;static IntPtr coverHandle;static int frames,desktopFrames,foreignFrames;
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern int GetWindowText(IntPtr h,System.Text.StringBuilder text,int count);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]static extern int GetClassName(IntPtr h,System.Text.StringBuilder text,int count);
+ static string? firstForeign;static volatile bool guard,revealing;static IntPtr coverHandle;static int frames,desktopFrames,foreignFrames;
  static bool ForeignAboveLogin(Rectangle screen){
   var points=new[]{new Point(screen.Left+4,screen.Top+4),new Point(screen.Right-5,screen.Top+4),new Point(screen.Left+4,screen.Bottom-5),new Point(screen.Right-5,screen.Bottom-5),new Point(screen.Left+screen.Width/2,screen.Top+screen.Height/2)};
   foreach(var p in points){
@@ -27,7 +29,7 @@ static class Probe
     if(h==coverHandle||!IsWindowVisible(h))continue;
     if(DwmGetWindowAttribute(h,14,out int cloaked,4)==0&&cloaked!=0)continue;
     if(!GetWindowRect(h,out var r)||p.X<r.L||p.X>=r.R||p.Y<r.T||p.Y>=r.B)continue;
-    GetWindowThreadProcessId(h,out var pid);if(pid!=(uint)Environment.ProcessId)return true;break;
+    GetWindowThreadProcessId(h,out var pid);if(pid!=(uint)Environment.ProcessId){var title=new System.Text.StringBuilder(256);var cls=new System.Text.StringBuilder(256);GetWindowText(h,title,256);GetClassName(h,cls,256);firstForeign??=$"pid={pid} hwnd={h} class={cls} title={title} point={p}";return true;}break;
    }
   }return false;
  }
@@ -38,8 +40,8 @@ static class Probe
     try{
      g.CopyFromScreen(screen.Location,Point.Empty,screen.Size);int purple=0;
      for(int y=4;y<image.Height;y+=24)for(int x=4;x<image.Width;x+=24){var c=image.GetPixel(x,y);if(c.R>25&&c.B>25&&c.G<12&&Math.Abs(c.R-c.B)<8)purple++;}
-     Interlocked.Increment(ref frames);if(purple>15)Interlocked.Increment(ref desktopFrames);
-     if(revealing&&ForeignAboveLogin(screen))Interlocked.Increment(ref foreignFrames);
+     Interlocked.Increment(ref frames);if(purple>15&&Interlocked.Increment(ref desktopFrames)==1)image.Save(Path.Combine(Environment.GetEnvironmentVariable("TRANSITION_EVIDENCE")!,"first-marker.png"));
+     if(revealing&&ForeignAboveLogin(screen)&&Interlocked.Increment(ref foreignFrames)==1)image.Save(Path.Combine(Environment.GetEnvironmentVariable("TRANSITION_EVIDENCE")!,"first-foreign.png"));
     }catch{}
    }
    Thread.Sleep(20);
@@ -96,6 +98,7 @@ static class Probe
    guard=false;cancellation.Cancel();sampler.GetAwaiter().GetResult();observer.Stop();
    Check(!Application.OpenForms.Cast<Form>().Any(f=>f.Name=="AngraTransitionOwner"),"retained modal owner disposed after login closes");
    Check(loginValidated&&blendSaved,"continuous fade to the genuine login completed");
+   File.WriteAllText(Path.Combine(output,"coverage-counters.json"),JsonSerializer.Serialize(new{frames,desktopFrames,foreignFrames,firstForeign}));
    Check(frames>=20&&desktopFrames==0&&foreignFrames==0,"no synthetic desktop pixels or foreign desktop/taskbar windows exposed in sampled transition frames");
    using var transition=JsonDocument.Parse(File.ReadAllText(Path.Combine(QaIsolation.LocalRoot,"transition-result.json")));var tr=transition.RootElement;
    Check(tr.GetProperty("LoginPreparedBeforeCoverRetired").GetBoolean()&&tr.GetProperty("LoginPreparedBeforeMediaEnded").GetBoolean()&&tr.GetProperty("OpaqueLoginAtReveal").GetDouble()>=0.999,"login prepared before retiring visual coverage");
