@@ -1,6 +1,6 @@
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated Windows runner only'}
-$setup=(Resolve-Path setup-output/LEAL_INFO_TESTE_ANGRA_ETAPA4_CORRIGIDO.exe).Path
+$setup=(Resolve-Path setup-output/LEAL_INFO_ANGRA_QA_ATUALIZADOR.exe).Path
 $local=[Environment]::GetFolderPath('LocalApplicationData')
 $app=Join-Path $env:ProgramFiles 'LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO'
 $qa=Join-Path $local 'LEAL-INFO-QA/ANGRA-ETAPA4-20261114'
@@ -24,6 +24,10 @@ try{
  $denied=Start-Process $setup -ArgumentList ('/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR="'+$blocked+'"') -Wait -PassThru
  if($denied.ExitCode -eq 0 -or (Get-FileHash $sentinel).Hash -ne $sentinelHash -or (Test-Path $app)){throw 'Setup accepted unsafe directory override'}
  Remove-Item $blocked -Recurse -Force
+ # Reproduce the exact previously delivered QA binary, then apply the one-time QA bridge.
+ $previous=Start-Process (Resolve-Path previous-qa/LEAL_INFO_TESTE_ANGRA_ETAPA4_CORRIGIDO.exe).Path -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait -PassThru
+ if($previous.ExitCode -ne 0){throw 'Previous approved QA setup failed'}
+ if((Get-FileHash (Join-Path $app 'LealInfoPDV.dll')).Hash.ToLowerInvariant() -ne '165f58c122a511a09d4ccd39465bdfddf9b935635d1bbd6ccc5b4da2c717184f'){throw 'Wrong old QA source'}
  $installer=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait -PassThru
  if($installer.ExitCode -ne 0){throw ('Setup installation failed '+$installer.ExitCode)}
  $exe=Join-Path $app 'LealInfoPDV.exe'
@@ -61,7 +65,8 @@ try{
  $again=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-' -Wait -PassThru
  if($again.ExitCode -eq 0 -or (Get-FileHash $exe).Hash -ne $installedHash){throw 'Existing QA installation was overwritten'}
  if((Get-FileHash $oldCanary).Hash -ne $oldHash -or (Get-FileHash $existingData).Hash -ne $existingHash){throw 'Old QA/data changed'}
- $result=@{OldQAUnchanged=$true;ExistingDataUnchanged=$true;Pass=$true;DirectoryOverrideRejected=$true;ExistingDestinationPreserved=$true;SetupSha256=(Get-FileHash $setup).Hash.ToLowerInvariant();InstalledInSeparateFolder=$true;SeparateWritableRoots=$true;ProductionCanariesUnchanged=$true;GenuineActivationObserved=$true;LicenseBypassed=$false;LicensedLoginTested=$false;ExternalPetIdentity='005';ExternalPetVersion='1.3';MigrationValidated=$false;ProductionUpdated=$false;FreshFunctionalQABuild=$true}
+ if(!(Test-Path (Join-Path $app '.qa-bridge-backup/LealInfoPDV.dll'))){throw 'Previous QA binary backup missing'}
+ $result=@{BridgeFromExactPreviousQA=$true;OldQAUnchanged=$true;ExistingDataUnchanged=$true;Pass=$true;DirectoryOverrideRejected=$true;ExistingDestinationPreserved=$true;SetupSha256=(Get-FileHash $setup).Hash.ToLowerInvariant();InstalledInSeparateFolder=$true;SeparateWritableRoots=$true;ProductionCanariesUnchanged=$true;GenuineActivationObserved=$true;LicenseBypassed=$false;LicensedLoginTested=$false;ExternalPetIdentity='005';ExternalPetVersion='1.3';MigrationValidated=$false;ProductionUpdated=$false;FreshFunctionalQABuild=$true}
  $result|ConvertTo-Json -Depth 8|Set-Content qa-setup-evidence/setup-validation.json -Encoding UTF8
  Write-Output ('SETUP_VALIDATION='+($result|ConvertTo-Json -Depth 8 -Compress))
  $global:LASTEXITCODE=0

@@ -1,0 +1,66 @@
+using LealInfoPDV;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
+using System.Security.Cryptography;
+using System.Text.Json;
+internal static class AngraBrand
+{
+ const string VideoHash="3841b67fe8285afca01610a72f9b89f6ca69f41be85d92d05246f160458c85f9";
+ static IEnumerable<Control> Walk(Control root){yield return root;foreach(Control c in root.Controls)foreach(var nested in Walk(c))yield return nested;}
+ public static void Apply(Form form){
+  if(form is MainForm){
+   form.Text=form.Text.Replace("LOJA LEAL INFO","ANGRA VIDROS");
+   foreach(var c in Walk(form)){
+    if(c.Text.Contains("LOJA LEAL INFO"))c.Text=c.Text.Replace("LOJA LEAL INFO","ANGRA VIDROS");
+    if(c is StatusStrip strip)foreach(ToolStripItem item in strip.Items){item.Text=item.Text.Replace("LOJA LEAL INFO","ANGRA VIDROS");if(item.Name=="loja_pet_version")item.Text="ANGRA VIDROS • PET V"+ProfileExtension.Version;}
+   }
+  }
+  if(form is LoginForm){
+   form.Text="ANGRA VIDROS • ACESSO";
+   foreach(var c in Walk(form)){
+    if(c.Text=="LEAL INFO")c.Text="ANGRA";
+    else if(c.Text=="CONECTADO")c.Text="VIDROS";
+    else if(c.Text.Contains("LEAL INFO CONECTADO"))c.Text=c.Text.Replace("LEAL INFO CONECTADO","ANGRA VIDROS");
+   }
+  }
+ }
+ public static void ShowOpening(){
+  if(ProfileExtension.Identity!="005")throw new InvalidDataException("Abertura exclusiva QA 005");
+  var root=Path.Combine(QaIsolation.LocalRoot,"Opening",VideoHash);Directory.CreateDirectory(root);
+  var file=Path.Combine(root,"abertura.mp4");
+  using(var stream=typeof(AngraBrand).Assembly.GetManifestResourceStream("ANGRA.Opening.mp4")??throw new InvalidDataException("Vídeo ausente")){
+   using var memory=new MemoryStream();stream.CopyTo(memory);var bytes=memory.ToArray();
+   if(Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()!=VideoHash)throw new InvalidDataException("Integridade do vídeo inválida");
+   if(!File.Exists(file)||Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))).ToLowerInvariant()!=VideoHash)File.WriteAllBytes(file,bytes);
+  }
+  using var form=new Form{Name="AngraOpening",Text="ANGRA VIDROS",FormBorderStyle=FormBorderStyle.None,WindowState=FormWindowState.Maximized,BackColor=Color.Black,StartPosition=FormStartPosition.CenterScreen};
+  using var view=new WebView2{Dock=DockStyle.Fill,DefaultBackgroundColor=Color.Black};form.Controls.Add(view);
+  bool played=false,ended=false;double last=0;string? error=null;
+  using var timeout=new System.Windows.Forms.Timer{Interval=18000};timeout.Tick+=(_,_)=>{error="Tempo limite do vídeo";form.Close();};
+  form.Shown+=async(_,_)=>{
+   timeout.Start();try{
+    var options=new CoreWebView2EnvironmentOptions("--autoplay-policy=no-user-gesture-required");
+    var environment=await CoreWebView2Environment.CreateAsync(null,Path.Combine(QaIsolation.LocalRoot,"WebView2-Angra"),options);
+    await view.EnsureCoreWebView2Async(environment);
+    view.CoreWebView2.Settings.AreDefaultContextMenusEnabled=false;view.CoreWebView2.Settings.AreDevToolsEnabled=false;
+    view.CoreWebView2.Settings.IsStatusBarEnabled=false;
+    view.CoreWebView2.SetVirtualHostNameToFolderMapping("angra-opening.local",root,CoreWebView2HostResourceAccessKind.DenyCors);
+    view.CoreWebView2.WebResourceRequested+=(_,e)=>{if(!e.Request.Uri.StartsWith("https://angra-opening.local/",StringComparison.Ordinal))e.Response=view.CoreWebView2.Environment.CreateWebResourceResponse(new MemoryStream(),403,"Offline","");};
+    view.CoreWebView2.AddWebResourceRequestedFilter("*",CoreWebView2WebResourceContext.All);
+    view.CoreWebView2.WebMessageReceived+=(_,e)=>{
+     using var message=JsonDocument.Parse(e.WebMessageAsJson);var d=message.RootElement;var type=d.GetProperty("type").GetString();
+     if(type=="playing"){played=d.GetProperty("audible").GetBoolean();}
+     if(type=="time")last=d.GetProperty("seconds").GetDouble();
+     if(type=="ended"){ended=true;form.Close();}
+     if(type=="error"){error="Falha na reprodução do vídeo";form.Close();}
+    };
+    view.NavigateToString("""
+<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none';media-src https://angra-opening.local;style-src 'unsafe-inline';script-src 'unsafe-inline'"><style>html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}video{width:100%;height:100%;object-fit:contain}</style></head><body><video id="v" autoplay playsinline src="https://angra-opening.local/abertura.mp4"></video><script>const v=document.getElementById('v');v.muted=false;v.volume=1;v.onplaying=()=>chrome.webview.postMessage({type:'playing',audible:!v.muted&&v.volume>0});v.ontimeupdate=()=>chrome.webview.postMessage({type:'time',seconds:v.currentTime});v.onended=()=>chrome.webview.postMessage({type:'ended'});v.onerror=()=>chrome.webview.postMessage({type:'error'});v.play().catch(()=>chrome.webview.postMessage({type:'error'}));</script></body></html>
+""");
+   }catch(Exception ex){error=ex.GetType().Name;form.Close();}
+  };
+  form.ShowDialog();timeout.Stop();
+  File.WriteAllText(Path.Combine(QaIsolation.LocalRoot,"opening-result.json"),JsonSerializer.Serialize(new{Identity="005",Version=ProfileExtension.Version,Played=played,Ended=ended,LastSeconds=last,Offline=true,VideoHash,Error=error}));
+  if(error!=null)MessageBox.Show("Não foi possível reproduzir a abertura. O acesso ao PDV continuará. "+error,"ANGRA VIDROS",MessageBoxButtons.OK,MessageBoxIcon.Information);
+ }
+}

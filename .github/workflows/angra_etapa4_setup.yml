@@ -3,8 +3,12 @@ on:
   push:
     branches: [qa/angra-etapa4-setup-20261114]
     paths: ['qa/etapa4-setup/**', '.github/workflows/angra_etapa4_setup.yml']
+concurrency:
+  group: angra-qa-channel
+  cancel-in-progress: false
 permissions:
-  contents: read
+  contents: write
+  actions: read
 env:
   PYTHONUTF8: '1'
 jobs:
@@ -66,6 +70,17 @@ jobs:
         run: |
           python controller/qa/etapa4-setup/prepare_qa.py
           if($LASTEXITCODE -ne 0){throw 'QA data isolation preparation failed'}
+      - name: Configurar somente o canal QA e reutilizar a bandeirinha nativa
+        shell: pwsh
+        run: |
+          python controller/qa/etapa4-setup/prepare_channel.py
+          if($LASTEXITCODE -ne 0){throw 'QA route preparation failed'}
+      - name: Compilar a mesma bandeirinha com rota QA exclusiva
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath`) do call "%%i\VC\Auxiliary\Build\vcvars64.bat"
+          cl /nologo /O2 /std:c++17 /EHsc /utf-8 candidate\current-embedded\notifier-qa.cpp /Fe:candidate\current-embedded\Notifier.exe /link /SUBSYSTEM:WINDOWS /MACHINE:X64
+          if errorlevel 1 exit /b 1
       - name: Compilar payload offline e PET Loja existente
         shell: pwsh
         run: |
@@ -75,6 +90,24 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Existing Loja PET compilation failed'}
           ./controller/qa/etapa4-setup/package_payload.ps1
           if($LASTEXITCODE -ne 0){throw 'QA payload validation failed'}
+      - name: Empacotar PET ANGRA 005 com video aprovado e narracao offline
+        shell: pwsh
+        run: |
+          python controller/qa/etapa4-setup/prepare_brand.py
+          if($LASTEXITCODE -ne 0){throw 'Brand preparation failed'}
+          dotnet build candidate/extensions/profiles/001/Pet.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'QA PET 1.4 compilation failed'}
+          ./controller/qa/etapa4-setup/package_brand.ps1
+          if($LASTEXITCODE -ne 0){throw 'QA patch packaging failed'}
+      - name: Recuperar somente o instalador QA anterior ja validado
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/lealinfopdvnovo/leal-info-pdv/actions/artifacts/14135945779/zip > previous-qa.zip
+          if($LASTEXITCODE -ne 0){throw 'Previous QA artifact unavailable'}
+          if((Get-FileHash previous-qa.zip).Hash.ToLowerInvariant() -ne 'a3f2047d0ecc2486fc2151fdad8e021198996c9dc70d2e2018a99a367222d74a'){throw 'Previous QA ZIP changed'}
+          Expand-Archive previous-qa.zip previous-qa
       - name: Gerar apenas instalador de testes independente
         shell: pwsh
         run: |
@@ -88,15 +121,38 @@ jobs:
         run: |
           ./controller/qa/etapa4-setup/test_setup.ps1
           if($LASTEXITCODE -ne 0){throw 'QA installer safety validation failed'}
+          ./controller/qa/etapa4-setup/test_notifier.ps1
+          if($LASTEXITCODE -ne 0){throw 'QA tray startup validation failed'}
       - name: Validar contrato PET 005 com licenca de fixture assinada e login
         shell: pwsh
         run: |
           ./controller/qa/etapa4-setup/test_contract.ps1
           if($LASTEXITCODE -ne 0){throw 'Licensed PET 005 contract regression failed'}
+      - name: Validar recuperacao e isolamento da nova identidade QA
+        shell: pwsh
+        run: |
+          ./qa-005-tests/test.ps1
+          if($LASTEXITCODE -ne 0){throw 'QA PET rollback scenarios failed'}
+          Copy-Item pair-evidence/pet-transaction-results.json qa-setup-evidence/rollback-005.json
+      - name: Publicar somente o canal QA na mesma branch autorizada
+        shell: pwsh
+        run: |
+          $expected='${{ github.sha }}'
+          $actual=(git -C controller ls-remote origin refs/heads/qa/angra-etapa4-setup-20261114).Split("`t")[0]
+          if($actual -ne $expected){throw 'QA branch changed during validation; publication refused'}
+          New-Item -ItemType Directory controller/qa/etapa4-setup/channel -Force|Out-Null
+          Copy-Item qa-channel/* controller/qa/etapa4-setup/channel/
+          git -C controller config user.name 'LEAL INFO QA Actions'
+          git -C controller config user.email 'qa@users.noreply.github.com'
+          git -C controller add -- qa/etapa4-setup/channel/
+          git -C controller commit -m 'QA only: publish verified ANGRA 005 PET 1.4 channel'
+          if($LASTEXITCODE -ne 0){throw 'QA channel commit failed'}
+          git -C controller push origin HEAD:refs/heads/qa/angra-etapa4-setup-20261114
+          if($LASTEXITCODE -ne 0){throw 'QA channel push failed'}
       - uses: actions/upload-artifact@v4
         with:
           name: BAIXAR-SETUP-TESTE-ANGRA-ETAPA4
-          path: setup-output/LEAL_INFO_TESTE_ANGRA_ETAPA4_CORRIGIDO.exe
+          path: setup-output/LEAL_INFO_ANGRA_QA_ATUALIZADOR.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:

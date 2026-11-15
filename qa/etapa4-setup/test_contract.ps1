@@ -15,9 +15,11 @@ $sdk=$props.Project.PropertyGroup.WindowsSdkPackageVersion|Where-Object{$_}|Sele
 if($LASTEXITCODE -ne 0){throw 'Contract probe failed to compile'}
 $before=(Get-FileHash $hostDll).Hash
 Copy-Item "$probe/out/ContractProbe.dll" $app
+$env:QA_FEED=(Resolve-Path qa-channel/version.json).Path
+$env:QA_PACKAGE=(Resolve-Path qa-channel/ANGRA_005_PET_1_4.zip).Path
 $env:QA_EVIDENCE=(Resolve-Path qa-setup-evidence).Path
 try{
- foreach($case in @('old-license-identity','wrong-api','bad-hash','wrong-module-identity','success')){
+ foreach($case in @('planner')){
   & dotnet exec --runtimeconfig "$app/LealInfoPDV.runtimeconfig.json" --depsfile "$app/LealInfoPDV.deps.json" "$app/ContractProbe.dll" $case
   if($LASTEXITCODE -ne 0){throw ('Contract case failed: '+$case)}
  }
@@ -26,5 +28,21 @@ try{
  foreach($file in @('Network/NetworkLicense.cs','Network/SellerPublicKey.cs','Licensing/InstallationLicense.cs')){
   if((Get-FileHash "candidate/$file").Hash -ne (Get-FileHash "controller/$file").Hash){throw ('License source changed: '+$file)}
  }
+ # Activate the actual two-file PET package through the existing transactional worker.
+ $worker=(Resolve-Path candidate/PetTransactionalUpdate.ps1).Path
+ $package=(Resolve-Path qa-channel/ANGRA_005_PET_1_4.zip).Path
+ $sha=(Get-FileHash $package).Hash.ToLowerInvariant()
+ $savedTemp=$env:RUNNER_TEMP;$env:RUNNER_TEMP=$env:ProgramFiles
+ Set-Content (Join-Path $app 'QA-ISOLATED') 'Disposable runner fixture only'
+ & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Prepare -App $app -Package $package -Sha256 $sha -Version 1.4 -Channel PET -Identity 005 -GlobalVersion 10.468
+ if($LASTEXITCODE -ne 0){throw 'Actual QA PET prepare failed'}
+ & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Apply -App $app -Channel PET -Identity 005 -GlobalVersion 10.468
+ if($LASTEXITCODE -ne 0){throw 'Actual QA PET apply failed'}
+ $env:RUNNER_TEMP=$savedTemp;Remove-Item (Join-Path $app 'QA-ISOLATED')
+ foreach($case in @('old-license-identity','wrong-api','bad-hash','wrong-module-identity','success')){
+  & dotnet exec --runtimeconfig "$app/LealInfoPDV.runtimeconfig.json" --depsfile "$app/LealInfoPDV.deps.json" "$app/ContractProbe.dll" $case
+  if($LASTEXITCODE -ne 0){throw ('Patched contract case failed: '+$case)}
+ }
+ if((Get-FileHash $hostDll).Hash -ne $before){throw 'PET patch changed host'}
  $global:LASTEXITCODE=0
-}finally{Remove-Item "$app/ContractProbe.dll" -Force -ErrorAction SilentlyContinue}
+}finally{if($savedTemp){$env:RUNNER_TEMP=$savedTemp}}
