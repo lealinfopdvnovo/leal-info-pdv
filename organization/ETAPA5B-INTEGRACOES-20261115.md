@@ -108,3 +108,22 @@ Serviço Worker/D1 QA segue sem implantação; ingestão/envio continuam desativ
 Testes novos: verificações administrativas de existência, identidade, Spark e API ativa. Nenhum teste aprovado ou workflow foi repetido. Não houve envio de notificação nem homologação física PDV→serviço→Android. Próximo teste físico depende de remetente QA autenticado, APK QA configurado e aparelho do proprietário.
 
 Checkpoint f165432 e commit 935ad20 mantidos como ancestrais; alteração somente documental nesta branch. Produção, GLOBAL, PETs, Speed Food, Gerador de Licenças e ambiente 34 preservados. Sem backup real, publicação ou Etapa 6. ETAPA 5B AINDA NÃO CONCLUÍDA.
+
+## Conta técnica FCM QA autorizada — impedimento de acesso IAM (2026-11-15)
+
+Autorização expressa recebida para identidade técnica exclusiva de leal-info-qa37-005, mínima permissão FCM e preferência por autenticação sem chave permanente. Não conceder Owner, Editor ou Admin amplo; chave privada, se indispensável, somente em gerenciador seguro de segredos QA.
+
+Console Firebase autenticado continua exibindo projeto QA, Spark sem custos e FCM V1 ativo. O link oficial "Gerenciar as permissões das contas de serviço" abriu:
+https://console.cloud.google.com/iam-admin/serviceaccounts/project?authuser=0&project=464377590790&hl=pt-BR
+O Console Google Cloud retornou **Site Unavailable / Unable to access this site**. Uma recarga de recuperação apresentou o mesmo resultado. Não há evidência de erro de senha, falta de permissão IAM ou bloqueio antirrobô; causa da indisponibilidade não determinada. Não insistir em rotas alternativas nem considerar o Google Cloud indisponível para o proprietário só com essa evidência desta sessão.
+
+Nenhuma conta técnica criada, permissão concedida, chave gerada ou segredo armazenado. Autenticação sem chave não pôde ser avaliada/configurada no IAM. A opção Admin automática do Firebase não foi usada como substituto amplo.
+
+Dependências pendentes:
+1. Restabelecer acesso autorizado ao Console IAM do projeto QA para criar/verificar identidade técnica com permissão de envio mínima.
+2. Definir identidade do runtime QA e federação/impersonação sem chave quando disponível; sem isso, não afirmar viabilidade nem provisionar chave fora de cofre.
+3. Registrar autenticação somente no runtime privado; serviço Worker/D1 permanece inativo.
+4. Integrar configuração Android QA e recuperar origem rastreável V1.2; registro do app não significa APK pronto.
+5. Executar envio real sintético e confirmar recebimento no aparelho físico com identificador único, preservando clientes existentes.
+
+Não executados envio/recebimento FCM real, compilação Android nova ou homologação ponta a ponta. Testes aprovados não repetidos; nenhum workflow, backup, publicação, alteração GLOBAL/PET/produção ou ambiente 34. Checkpoints anteriores preservados; esta continuação modifica somente o relatório. Etapa 5B NÃO CONCLUÍDA; Etapa 6 bloqueada.
