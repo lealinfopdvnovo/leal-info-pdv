@@ -50,7 +50,7 @@ static class Probe {
    var coach=AssemblyLoadContext.Default.Assemblies.Single(a=>a.GetName().Name=="AngraHelpPremium").GetType("AngraHelpPremium.Coach",true)!;
    string Evidence()=>(string)coach.GetMethod("Evidence")!.Invoke(null,new object[]{main})!;
    var help=(ToolStripMenuItem)menu.Items.Cast<ToolStripItem>().Single(i=>i.Text.Replace("&","").Equals("Ajuda",StringComparison.OrdinalIgnoreCase));int clicks=0;help.DropDownOpened+=(_,_)=>clicks++;
-   bool moved=false,clicked=false,done=false;int focusSamples=0;bool[] captures=new bool[9];int[] redOn=new int[3],redOff=new int[3];Bitmap?[] earlyBubble=new Bitmap?[3];int[] stablePercent=new int[3];Exception? failure=null;var timeout=Stopwatch.StartNew();int handlesBefore=GetGuiResources(Process.GetCurrentProcess().Handle,0);
+   bool moved=false,clicked=false,done=false;int focusSamples=0;bool[] captures=new bool[9];int[] redOn=new int[3],redOff=new int[3];Bitmap?[] earlyBubble=new Bitmap?[3];int[] stablePercent=new int[3];double[] readStart=new double[3],readSeconds=new double[3];Exception? failure=null;var timeout=Stopwatch.StartNew();int handlesBefore=GetGuiResources(Process.GetCurrentProcess().Handle,0);
    using var monitor=new System.Windows.Forms.Timer{Interval=30};DateTime? finished=null;
    monitor.Tick+=(_,_)=>{
     try{
@@ -66,12 +66,12 @@ static class Probe {
       if(!clicked){Require(GetForegroundWindow()==main.Handle,"animation retains main-window keyboard focus");focusSamples++;}
       if(seconds>.35&&!moved){main.Location=new Point(main.Left+9,main.Top+7);main.Width=main.Width-18;moved=true;return;}
       if(seconds>.55){var expected=menu.RectangleToScreen(help.Bounds);Require(Rect(d.GetProperty("Target"))==expected,"animation follows the live AJUDA menu after move/resize/font scaling");}
-      double[] at={1.40,4.40,4.92,6.40,9.40,9.92,11.40,14.40,14.92};
+      double[] at={1.30,4.40,4.92,6.30,9.40,9.92,11.30,14.40,14.92};
       for(int i=0;i<at.Length;i++)if(seconds>=at[i]&&!captures[i]){
        int blink=i/3,part=i%3;
-       if(part==0){Capture(output,$"help-{scenario}-blink-{blink+1}-on",screen);redOn[blink]=CountRed(menu.RectangleToScreen(help.Bounds));earlyBubble[blink]=BubbleImage(Rect(d.GetProperty("Bubble")));}
+       if(part==0){earlyBubble[blink]=BubbleImage(Rect(d.GetProperty("Bubble")));readStart[blink]=timeout.Elapsed.TotalSeconds;redOn[blink]=CountRed(menu.RectangleToScreen(help.Bounds));Capture(output,$"help-{scenario}-blink-{blink+1}-on",screen);}
        else if(part==1){
-        using var late=BubbleImage(Rect(d.GetProperty("Bubble")));late.Save(Path.Combine(output,$"help-{scenario}-blink-{blink+1}-readable-after-3s.png"));
+        using var late=BubbleImage(Rect(d.GetProperty("Bubble")));readSeconds[blink]=timeout.Elapsed.TotalSeconds-readStart[blink];Check(readSeconds[blink]>=3,"balloon observation interval exceeds three seconds");late.Save(Path.Combine(output,$"help-{scenario}-blink-{blink+1}-readable-after-3s.png"));
         var early=earlyBubble[blink]!;int same=0,total=early.Width*early.Height;
         for(int y=0;y<early.Height;y++)for(int x=0;x<early.Width;x++)if(early.GetPixel(x,y)==late.GetPixel(x,y))same++;
         stablePercent[blink]=same*100/total;Check(stablePercent[blink]>=98,"balloon stays fully visible and unchanged for at least three continuous seconds in blink "+(blink+1));early.Dispose();earlyBubble[blink]=null;
@@ -90,7 +90,7 @@ static class Probe {
       Check(d.GetProperty("BlinkCount").GetInt32()==3&&d.GetProperty("BlinkSeconds").GetDouble()==5&&d.GetProperty("TotalSeconds").GetDouble()==15,"three complete 5-second blink cycles");
       Check(captures.All(v=>v)&&focusSamples>5,"on and off phases captured in all three blinks");
       for(int i=0;i<3;i++)Check(redOn[i]>redOff[i]+30,"native visible/erased red-circle pixels verified for blink "+(i+1));
-      File.WriteAllText(Path.Combine(output,$"blink-pixels-{scenario}.json"),JsonSerializer.Serialize(new{Pass=true,RedOn=redOn,RedOff=redOff,StableBalloonPercent=stablePercent,ContinuousReadingSeconds=3}));
+      File.WriteAllText(Path.Combine(output,$"blink-pixels-{scenario}.json"),JsonSerializer.Serialize(new{Pass=true,RedOn=redOn,RedOff=redOff,StableBalloonPercent=stablePercent,ContinuousReadingSeconds=3,ObservedReadingSeconds=readSeconds}));
       Check(clicks>0,"real mouse click reaches the underlying AJUDA menu during animation");
       Check(!Application.OpenForms.Cast<Form>().Any(f=>f.Name=="AngraHelpCoach"),"overlay removed after animation");
       var layout=Walk(main).Select(c=>(c,c.Bounds,c.Font,c.Visible,c.Enabled)).ToArray();extension.Customize(main);extension.Customize(main);
