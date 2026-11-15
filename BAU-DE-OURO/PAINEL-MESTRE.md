@@ -38,3 +38,8 @@ No início de nova tarefa: ler este painel e os registros relevantes; confirmar 
 
 ## Limitações
 Este painel é um retrato baseado em relatos, evidências disponíveis e documentação consultada. Não sincroniza automaticamente com conversas ou execução do Work; precisa de manutenção explícita. A criação deste documento não autoriza modificações de código, GLOBAL, PET ou publicação.
+
+## Recuperação do planejamento — relato do proprietário em 2026-11-15
+- RELATADO PELO PROPRIETÁRIO: as etapas 5, 6 e 7 do plano de sete etapas tinham como objetivo o transbordo/migração real de todos os clientes para o ambiente novo.
+- NÃO RECUPERADO: divisão exata de atividades e critérios de cada etapa 5, 6 e 7. Não inventar nem tratar uma divisão sugerida como plano original.
+- ORIENTAÇÃO: antes de executar migração, inventariar clientes, versões, PETs, licenças, dados, integrações e mecanismo de rollback; apresentar plano e pedir aprovação específica. Não realizar migração automática com base neste registro.
