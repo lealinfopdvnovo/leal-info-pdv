@@ -41,3 +41,11 @@ Ver também: `BAU-DE-OURO/PAINEL-MESTRE.md` e `BAU-DE-OURO/DIARIO-DE-CONTINUIDAD
 
 ## 15/11/2026 — Etapa 5: execução seletiva comprovada
 O proprietário autorizou o escopo de migração seletiva/homologação rápida. Comparação de 28 componentes: o QA aprovado já contém as versões necessárias do 37; nenhuma importação/modificação de produto foi necessária. Preservados os 252 arquivos rastreados do 34. Branch QA `qa/etapa5-selective-20261115`, código `64b5ed6a057cbfdfd9d3ce9212ac001b1b6cdf19`. Windows Actions `43735576962` SUCCESS: 37 verificações existentes e 14 do pacote QA005 real. Dez testes locais de política aprovados. Etapa 5 tecnicamente concluída, aguardando homologação do proprietário. Sem produção, migração de clientes ou início da Etapa 6. Integração Android permanece pausada. Registro detalhado: `TRANSBORDO-CLIENTES/ETAPA-05/RELATORIO.md` e `RESULTADOS.json`. Esta entrada atualiza o estado provisório anterior; não declara transbordo operacional concluído.
+
+## 15/11/2026 — Etapa intermediária 5B e encerramento do ambiente 34 (decisão do proprietário)
+- **Etapa 5B — auditoria pré-transbordo obrigatória:** após a Etapa 5 e antes da Etapa 6, comparar GitHub, Firebase e dependências do 34/37, incluindo ANGRA VIDROS, Speed Food e LEAL INFO Alerta. Salão MJ: localizar e preservar como projeto independente, sem incorporá-lo ao GLOBAL/PET.
+- Conferir código-fonte, recompilação dos APKs, vínculos, configurações e integrações necessárias. Não presumir equivalência entre ambientes nem copiar segredos/dados de produção; iniciar com inventário de leitura, sem modificar recursos aprovados.
+- **Destino final:** 37 como ambiente único, autônomo e oficial. O 34 fica preservado até a conclusão das etapas 6–7 e homologação de clientes, licenças, atualizações, APKs e integrações.
+- **Encerramento controlado do 34:** somente após backup histórico privado e segmentado com inventário, hashes e restauração testada, e autorização expressa do proprietário, desativar/remover sua cópia operacional. O backup não deve ser dependência de execução do 37.
+- Não espelhar 34 no 37, não duplicar estruturas do Baú, não alterar produção, não executar transbordo nem exclusão nesta fase.
+**Status:** decisão de planejamento registrada; auditoria 5B, backup e desativação não executados nem homologados.
