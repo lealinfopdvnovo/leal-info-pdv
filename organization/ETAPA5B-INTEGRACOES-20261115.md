@@ -127,3 +127,41 @@ Dependências pendentes:
 5. Executar envio real sintético e confirmar recebimento no aparelho físico com identificador único, preservando clientes existentes.
 
 Não executados envio/recebimento FCM real, compilação Android nova ou homologação ponta a ponta. Testes aprovados não repetidos; nenhum workflow, backup, publicação, alteração GLOBAL/PET/produção ou ambiente 34. Checkpoints anteriores preservados; esta continuação modifica somente o relatório. Etapa 5B NÃO CONCLUÍDA; Etapa 6 bloqueada.
+
+## Plano alternativo FCM — verificações independentes (2026-11-15)
+
+Escopo: apenas QA. Não foi repetida a concessão OAuth cloud-platform nem chamada equivalente para criar identidade após a rejeição automática.
+
+### Identidade e execução existentes
+- Console Firebase QA confirma **2 contas de serviço** e mostra a identidade automática firebase-adminsdk-fbsvc@leal-info-qa37-005.iam.gserviceaccount.com. Isso comprova existência; não comprova papel IAM mínimo, credencial utilizável ou federação. Não gerar chave Admin ampla nem assumir autorização de impersonação.
+- Não existe arquivo de credencial ADC no diretório isolado usado pelo SDK neste trabalho. Login de navegador não é identidade autenticada do remetente.
+- Inventário das conexões Sites disponíveis retornou somente ANGRA VIDROS — Simulação e Salão MJ — Ficha de cuidados. Nenhum serviço Alerta QA foi identificado nessa conexão. Não é um inventário completo da conta Cloudflare/GCP; não concluir ausência global de recursos.
+- Candidata qa37-005-d1 continua com workers_dev=false, ingestão/envio/FCM=false e database_id placeholder. É código preparado, não runtime provisionado. O remetente atual requer FCM_SERVICE_ACCOUNT no servidor; não contém um provedor de identidade sem chave já configurado.
+- Resultado: **nenhuma combinação identidade + runtime + autenticação QA suficiente foi comprovada**. Remetente não ligado e nenhum push disparado.
+
+### Android — inspeção adicional sem repetir testes aprovados
+Artefato preservado V1.2: inspeção estática do manifesto e identificadores DEX:
+- INTERNET e POST_NOTIFICATIONS declaradas.
+- allowBackup=false.
+- AlertaMessagingService e serviço FirebaseMessagingService não exportados.
+- default_notification_channel_id = leal_alertas_003.
+- Identificadores compilados: leal_alertas_003 e leal_info_alerta_003_teste.
+- Pacote do artefato NÃO é com.example.lealinfoalerta.qa005; não instalar como candidato QA005.
+Fonte disponível na branch privada: MainActivity pede POST_NOTIFICATIONS no Android >=33; em versões anteriores abre as configurações pertinentes. Refaz a consulta do token ao abrir/verificar, trata falha sem declarar sucesso e confere persistência. TokenStore usa AndroidKeyStore com AES/GCM; tokens não foram obtidos, copiados nem incluídos no relatório. Canal da fonte é IMPORTANCE_HIGH, porém permissão efetiva, som e configurações do usuário precisam do aparelho. Essas observações da fonte não são prova de execução do APK V1.2, cuja rastreabilidade integral continua pendente.
+
+Cadastro Firebase QA005 já existe; google-services.json integrado ao APK e token FCM QA real **NÃO COMPROVADOS**. Sem APK QA configurado e aparelho com Google Play Services não inventar token ou simular entrega como homologação. Não reconstruir o APK aprovado a partir da fonte V1.1 divergente.
+
+### Demais integrações — sem dependência de envio FCM
+- ANGRA: protocolo assinado HTTPS/Worker/R2 independe de Firebase FCM. Candidatos e testes existentes preservados; falta gateway/tenant QA exclusivo e circuito físico foto/medidas. Não reutilizar gateway compartilhado nem tocar cinco pendências reais.
+- Speed Food: Auth/RTDB/GPS/Hosting independem do remetente Alerta. Componente de conclusão e 15 testes Windows existentes mantidos; identidade, regras e fluxo remoto QA continuam sem homologação. Não transferir configuração do projeto compartilhado.
+- Salão MJ: independência do PDV confirmada na etapa anterior; preservado separado, sem necessidade de migração para o Alerta.
+- Leitura dos resultados Actions existentes (sem reexecutar): PDV 43740129386 SUCCESS, código 11f6b50dedc33d18528ab81975cca1d92264b926; Alerta 43739635956 SUCCESS, código b290a2a069e76469c54f5a40e287d0d967c9d01d. Nenhum novo teste desses workflows.
+
+### Bloqueio preciso e próximo procedimento
+Operação impedida: autorização do SDK/ADC com OAuth cloud-platform para criar conta técnica, papel mínimo e vínculo IAM no projeto QA. Revisão automática rejeitou o escopo amplo; a confirmação do proprietário não suprimiu a restrição de execução nesta sessão. API IAM oficial declara cloud-platform para serviceAccounts.create, roles.create e serviceAccounts.setIamPolicy; não foi encontrada alternativa de escopo OAuth menor para essas operações. Não insistir ou ocultar o mesmo consentimento por outra ferramenta.
+
+Procedimento viável depende de um caminho administrativo permitido, fora da operação bloqueada: disponibilizar identidade técnica já provisionada com permissão efetiva cloudmessaging.messages.create somente em leal-info-qa37-005 e runtime QA com federação/impersonação já autorizada; ou resolver institucionalmente o bloqueio da integração administrativa para provisionar essa identidade. Não basta a existência da conta Admin. Sem runtime federado verificado, não prometer autenticação sem chave. Se chave for indispensável, somente em cofre QA, nunca como arquivo partilhado/chat/APK/Git.
+
+Depois: recuperar fonte exata V1.2 ou reconciliar explicitamente as diferenças; gerar variante paralela QA005 com projeto leal-info-qa37-005, canal leal_alertas_005 e destino 005; compilar somente a variante afetada e executar verificações novas de configuração/permissão/token. Só após remetente autenticado executar evento sintético único PDV→serviço→FCM→celular, confirmar som/reconexão/ausência de duplicação. Estes passos continuam pendentes, não executados.
+
+Não houve nova conta/chave, concessão IAM, alteração GLOBAL/PET/produção, backup do 34, publicação ou Etapa 6. Nenhum teste anteriormente aprovado foi repetido. Checkpoints f165432, 935ad20, 7f99510 e c79765b permanecem ancestrais. **Etapa 5B NÃO CONCLUÍDA / ponta a ponta NÃO HOMOLOGADO.**
