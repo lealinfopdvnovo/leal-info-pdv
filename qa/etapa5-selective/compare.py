@@ -21,7 +21,7 @@ def main():
  for path in CORE+CHECKS:
   a,b,c=[data(ref,path) for ref in [SOURCE,CANDIDATE,QA]]
   assert b is not None and c==b,('37 component missing or changed in approved QA',path)
-  records.append(dict(path=path,sha256_34=digest(a),sha256_37=digest(b),sha256_QA=digest(c),classification='GLOBAL infrastructure' if path in CORE else 'QA test dependency',necessaryNow=True,decision='REUSE_QA_ALREADY_PRESENT',originVersion='identical' if a==b else 'superseded_by_37' if a else 'added_in_37',imported=False))
+  records.append(dict(path=path,sha256_34=digest(a),sha256_37=digest(b),sha256_QA=digest(c),classification=('PET implementation' if Path(path).name in {'PreservedPresentation.cs.source','ProfileCertificationSeal.cs.source','prepare_pet_seal.py'} else 'GLOBAL/PET build dependency' if Path(path).name in {'prepare_finance_compat.py','prepare_compatibility.py'} else 'GLOBAL infrastructure' if path in CORE else 'QA test dependency'),necessaryNow=True,decision='REUSE_QA_ALREADY_PRESENT',originVersion='identical' if a==b else 'superseded_by_37' if a else 'added_in_37',imported=False))
  # Both PRs are controllers. Their compiled application tree is pinned separately.
  for path in ['PetRuntime.cs','PetHost.cs','PetBootstrap.cs','ClientUpdateIdentity.cs','extensions/profiles/Profile.cs','extensions/profiles/001/Pet.csproj']:
   b=data(COMPILED_SOURCE,path);assert b is not None
