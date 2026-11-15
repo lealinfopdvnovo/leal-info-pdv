@@ -13,3 +13,8 @@ Organização documental do histórico acessível. Não constitui autorização 
 [Consolidação por projeto](./2026-11-09/CONSOLIDACAO-PROJETOS.md) | [Semana anterior](../2026-11-02_a_2026-11-08/)
 
 Fontes: registros existentes da branch bau-de-ouro e histórico de conversa disponibilizado. Relatos e referências de arquivos não equivalem a inspeção dos arquivos ou instalação real. Não foi acessado todo o histórico privado de todos os chats.
+
+## Atualização 15/11/2026
+- [Decisões da Etapa 5, auditoria 5B e encerramento do ambiente 34](./2026-11-15/README.md).
+- Os documentos centrais registram o resultado técnico da Etapa 5; a homologação do proprietário permanece pendente.
+- A pasta 14/11 ainda não tem atividades verificadas nesta conferência; não preencher lacunas com suposições.
