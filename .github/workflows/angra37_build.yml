@@ -1,0 +1,96 @@
+name: ANGRA37 - APK 0.3.8 and exclusive receiver candidate
+on:
+  pull_request:
+    branches: [feature/app-vidraceiro-android-foundation]
+    paths: ['mobile/vidraceiro/**', 'qa/angra37/**', '.github/workflows/angra37_build.yml']
+permissions: {contents: read, actions: read}
+jobs:
+  android:
+    if: github.head_ref == 'qa/angra37-reconfigure-20261115'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.event.pull_request.head.sha }}', path: candidate}
+      - uses: actions/checkout@v4
+        with: {ref: acb72ed0d1025faa309efffa35a6a94f205fd7c7, path: baseline}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.9'}
+      - name: Ephemeral emulator signing only - delivered APK is signed privately later
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 30 -dname "CN=ANGRA37 disposable build" -noprompt
+          python -c "from pathlib import Path; p=Path('baseline/mobile/vidraceiro/app/build.gradle'); p.write_text(p.read_text().replace('.profissional022','.ambiente37'))"
+      - name: Build old binary only as upgrade fixture - no old tests
+        working-directory: baseline/mobile/vidraceiro
+        run: gradle :app:assembleDebug --no-daemon
+      - name: Build updated APK and new instrumentation
+        working-directory: candidate/mobile/vidraceiro
+        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+      - name: Verify APK signature and exact preserved UI assets
+        run: |
+          mkdir -p delivery
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs candidate/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk > delivery/signature.txt
+          diff -qr baseline/mobile/vidraceiro/app/src/main/res candidate/mobile/vidraceiro/app/src/main/res
+          cp candidate/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk delivery/ANGRA_VIDROS_0.3.8_QA37.apk
+          sha256sum delivery/ANGRA_VIDROS_0.3.8_QA37.apk > delivery/SHA256.txt
+      - name: Enable disposable Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb install baseline/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
+            adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 mkdir -p files
+            adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 touch files/upgrade37-marker
+            adb install -r delivery/ANGRA_VIDROS_0.3.8_QA37.apk
+            adb install candidate/mobile/vidraceiro/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w br.com.lealinfo.vidraceiro.ambiente37.test/br.com.lealinfo.vidraceiro.Reconfigure37Instrumentation > delivery/android-reconfigure.txt
+            grep -q 'PASS ANGRA37_RECONFIGURE_COMPLETE' delivery/android-reconfigure.txt
+            adb shell am force-stop br.com.lealinfo.vidraceiro.ambiente37
+            adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 cat files/pdv-sync-state.json > delivery/restarted-state.json
+            python -c "import json; s=json.load(open('delivery/restarted-state.json')); assert s['environment']=='QA37' and not s['tenant']"
+      - name: Check new gateway availability - no customer requests
+        run: |
+          curl -fsS https://angra-vidros-qa37.adriansantosangra.chatgpt.site/ > delivery/gateway-health.json
+          python -c "import json; assert json.load(open('delivery/gateway-health.json'))['environment']=='QA37'"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-APK-038-and-new-evidence, path: delivery/, retention-days: 30}
+  receiver:
+    if: false # Identical receiver candidate already passed run 43757868194; do not repeat
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ github.event.pull_request.head.sha }}'}
+      - uses: actions/checkout@v4
+        with: {ref: 2fd998403a5826bc665ee6fd33c6363cd75a2cfe, path: approved}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - shell: pwsh
+        run: |
+          dotnet build qa/angra37/Resume.csproj -c Release -o helper
+          if($LASTEXITCODE -ne 0){throw 'Helper compilation failed'}
+          python -c "import zipfile,hashlib; p='approved/qa/etapa4-setup/channel/ANGRA_005_PET_1_12.zip'; assert hashlib.sha256(open(p,'rb').read()).hexdigest()=='45c03f52243da61dc68962798085deec9152935c9845698b20d0890687a6d9c7'; zipfile.ZipFile(p).extractall('baseline')"
+          if($LASTEXITCODE -ne 0){throw 'Baseline mismatch'}
+          New-Item -ItemType Directory receiver-candidate -Force|Out-Null
+          dotnet run --project qa/angra37/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll receiver-candidate/Pet.dll
+          if($LASTEXITCODE -ne 0){throw 'Scope verification failed'}
+      - uses: actions/upload-artifact@v4
+        with: {name: ANGRA37-PET114-receiver-candidate-NOT-PUBLISHED, path: 'receiver-candidate/'}
+      - uses: actions/upload-artifact@v4
+        with: {name: ANGRA37-receiver-scope-evidence, path: integration-evidence/}
