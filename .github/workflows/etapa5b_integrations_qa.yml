@@ -34,6 +34,11 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Helper compile failed'}
           dotnet run --project qa/etapa5b/windows/Probe.csproj -c Release 2>&1 | Tee-Object integration-evidence/windows.txt
           if($LASTEXITCODE -ne 0){throw 'Native Windows probe failed'}
+      - name: Compile and test prepared SpeedFood completion seam - SQLite and synthetic wire only
+        shell: pwsh
+        run: |
+          dotnet run --project qa/etapa5b/speedfood/CompletionTests.csproj -c Release 2>&1 | Tee-Object integration-evidence/speedfood-completion.txt
+          if($LASTEXITCODE -ne 0){throw 'SpeedFood completion tests failed'}
       - name: Produce candidate PET from exact approved 1.12 - preserve every unrelated method/resource
         shell: pwsh
         run: |
@@ -42,6 +47,8 @@ jobs:
           New-Item -ItemType Directory candidate-only -Force|Out-Null
           dotnet run --project qa/etapa5b/windows/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll candidate-only/Pet.dll
           if($LASTEXITCODE -ne 0){throw 'Candidate patch scope failed'}
+          dotnet run --project qa/etapa5b/windows/Probe.csproj -c Release -- candidate-only/Pet.dll 2>&1 | Tee-Object integration-evidence/patched-pet-bridge.txt
+          if($LASTEXITCODE -ne 0){throw 'Patched PET bridge runtime failed'}
           python qa/etapa5b/package_candidate.py
           if($LASTEXITCODE -ne 0){throw 'Candidate packaging failed'}
       - uses: actions/upload-artifact@v4
@@ -62,6 +69,9 @@ jobs:
       - uses: actions/setup-java@v4
         with: {distribution: temurin, java-version: '17'}
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.9'}
       - name: Compile isolated Android QA005 package

@@ -52,13 +52,17 @@ static class Patcher
    // Keep existing branches to ret valid: replace ret itself with ldarg rather than inserting before it.
    ret.OpCode=OpCodes.Ldarg_0;entry.InsertAfter(ret,entry.Create(OpCodes.Call,boot));entry.InsertAfter(ret.Next,entry.Create(OpCodes.Ret));
   }
-  var changed=new HashSet<string>{init.FullName};
+  var customize=all.Single(t=>t.FullName=="ProfileExtension").Methods.Single(m=>m.Name=="Customize");
+  var cil=customize.Body.GetILProcessor();foreach(var ret in customize.Body.Instructions.Where(i=>i.OpCode==OpCodes.Ret).ToArray()){
+   ret.OpCode=OpCodes.Ldarg_1;cil.InsertAfter(ret,cil.Create(OpCodes.Call,boot));cil.InsertAfter(ret.Next,cil.Create(OpCodes.Ret));
+  }
+  var changed=new HashSet<string>{init.FullName,customize.FullName};
   foreach(var m in all.SelectMany(t=>t.Methods))if(!changed.Contains(m.FullName)&&MethodSignature(m)!=methods[m.FullName])throw new Exception("Unrelated original method changed");
   foreach(var r in assembly.MainModule.Resources.OfType<EmbeddedResource>().Where(r=>resources.ContainsKey(r.Name)))if(Hash(r.GetResourceData())!=resources[r.Name])throw new Exception("Original resource changed: "+r.Name);
   assembly.Write(args[2]);using var check=AssemblyDefinition.ReadAssembly(args[2]);
   if(Metadata(check,"PetIdentity")!="005"||Metadata(check,"PetVersion")!="1.13")throw new Exception("Output metadata mismatch");
   foreach(var method in check.MainModule.Types.SelectMany(Types).SelectMany(t=>t.Methods))if(methods.ContainsKey(method.FullName)&&!changed.Contains(method.FullName)&&MethodSignature(method)!=methods[method.FullName])throw new Exception("Unrelated method differs after write: "+method.FullName);
   Directory.CreateDirectory("integration-evidence");File.WriteAllText("integration-evidence/patch-scope.json",JsonSerializer.Serialize(new{Pass=true,Identity="005",From="1.12",To="1.13",OnlyOriginalMethodsChanged=changed.ToArray(),OtherOriginalMethodsIdentical=true,AllOriginalResourcesIdentical=true,MediaSHA256=resources["ANGRA.Opening.mp4"],CoreAndNotifierRecompiled=false,HelperEmbedded=true}));
-  Console.WriteLine("PASS QA pairing-resume constructor hook only; approved resources and all unrelated PET methods unchanged");return 0;
+  Console.WriteLine("PASS QA pairing-resume pairing constructor and PET customization hooks only; approved resources and all unrelated PET methods unchanged");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }
