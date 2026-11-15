@@ -1,0 +1,36 @@
+name: ETAPA5 - selective comparison QA37 - no publication
+on:
+  push:
+    branches: [qa/etapa5-selective-20261115]
+    paths: ['qa/etapa5-selective/**', '.github/workflows/etapa5_selective_qa.yml']
+permissions: {contents: read}
+jobs:
+  selective:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Compare pinned 34 and 37 components and approved QA package
+        run: python qa/etapa5-selective/compare.py
+      - name: Existing component selection and staging regression - bounded scope
+        shell: pwsh
+        run: |
+          dotnet run --project qa/organization/ComponentTests.csproj -c Release 2>&1 | Tee-Object etapa5-evidence/component-tests.txt
+          if($LASTEXITCODE -ne 0){throw 'Component contract regression'}
+      - name: Actual QA005 package isolation and negative cases
+        shell: pwsh
+        run: |
+          dotnet run --project etapa5-qa-fixture/QaStaging.csproj -c Release 2>&1 | Tee-Object etapa5-evidence/qa-staging.txt
+          if($LASTEXITCODE -ne 0){throw 'QA005 package isolation failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ETAPA5-QA37-COMPARISON-AND-TESTS
+          path: |
+            etapa5-evidence/
+            pair-evidence/component-tests.json
