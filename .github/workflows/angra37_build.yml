@@ -41,13 +41,13 @@ jobs:
         run: gradle :app:assembleDebug --no-daemon
       - name: Build updated APK and new instrumentation
         working-directory: candidate/mobile/vidraceiro
-        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+        run: gradle :app:assembleRelease :app:assembleDebugAndroidTest --no-daemon
       - name: Verify APK signature and exact preserved UI assets
         run: |
           mkdir -p delivery
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs candidate/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk > delivery/signature.txt
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs candidate/mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk > delivery/signature.txt
           diff -qr baseline/mobile/vidraceiro/app/src/main/res candidate/mobile/vidraceiro/app/src/main/res
-          cp candidate/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk delivery/ANGRA_VIDROS_0.4.0_QA37.apk
+          cp candidate/mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk delivery/ANGRA_VIDROS_0.4.0_QA37.apk
           sha256sum delivery/ANGRA_VIDROS_0.4.0_QA37.apk > delivery/SHA256.txt
       - name: Enable disposable Android emulator
         run: |
