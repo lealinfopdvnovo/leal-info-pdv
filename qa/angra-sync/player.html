@@ -1,0 +1,10 @@
+<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none';media-src https://angra-opening.local;style-src 'unsafe-inline';script-src 'unsafe-inline'"><style>html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden}video{width:100%;height:100%;object-fit:contain}</style></head><body><video id="v" preload="auto" playsinline src="https://angra-opening.local/abertura.mp4"></video><script>
+const v=document.getElementById('v');let started=false,finished=false;
+const voiceStart=1.75,voiceEnd=7.414,fadeStart=8.35;
+v.muted=false;v.volume=1;v.loop=false;
+v.oncanplay=()=>{if(started)return;started=true;v.currentTime=0;setTimeout(()=>v.play().catch(()=>chrome.webview.postMessage({type:'error'})),300);};
+v.onplaying=()=>chrome.webview.postMessage({type:'playing',audible:!v.muted&&v.volume>0});
+v.ontimeupdate=()=>chrome.webview.postMessage({type:'time',seconds:v.currentTime});
+v.onended=()=>{if(finished)return;finished=true;chrome.webview.postMessage({type:'time',seconds:v.currentTime});if(v.currentTime<fadeStart){chrome.webview.postMessage({type:'error'});return;}setTimeout(()=>chrome.webview.postMessage({type:'ended'}),350);};
+v.onerror=()=>chrome.webview.postMessage({type:'error'});v.load();
+</script></body></html>
