@@ -1,0 +1,89 @@
+name: ANGRA QA005 - integration candidate ONLY - NO PUBLISH
+on:
+  push:
+    branches: [qa/etapa5b-integrations-20261115]
+    paths: ['qa/etapa5b/**', '.github/workflows/etapa5b_integrations_qa.yml']
+permissions: {contents: read}
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Signed protocol - memory R2 only - no live clients
+        run: |
+          mkdir -p integration-evidence
+          node --test qa/etapa5b/gateway/scripts/*.test.mjs | tee integration-evidence/gateway.txt
+          test "${PIPESTATUS[0]}" = 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: QA005-protocol-evidence, path: integration-evidence/}
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Compile native pairing continuation and Windows fixture
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory integration-evidence -Force|Out-Null
+          dotnet build qa/etapa5b/windows/Resume.csproj -c Release -o helper
+          if($LASTEXITCODE -ne 0){throw 'Helper compile failed'}
+          dotnet run --project qa/etapa5b/windows/Probe.csproj -c Release 2>&1 | Tee-Object integration-evidence/windows.txt
+          if($LASTEXITCODE -ne 0){throw 'Native Windows probe failed'}
+      - name: Produce candidate PET from exact approved 1.12 - preserve every unrelated method/resource
+        shell: pwsh
+        run: |
+          python -c "import zipfile,hashlib; p='qa/etapa4-setup/channel/ANGRA_005_PET_1_12.zip'; assert hashlib.sha256(open(p,'rb').read()).hexdigest()=='45c03f52243da61dc68962798085deec9152935c9845698b20d0890687a6d9c7'; zipfile.ZipFile(p).extractall('baseline')"
+          if($LASTEXITCODE -ne 0){throw 'Pinned QA baseline mismatch'}
+          New-Item -ItemType Directory candidate-only -Force|Out-Null
+          dotnet run --project qa/etapa5b/windows/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll candidate-only/Pet.dll
+          if($LASTEXITCODE -ne 0){throw 'Candidate patch scope failed'}
+          python qa/etapa5b/package_candidate.py
+          if($LASTEXITCODE -ne 0){throw 'Candidate packaging failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: QA005-Windows-evidence, path: integration-evidence/}
+      - uses: actions/upload-artifact@v4
+        with: {name: QA005-PET113-CANDIDATE-NOT-PUBLISHED, path: candidate-only/}
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with: {ref: acb72ed0d1025faa309efffa35a6a94f205fd7c7, path: android-source}
+      - name: Overlay QA only - production package and endpoints unchanged
+        run: python controller/qa/etapa5b/prepare_android.py
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.9'}
+      - name: Compile isolated Android QA005 package
+        working-directory: android-source/mobile/vidraceiro
+        run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+      - name: Enable disposable emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: python controller/qa/etapa5b/test_android.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: QA005-Android-evidence-and-isolated-APK
+          path: |
+            integration-evidence/
+            android-source/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
