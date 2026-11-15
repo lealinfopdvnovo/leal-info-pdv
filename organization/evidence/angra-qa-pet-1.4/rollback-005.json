@@ -1,0 +1,100 @@
+[
+  {
+    "BaseAndDataUnchanged": true,
+    "ProtectedHashes": {
+      "LealInfoPDV.deps.json": "0947c1d56c1485f8cd0c40c4d559bd709bc17418a91f652322f1ad648eed3b07",
+      "customer.db": "858ffce9fa6a9406412c0658cd16d4b4bea47b0e6a447c1c12bac9eae6350bc5",
+      "license.protected": "e1424314b9e1e2619fd615ccea26b1af46817864e35f41a2b9452305fb89d72f",
+      "LealInfoPDV.dll": "6d8826118a770fffc68d03d0d091c38f184309ee82faa0babb405aa7c72dbc20",
+      "LealInfoPDV.exe": "dfc78c8403388488fb2743247ba740f591c952818c333a871c52c35a80b4f5ce"
+    },
+    "Pass": true,
+    "Identity": "005",
+    "Scenario": "success",
+    "OperationalCustomer": false
+  },
+  {
+    "BaseAndDataUnchanged": true,
+    "ProtectedHashes": {
+      "LealInfoPDV.deps.json": "0947c1d56c1485f8cd0c40c4d559bd709bc17418a91f652322f1ad648eed3b07",
+      "customer.db": "858ffce9fa6a9406412c0658cd16d4b4bea47b0e6a447c1c12bac9eae6350bc5",
+      "license.protected": "e1424314b9e1e2619fd615ccea26b1af46817864e35f41a2b9452305fb89d72f",
+      "LealInfoPDV.dll": "6d8826118a770fffc68d03d0d091c38f184309ee82faa0babb405aa7c72dbc20",
+      "LealInfoPDV.exe": "dfc78c8403388488fb2743247ba740f591c952818c333a871c52c35a80b4f5ce"
+    },
+    "Pass": true,
+    "Identity": "005",
+    "Scenario": "bad-hash",
+    "OperationalCustomer": false
+  },
+  {
+    "BaseAndDataUnchanged": true,
+    "ProtectedHashes": {
+      "LealInfoPDV.deps.json": "0947c1d56c1485f8cd0c40c4d559bd709bc17418a91f652322f1ad648eed3b07",
+      "customer.db": "858ffce9fa6a9406412c0658cd16d4b4bea47b0e6a447c1c12bac9eae6350bc5",
+      "license.protected": "e1424314b9e1e2619fd615ccea26b1af46817864e35f41a2b9452305fb89d72f",
+      "LealInfoPDV.dll": "6d8826118a770fffc68d03d0d091c38f184309ee82faa0babb405aa7c72dbc20",
+      "LealInfoPDV.exe": "dfc78c8403388488fb2743247ba740f591c952818c333a871c52c35a80b4f5ce"
+    },
+    "Pass": true,
+    "Identity": "005",
+    "Scenario": "wrong-identity",
+    "OperationalCustomer": false
+  },
+  {
+    "BaseAndDataUnchanged": true,
+    "ProtectedHashes": {
+      "LealInfoPDV.deps.json": "0947c1d56c1485f8cd0c40c4d559bd709bc17418a91f652322f1ad648eed3b07",
+      "customer.db": "858ffce9fa6a9406412c0658cd16d4b4bea47b0e6a447c1c12bac9eae6350bc5",
+      "license.protected": "e1424314b9e1e2619fd615ccea26b1af46817864e35f41a2b9452305fb89d72f",
+      "LealInfoPDV.dll": "6d8826118a770fffc68d03d0d091c38f184309ee82faa0babb405aa7c72dbc20",
+      "LealInfoPDV.exe": "dfc78c8403388488fb2743247ba740f591c952818c333a871c52c35a80b4f5ce"
+    },
+    "Pass": true,
+    "Identity": "005",
+    "Scenario": "wrong-manifest",
+    "OperationalCustomer": false
+  },
+  {
+    "BaseAndDataUnchanged": true,
+    "ProtectedHashes": {
+      "LealInfoPDV.deps.json": "0947c1d56c1485f8cd0c40c4d559bd709bc17418a91f652322f1ad648eed3b07",
+      "customer.db": "858ffce9fa6a9406412c0658cd16d4b4bea47b0e6a447c1c12bac9eae6350bc5",
+      "license.protected": "e1424314b9e1e2619fd615ccea26b1af46817864e35f41a2b9452305fb89d72f",
+      "LealInfoPDV.dll": "6d8826118a770fffc68d03d0d091c38f184309ee82faa0babb405aa7c72dbc20",
+      "LealInfoPDV.exe": "dfc78c8403388488fb2743247ba740f591c952818c333a871c52c35a80b4f5ce"
+    },
+    "Pass": true,
+    "Identity": "005",
+    "Scenario": "tampered-stage",
+    "OperationalCustomer": false
+  },
+  {
+    "BaseAndDataUnchanged": true,
+    "ProtectedHashes": {
+      "LealInfoPDV.deps.json": "0947c1d56c1485f8cd0c40c4d559bd709bc17418a91f652322f1ad648eed3b07",
+      "customer.db": "858ffce9fa6a9406412c0658cd16d4b4bea47b0e6a447c1c12bac9eae6350bc5",
+      "license.protected": "e1424314b9e1e2619fd615ccea26b1af46817864e35f41a2b9452305fb89d72f",
+      "LealInfoPDV.dll": "6d8826118a770fffc68d03d0d091c38f184309ee82faa0babb405aa7c72dbc20",
+      "LealInfoPDV.exe": "dfc78c8403388488fb2743247ba740f591c952818c333a871c52c35a80b4f5ce"
+    },
+    "Pass": true,
+    "Identity": "005",
+    "Scenario": "interruption-system-recovery",
+    "OperationalCustomer": false
+  },
+  {
+    "BaseAndDataUnchanged": true,
+    "ProtectedHashes": {
+      "LealInfoPDV.deps.json": "0947c1d56c1485f8cd0c40c4d559bd709bc17418a91f652322f1ad648eed3b07",
+      "customer.db": "858ffce9fa6a9406412c0658cd16d4b4bea47b0e6a447c1c12bac9eae6350bc5",
+      "license.protected": "e1424314b9e1e2619fd615ccea26b1af46817864e35f41a2b9452305fb89d72f",
+      "LealInfoPDV.dll": "6d8826118a770fffc68d03d0d091c38f184309ee82faa0babb405aa7c72dbc20",
+      "LealInfoPDV.exe": "dfc78c8403388488fb2743247ba740f591c952818c333a871c52c35a80b4f5ce"
+    },
+    "Pass": true,
+    "Identity": "005",
+    "Scenario": "health-failure",
+    "OperationalCustomer": false
+  }
+]

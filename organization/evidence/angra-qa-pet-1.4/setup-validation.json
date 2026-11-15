@@ -1,0 +1,20 @@
+{
+  "OldQAUnchanged": true,
+  "FreshFunctionalQABuild": true,
+  "Pass": true,
+  "SetupSha256": "315b1b5a05de36a80c29d63a4e1354baf5552a1968f572fd55c5242994825d70",
+  "ExistingDataUnchanged": true,
+  "ProductionCanariesUnchanged": true,
+  "ExternalPetIdentity": "005",
+  "DirectoryOverrideRejected": true,
+  "GenuineActivationObserved": true,
+  "SeparateWritableRoots": true,
+  "InstalledInSeparateFolder": true,
+  "ExistingDestinationPreserved": true,
+  "MigrationValidated": false,
+  "LicenseBypassed": false,
+  "LicensedLoginTested": false,
+  "BridgeFromExactPreviousQA": true,
+  "ExternalPetVersion": "1.3",
+  "ProductionUpdated": false
+}
