@@ -2,7 +2,7 @@ package br.com.lealinfo.vidraceiro;
 import android.content.Context;import android.security.keystore.KeyGenParameterSpec;import android.security.keystore.KeyProperties;import android.util.Base64;
 import java.io.*;import java.net.*;import java.nio.charset.StandardCharsets;import java.security.*;import java.security.spec.ECGenParameterSpec;import java.util.UUID;import org.json.JSONObject;
 final class SecureGateway {
- static final String ENDPOINT="https://angra-vidros-gateway.classyglobe9.chatgpt.site";
+ static final String ENDPOINT="https://angra-vidros-qa37.adriansantosangra.chatgpt.site";
  private static final String ALIAS="angra-vidros-device-v1";
  static final class AuthorizationRequired extends Exception {final String url;AuthorizationRequired(String url){super("A integração estruturada exige autorização do aparelho.");this.url=url;}}
  private static synchronized KeyStore keys()throws Exception{KeyStore k=KeyStore.getInstance("AndroidKeyStore");k.load(null);if(!k.containsAlias(ALIAS)){KeyPairGenerator g=KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC,"AndroidKeyStore");g.initialize(new KeyGenParameterSpec.Builder(ALIAS,KeyProperties.PURPOSE_SIGN|KeyProperties.PURPOSE_VERIFY).setAlgorithmParameterSpec(new ECGenParameterSpec("secp256r1")).setDigests(KeyProperties.DIGEST_SHA256).build());g.generateKeyPair();}return k;}

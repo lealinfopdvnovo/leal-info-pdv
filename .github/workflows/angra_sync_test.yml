@@ -1,7 +1,5 @@
 name: ANGRA 0.3.6 explicit-send regression Android to PDV 10.415
-on:
-  pull_request:
-    branches: ['feature/app-vidraceiro-android-foundation']
+on: workflow_dispatch
 permissions: {contents: read, actions: read, id-token: write}
 jobs:
   windows:
