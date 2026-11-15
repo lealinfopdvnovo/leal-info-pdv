@@ -27,3 +27,13 @@ Organizar a separação GLOBAL/PET na nova arquitetura e realizar transbordo seg
 Revisar e aprovar escopo da Etapa 5 antes de redigir/enviar o comando definitivo ao Work.
 
 Ver também: `BAU-DE-OURO/PAINEL-MESTRE.md` e `BAU-DE-OURO/DIARIO-DE-CONTINUIDADE.md`.
+
+## Regra de execução definida pelo proprietário — 2026-11-15
+**MIGRAÇÃO SELETIVA E PROGRESSIVA, NÃO ESPELHAMENTO.**
+- Etapas 1–4: homologadas pelo proprietário; não repetir testes completos sem causa identificada.
+- Etapa 5: homologar rapidamente a organização GLOBAL/PET e implementar somente o necessário em QA 37, importando do 34 apenas arquivos/dependências essenciais, comprovados e compatíveis. Testar o que mudar.
+- Etapa 6: no transbordo autorizado de cada cliente, reavaliar arquivos do 34 não migrados na etapa 5; preferir solução já existente no 37 ou alternativa mais eficiente quando tecnicamente viável; importar apenas o estritamente necessário.
+- Etapa 7: repetir avaliação para lacunas remanescentes e homologar o conjunto, sem espelhamento.
+- Não apagar ou modificar acervo 34; arquivo não importado continua disponível, não é automaticamente obsoleto.
+- Preservar funcionalidades homologadas do 37, isolamento GLOBAL/PET e atualizações; não tocar produção nem iniciar etapas posteriores sem aprovação.
+**Status:** planejamento registrado, não implementação executada.
