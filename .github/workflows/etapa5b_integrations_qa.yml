@@ -74,6 +74,11 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.9'}
+      - name: Disposable signing identity for the separate QA package only
+        shell: bash
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 7 -dname "CN=Disposable QA005" -noprompt
       - name: Compile isolated Android QA005 package
         working-directory: android-source/mobile/vidraceiro
         run: gradle :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
