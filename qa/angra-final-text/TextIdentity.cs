@@ -11,7 +11,7 @@ public static class Identity
   if(!File.Exists(path)||Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant()!="027179684aab68e76da9d1d81ae20b523bf07ae3a401e8eae658c58b481704da")return;
   using var source=new Bitmap(path);
   if(picture.Image.Size!=source.Size)return;
-  static byte[] Encode(Image image){using var m=new MemoryStream();image.Save(m,System.Drawing.Imaging.ImageFormat.Png);return System.Security.Cryptography.SHA256.HashData(m.ToArray());}
+  static byte[] Encode(Image image){using var normalized=new Bitmap(image.Width,image.Height,System.Drawing.Imaging.PixelFormat.Format32bppArgb);using(var g=Graphics.FromImage(normalized))g.DrawImageUnscaled(image,0,0);using var m=new MemoryStream();normalized.Save(m,System.Drawing.Imaging.ImageFormat.Png);return System.Security.Cryptography.SHA256.HashData(m.ToArray());}
   if(!Encode(picture.Image).SequenceEqual(Encode(source)))return; // retain any owner-selected custom artwork
   var edited=new Bitmap(source);
   using(var g=Graphics.FromImage(edited)){
