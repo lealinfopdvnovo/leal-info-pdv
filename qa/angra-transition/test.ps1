@@ -4,6 +4,9 @@ $app=Join-Path $env:ProgramFiles 'LEAL INFO PDV - TESTE ANGRA ETAPA4 CORRIGIDO'
 $setup=(Resolve-Path bundle/LEAL_INFO_ANGRA_QA_ATUALIZADOR.exe).Path
 if((Get-FileHash $setup).Hash.ToLowerInvariant() -ne '315b1b5a05de36a80c29d63a4e1354baf5552a1968f572fd55c5242994825d70'){throw 'Approved QA installer hash mismatch'}
 if(!(Test-Path (Join-Path $app 'LealInfoPDV.dll'))){throw 'Approved baseline must already be installed'}
+# Stop only the auto-started QA notifier in this disposable runner to isolate screen capture.
+$qaRoot=Join-Path $env:LOCALAPPDATA 'LEAL-INFO-QA/ANGRA-ETAPA4-20261114'
+Get-Process -Name 'LealInfoPDV.Notificador' -ErrorAction SilentlyContinue|Where-Object {$_.Path -and $_.Path.StartsWith($qaRoot,[StringComparison]::OrdinalIgnoreCase)}|Stop-Process -Force
 Copy-Item baseline/Extensions/PET/* (Join-Path $app 'Extensions/PET/') -Force
 $protected=@{}
 foreach($name in @('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json')){$protected[$name]=(Get-FileHash (Join-Path $app $name)).Hash}

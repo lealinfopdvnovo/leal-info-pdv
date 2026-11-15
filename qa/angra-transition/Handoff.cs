@@ -97,10 +97,19 @@ public static class Handoff
   if(finished)return;finished=true;completedAt=Clock.Elapsed.TotalSeconds;Poll.Stop();LoadWatchdog.Stop();Poll.Tick-=Observe;
   var actualLogin=login;if(actualLogin!=null&&!actualLogin.IsDisposed)actualLogin.Enabled=originalEnabled;
   try{view?.CoreWebView2?.Stop();}catch{}
-  view?.Dispose();if(opening!=null&&!opening.IsDisposed){opening.Close();opening.Dispose();}
+  view?.Dispose();
+  var retiringOwner=opening;
+  bool retainOwner=success&&actualLogin!=null&&!actualLogin.IsDisposed&&retiringOwner!=null&&!retiringOwner.IsDisposed;
+  if(retainOwner){
+   // ShowDialog may retain a native modal owner even when Form.Owner is null.
+   // Keep that owner alive, fully transparent and below the actual login until it closes.
+   retiringOwner!.Opacity=0;retiringOwner.TopMost=false;retiringOwner.Name="AngraTransitionOwner";
+   SetWindowPos(retiringOwner.Handle,new IntPtr(1),0,0,0,0,0x0013);
+   actualLogin!.FormClosed+=(_,_)=>{if(!retiringOwner.IsDisposed){retiringOwner.Close();retiringOwner.Dispose();}};
+  }else if(retiringOwner!=null&&!retiringOwner.IsDisposed){retiringOwner.Close();retiringOwner.Dispose();}
   if(success&&actualLogin!=null&&!actualLogin.IsDisposed)actualLogin.Activate();
   File.WriteAllText(Path.Combine(QaIsolation.LocalRoot,"opening-result.json"),JsonSerializer.Serialize(new{Identity="005",Version=version,Played=played,Ended=ended,LastSeconds=last,Offline=true,VideoHash=MediaHash,Error=error}));
-  File.WriteAllText(Path.Combine(QaIsolation.LocalRoot,"transition-result.json"),JsonSerializer.Serialize(new{Identity="005",Version=version,Pass=success&&error==null,CoverStarted=coveredAt,LoginObserved=loginAt,LoginReady=readyAt,MediaEnded=endedAt,FadeStarted=fadeAt,CoverRetired=completedAt,OpaqueLoginAtReveal=minimumOpacity,FadeFrames=fadeFrames,FadeSeconds=0.65,FullMonitorBounds=new{bounds.X,bounds.Y,bounds.Width,bounds.Height},LoginPreparedBeforeCoverRetired=success&&readyAt>=0&&completedAt>readyAt,LoginPreparedBeforeMediaEnded=success&&readyAt>=0&&endedAt>readyAt,MediaChanged=false,Error=error}));
+  File.WriteAllText(Path.Combine(QaIsolation.LocalRoot,"transition-result.json"),JsonSerializer.Serialize(new{Identity="005",Version=version,Pass=success&&error==null,CoverStarted=coveredAt,LoginObserved=loginAt,LoginReady=readyAt,MediaEnded=endedAt,FadeStarted=fadeAt,CoverRetired=completedAt,OpaqueLoginAtReveal=minimumOpacity,FadeFrames=fadeFrames,FadeSeconds=0.65,FullMonitorBounds=new{bounds.X,bounds.Y,bounds.Width,bounds.Height},LoginPreparedBeforeCoverRetired=success&&readyAt>=0&&completedAt>readyAt,LoginPreparedBeforeMediaEnded=success&&readyAt>=0&&endedAt>readyAt,MediaChanged=false,OwnerRetainedUntilLoginClosed=retainOwner,Error=error}));
   login=null;opening=null;view=null;Poll.Dispose();LoadWatchdog.Dispose();
  }
 }

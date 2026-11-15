@@ -80,7 +80,8 @@ static class Probe
       if((DateTime.UtcNow-finishedAt.Value).TotalMilliseconds>=250){
        Check(login.Visible&&login.Enabled&&login.Opacity>=0.999&&login.Bounds==screen,"real login opaque and covering the complete monitor at handoff");
        Check(Walk(login).Any(c=>c.Text=="ANGRA")&&Walk(login).Any(c=>c.Text=="VIDROS"),"approved ANGRA identity retained");
-       Check(!Application.OpenForms.Cast<Form>().Any(f=>f.Name=="AngraOpening"),"temporary cover removed after readiness without orphan windows");
+       Check(!Application.OpenForms.Cast<Form>().Any(f=>f.Name=="AngraOpening"),"visible opening retired after login readiness");
+       Check(Application.OpenForms.Cast<Form>().Where(f=>f.Name=="AngraTransitionOwner").All(f=>f.Opacity==0&&!f.TopMost),"native modal owner retained fully transparent below login");
        using var image=new Bitmap(screen.Width,screen.Height);using(var graphics=Graphics.FromImage(image))graphics.CopyFromScreen(screen.Location,Point.Empty,screen.Size);image.Save(Path.Combine(output,"real-login.png"));
        loginValidated=true;guard=false;observer.Stop();login.Close();
       }
@@ -93,6 +94,7 @@ static class Probe
    Thread.Sleep(600);var delay=Stopwatch.StartNew();while(delay.ElapsedMilliseconds<700){Application.DoEvents();Thread.Sleep(10);}
    using(login=new LoginForm()){login.ShowDialog();}
    guard=false;cancellation.Cancel();sampler.GetAwaiter().GetResult();observer.Stop();
+   Check(!Application.OpenForms.Cast<Form>().Any(f=>f.Name=="AngraTransitionOwner"),"retained modal owner disposed after login closes");
    Check(loginValidated&&blendSaved,"continuous fade to the genuine login completed");
    Check(frames>=20&&desktopFrames==0&&foreignFrames==0,"no synthetic desktop pixels or foreign desktop/taskbar windows exposed in sampled transition frames");
    using var transition=JsonDocument.Parse(File.ReadAllText(Path.Combine(QaIsolation.LocalRoot,"transition-result.json")));var tr=transition.RootElement;
