@@ -1,4 +1,4 @@
-name: ANGRA37 - quote flow tutorial APK042 PET117
+name: ANGRA37 - quote flow tutorial APK042 PET118
 on:
   push:
     branches: [qa/angra37-flow-tutorial-20261116]
@@ -91,7 +91,7 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Windows test failed'}
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: ANGRA37-PET117-candidate, path: 'receiver-candidate/'}
+        with: {name: ANGRA37-PET118-candidate, path: 'receiver-candidate/'}
       - uses: actions/upload-artifact@v4
         if: always()
         with: {name: ANGRA37-tutorial-Windows-evidence, path: integration-evidence/}
