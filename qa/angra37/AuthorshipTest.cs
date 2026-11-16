@@ -15,6 +15,8 @@ static class Program{static void Main(string[] args){
  if(tp==null||tp.GetProperty("DeviceId",BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)==null)throw new Exception("PDV owner administration transport contract not found");
  using(var form=new LealInfoPDV.AngraPairingForm()){
  AngraQaIntegration.Resume.Apply(form);AngraQaIntegration.Resume.Apply(form);
+ if(form.Controls.Find("AngraEmployeeTutorial",true).Length!=1)throw new Exception("Employee tutorial missing or duplicated");
+ using(var guide=new AngraQaIntegration.EmployeeTutorial.Guide(form,form.Controls.Find("AngraOwnerAdministration",true)[0])){guide.Show(form);System.Windows.Forms.Application.DoEvents();guide.MoveStep(1);if(guide.Step!=1)throw new Exception("Next failed");guide.MoveStep(-1);if(guide.Step!=0)throw new Exception("Back failed");for(int i=0;i<9;i++)guide.MoveStep(1);if(guide.Step!=6)throw new Exception("Step bound failed");guide.Restart();if(guide.Step!=0)throw new Exception("Replay failed");guide.Size=new System.Drawing.Size(320,420);guide.Close();}
  if(form.Controls.Find("AngraOwnerAdministration",true).Length!=1)throw new Exception("Owner administration entry missing or duplicated");
  }
  Console.WriteLine("PASS Windows helper and actual patched PET bridge preserve author, legacy null and unrelated customers");

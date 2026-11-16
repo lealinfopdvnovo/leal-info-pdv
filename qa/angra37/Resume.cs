@@ -7,6 +7,7 @@ public static class Resume
 {
  static readonly ConditionalWeakTable<Form,Session> sessions=new();
  public static void Apply(Form form){
+  EmployeeTutorial.Observe();
   if(form.GetType().FullName!="LealInfoPDV.AngraPairingForm")return;
   var id=form.GetType().Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().SingleOrDefault(x=>x.Key=="PetIdentity")?.Value;
   if(id!="005"||sessions.TryGetValue(form,out _))return;
@@ -28,6 +29,7 @@ public static class Resume
    }catch(Exception e){MessageBox.Show(form,e.Message,"Administração da vidraçaria");}
   };
   flow.Controls.Add(button);flow.Controls.SetChildIndex(button,0);
+  EmployeeTutorial.Attach(form);
  }
  static IEnumerable<Control> All(Control parent){foreach(Control c in parent.Controls){yield return c;foreach(var child in All(c))yield return child;}}
  sealed class Session

@@ -1,7 +1,7 @@
-name: ANGRA37 - owner roles APK041 PET116
+name: ANGRA37 - quote flow tutorial APK042 PET117
 on:
   push:
-    branches: [qa/angra37-owner-roles-20261115]
+    branches: [qa/angra37-flow-tutorial-20261116]
 permissions: {contents: read, actions: read}
 jobs:
   security:
@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
-      - run: node --test qa/angra37/gateway/scripts/access.test.mjs
+      - run: node --test qa/angra37/gateway/scripts/access.test.mjs qa/angra37/gateway/scripts/csrf-form.test.mjs
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -42,7 +42,7 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk > delivery/signature.txt
           cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" delivery/apksigner.jar
           diff -qr baseline/mobile/vidraceiro/app/src/main/res mobile/vidraceiro/app/src/main/res
-          cp mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk delivery/ANGRA_VIDROS_0.4.1_QA37-emulator-signing.apk
+          cp mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk delivery/ANGRA_VIDROS_0.4.2_QA37-emulator-signing.apk
           sha256sum delivery/*.apk > delivery/SHA256.txt
       - name: Enable emulator
         run: |
@@ -60,13 +60,13 @@ jobs:
             adb install baseline/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
             adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 mkdir -p files
             adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 touch files/upgrade37-marker
-            adb install -r delivery/ANGRA_VIDROS_0.4.1_QA37-emulator-signing.apk
+            adb install -r delivery/ANGRA_VIDROS_0.4.2_QA37-emulator-signing.apk
             adb install mobile/vidraceiro/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w br.com.lealinfo.vidraceiro.ambiente37.test/br.com.lealinfo.vidraceiro.Access37Instrumentation > delivery/android-tests.txt
             grep -q 'PASS ANGRA37_ACCESS_COMPLETE' delivery/android-tests.txt
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: ANGRA37-APK041-owner-roles, path: delivery/, retention-days: 30}
+        with: {name: ANGRA37-APK042-flow-tutorial, path: delivery/, retention-days: 30}
   receiver:
     runs-on: windows-latest
     timeout-minutes: 15
@@ -89,7 +89,7 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Windows test failed'}
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: ANGRA37-PET116-candidate, path: 'receiver-candidate/'}
+        with: {name: ANGRA37-PET117-candidate, path: 'receiver-candidate/'}
       - uses: actions/upload-artifact@v4
         if: always()
-        with: {name: ANGRA37-owner-Windows-evidence, path: integration-evidence/}
+        with: {name: ANGRA37-tutorial-Windows-evidence, path: integration-evidence/}
