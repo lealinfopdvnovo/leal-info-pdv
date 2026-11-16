@@ -46,6 +46,10 @@ public static class SalesStyles {
   public string Get(string key)=>(string)main.GetMethod("GetSetting",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{key,""})!;
   public void Set(string key,string value)=>main.GetMethod("SetSetting",BindingFlags.Static|BindingFlags.NonPublic)!.Invoke(null,new object[]{key,value});
   public void Apply(bool remember){
+   var reset=graph.SelectMany(owner=>owner.GetType().GetMethods(Flags).Where(m=>m.Name.Contains("g__ApplySalesTheme")&&m.GetParameters().Length==1&&m.GetParameters()[0].ParameterType==typeof(string)).Select(method=>(Owner:owner,Method:method))).FirstOrDefault();
+   if(reset.Method==null)throw new InvalidOperationException("Aplicador de estilo indisponível.");
+   reset.Method.Invoke(reset.Owner,new object[]{"Futurista Azul"});
+   foreach(var owner in graph)if(owner.GetType().GetField("headerLine",Flags)?.GetValue(owner) is Control line)line.BackColor=Color.FromArgb(0,125,255);
    using var stream=typeof(SalesStyles).Assembly.GetManifestResourceStream("Angra.Qa005.BlueTexture")??throw new InvalidOperationException("Textura não incluída.");
    using var original=Image.FromStream(stream);var next=new Bitmap(original);var previous=textureField.GetValue(textureOwner) as Image;
    textureField.SetValue(textureOwner,next);
