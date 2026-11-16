@@ -1,7 +1,7 @@
 using System.Drawing;using System.Drawing.Imaging;using System.Reflection;using System.Windows.Forms;using AngraQaIntegration;
 static class Program {
  static void Check(bool b,string s){if(!b)throw new Exception(s);}
- static Bitmap Fixture(Color bg){var b=new Bitmap(420,420);using var g=Graphics.FromImage(b);g.Clear(bg);using var f=new Font("Segoe UI",40,FontStyle.Bold);g.DrawString("ANGRA",f,Brushes.Silver,60,145);g.DrawString("VIDROS",new Font("Segoe UI",24,FontStyle.Bold),Brushes.DeepSkyBlue,100,210);g.FillRectangle(Brushes.Black,180,167,5,5);return b;}
+ static Bitmap Fixture(Color bg){var b=new Bitmap(420,420);using var g=Graphics.FromImage(b);g.Clear(bg);using var f=new Font("Segoe UI",40,FontStyle.Bold);g.DrawString("ANGRA",f,Brushes.Silver,60,145);g.DrawString("VIDROS",new Font("Segoe UI",24,FontStyle.Bold),Brushes.DeepSkyBlue,100,210);g.FillRectangle(Brushes.Silver,170,160,25,25);g.FillRectangle(Brushes.Black,180,167,5,5);return b;}
  static void Pump(){for(int i=0;i<8;i++){Application.DoEvents();Thread.Sleep(15);}}
  [STAThread]static void Main(string[] args){
   Directory.CreateDirectory("integration-evidence");Application.EnableVisualStyles();

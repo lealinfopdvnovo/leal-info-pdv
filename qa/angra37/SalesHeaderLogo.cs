@@ -3,7 +3,7 @@ namespace AngraQaIntegration;
 /// <summary>Display-only treatment of QA005 sales header; never writes branding settings or source assets.</summary>
 public static class SalesHeaderLogo {
  static bool watching;static readonly ConditionalWeakTable<PictureBox,State> states=new();
- static bool QaPetLoaded()=>AppDomain.CurrentDomain.GetAssemblies().Any(a=>a.GetType("ProfileExtension",false)!=null&&a.GetCustomAttributes<AssemblyMetadataAttribute>().Any(x=>x.Key=="PetIdentity"&&x.Value=="005"));
+ static bool QaPetLoaded()=>AppDomain.CurrentDomain.GetAssemblies().Any(a=>a.GetManifestResourceNames().Contains("ANGRA.IntegrationQA.Helper")&&a.GetCustomAttributes<AssemblyMetadataAttribute>().Any(x=>x.Key=="PetIdentity"&&x.Value=="005"));
  public static void Observe(){if(watching||!QaPetLoaded())return;watching=true;Application.Idle+=Scan;Scan(null,EventArgs.Empty);}
  static IEnumerable<Control> All(Control c){yield return c;foreach(Control x in c.Controls)foreach(var y in All(x))yield return y;}
  static void Scan(object? s,EventArgs e){foreach(Form form in Application.OpenForms.Cast<Form>().ToArray())foreach(var box in All(form).OfType<PictureBox>().Where(x=>x.Name=="sales_company_logo"))if(!states.TryGetValue(box,out _))states.Add(box,new State(box));}
