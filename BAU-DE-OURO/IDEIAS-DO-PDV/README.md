@@ -15,5 +15,6 @@ Banco de ideias do proprietário para evolução futura do LEAL INFO PDV.
 3. [Encerramento assistido do caixa](03-ENCERRAMENTO-ASSISTIDO.md)
 4. [Papel de parede personalizado](04-FUNDO-PERSONALIZADO.md)
 5. [LEAL INFO Suporte Remoto](05-SUPORTE-REMOTO.md)
+6. [Simulador 3D de pintura automotiva — LEAL INFO Apps](06-SIMULADOR-3D-PINTURA-AUTOMOTIVA.md)
 
 Atualizar este índice sempre que surgir uma nova ideia. A animação inicial do menu AJUDA já está em desenvolvimento no QA; os demais desdobramentos são futuros.
