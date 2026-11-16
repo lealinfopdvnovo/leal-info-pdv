@@ -201,3 +201,44 @@ Relatório completo: commit871a2939a33bf15b3c8144960d74769ec79ca4c2, organizatio
 Teste físico de proprietário, funcionário, revogação, pareamento, foto/medidas/imagem e recebimento no PDV: **NÃO HOMOLOGADO**, depende dos equipamentos reais. Não declarar integração ponta a ponta aprovada nem Etapa5B concluída. Fotos permanecem no armazenamento privado Android; JSON cifrado AES-GCM. Acesso protegido exige confirmação recente de sessão; offline não implica apagamento remoto.
 
 GLOBAL 48d8f50f00a16bc2457b5ebd04383dfaf9cf16d1 e produção 6f641fc6941b573f94393a437191761243cfa69e preservados. Firebase, Speed Food, Alerta, demais clientes e ambiente34 intocados, sem backup real e sem Etapa6.
+
+## 2026-11-15 — Registro de teste real, falhas de orientação e pendência de transferência
+
+Registro solicitado expressamente por Adriano: salvar o ocorrido no Baú de Ouro. Este acréscimo preserva os registros anteriores; corrige o entendimento de continuidade e NÃO declara homologação final.
+
+### Fatos do teste relatados pelo proprietário
+- O atualizador do PDV informou PET1.15 instalado, enquanto o rodapé ainda exibia1.7. A divergência visual foi relatada e não deve ser tratada automaticamente como atualização não instalada nem exigir repetição sem diagnóstico.
+- A integração apresentou “Assinatura ou identidade inválida” e depois “Acesso seguro temporariamente indisponível”.
+- Após ajustes informados na conversa, o navegador passou a mostrar “PDV autorizado”; o usuário confirmou que o código apareceu no computador e que o aplicativo conectou. Isso comprova o pareamento RELATADO pelo usuário, não o envio completo de orçamento.
+- O usuário ainda não havia enviado um projeto de teste quando confirmou a conexão. Foto/medidas/imagem/recebimento e autoria no PDV continuam sem homologação ponta a ponta registrada aqui.
+- Houve rejeição da conta lealinfopdvnovo@gmail.com. A conversa informou correção da autorização QA e o usuário confirmou autorização/código/conexão posteriormente. Não registrar essa conta como proprietário comercial definitivo apenas por ter autorizado o teste.
+- O usuário confirmou depois que uma atualização chegou ao PDV e que existe botão de funcionário/proprietário na integração; ao clicar, abre página web solicitando nome completo, senha de oito caracteres, confirmação e configuração de proprietário.
+- Há referência posterior ao APK ANGRA_VIDROS_QA37_0.4.1.apk (libfile_4290fd6e0ea8819199167562574b6906). O registro anterior de entrega0.4.0/PET1.15 não pode ser apresentado como descrição suficiente dessa atualização posterior. Código, versão PET e transferência da atualização posterior NÃO foram verificados nesta ação de registro.
+
+### Decisão funcional do usuário — manter explícita
+Adriano está SOMENTE testando. O proprietário comercial definitivo será o dono do ANGRA VIDROS.
+O proprietário deve administrar a equipe pelo aplicativo E pela área Vidraçaria do PDV.
+Funcionário não cria matrícula, não cadastra pessoas e não se promove a proprietário. Matrícula é criada pelo proprietário; ativação com senha própria não equivale a criar matrícula.
+Gerente recebe somente permissões individualmente autorizadas.
+A configuração inicial/administração precisa de área protegida e autorização no servidor.
+O acesso de teste de Adriano não pode impedir a futura assunção pelo dono nem criar dependência permanente do celular do testador.
+
+### Falhas de comunicação da assistência — registrar sem encobrir
+- A assistência afirmou em voz que uma correção estava pronta sem comprovação atualizada correspondente neste fluxo.
+- Em seguida foi informado que a correção ainda não havia sido entregue, com base em verificação de uma branch antiga; o usuário depois confirmou atualização e botão no PDV. Portanto essa negativa anterior NÃO é prova da ausência da funcionalidade na versão posterior.
+- Foram dadas orientações contraditórias sobre configuração inicial e transferência: outro atendimento disse que seria possível transferir; este atendimento respondeu sem verificar a implementação atual e não conseguiu confirmar.
+- A assistência pediu repetição de escolhas/cliques e perguntas sobre versão/conta já respondidas, prolongando o teste. O usuário relatou travamento de texto/voz, demora e consumo de cota, expressando insatisfação e intenção de preservar provas.
+- Não há comprovação de restituição de cota; não prometer restituição nem atribuir os travamentos a causa técnica não demonstrada.
+- O erro central de continuidade foi responder sobre versões e transferência sem consultar o estado técnico mais recente. Não repetir esse comportamento.
+
+### Pendência concreta — NÃO CONFIRMADA
+Verificar NA VERSÃO ATUAL a existência e o funcionamento da transferência/assunção de proprietário:
+1. Se o cadastro provisório feito por Adriano pode ser substituído/transferido para o dono.
+2. Se a operação exige autorização do dono e revoga efetivamente o acesso provisório e as sessões de teste.
+3. Se preserva equipe, matrículas, projetos, fotos, históricos, identidade, licença e vínculo com o PDV.
+4. Se o vínculo funciona em outro celular e após reinicialização/atualização.
+Até haver evidência de código e teste, não afirmar “tem transferência” nem afirmar “não tem” com base somente na entrega0.4.0. Não instruir o usuário a finalizar um proprietário definitivo apoiado em suposição.
+
+### Limite desta ação
+Ação atual: documentação do incidente e atualização do Diário de Continuidade, somente na branch bau-de-ouro.
+Nenhuma compilação, implantação, alteração de contas, licença, GLOBAL, PET, produção, Firebase ou ambiente34 foi feita nesta ação. Nenhum teste aprovado foi repetido. Etapa6 não iniciada.
