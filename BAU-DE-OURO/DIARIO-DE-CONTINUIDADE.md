@@ -192,3 +192,12 @@ Testes:8 cenários de exclusão aprovados;2 testes específicos do servidor apro
 APK atualizado no mesmo item Library: https://chatgpt.com/library?file_id=libfile_d46313f0c39081918bb1103750ca9621&account_id=personal (versão Library24).
 Fonte e evidências preservados no mesmo projeto: https://chatgpt.com/library?file_id=libfile_3d390f729a748191bd555d20a78695ff&account_id=personal (versão Library24).
 Instalar por cima sem desinstalar/limpar dados. Teste físico no celular de Fabiana PENDENTE; não declarar homologação física. PDV, GLOBAL/PET, Angra, Firebase, Alerta e ambiente34 não modificados.
+
+## 2026-11-16 — ANGRA QA: “Confirmação inválida” no cadastro de proprietário
+Evidência do usuário: POST do formulário respondia403 e JSON accessDenied. Log real11:39 (Brasília) em /access/owner mostrou Origin:null, Sec-Fetch-Site:same-origin, requestId e75f8ecd9c4516b06fd947c4262f9ae8. Não é prova de senha errada nem falha de licença.
+Causa identificada: página administrativa emitia Referrer-Policy:no-referrer, causando origem opaca no POST de navegação. Ajuste pontual para strict-origin, que mantém a origem utilizável e não divulga caminho/query do convite em Referer.
+Validações de Origin exato, cookie HttpOnly/Secure/SameSite=Strict e igualdade do token CSRF foram mantidas. Origin:null continua rejeitado; não houve bypass.
+Três testes direcionados aprovados: cabeçalhos/formulários /access/owner e /access/admin; rejeição de origemnull/estrangeira/cookie ausente/token adulterado; cadastro sintético válido e acesso posterior à administração/transferência. Testes em armazenamento isolado, sem criar conta real.
+Fonte Site commit be10e4c538e71587361f1e3c1641c50629a7d0e0; versão5; deployment appgdep_6afb1698aa488191a23bcc093c411e0c SUCCEEDED. Espelho GitHub QA: 671a91055835b8dce52d9f055c5e7d3d531a19b0.
+Sem novo APK/PET e sem alteração de contas, licenças, dados reais, GLOBAL, outros clientes ou ambiente34.
+Para testar no aparelho: fechar a página antiga do erro e reabrir a administração pelo botão Funcionário/Proprietário do PDV ou pelo acesso administrativo do APK, obtendo formulário e cookie novos. Preencher novamente o cadastro. A submissão física corrigida ainda depende dessa confirmação; não declarar homologação final.
