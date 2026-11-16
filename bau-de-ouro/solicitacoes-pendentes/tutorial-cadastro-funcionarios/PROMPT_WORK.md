@@ -1,6 +1,6 @@
 # PROMPT PARA WORK — Tutorial interativo de cadastro de funcionários (ANGRA VIDROS)
 
-**Estado:** AUTORIZADO PELO USUÁRIO em 16/11/2026 para implementar, testar e entregar a funcionalidade; não deixar apenas como proposta.
+**Estado:** IMPLEMENTADO E ENTREGUE no QA em 16/11/2026 — APK0.4.2 e PET1.18. Testes automatizados aprovados; homologação física pendente. Evidências e instruções em [ENTREGA_2026-11-16.md](ENTREGA_2026-11-16.md).
 **Escopo de implementação:** ambiente Vidraçaria do Leal Info PDV. Preservar GLOBAL e personalizações PET e as funcionalidades homologadas da APK ANGRA VIDROS 5B; incorporar a melhoria na entrega em andamento, sem regressões.
 
 ## Objetivo
