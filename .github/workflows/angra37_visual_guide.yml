@@ -1,0 +1,140 @@
+name: ANGRA QA005 - photographed staff guide PET119
+on:
+  push:
+    branches: [qa/angra37-visual-guide-20261116]
+    paths:
+      - 'qa/angra37/**'
+      - 'mobile/vidraceiro/app/src/androidTest/java/br/com/lealinfo/vidraceiro/StaffGuideCaptureInstrumentation.java'
+      - '.github/workflows/angra37_visual_guide.yml'
+      - '!qa/angra37/Screenshots/**'
+permissions: {contents: read, actions: read}
+jobs:
+  portal_photos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install capture-only browser
+        run: |
+          npm install --prefix /tmp/angra-capture playwright@1.56.1
+          /tmp/angra-capture/node_modules/.bin/playwright install --with-deps chromium
+          openssl req -x509 -newkey rsa:2048 -keyout /tmp/capture-key.pem -out /tmp/capture-cert.pem -sha256 -days 1 -nodes -subj "/CN=localhost"
+      - name: Capture real portal with isolated fixture and no production requests
+        env:
+          PLAYWRIGHT_MODULE: /tmp/angra-capture/node_modules/playwright
+          CAPTURE_TLS_KEY: /tmp/capture-key.pem
+          CAPTURE_TLS_CERT: /tmp/capture-cert.pem
+          CAPTURE_OUTPUT: portal-photos
+        run: node qa/angra37/CapturePortal.mjs
+      - uses: actions/upload-artifact@v4
+        with: {name: ANGRA119-portal-photos, path: portal-photos/}
+  android_photo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.9'}
+      - name: Build capture-only fixture without changing delivered APK
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 2 -dname "CN=Disposable guide capture" -noprompt
+          python -c "from pathlib import Path; p=Path('mobile/vidraceiro/app/build.gradle'); p.write_text(p.read_text().replace('vidraceiro.Access37Instrumentation','vidraceiro.StaffGuideCaptureInstrumentation'))"
+          cd mobile/vidraceiro
+          gradle :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+      - name: Enable emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            mkdir -p android-photo
+            adb install mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
+            adb install mobile/vidraceiro/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w br.com.lealinfo.vidraceiro.ambiente37.test/br.com.lealinfo.vidraceiro.StaffGuideCaptureInstrumentation > android-photo/capture.txt
+            grep -q 'PASS STAFF_GUIDE_CAPTURE' android-photo/capture.txt
+            adb pull /sdcard/Android/data/br.com.lealinfo.vidraceiro.ambiente37.test/files/step-5.png android-photo/step-5.png
+            adb pull /sdcard/Android/data/br.com.lealinfo.vidraceiro.ambiente37.test/files/android-photo.json android-photo/android-photo.json
+      - uses: actions/upload-artifact@v4
+        with: {name: ANGRA119-android-photo, path: android-photo/}
+  persist_photos:
+    needs: [portal_photos, android_photo]
+    runs-on: ubuntu-latest
+    permissions: {contents: write, actions: read}
+    outputs:
+      source: ${{ steps.save.outputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: ANGRA119-portal-photos, path: photos/}
+      - uses: actions/download-artifact@v4
+        with: {name: ANGRA119-android-photo, path: photos/}
+      - id: save
+        name: Preserve reviewed source screenshots on this QA branch only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.sha }}
+        shell: python
+        run: |
+          import os,json,urllib.request,base64
+          from pathlib import Path
+          api='https://api.github.com/repos/lealinfopdvnovo/leal-info-pdv'
+          branch='qa/angra37-visual-guide-20261116';lease=os.environ['SOURCE_SHA']
+          def req(path,data=None,method=None):
+            q=urllib.request.Request(api+path,data=None if data is None else json.dumps(data).encode(),method=method,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Content-Type':'application/json','Accept':'application/vnd.github+json'})
+            with urllib.request.urlopen(q,timeout=60) as r:return json.load(r)
+          assert req('/git/ref/heads/'+branch)['object']['sha']==lease,'QA source changed; preserve rather than overwrite'
+          meta=json.loads(Path('photos/portal-photos.json').read_text());meta.update(json.loads(Path('photos/android-photo.json').read_text()))
+          assert set(meta)==set(map(str,range(1,8)))
+          entries=[];prefix='qa/angra37/Screenshots/'
+          for n in range(1,8):
+            p=Path('photos/step-'+str(n)+'.png');raw=p.read_bytes();assert raw.startswith(b'\x89PNG\r\n\x1a\n')
+            sha=req('/git/blobs',{'encoding':'base64','content':base64.b64encode(raw).decode()})['sha'];entries.append({'path':prefix+p.name,'mode':'100644','type':'blob','sha':sha})
+          entries.append({'path':prefix+'GuidePhotos.json','mode':'100644','type':'blob','content':json.dumps(meta,indent=2)})
+          tree=req('/git/trees',{'base_tree':req('/git/commits/'+lease)['tree']['sha'],'tree':entries})['sha']
+          commit=req('/git/commits',{'parents':[lease],'tree':tree,'message':'qa(005): preserve actual guide screenshots with synthetic data and masked code [skip ci]'})['sha']
+          assert req('/git/ref/heads/'+branch)['object']['sha']==lease
+          req('/git/refs/heads/'+branch,{'sha':commit,'force':False},'PATCH')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('source='+commit+'\n')
+  windows:
+    needs: persist_photos
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: '${{ needs.persist_photos.outputs.source }}'}
+      - uses: actions/checkout@v4
+        with: {ref: 2fd998403a5826bc665ee6fd33c6363cd75a2cfe, path: approved}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - shell: pwsh
+        run: |
+          dotnet build qa/angra37/Resume.csproj -c Release -o helper
+          if($LASTEXITCODE -ne 0){throw 'Guide compilation failed'}
+          python -c "import zipfile,hashlib; p='approved/qa/etapa4-setup/channel/ANGRA_005_PET_1_12.zip'; assert hashlib.sha256(open(p,'rb').read()).hexdigest()=='45c03f52243da61dc68962798085deec9152935c9845698b20d0890687a6d9c7'; zipfile.ZipFile(p).extractall('baseline')"
+          New-Item -ItemType Directory receiver-candidate -Force|Out-Null
+          dotnet run --project qa/angra37/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll receiver-candidate/Pet.dll
+          if($LASTEXITCODE -ne 0){throw 'Scope verification failed'}
+          dotnet run --project qa/angra37/AuthorshipTest.csproj -c Release -- receiver-candidate/Pet.dll | Tee-Object integration-evidence/visual-guide-windows.txt
+          if($LASTEXITCODE -ne 0){throw 'Visual guide tests failed'}
+          '{"SourceCommit":"${{ needs.persist_photos.outputs.source }}","RealDeviceTest":"PENDING"}' | Out-File integration-evidence/source.json -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-PET119-visual-candidate, path: receiver-candidate/}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-visual-guide-evidence, path: integration-evidence/}
