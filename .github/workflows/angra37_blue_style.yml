@@ -10,15 +10,13 @@ jobs:
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with: {ref: 2fd998403a5826bc665ee6fd33c6363cd75a2cfe, path: approved}
       - uses: actions/setup-dotnet@v4
         with: {dotnet-version: '8.0.x'}
       - shell: pwsh
         run: |
           dotnet build qa/angra37/Resume.csproj -c Release -o helper
           if($LASTEXITCODE -ne 0){throw 'Helper build failed'}
-          python -c "import zipfile,hashlib; p='approved/qa/etapa4-setup/channel/ANGRA_005_PET_1_12.zip'; assert hashlib.sha256(open(p,'rb').read()).hexdigest()=='45c03f52243da61dc68962798085deec9152935c9845698b20d0890687a6d9c7'; zipfile.ZipFile(p).extractall('baseline')"
+          python -c "import zipfile,hashlib,urllib.request,io; raw=urllib.request.urlopen('https://raw.githubusercontent.com/lealinfopdvnovo/leal-info-pdv/2fd998403a5826bc665ee6fd33c6363cd75a2cfe/qa/etapa4-setup/channel/ANGRA_005_PET_1_12.zip').read(); assert hashlib.sha256(raw).hexdigest()=='45c03f52243da61dc68962798085deec9152935c9845698b20d0890687a6d9c7'; zipfile.ZipFile(io.BytesIO(raw)).extractall('baseline')"
           New-Item -ItemType Directory receiver-candidate -Force|Out-Null
           dotnet run --project qa/angra37/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll receiver-candidate/Pet.dll
           if($LASTEXITCODE -ne 0){throw 'Scope check failed'}
