@@ -29,3 +29,7 @@ Adicionar no PDV um botão **Como cadastrar funcionários** que abra um tutorial
 
 ## Entrega esperada agora
 Tutorial funcional, reutilizando os destaques existentes, integrado à entrega ANGRA VIDROS em andamento, acompanhado de testes, evidências, identificação da versão e artefato atualizado. **Não encerrar a tarefa apenas com planejamento.**
+
+
+## Complemento entregue — 16/11/2026
+Guia visual com imagens e explicações publicado no PET1.19 exclusivo QA005; APK0.4.2 preservado. Testes automáticos aprovados, validação visual no Windows do proprietário pendente. Ver [GUIA_VISUAL_PET_1_19_2026-11-16.md](GUIA_VISUAL_PET_1_19_2026-11-16.md).
