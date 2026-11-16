@@ -123,3 +123,20 @@ Sem acesso remoto aos equipamentos, esses passos físicos não podem ser executa
 
 ## 15/11/2026 — ANGRA37: APK separado entregue e receptor QA publicado
 Gateway novo independente, APK0.3.8 instalável em paralelo (pacote ambiente37) e PET1.14 exclusivamente no atualizador QA005. APK original não pode ser atualizado in-place sem sua assinatura: cache ausente; cópias disponíveis eram do Alerta e não foram usadas. Dados do app original permanecem nesse app, sem migração automática. 11 verificações novas em emulador, 3 gateway, compilação Windows e preservação de recursos aprovadas. Testes físicos, imagem e recebimento ponta a ponta pendentes. GLOBAL/produção/outros clientes/34/Firebase/Alerta intactos, sem Etapa6. Registro detalhado no arquivo semanal Etapa5B; relatório QA f41d447cdb88646708cf612030144f4d6b1c033a. Não declarar missão integralmente homologada nem confundir APK paralelo com atualização do original.
+
+## 2026-11-15 — ANGRA QA37 controle individual entregue
+APK 0.4.0-qa37/código21 entregue: https://chatgpt.com/library?file_id=libfile_244281a887548191a1b4392e9ce2509d&account_id=personal
+Atualiza o pacote QA37 0.3.8 (mesma assinatura), preservando o aplicativo original paralelo. SHA256 cf34605b9d11e08b413b6a8277bfab294d0456db4e6961a43ad7d36cbe5e4e81. Release sem depuração.
+
+Proprietário/funcionário/gerente, matrícula fixa não reutilizável, ativação única e senha própria, administração somente pelo proprietário, permissões individuais, sessões e revogação no servidor, proteção JSON local e autoria autoritativa implementados. Primeiro proprietário depende da aprovação da conta proprietária do gateway; não há autopromoção do primeiro aparelho.
+
+Código: qa/angra37-access-20261115 @ e9cd7e12a61b52b75c932f0d7b092a0bf4d7c436 (PR39 draft, não mesclar em GLOBAL).
+APK/emulador: Actions43762805202, 17 verificações aprovadas.
+Gateway: 7 grupos aprovados no run43762096329; fonte a7e3c3a522353802bd947b88136b251e5c1557ea, deployment appgdep_6afa204d25248191806e701ca315493c com sucesso.
+Windows/PET: run43761367253 aprovado, ponte real preserva autoria e todos os demais métodos/recursos originais permanecem idênticos.
+PET1.15 publicado QA005: run43778195000, feed commit de851df1c370d351321922e663b249536bb2f5dc. Somente version.json e ANGRA_005_PET_1_15_QA37.zip alterados.
+Relatório completo: commit871a2939a33bf15b3c8144960d74769ec79ca4c2, organization/evidence/etapa5b/ANGRA37-APK-040-CONTROLE-ACESSO.md.
+
+Teste físico de proprietário, funcionário, revogação, pareamento, foto/medidas/imagem e recebimento no PDV: **NÃO HOMOLOGADO**, depende dos equipamentos reais. Não declarar integração ponta a ponta aprovada nem Etapa5B concluída. Fotos permanecem no armazenamento privado Android; JSON cifrado AES-GCM. Acesso protegido exige confirmação recente de sessão; offline não implica apagamento remoto.
+
+GLOBAL 48d8f50f00a16bc2457b5ebd04383dfaf9cf16d1 e produção 6f641fc6941b573f94393a437191761243cfa69e preservados. Firebase, Speed Food, Alerta, demais clientes e ambiente34 intocados, sem backup real e sem Etapa6.
