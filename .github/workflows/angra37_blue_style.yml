@@ -22,7 +22,7 @@ jobs:
           New-Item -ItemType Directory receiver-candidate -Force|Out-Null
           dotnet run --project qa/angra37/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll receiver-candidate/Pet.dll
           if($LASTEXITCODE -ne 0){throw 'Scope check failed'}
-          dotnet run --project qa/angra37/SalesStyleTest.csproj -c Release -- receiver-candidate/Pet.dll | Tee-Object integration-evidence/style-test.txt
+          dotnet run --project qa/angra37/style-test/SalesStyleTest.csproj -c Release -- receiver-candidate/Pet.dll | Tee-Object integration-evidence/style-test.txt
           if($LASTEXITCODE -ne 0){throw 'Blue sales style tests failed'}
           '{"SourceCommit":"${{ github.sha }}","RealDeviceTest":"PENDING","Capture":"synthetic fixture only"}' | Out-File integration-evidence/source.json -Encoding utf8
       - uses: actions/upload-artifact@v4
