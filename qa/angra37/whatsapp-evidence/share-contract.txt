@@ -1,0 +1,1 @@
+WhatsApp draft opens for explicit user confirmation. No FCM/server/API sending. No PDF auto-attachment. Physical Windows/WhatsApp receipt pending.
