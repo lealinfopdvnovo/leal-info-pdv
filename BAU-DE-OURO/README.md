@@ -40,3 +40,10 @@ Não guardar segredos ou dados privados de consumidores. Não alterar PDV, GLOBA
 - [Consolidação de todos os projetos e pendências](./2026-11-09_a_2026-11-15/2026-11-09/CONSOLIDACAO-PROJETOS.md)
 
 Inclui aplicativos ANGRA VIDROS, SpeedFood e Salão MJ, além dos módulos históricos. Registros anteriores preservados; resultados relatados são separados de testes e publicações comprovados.
+
+## Organização de 16/11/2026
+
+- [Semana 16 a 22/11/2026](./2026-11-16_a_2026-11-22/README.md)
+- [Continuidade por projeto e pendências](./2026-11-16_a_2026-11-22/2026-11-16/CONSOLIDACAO-PROJETOS.md)
+
+Inclui evolução QA37, proprietário/funcionários ANGRA e evidências iFood #9407, distinguindo relato, teste, publicação e homologação física pendente.
