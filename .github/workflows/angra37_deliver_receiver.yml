@@ -1,0 +1,93 @@
+name: ANGRA37 - publish tested receiver to QA005 only
+on:
+  push:
+    branches: [qa/angra37-visual-delivery-20261116]
+    paths: [.github/workflows/angra37_deliver_receiver.yml]
+permissions: {contents: write, actions: read}
+jobs:
+  qa005_only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: lealinfopdvnovo/leal-info-pdv
+          run-id: 43969096936
+          name: ANGRA37-PET119-visual-candidate
+          github-token: ${{ github.token }}
+          path: receiver
+      - uses: actions/download-artifact@v4
+        with:
+          repository: lealinfopdvnovo/leal-info-pdv
+          run-id: 43969096936
+          name: ANGRA37-visual-guide-evidence
+          github-token: ${{ github.token }}
+          path: evidence
+      - name: Publish exactly one QA005 package and QA005 feed - preserve all other files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import os,json,urllib.request,base64,hashlib,zipfile,io
+          from pathlib import Path
+          repo='lealinfopdvnovo/leal-info-pdv';api='https://api.github.com/repos/'+repo
+          branch='qa/angra-etapa4-setup-20261114';lease='782947f4be39affa42236f918174751be4a41709'
+          def req(path,data=None,method=None):
+            raw=None if data is None else json.dumps(data).encode()
+            q=urllib.request.Request(api+path,data=raw,method=method,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
+            with urllib.request.urlopen(q,timeout=60) as r:return json.load(r)
+          for run in [43969096936,43907124116]:
+            v=req('/actions/runs/'+str(run))
+            if run==43907124116:
+              assert v['conclusion']=='success','Android QA37 not approved'
+              assert v['head_sha']=='ba8d54338120efbb69e4a7ca10fae2ad4ccbcb8c','Wrong APK source'
+            else:
+              assert v['conclusion']=='success','Visual guide workflow not approved'
+              assert v['head_sha']=='51f5c9639492dca0adfccb4ce36e363a9dbc4c40','Wrong visual guide source'
+              jobs=req('/actions/runs/'+str(run)+'/jobs')['jobs'];assert next(j for j in jobs if j['name']=='windows')['conclusion']=='success'
+          ref=req('/git/ref/heads/'+branch);assert ref['object']['sha']==lease,'QA feed changed: stop rather than overwrite'
+          commit=req('/git/commits/'+lease)
+          path='qa/etapa4-setup/channel/'
+          old=req('/contents/'+path+'version.json?ref='+branch);feed=json.loads(base64.b64decode(old['content']))
+          assert feed['TargetClientCode']=='005' and feed['Version']=='1.18'
+          oldpkg=req('/contents/'+path+'ANGRA_005_PET_1_18_QA37.zip?ref='+branch)
+          # The baseline contents API may omit binary bytes; use its public immutable raw URL when needed.
+          raw=base64.b64decode(oldpkg['content']) if oldpkg.get('content') else urllib.request.urlopen('https://raw.githubusercontent.com/'+repo+'/'+lease+'/'+path+'ANGRA_005_PET_1_18_QA37.zip',timeout=60).read()
+          assert hashlib.sha256(raw).hexdigest()==feed['Sha256']
+          m=json.loads(zipfile.ZipFile(io.BytesIO(raw)).read('Extensions/PET/manifest.json'));dll=Path('receiver/Pet.dll').read_bytes()
+          assert m['Identity']=='005';m['Version']='1.19';m['Sha256']=hashlib.sha256(dll).hexdigest()
+          b=io.BytesIO()
+          with zipfile.ZipFile(b,'w',zipfile.ZIP_DEFLATED) as z:
+            z.writestr('Extensions/PET/Pet.dll',dll);z.writestr('Extensions/PET/manifest.json',json.dumps(m))
+          package=b.getvalue();name='ANGRA_005_PET_1_19_QA37.zip';feed['Version']='1.19';feed['Sha256']=hashlib.sha256(package).hexdigest();feed['PackageUrl']='https://raw.githubusercontent.com/'+repo+'/'+branch+'/'+path+name
+          blob=req('/git/blobs',{'encoding':'base64','content':base64.b64encode(package).decode()})['sha']
+          tree=req('/git/trees',{'base_tree':commit['tree']['sha'],'tree':[{'path':path+name,'mode':'100644','type':'blob','sha':blob},{'path':path+'version.json','mode':'100644','type':'blob','content':json.dumps(feed,indent=2)}]})['sha']
+          c=req('/git/commits',{'message':'qa(005): PET 1.19 photographed employee guide; preserve APK and approved QA37 features [skip ci]','parents':[lease],'tree':tree})['sha']
+          assert req('/git/ref/heads/'+branch)['object']['sha']==lease,'QA lease changed before publication'
+          req('/git/refs/heads/'+branch,{'sha':c,'force':False},'PATCH')
+          result={'QAOnly':True,'Identity':'005','Version':'1.19','Commit':c,'Sha256':feed['Sha256'],'PackageUrl':feed['PackageUrl'],'RealDeviceTest':'PENDING'}
+          Path('qa005-publication.json').write_text(json.dumps(result,indent=2));print(json.dumps(result))
+      - name: Preserve Windows visual evidence on QA source branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import os,json,urllib.request,base64
+          from pathlib import Path
+          api='https://api.github.com/repos/lealinfopdvnovo/leal-info-pdv';branch='qa/angra37-visual-guide-20261116'
+          lease=json.loads(Path('evidence/source.json').read_text(encoding='utf-8-sig'))['SourceCommit']
+          def req(path,data=None,method=None):
+            q=urllib.request.Request(api+path,data=None if data is None else json.dumps(data).encode(),method=method,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Content-Type':'application/json','Accept':'application/vnd.github+json'})
+            with urllib.request.urlopen(q,timeout=60) as r:return json.load(r)
+          assert req('/git/ref/heads/'+branch)['object']['sha']==lease,'QA source moved; do not overwrite'
+          entries=[]
+          for name in ['visual-guide-wide.png','visual-guide-narrow.png','visual-guide-windows.txt','patch-scope.json','source.json']:
+            raw=Path('evidence/'+name).read_bytes();sha=req('/git/blobs',{'encoding':'base64','content':base64.b64encode(raw).decode()})['sha']
+            entries.append({'path':'qa/angra37/visual-evidence/'+name,'mode':'100644','type':'blob','sha':sha})
+          tree=req('/git/trees',{'base_tree':req('/git/commits/'+lease)['tree']['sha'],'tree':entries})['sha']
+          c=req('/git/commits',{'parents':[lease],'tree':tree,'message':'qa(005): retain Windows photographed-guide evidence [skip ci]'})['sha']
+          assert req('/git/ref/heads/'+branch)['object']['sha']==lease
+          req('/git/refs/heads/'+branch,{'sha':c,'force':False},'PATCH')
+          print('Windows visual evidence commit '+c)
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-QA005-publication-evidence, path: qa005-publication.json}
