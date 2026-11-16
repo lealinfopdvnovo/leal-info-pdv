@@ -1,0 +1,33 @@
+name: ANGRA QA005 - sales header transparency PET120
+on:
+  push:
+    branches: [qa/angra37-header-logo-20261116]
+    paths: ['qa/angra37/**', '.github/workflows/angra37_header_logo.yml']
+permissions: {contents: read, actions: read}
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {ref: 2fd998403a5826bc665ee6fd33c6363cd75a2cfe, path: approved}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - shell: pwsh
+        run: |
+          dotnet build qa/angra37/Resume.csproj -c Release -o helper
+          if($LASTEXITCODE -ne 0){throw 'Helper build failed'}
+          python -c "import zipfile,hashlib; p='approved/qa/etapa4-setup/channel/ANGRA_005_PET_1_12.zip'; assert hashlib.sha256(open(p,'rb').read()).hexdigest()=='45c03f52243da61dc68962798085deec9152935c9845698b20d0890687a6d9c7'; zipfile.ZipFile(p).extractall('baseline')"
+          New-Item -ItemType Directory receiver-candidate -Force|Out-Null
+          dotnet run --project qa/angra37/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll receiver-candidate/Pet.dll
+          if($LASTEXITCODE -ne 0){throw 'Scope check failed'}
+          dotnet run --project qa/angra37/HeaderLogoTest.csproj -c Release -- receiver-candidate/Pet.dll | Tee-Object integration-evidence/header-test.txt
+          if($LASTEXITCODE -ne 0){throw 'Header logo tests failed'}
+          '{"SourceCommit":"${{ github.sha }}","RealDeviceTest":"PENDING","Capture":"synthetic fixture only"}' | Out-File integration-evidence/source.json -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-PET120-header-candidate, path: receiver-candidate/}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-header-logo-evidence, path: integration-evidence/}

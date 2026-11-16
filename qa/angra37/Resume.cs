@@ -8,6 +8,7 @@ public static class Resume
  static readonly ConditionalWeakTable<Form,Session> sessions=new();
  public static void Apply(Form form){
   EmployeeTutorial.Observe();
+  SalesHeaderLogo.Observe();
   if(form.GetType().FullName!="LealInfoPDV.AngraPairingForm")return;
   var id=form.GetType().Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().SingleOrDefault(x=>x.Key=="PetIdentity")?.Value;
   if(id!="005"||sessions.TryGetValue(form,out _))return;
