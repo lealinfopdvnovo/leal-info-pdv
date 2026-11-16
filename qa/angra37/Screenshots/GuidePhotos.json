@@ -1,0 +1,65 @@
+{
+  "1": {
+    "rect": [
+      0.025,
+      0.1458966565349544,
+      0.26973684210526316,
+      0.13069908814589665
+    ],
+    "source": "Actual QA portal rendering; synthetic fixture data; no production access"
+  },
+  "2": {
+    "rect": [
+      0,
+      0.125,
+      0.2839335180055402,
+      0.1853448275862069
+    ],
+    "source": "Actual QA portal rendering; synthetic fixture data; no production access"
+  },
+  "3": {
+    "rect": [
+      0.018105849582172703,
+      0.3821752265861027,
+      0.9637883008356546,
+      0.06646525679758308
+    ],
+    "source": "Actual QA portal rendering; synthetic fixture data; no production access"
+  },
+  "4": {
+    "rect": [
+      0,
+      0.8437572657521507,
+      0.9125822368421053,
+      0.15624273424784935
+    ],
+    "source": "Actual QA portal rendering; synthetic fixture data; no production access"
+  },
+  "6": {
+    "rect": [
+      0.025,
+      0.6209380502641267,
+      0.21062911184210525,
+      0.08810629101968945
+    ],
+    "source": "Actual QA portal rendering; synthetic fixture data; no production access"
+  },
+  "7": {
+    "rect": [
+      0.025,
+      0.9238302502720348,
+      0.3126439144736842,
+      0.046789989118607184
+    ],
+    "source": "Actual QA portal rendering; synthetic fixture data; no production access"
+  },
+  "5": {
+    "rect": [
+      0.07314814814814814,
+      0.47073270568972575,
+      0.8537037037037037,
+      0.053622595169873104
+    ],
+    "source": "Actual Android QA enrollment screen; empty fields; capture-only instrumentation"
+  }
+}
