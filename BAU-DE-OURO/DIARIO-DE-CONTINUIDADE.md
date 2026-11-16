@@ -181,3 +181,14 @@ Até haver evidência de código e teste, não afirmar “tem transferência” 
 ### Limite desta ação
 Ação atual: documentação do incidente e atualização do Diário de Continuidade, somente na branch bau-de-ouro.
 Nenhuma compilação, implantação, alteração de contas, licença, GLOBAL, PET, produção, Firebase ou ambiente34 foi feita nesta ação. Nenhum teste aprovado foi repetido. Etapa6 não iniciada.
+
+## 2026-11-16 — SALÃO MJ FABIANA1.9.6: exclusão definitiva de agendamento
+Pedido confirmado: cancelar mantém status Cancelado; depois Excluir deve remover o agendamento e lembrete, preservando cadastro da cliente. Executado em projeto independente do PDV.
+Causa confirmada no fonte1.9.5: handler visit-delete somente atribuía status Cancelado.
+Entregue APK1.9.6/versionCode25, pacote br.com.salaomj.agenda e mesma assinatura anterior. APK SHA256: 2baff27398ef628c53d32a47bff4838f58a3534bc5ae76af410423d75a50839d. Certificado SHA25621ef579603185e9b5783d5d1ac19bae4e5a7b6e8beabd75a29aa6c0ec8edd26e.
+Exclusão remove somente registro de agendamento da coleção ativa/histórico, grava marca de ID para impedir recriação por backup/sync antigos e atualiza a ponte Android de lembretes (que cancela alarmes/notificações de IDs ausentes). Mantidos cliente, demais atendimentos, galeria e registros clínicos independentes. Cancelamento não alterado. Falha de gravação reverte a exclusão em memória.
+Servidor independente incluído no projeto também trata exclusões e impede recriação por dispositivos antigos; fonte/testes apenas, nenhum serviço remoto implantado.
+Testes:8 cenários de exclusão aprovados;2 testes específicos do servidor aprovados;10 regressões do servidor aprovadas; cenário existente de horários/domingo/confirmação JPEG aprovado; compilação/assinatura válidas, outros6 assets idênticos. Script legado test_delete181 contém expectativa obsoleta /Cola/ que falha igualmente na base1.9.5, documentada sem alterar cuidados fora do escopo.
+APK atualizado no mesmo item Library: https://chatgpt.com/library?file_id=libfile_d46313f0c39081918bb1103750ca9621&account_id=personal (versão Library24).
+Fonte e evidências preservados no mesmo projeto: https://chatgpt.com/library?file_id=libfile_3d390f729a748191bd555d20a78695ff&account_id=personal (versão Library24).
+Instalar por cima sem desinstalar/limpar dados. Teste físico no celular de Fabiana PENDENTE; não declarar homologação física. PDV, GLOBAL/PET, Angra, Firebase, Alerta e ambiente34 não modificados.
