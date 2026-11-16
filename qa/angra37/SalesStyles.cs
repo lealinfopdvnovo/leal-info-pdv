@@ -7,10 +7,11 @@ public static class SalesStyles {
  static bool Scope()=>AppDomain.CurrentDomain.GetAssemblies().Any(a=>!a.IsDynamic&&a.GetManifestResourceNames().Contains("ANGRA.IntegrationQA.Helper")&&a.GetCustomAttributes<AssemblyMetadataAttribute>().Any(m=>m.Key=="PetIdentity"&&m.Value=="005"));
  public static void Observe(){if(!Scope())return;if(!watching){watching=true;Application.Idle+=Scan;}Scan(null,EventArgs.Empty);}
  static IEnumerable<Control> All(Control c){yield return c;foreach(Control n in c.Controls)foreach(var x in All(n))yield return x;}
- static void Scan(object? s,EventArgs e){
+ static void Scan(object? s,EventArgs e){try{ScanForms();}catch(Exception error){System.Diagnostics.Debug.WriteLine("ANGRA QA style unavailable: "+error.GetType().Name);}}
+ static void ScanForms(){
   foreach(Form f in Application.OpenForms.Cast<Form>().ToArray()){
    if(f.IsDisposed)continue;
-   if(f.Text.Contains("TELA DE VENDAS",StringComparison.OrdinalIgnoreCase)&&!sales.TryGetValue(f,out _)){
+   if(All(f).OfType<PictureBox>().Any(p=>p.Name=="sales_company_logo")&&!sales.TryGetValue(f,out _)){
     var b=All(f).OfType<Button>().FirstOrDefault(x=>x.Text.Contains("ESTILO"));var v=b==null?null:View.Bind(f,b);
     if(v!=null){sales.Add(f,v);if(v.Get(Preference)==Theme)v.Apply(false);}
    }
