@@ -1,7 +1,7 @@
 # PROMPT PARA WORK — Tutorial interativo de cadastro de funcionários (ANGRA VIDROS)
 
-**Estado:** solicitação documentada; NÃO executar, publicar ou atualizar sem autorização expressa do proprietário do projeto.
-**Escopo futuro:** ambiente Vidraçaria do Leal Info PDV. Preservar GLOBAL e personalizações PET, APK ANGRA VIDROS 5B e integrações existentes.
+**Estado:** AUTORIZADO PELO USUÁRIO em 16/11/2026 para implementar, testar e entregar a funcionalidade; não deixar apenas como proposta.
+**Escopo de implementação:** ambiente Vidraçaria do Leal Info PDV. Preservar GLOBAL e personalizações PET e as funcionalidades homologadas da APK ANGRA VIDROS 5B; incorporar a melhoria na entrega em andamento, sem regressões.
 
 ## Objetivo
 Adicionar no PDV um botão **Como cadastrar funcionários** que abra um tutorial guiado e interativo, reutilizando o recurso já existente de círculos de destaque e setas. Não duplicar componentes se houver implementação reutilizável.
@@ -24,8 +24,8 @@ Adicionar no PDV um botão **Como cadastrar funcionários** que abra um tutorial
 ## Regras de segurança e implementação
 - Antes de programar, inspecionar os fluxos e rótulos reais do PDV e do APK 5B, inclusive a recuperação do código, sem presumir telas inexistentes.
 - Não alterar a vinculação do proprietário, a lógica de ativação, o cadastro de funcionários, os dados ou a integração PDV–APK como efeito deste tutorial.
-- Não modificar GLOBAL, PETs, APK 5B, instaladores, publicações nem versões sem autorização específica.
-- Se autorizado a implementar posteriormente, trabalhar em branch isolada, demonstrar telas, testar navegação, responsividade, retorno e saída do tutorial; entregar relatório e evidências para aprovação antes de qualquer merge ou publicação.
+- Não modificar o GLOBAL ou PETs fora do escopo. A implementação e a entrega da melhoria na APK/fluxo ANGRA VIDROS em andamento estão autorizadas, com testes de regressão e versão rastreável. Não publicar mudanças globais não relacionadas.
+- Implementar agora na branch de trabalho apropriada, demonstrar telas, testar navegação, responsividade, retorno e saída do tutorial; entregar o artefato instalável atualizado quando aplicável, com relatório e evidências. Evitar substituir versões homologadas antes de validar os testes.
 
-## Entrega esperada quando autorizado
-Tutorial funcional no PDV, reutilizando os destaques existentes, acompanhado de testes e evidências. **Este arquivo é apenas um pedido para execução futura.**
+## Entrega esperada agora
+Tutorial funcional, reutilizando os destaques existentes, integrado à entrega ANGRA VIDROS em andamento, acompanhado de testes, evidências, identificação da versão e artefato atualizado. **Não encerrar a tarefa apenas com planejamento.**
