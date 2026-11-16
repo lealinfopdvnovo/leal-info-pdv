@@ -1,0 +1,62 @@
+name: ANGRA37 - publish tested receiver to QA005 only
+on:
+  push:
+    branches: [qa/angra37-flow-delivery-20261116]
+    paths: [.github/workflows/angra37_deliver_receiver.yml]
+permissions: {contents: write, actions: read}
+jobs:
+  qa005_only:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          repository: lealinfopdvnovo/leal-info-pdv
+          run-id: 43907679022
+          name: ANGRA37-PET117-candidate
+          github-token: ${{ github.token }}
+          path: receiver
+      - name: Publish exactly one QA005 package and QA005 feed - preserve all other files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: python
+        run: |
+          import os,json,urllib.request,base64,hashlib,zipfile,io
+          from pathlib import Path
+          repo='lealinfopdvnovo/leal-info-pdv';api='https://api.github.com/repos/'+repo
+          branch='qa/angra-etapa4-setup-20261114';lease='7c0437a91523cf72a54a9286cfeab787a48b7bfe'
+          def req(path,data=None,method=None):
+            raw=None if data is None else json.dumps(data).encode()
+            q=urllib.request.Request(api+path,data=raw,method=method,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json'})
+            with urllib.request.urlopen(q,timeout=60) as r:return json.load(r)
+          for run in [43907679022,43907124116]:
+            v=req('/actions/runs/'+str(run))
+            if run==43907124116:
+              assert v['conclusion']=='success','Android QA37 not approved'
+              assert v['head_sha']=='ba8d54338120efbb69e4a7ca10fae2ad4ccbcb8c','Wrong APK source'
+            else:
+              jobs=req('/actions/runs/'+str(run)+'/jobs')['jobs'];assert next(j for j in jobs if j['name']=='receiver')['conclusion']=='success'
+          ref=req('/git/ref/heads/'+branch);assert ref['object']['sha']==lease,'QA feed changed: stop rather than overwrite'
+          commit=req('/git/commits/'+lease)
+          path='qa/etapa4-setup/channel/'
+          old=req('/contents/'+path+'version.json?ref='+branch);feed=json.loads(base64.b64decode(old['content']))
+          assert feed['TargetClientCode']=='005' and feed['Version']=='1.16'
+          oldpkg=req('/contents/'+path+'ANGRA_005_PET_1_16_QA37.zip?ref='+branch)
+          # The baseline contents API may omit binary bytes; use its public immutable raw URL when needed.
+          raw=base64.b64decode(oldpkg['content']) if oldpkg.get('content') else urllib.request.urlopen('https://raw.githubusercontent.com/'+repo+'/'+lease+'/'+path+'ANGRA_005_PET_1_16_QA37.zip',timeout=60).read()
+          assert hashlib.sha256(raw).hexdigest()==feed['Sha256']
+          m=json.loads(zipfile.ZipFile(io.BytesIO(raw)).read('Extensions/PET/manifest.json'));dll=Path('receiver/Pet.dll').read_bytes()
+          assert m['Identity']=='005';m['Version']='1.17';m['Sha256']=hashlib.sha256(dll).hexdigest()
+          b=io.BytesIO()
+          with zipfile.ZipFile(b,'w',zipfile.ZIP_DEFLATED) as z:
+            z.writestr('Extensions/PET/Pet.dll',dll);z.writestr('Extensions/PET/manifest.json',json.dumps(m))
+          package=b.getvalue();name='ANGRA_005_PET_1_17_QA37.zip';feed['Version']='1.17';feed['Sha256']=hashlib.sha256(package).hexdigest();feed['PackageUrl']='https://raw.githubusercontent.com/'+repo+'/'+branch+'/'+path+name
+          blob=req('/git/blobs',{'encoding':'base64','content':base64.b64encode(package).decode()})['sha']
+          tree=req('/git/trees',{'base_tree':commit['tree']['sha'],'tree':[{'path':path+name,'mode':'100644','type':'blob','sha':blob},{'path':path+'version.json','mode':'100644','type':'blob','content':json.dumps(feed,indent=2)}]})['sha']
+          c=req('/git/commits',{'message':'qa(005): receiver PET 1.17 add read-only employee tutorial and preserve QA37 features [skip ci]','parents':[lease],'tree':tree})['sha']
+          assert req('/git/ref/heads/'+branch)['object']['sha']==lease,'QA lease changed before publication'
+          req('/git/refs/heads/'+branch,{'sha':c,'force':False},'PATCH')
+          result={'QAOnly':True,'Identity':'005','Version':'1.17','Commit':c,'Sha256':feed['Sha256'],'PackageUrl':feed['PackageUrl'],'RealDeviceTest':'PENDING'}
+          Path('qa005-publication.json').write_text(json.dumps(result,indent=2));print(json.dumps(result))
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-QA005-publication-evidence, path: qa005-publication.json}
