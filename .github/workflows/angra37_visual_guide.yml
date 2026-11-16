@@ -10,7 +10,7 @@ on:
 permissions: {contents: read, actions: read}
 jobs:
   portal_photos:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: {name: ANGRA119-portal-photos, path: portal-photos/}
   android_photo:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +66,7 @@ jobs:
             adb install mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
             adb install mobile/vidraceiro/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w br.com.lealinfo.vidraceiro.ambiente37.test/br.com.lealinfo.vidraceiro.StaffGuideCaptureInstrumentation > android-photo/capture.txt
+            cat android-photo/capture.txt
             grep -q 'PASS STAFF_GUIDE_CAPTURE' android-photo/capture.txt
             adb pull /sdcard/Android/data/br.com.lealinfo.vidraceiro.ambiente37.test/files/step-5.png android-photo/step-5.png
             adb pull /sdcard/Android/data/br.com.lealinfo.vidraceiro.ambiente37.test/files/android-photo.json android-photo/android-photo.json
@@ -73,7 +74,7 @@ jobs:
         with: {name: ANGRA119-android-photo, path: android-photo/}
   persist_photos:
     needs: [portal_photos, android_photo]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions: {contents: write, actions: read}
     outputs:
       source: ${{ steps.save.outputs.source }}
@@ -129,6 +130,7 @@ jobs:
           New-Item -ItemType Directory receiver-candidate -Force|Out-Null
           dotnet run --project qa/angra37/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll receiver-candidate/Pet.dll
           if($LASTEXITCODE -ne 0){throw 'Scope verification failed'}
+          New-Item -ItemType Directory integration-evidence -Force|Out-Null
           dotnet run --project qa/angra37/AuthorshipTest.csproj -c Release -- receiver-candidate/Pet.dll | Tee-Object integration-evidence/visual-guide-windows.txt
           if($LASTEXITCODE -ne 0){throw 'Visual guide tests failed'}
           '{"SourceCommit":"${{ needs.persist_photos.outputs.source }}","RealDeviceTest":"PENDING"}' | Out-File integration-evidence/source.json -Encoding utf8
