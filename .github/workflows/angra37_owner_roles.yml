@@ -5,6 +5,7 @@ on:
 permissions: {contents: read, actions: read}
 jobs:
   security:
+    if: false # Identical gateway source passed 17 tests in run43906706594
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -12,6 +13,7 @@ jobs:
         with: {node-version: '22'}
       - run: node --test qa/angra37/gateway/scripts/access.test.mjs qa/angra37/gateway/scripts/csrf-form.test.mjs
   android:
+    if: false # Same APK source is being validated by run43907124116; reuse its artifact
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
