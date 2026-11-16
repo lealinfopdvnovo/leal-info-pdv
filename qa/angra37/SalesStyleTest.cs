@@ -1,4 +1,4 @@
-using LealInfoPDV;using System.Reflection;using System.Drawing;using System.Windows.Forms;using AngraQaIntegration;
+using LealInfoPDV;using LealInfoPDV.Network;using System.Reflection;using System.Drawing;using System.Windows.Forms;using AngraQaIntegration;
 static class Program{
  const BindingFlags S=BindingFlags.Static|BindingFlags.NonPublic,I=BindingFlags.Instance|BindingFlags.NonPublic;
  static readonly Type MainType=typeof(MainForm);static void Check(bool b,string s){if(!b)throw new Exception(s);}static IEnumerable<Control> All(Control c)=>c.Controls.Cast<Control>().SelectMany(x=>new[]{x}.Concat(All(x)));
