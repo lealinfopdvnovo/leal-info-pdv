@@ -26,11 +26,10 @@ jobs:
           log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.9'}
-      - uses: actions/cache/restore@v4
-        with:
-          path: ~/.android/debug.keystore
-          key: angra-professional-explicit-debug-signing-v2
-          fail-on-cache-miss: true
+      - name: Ephemeral emulator signing; final APK is signed privately after download
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 30 -dname "CN=ANGRA37 disposable emulator" -noprompt
       - name: Build and preserve UI assets
         run: |
           python -c "from pathlib import Path; p=Path('baseline/mobile/vidraceiro/app/build.gradle'); p.write_text(p.read_text().replace('.profissional022','.ambiente37'))"
@@ -41,9 +40,9 @@ jobs:
           cd ../..
           mkdir -p delivery
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk > delivery/signature.txt
-          grep -q 2ee54920efe7042320f90814e45fd10997f9deb28e213ee92a8955b3e00ffac7 delivery/signature.txt
+          cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" delivery/apksigner.jar
           diff -qr baseline/mobile/vidraceiro/app/src/main/res mobile/vidraceiro/app/src/main/res
-          cp mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk delivery/ANGRA_VIDROS_0.4.1_QA37.apk
+          cp mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk delivery/ANGRA_VIDROS_0.4.1_QA37-emulator-signing.apk
           sha256sum delivery/*.apk > delivery/SHA256.txt
       - name: Enable emulator
         run: |
@@ -61,7 +60,7 @@ jobs:
             adb install baseline/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
             adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 mkdir -p files
             adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 touch files/upgrade37-marker
-            adb install -r delivery/ANGRA_VIDROS_0.4.1_QA37.apk
+            adb install -r delivery/ANGRA_VIDROS_0.4.1_QA37-emulator-signing.apk
             adb install mobile/vidraceiro/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
             adb shell am instrument -w br.com.lealinfo.vidraceiro.ambiente37.test/br.com.lealinfo.vidraceiro.Access37Instrumentation > delivery/android-tests.txt
             grep -q 'PASS ANGRA37_ACCESS_COMPLETE' delivery/android-tests.txt
