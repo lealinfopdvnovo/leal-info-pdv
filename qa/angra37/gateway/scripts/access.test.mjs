@@ -14,3 +14,33 @@ test('server stamps authorship, filters another employee records and denies forb
 test('manager permissions cannot grant owner/admin and cross tenant sessions are refused',async()=>{const c=await setup(),t=await owner(c),e=await employee(c,t,'MANAGER','manager',['history','reports']);assert.equal((await access(c,'create',{matricula:'BAD',name:'Bad Admin',role:'owner',permissions:[]},t)).status,400);assert.equal((await access(c,'update',{matricula:'MANAGER',operation:'permissions',role:'manager',permissions:['admin']},t)).status,400);await assert.rejects(Accounts.authenticated(c.env,{tenant:'different-qa'},c.second.id,e.token),x=>x.status===401);assert.equal((await access(c,'submissions',{},e.token,c.second)).status,200);});
 test('expired sessions and post-PDV employee edits are denied; owner history survives deletion',async()=>{const c=await setup(),t=await owner(c),e=await employee(c,t),actor=await Accounts.authenticated(c.env,{tenant:'isolated-qa'},c.second.id,e.token),current={receivedByPdv:true,authorship:Accounts.author(actor),payload:{}};await assert.rejects(Accounts.writing(c.env,{tenant:'isolated-qa'},c.second.id,actor,'projects',current,{}),x=>x.status===403);const key='access/v1/isolated-qa/directory',book=await(await c.env.BUCKET.get(key)).json();book.sessions[actor.sessionHash].expires=Date.now()-1;await c.env.BUCKET.put(key,JSON.stringify(book));assert.equal((await access(c,'me',{},e.token,c.second)).status,401);assert.equal((await access(c,'me',{},t)).status,200);});
 test('login brute attempts lock account and signed device attempt budget limits activation abuse',async()=>{const c=await setup(),t=await owner(c);await employee(c,t);for(let i=0;i<5;i++)assert.equal((await access(c,'login',{matricula:'EMP01',password:'WrongPasswordQA!'},'',c.second)).status,401);assert.equal((await access(c,'login',{matricula:'EMP01',password:'EmployeeStrongQA!'},'',c.second)).status,401);let last;for(let i=0;i<20;i++)last=await access(c,'activate',{matricula:'MISSING',password:'InvalidButLongQA!'},'',c.second);assert.equal(last.status,429);});
+async function browser(c,dev,email='owner@example.test',query=''){
+ const url='https://qa.test/access/admin?device='+dev.id+query,headers={'oai-authenticated-user-id':'identity:'+email,'oai-authenticated-user-email':email};
+ const r=await worker.fetch(new Request(url,{headers}),c.env),html=await r.text(),cookie=r.headers.get('Set-Cookie')?.split(';')[0],csrf=cookie?.split('=')[1];
+ return {status:r.status,html,async post(data){return worker.fetch(new Request(url,{method:'POST',headers:{...headers,Cookie:cookie,Origin:'https://qa.test','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({csrf,...data})}),c.env);}};
+}
+test('PDV and app share owner administration; employee browser identity denied; first owner is account-bound',async()=>{
+ const c=await setup();let page=await browser(c,c.pdv);assert.equal(page.status,200);let r=await page.post({action:'bootstrap',name:'Dono de Teste',password:'OwnerStrongQA!',confirm:'OwnerStrongQA!'});assert.equal(r.status,200);
+ const t=await access(c,'login',{matricula:'PROPRIETARIO',password:'OwnerStrongQA!'});assert.equal(t.status,200);
+ page=await browser(c,c.pdv);r=await page.post({action:'create',matricula:'WEB01',name:'Funcionario do PDV',role:'employee'});assert.equal(r.status,200);assert.match(await r.text(),/Ativação individual/);
+ assert.equal((await access(c,'users',{},t.session)).users[0].matricula,'WEB01');assert.equal((await browser(c,c.second,'employee@example.test')).status,403);
+ assert.equal((await access(c,'create',{matricula:'SELF',name:'Sem Cadastro',role:'employee'})).status,401);
+});
+test('transfer requires recipient account, explicit confirmation and one-time link; old owner and sessions lose access while staff/history remain',async()=>{
+ const c=await setup(),t=await owner(c),e=await employee(c,t);let page=await browser(c,c.pdv),r=await page.post({action:'transfer',email:'real-owner@example.test'});assert.equal(r.status,200);const html=await r.text(),secret=html.match(/transfer=([a-f0-9]{64})/)[1];
+ assert.equal((await access(c,'me',{},t)).status,200);assert.equal((await browser(c,c.pdv,'wrong@example.test','&transfer='+secret)).status,403);
+ page=await browser(c,c.pdv,'real-owner@example.test','&transfer='+secret);assert.equal(page.status,200);assert.match(page.html,/Assumir a propriedade/);
+ r=await page.post({action:'accept-transfer',name:'Dono Definitivo',password:'NewOwnerStrongQA!',confirm:'NewOwnerStrongQA!'});assert.equal(r.status,200);
+ assert.equal((await access(c,'me',{},t)).status,401);assert.equal((await access(c,'login',{matricula:'PROPRIETARIO',password:'OwnerStrongQA!'})).status,401);
+ assert.equal((await browser(c,c.pdv)).status,403);assert.equal((await browser(c,c.pdv,'real-owner@example.test')).status,200);
+ assert.equal((await browser(c,c.pdv,'real-owner@example.test','&transfer='+secret)).status,403);
+ const newOwner=await access(c,'login',{matricula:'PROPRIETARIO',password:'NewOwnerStrongQA!'},'',c.second);assert.equal(newOwner.status,200);assert.equal(newOwner.user.role,'owner');assert.equal((await access(c,'users',{},newOwner.session,c.second)).users[0].matricula,'EMP01');
+ const staff=await access(c,'login',{matricula:'EMP01',password:'EmployeeStrongQA!'});assert.equal(staff.status,200);assert.equal(staff.user.uid,e.user.uid);
+ const b=await(await c.env.BUCKET.get('access/v1/isolated-qa/directory')).json();assert.equal(b.previousOwners.length,1);assert.equal(b.transfer,undefined);assert.ok(b.audit.some(x=>x.action==='owner-transferred'));assert.equal(await Accounts.ownerEmail(c.env,'isolated-qa'),'real-owner@example.test');
+});
+test('owner can sign in on another paired handset; transfer can be cancelled and CSRF rejected',async()=>{
+ const c=await setup();await owner(c);assert.equal((await access(c,'login',{matricula:'PROPRIETARIO',password:'OwnerStrongQA!'},'',c.second)).status,200);
+ let page=await browser(c,c.pdv);let r=await page.post({action:'transfer',email:'next@example.test'});const secret=(await r.text()).match(/transfer=([a-f0-9]{64})/)[1];
+ page=await browser(c,c.pdv);r=await page.post({action:'cancel-transfer'});assert.equal(r.status,200);assert.equal((await browser(c,c.pdv,'next@example.test','&transfer='+secret)).status,403);
+ const url='https://qa.test/access/admin?device='+c.pdv.id;r=await worker.fetch(new Request(url,{method:'POST',headers:{'oai-authenticated-user-id':'owner','oai-authenticated-user-email':'owner@example.test','Content-Type':'application/x-www-form-urlencoded'},body:'action=transfer&email=bad@example.test'}),c.env);assert.equal(r.status,403);
+});
