@@ -22,6 +22,7 @@ export const Accounts=(()=>{
  async function fromSessionHash(env,t,device,h){const {book}=await load(env,t),s=book.sessions[h],u=s&&book.users[s.matricula];if(!s||s.expires<Date.now()||s.device!==device||!u||u.status!=='active'||s.revision!==u.revision)throw new Denied(401,'Sessão encerrada ou acesso revogado. Entre novamente.');return {...profile(u),sessionHash:h,revision:u.revision,tenant:t};}
  async function session(b,u,device){const token=random(),h=await hash(token);for(const [k,s]of Object.entries(b.sessions))if(s.expires<Date.now()||(s.matricula===u.matricula&&s.device===device))delete b.sessions[k];b.sessions[h]={matricula:u.matricula,device,revision:u.revision,expires:Date.now()+lifetime};return {session:token,user:profile(u),expires:Date.now()+lifetime};}
  function revoke(b,u){u.revision++;for(const [k,s]of Object.entries(b.sessions))if(s.matricula===u.matricula)delete b.sessions[k];}
+ function assertCurrent(b,u){const current=b.users[u.matricula],session=b.sessions[u.sessionHash];if(!current||current.status!=='active'||current.revision!==u.revision||!session||session.expires<Date.now())throw new Denied(401,'Sessão encerrada. Entre novamente.');}
  function requireOwner(u){if(u.role!=='owner')throw new Denied(403,'Somente o proprietário pode administrar usuários.');}
  async function api(request,env,g,device,path,body){if(!path.startsWith('/sync/access/'))return null;if(g.role!=='app')throw new Denied(403,'Use o aplicativo vinculado ao PDV.');const action=path.slice('/sync/access/'.length);
   if(action==='bootstrap'){const {book}=await load(env,g.tenant),u=book.users[OWNER];return reply(200,{ownerExists:u?.status==='active',activationReady:!!u&&u.status==='pending'&&u.activationDevice===device&&u.activationExpires>Date.now(),authorizationUrl:new URL(request.url).origin+'/access/owner?device='+device});}
@@ -35,8 +36,8 @@ export const Accounts=(()=>{
   requireOwner(actor);
   if(action==='users'){const {book}=await load(env,g.tenant);return reply(200,{users:Object.values(book.users).filter(u=>u.role!=='owner').map(u=>({...profile(u),status:u.status})),permissions:PERMISSIONS,activationLifetimeHours:24});}
   if(action==='audit'){const {book}=await load(env,g.tenant);return reply(200,{audit:book.audit});}
-  if(action==='create'){const id=cleanId(body.matricula),name=fullName(body.name);if(id===OWNER||!['employee','manager'].includes(body.role))throw new Denied(400,'Perfil inválido.');const perms=Array.isArray(body.permissions)?body.permissions:[];if(perms.some(p=>!PERMISSIONS.includes(p)))throw new Denied(400,'Permissão inválida.');const activation=random(),activationHash=await hash(activation);await edit(env,g.tenant,b=>{if(b.users[id])throw new Denied(409,'Esta matrícula já foi utilizada e não pode ser reutilizada.');b.users[id]={uid:crypto.randomUUID(),matricula:id,name,role:body.role,permissions:body.role==='manager'?[...new Set(perms)]:EMPLOYEE,status:'pending',revision:1,activationHash,activationExpires:Date.now()+86400000};audit(b,actor,'create',id);});return reply(200,{matricula:id,activationCode:activation,expires:Date.now()+86400000});}
-  if(action==='update'){const id=cleanId(body.matricula);if(id===actor.matricula||id===OWNER)throw new Denied(403,'Não é permitido alterar os próprios privilégios.');const result=await edit(env,g.tenant,async b=>{const u=b.users[id];if(!u||u.status==='deleted')throw new Denied(404,'Funcionário não encontrado.');if(!['block','unblock','delete','permissions','activation'].includes(body.operation))throw new Denied(400,'Operação inválida.');let activation;
+  if(action==='create'){const id=cleanId(body.matricula),name=fullName(body.name);if(id===OWNER||!['employee','manager'].includes(body.role))throw new Denied(400,'Perfil inválido.');const perms=Array.isArray(body.permissions)?body.permissions:[];if(perms.some(p=>!PERMISSIONS.includes(p)))throw new Denied(400,'Permissão inválida.');const activation=random(),activationHash=await hash(activation);await edit(env,g.tenant,b=>{assertCurrent(b,actor);if(b.users[id])throw new Denied(409,'Esta matrícula já foi utilizada e não pode ser reutilizada.');b.users[id]={uid:crypto.randomUUID(),matricula:id,name,role:body.role,permissions:body.role==='manager'?[...new Set(perms)]:EMPLOYEE,status:'pending',revision:1,activationHash,activationExpires:Date.now()+86400000};audit(b,actor,'create',id);});return reply(200,{matricula:id,activationCode:activation,expires:Date.now()+86400000});}
+  if(action==='update'){const id=cleanId(body.matricula);if(id===actor.matricula||id===OWNER)throw new Denied(403,'Não é permitido alterar os próprios privilégios.');const result=await edit(env,g.tenant,async b=>{assertCurrent(b,actor);const u=b.users[id];if(!u||u.status==='deleted')throw new Denied(404,'Funcionário não encontrado.');if(!['block','unblock','delete','permissions','activation'].includes(body.operation))throw new Denied(400,'Operação inválida.');let activation;
     if(body.operation==='block')u.status='blocked';
     if(body.operation==='unblock'){if(!u.passwordHash)throw new Denied(409,'Reemita a ativação deste cadastro.');u.status='active';}
     if(body.operation==='delete'){u.status='deleted';delete u.passwordHash;delete u.salt;delete u.activationHash;delete u.activationDevice;delete u.activationExpires;}
@@ -52,16 +53,77 @@ export const Accounts=(()=>{
    if(!canView(actor,current||{authorship:author(actor)}))throw new Denied(403,'Orçamento de outro usuário.');if(!permission(actor,'send'))throw new Denied(403,'Envio ao PDV não autorizado.');
   }else if(!permission(actor,entity==='clients'?'customers':entity))throw new Denied(403,'Cadastro não autorizado.');
  }
- async function ownerPage(request,env){const url=new URL(request.url);if(url.pathname!=='/access/owner')return null;const device=url.searchParams.get('device');if(!/^[a-f0-9]{64}$/.test(device||''))return reply(400,{error:'Dispositivo inválido.'});
-  if(!request.headers.get('oai-authenticated-user-id'))return Response.redirect(url.origin+'/signin-with-chatgpt?return_to='+encodeURIComponent(url.pathname+url.search),302);
-  if(!env.OWNER_EMAIL||(request.headers.get('oai-authenticated-user-email')||'').toLowerCase()!==env.OWNER_EMAIL.toLowerCase())throw new Denied(403,'Entre com a conta proprietária do gateway.');
-  const x=await env.BUCKET.get('sync/grants/'+device),g=x&&await x.json();const px=g?.pdv&&await env.BUCKET.get('sync/grants/'+g.pdv),parent=px&&await px.json();if(!g||!g.approved||g.role!=='app'||!parent?.approved||parent.role!=='pdv'||(g.expires&&g.expires<Date.now())||(parent.expires&&parent.expires<Date.now())||(parent.linkEpoch||'')!==(g.linkEpoch||''))throw new Denied(403,'Conecte primeiro este aplicativo ao PDV ANGRA.');
-  const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const html=s=>new Response('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>ANGRA VIDROS — Proprietário</title><body style="background:#081224;color:#e1eff8;font:18px system-ui;max-width:640px;margin:40px auto;padding:20px">'+s+'</body></html>',{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'"}});
-  const {book}=await load(env,g.tenant);if(book.users[OWNER]?.status==='active')return html('<h1>Proprietário já cadastrado</h1><p>Use sua matrícula PROPRIETARIO e senha no aplicativo. Nenhuma permissão foi alterada.</p>');
-  if(request.method==='POST'){const form=await request.formData(),cookie=(request.headers.get('Cookie')||'').match(/(?:^|; )angra_owner_csrf=([a-f0-9]{64})/);if(request.headers.get('Origin')!==url.origin||!cookie||!equal(form.get('csrf'),cookie[1]))throw new Denied(403,'Confirmação inválida.');await edit(env,g.tenant,b=>{if(b.users[OWNER]?.status==='active')throw new Denied(409,'Proprietário já ativo.');b.users[OWNER]={uid:b.users[OWNER]?.uid||crypto.randomUUID(),matricula:OWNER,name:'Proprietário ANGRA VIDROS',role:'owner',permissions:PERMISSIONS,status:'pending',revision:1,activationDevice:device,activationExpires:Date.now()+600000};audit(b,null,'owner-approved',device.slice(0,12));});return html('<h1>Ativação autorizada</h1><p>Volte ao aplicativo. Use a matrícula <strong>PROPRIETARIO</strong> e crie sua própria senha em ATIVAR ACESSO.</p>');}
-  const csrf=random(),response=html('<h1>Ativar proprietário</h1><p>PDV: '+escape(g.name)+'</p><p>Dispositivo '+escape(device.slice(0,16))+'</p><p>Este aparelho poderá ativar o acesso administrativo completo do ANGRA VIDROS QA37.</p><form method="post"><input type="hidden" name="csrf" value="'+csrf+'"><button style="padding:18px">AUTORIZAR PROPRIETÁRIO NESTE APARELHO</button></form>');response.headers.set('Set-Cookie','angra_owner_csrf='+csrf+'; Secure; HttpOnly; SameSite=Strict; Max-Age=600; Path=/access/owner');return response;
+ // Owner authority belongs to the workshop account, never to a handset.
+ async function ownerEmail(env,t){const {book}=await load(env,t);return book.ownerAccountEmail||env.OWNER_EMAIL||'';}
+ const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ async function ownerPage(request,env){
+  const url=new URL(request.url);if(!['/access/owner','/access/admin'].includes(url.pathname))return null;
+  const device=url.searchParams.get('device');if(!/^[a-f0-9]{64}$/.test(device||''))throw new Denied(400,'Dispositivo inválido.');
+  const read=async id=>{const r=await env.BUCKET.get('sync/grants/'+id);return r&&await r.json();};
+  const g=await read(device),parent=g?.role==='app'?await read(g.pdv):g;
+  if(!g?.approved||!parent?.approved||parent.role!=='pdv'||(g.expires&&g.expires<Date.now())||(parent.expires&&parent.expires<Date.now())||(g.role==='app'&&(parent.linkEpoch||'')!==(g.linkEpoch||'')))throw new Denied(403,'Conecte primeiro ao PDV ANGRA.');
+  const email=(request.headers.get('oai-authenticated-user-email')||'').trim().toLowerCase(),identity=request.headers.get('oai-authenticated-user-id');
+  if(!identity)return Response.redirect(url.origin+'/signin-with-chatgpt?return_to='+encodeURIComponent(url.pathname+url.search),302);
+  const {book}=await load(env,g.tenant),invite=url.searchParams.get('transfer');
+  const accepting=!!invite&&book.transfer&&book.transfer.expires>Date.now()&&equal(await hash(invite),book.transfer.hash)&&email===book.transfer.email;
+  if(!email||(!accepting&&email!==(await ownerEmail(env,g.tenant)).trim().toLowerCase()))throw new Denied(403,'Entre com a conta proprietária desta vidraçaria. Nenhum dado foi alterado.');
+  const csrf=random(),base=url.pathname+'?device='+device;
+  const form=(action,fields,label)=>'<form method="post"><input type="hidden" name="csrf" value="'+csrf+'"><input type="hidden" name="action" value="'+action+'">'+fields+'<button>'+label+'</button></form>';
+  const input=(name,label,type='text')=>'<label>'+label+'<input required type="'+type+'" name="'+name+'" maxlength="128"></label>';
+  const page=content=>{const r=new Response('<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>ANGRA VIDROS — Administração</title><style>body{background:#081224;color:#e1eff8;font:18px system-ui;max-width:760px;margin:30px auto;padding:20px}input,select,button{display:block;padding:12px;margin:8px 0;max-width:100%;box-sizing:border-box}form{border:1px solid #547087;padding:18px;margin:18px 0}label{display:block}button{cursor:pointer}a{color:#75e4f5}code{overflow-wrap:anywhere}</style><h1>Administração da vidraçaria</h1><p>'+escape(g.name)+' • QA37</p>'+content+'</html>',{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'",'X-Content-Type-Options':'nosniff'}});r.headers.set('Set-Cookie','angra_owner_csrf='+csrf+'; Secure; HttpOnly; SameSite=Strict; Max-Age=600; Path=/access');return r;};
+  let notice='';
+  if(request.method==='POST'){
+   const f=await request.formData(),cookie=(request.headers.get('Cookie')||'').match(/(?:^|; )angra_owner_csrf=([a-f0-9]{64})/);
+   if(request.headers.get('Origin')!==url.origin||!cookie||!equal(f.get('csrf'),cookie[1]))throw new Denied(403,'Confirmação inválida.');
+   const action=f.get('action');
+   if(accepting){
+    if(action!=='accept-transfer')throw new Denied(403,'Confirme a transferência.');
+    const name=fullName(f.get('name')),salt=random(),passwordHash=await digestPassword(f.get('password'),salt);
+    if(f.get('password')!==f.get('confirm'))throw new Denied(400,'As senhas não coincidem.');
+    await edit(env,g.tenant,async b=>{if(!b.transfer||b.transfer.expires<Date.now()||b.transfer.email!==email||!equal(await hash(invite),b.transfer.hash))throw new Denied(409,'Transferência expirada ou utilizada.');
+     const old=b.users[OWNER];if(old)b.previousOwners=[...(b.previousOwners||[]),{uid:old.uid,name:old.name,account:b.ownerAccountEmail||env.OWNER_EMAIL,ended:Date.now()}];
+     b.users[OWNER]={uid:crypto.randomUUID(),matricula:OWNER,name,role:'owner',permissions:PERMISSIONS,status:'active',revision:(old?.revision||0)+1,salt,passwordHash};b.ownerAccountEmail=email;b.ownerAccountId=identity;b.sessions={};delete b.transfer;audit(b,b.users[OWNER],'owner-transferred',OWNER);
+    });return page('<h2>Transferência concluída</h2><p>O proprietário anterior perdeu o acesso administrativo. Dados, funcionários e autoria foram preservados. Entre no aplicativo com PROPRIETARIO e sua nova senha.</p><a href="'+base+'">GERENCIAR FUNCIONÁRIOS</a>');
+   }
+   if(invite)throw new Denied(403,'Transferência inválida ou expirada.');
+   if(action==='bootstrap'){
+    const salt=random(),name=fullName(f.get('name')),passwordHash=await digestPassword(f.get('password'),salt);if(f.get('password')!==f.get('confirm'))throw new Denied(400,'As senhas não coincidem.');
+    await edit(env,g.tenant,b=>{if(b.users[OWNER]?.status==='active')throw new Denied(409,'Proprietário já ativo.');b.ownerAccountEmail=email;b.ownerAccountId=identity;b.users[OWNER]={uid:crypto.randomUUID(),matricula:OWNER,name,role:'owner',permissions:PERMISSIONS,status:'active',revision:(b.users[OWNER]?.revision||0)+1,salt,passwordHash};b.sessions={};audit(b,b.users[OWNER],'owner-created',OWNER);});
+    notice='<p>Proprietário cadastrado. Use PROPRIETARIO e sua senha no aplicativo, em qualquer aparelho conectado e autorizado.</p>';
+   }else if(!action&&url.pathname==='/access/owner'){
+    // Compatibility with APK 0.4.0: identity is verified above; only this owner can activate.
+    await edit(env,g.tenant,b=>{if(b.users[OWNER]?.status==='active')throw new Denied(409,'Proprietário já ativo.');b.ownerAccountEmail=email;b.ownerAccountId=identity;b.users[OWNER]={uid:crypto.randomUUID(),matricula:OWNER,name:'Proprietário ANGRA VIDROS',role:'owner',status:'pending',revision:1,activationDevice:device,activationExpires:Date.now()+600000};});return page('<p>Ativação autorizada. Volte ao aplicativo e ative PROPRIETARIO.</p>');
+   }else{
+    if(book.users[OWNER]?.status!=='active')throw new Denied(403,'Configure primeiro o proprietário.');
+    if(action==='transfer'){
+     const target=String(f.get('email')||'').trim().toLowerCase();if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)||target===email)throw new Denied(400,'Informe o e-mail do novo proprietário.');
+     const secret=random();await edit(env,g.tenant,b=>{if((b.ownerAccountEmail||env.OWNER_EMAIL).toLowerCase()!==email)throw new Denied(403,'Proprietário alterado.');b.transfer={email:target,hash:null,expires:Date.now()+86400000};return hash(secret).then(h=>{b.transfer.hash=h;audit(b,b.users[OWNER],'owner-transfer-invited',target);});});
+     const link=url.origin+base+'&transfer='+secret;return page('<h2>Convite preparado</h2><p>Entregue este link somente ao novo proprietário ('+escape(target)+'). Válido por 24 horas. Ele precisa entrar na própria conta e confirmar; até lá, seu acesso continua ativo.</p><code>'+escape(link)+'</code><p>O histórico comercial será preservado.</p><a href="'+base+'">VOLTAR</a>');
+    }
+    if(action==='cancel-transfer'){await edit(env,g.tenant,b=>{if((b.ownerAccountEmail||env.OWNER_EMAIL).toLowerCase()!==email)throw new Denied(403,'Proprietário alterado.');delete b.transfer;});notice='<p>Convite cancelado.</p>';}
+    else{
+     // Run the exact same user administration rules as the app, with a server-only ephemeral session.
+     let ephemeral;await edit(env,g.tenant,async b=>{if((b.ownerAccountEmail||env.OWNER_EMAIL).toLowerCase()!==email)throw new Denied(403,'Proprietário alterado.');ephemeral=await session(b,b.users[OWNER],device);});
+     try{const body={matricula:f.get('matricula'),name:f.get('name'),role:f.get('role'),permissions:f.getAll('permissions'),operation:f.get('operation')};
+      if(!['create','update'].includes(action))throw new Denied(400,'Operação inválida.');
+      const r=await api(new Request(url,{headers:{'X-Angra-Session':ephemeral.session}}),env,{...g,role:'app'},device,'/sync/access/'+action,body),result=await r.json();
+      notice=result.activationCode?'<h2>Ativação individual</h2><p>Matrícula: '+escape(result.matricula)+'. Entregue o código somente à pessoa cadastrada. Uso único, 24 horas.</p><code>'+escape(result.activationCode)+'</code>':'<p>Cadastro atualizado; sessões anteriores foram revogadas.</p>';
+     }finally{await edit(env,g.tenant,async b=>{delete b.sessions[await hash(ephemeral.session)];});}
+    }
+   }
+  }else if(request.method!=='GET')throw new Denied(405,'Método não permitido.');
+  if(accepting)return page('<h2>Assumir a propriedade</h2><p>Ao confirmar, você assume esta vidraçaria e o antigo proprietário perde o acesso. Os dados e a autoria são preservados.</p>'+form('accept-transfer',input('name','Seu nome completo')+input('password','Nova senha (mínimo 8 caracteres)','password')+input('confirm','Confirme a senha','password'),'CONFIRMAR TRANSFERÊNCIA'));
+  if(invite)throw new Denied(403,'Transferência inválida ou expirada.');
+  const fresh=(await load(env,g.tenant)).book;
+  if(fresh.users[OWNER]?.status!=='active')return page(form('bootstrap',input('name','Nome completo do proprietário')+input('password','Senha (mínimo 8 caracteres)','password')+input('confirm','Confirme a senha','password'),'CONFIGURAR PROPRIETÁRIO'));
+  let rows='';for(const u of Object.values(fresh.users).filter(u=>u.role!=='owner')){
+   rows+='<h3>'+escape(u.matricula)+' • '+escape(u.name)+' • '+escape(u.status)+'</h3>';
+   for(const [op,label]of [['block','BLOQUEAR'],['unblock','DESBLOQUEAR'],['activation','REEMITIR ATIVAÇÃO'],['delete','EXCLUIR ACESSO']])if(u.status!=='deleted')rows+=form('update','<input type="hidden" name="matricula" value="'+escape(u.matricula)+'"><input type="hidden" name="operation" value="'+op+'">',label);
+  }
+  const roles='<label>Perfil<select name="role"><option value="employee">Funcionário</option><option value="manager">Gerente com permissões selecionadas</option></select></label>';
+  const permissions=PERMISSIONS.map(p=>'<label><input type="checkbox" name="permissions" value="'+p+'">'+escape(p)+'</label>').join('');
+  return page(notice+'<h2>Equipe</h2><p>Funcionários ativam apenas a matrícula criada pelo proprietário. Não podem cadastrar pessoas nem assumir propriedade.</p>'+form('create',input('matricula','Matrícula fixa')+input('name','Nome completo')+roles+permissions,'CADASTRAR PESSOA')+form('update',input('matricula','Matrícula existente')+'<input type="hidden" name="operation" value="permissions">'+roles+permissions,'ALTERAR PERFIL / PERMISSÕES')+rows+'<h2>Entrega ao proprietário definitivo</h2>'+form('transfer',input('email','E-mail da conta do novo proprietário','email'),'PREPARAR TRANSFERÊNCIA')+(fresh.transfer?form('cancel-transfer','','CANCELAR TRANSFERÊNCIA PENDENTE'):'')+'<p>A matrícula PROPRIETARIO funciona em outro aparelho autorizado. Nenhum celular é o proprietário da empresa.</p>');
  }
  async function capAllowed(env,g){if(!g.userSessionHash)return false;try{const u=await fromSessionHash(env,g.tenant,g.device,g.userSessionHash);return (permission(u,'send')||(g.mode!=='put'&&permission(u,'history')))&&(!g.authorUid||u.role==='owner'||permission(u,'history')||u.uid===g.authorUid);}catch{return false;}}
- return {Error:Denied,api,ownerPage,authenticated,permission,profile,author,canView,writing,capAllowed,PERMISSIONS};
+ return {Error:Denied,api,ownerPage,ownerEmail,authenticated,permission,profile,author,canView,writing,capAllowed,PERMISSIONS};
 })();

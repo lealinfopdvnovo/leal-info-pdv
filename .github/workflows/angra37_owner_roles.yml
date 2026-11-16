@@ -1,0 +1,96 @@
+name: ANGRA37 - owner roles APK041 PET116
+on:
+  push:
+    branches: [qa/angra37-owner-roles-20261115]
+permissions: {contents: read, actions: read}
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: node --test qa/angra37/gateway/scripts/access.test.mjs
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {ref: a4bc7938b05c3295e9249c0278540d0cc59bc065, path: baseline}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools platforms;android-35 build-tools;35.0.0
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.9'}
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: angra-professional-explicit-debug-signing-v2
+          fail-on-cache-miss: true
+      - name: Build and preserve UI assets
+        run: |
+          python -c "from pathlib import Path; p=Path('baseline/mobile/vidraceiro/app/build.gradle'); p.write_text(p.read_text().replace('.profissional022','.ambiente37'))"
+          cd baseline/mobile/vidraceiro
+          gradle :app:assembleDebug --no-daemon
+          cd ../../../mobile/vidraceiro
+          gradle :app:testDebugUnitTest :app:assembleRelease :app:assembleDebugAndroidTest --no-daemon
+          cd ../..
+          mkdir -p delivery
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk > delivery/signature.txt
+          grep -q 2ee54920efe7042320f90814e45fd10997f9deb28e213ee92a8955b3e00ffac7 delivery/signature.txt
+          diff -qr baseline/mobile/vidraceiro/app/src/main/res mobile/vidraceiro/app/src/main/res
+          cp mobile/vidraceiro/app/build/outputs/apk/release/app-release.apk delivery/ANGRA_VIDROS_0.4.1_QA37.apk
+          sha256sum delivery/*.apk > delivery/SHA256.txt
+      - name: Enable emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          arch: x86_64
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb install baseline/mobile/vidraceiro/app/build/outputs/apk/debug/app-debug.apk
+            adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 mkdir -p files
+            adb shell run-as br.com.lealinfo.vidraceiro.ambiente37 touch files/upgrade37-marker
+            adb install -r delivery/ANGRA_VIDROS_0.4.1_QA37.apk
+            adb install mobile/vidraceiro/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+            adb shell am instrument -w br.com.lealinfo.vidraceiro.ambiente37.test/br.com.lealinfo.vidraceiro.Access37Instrumentation > delivery/android-tests.txt
+            grep -q 'PASS ANGRA37_ACCESS_COMPLETE' delivery/android-tests.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-APK041-owner-roles, path: delivery/, retention-days: 30}
+  receiver:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {ref: 2fd998403a5826bc665ee6fd33c6363cd75a2cfe, path: approved}
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - shell: pwsh
+        run: |
+          dotnet build qa/angra37/Resume.csproj -c Release -o helper
+          if($LASTEXITCODE -ne 0){throw 'Helper compilation failed'}
+          python -c "import zipfile,hashlib; p='approved/qa/etapa4-setup/channel/ANGRA_005_PET_1_12.zip'; assert hashlib.sha256(open(p,'rb').read()).hexdigest()=='45c03f52243da61dc68962798085deec9152935c9845698b20d0890687a6d9c7'; zipfile.ZipFile(p).extractall('baseline')"
+          if($LASTEXITCODE -ne 0){throw 'Baseline mismatch'}
+          New-Item -ItemType Directory receiver-candidate -Force|Out-Null
+          dotnet run --project qa/angra37/Patcher.csproj -c Release -- baseline/Extensions/PET/Pet.dll helper/AngraQaIntegration.dll receiver-candidate/Pet.dll
+          if($LASTEXITCODE -ne 0){throw 'Scope verification failed'}
+          dotnet run --project qa/angra37/AuthorshipTest.csproj -c Release -- receiver-candidate/Pet.dll | Tee-Object integration-evidence/owner-windows.txt
+          if($LASTEXITCODE -ne 0){throw 'Windows test failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-PET116-candidate, path: 'receiver-candidate/'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: {name: ANGRA37-owner-Windows-evidence, path: integration-evidence/}

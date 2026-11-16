@@ -11,7 +11,25 @@ public static class Resume
   var id=form.GetType().Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().SingleOrDefault(x=>x.Key=="PetIdentity")?.Value;
   if(id!="005"||sessions.TryGetValue(form,out _))return;
   sessions.Add(form,new Session(form));
+  AddAdministration(form);
  }
+ static void AddAdministration(Form form){
+  var flow=All(form).OfType<FlowLayoutPanel>().FirstOrDefault();
+  if(flow==null||All(form).Any(c=>c.Name=="AngraOwnerAdministration"))return;
+  var button=new Button{Name="AngraOwnerAdministration",Text="FUNCIONÁRIOS / PROPRIETÁRIO",Width=420,Height=48};
+  button.Click+=(_,_)=>{
+   try{
+    var service=form.GetType().GetField("service",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(form)!;
+    object? Find(object o,string key)=>o.GetType().GetProperty(key,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)?.GetValue(o)??o.GetType().GetField(key,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic)?.GetValue(o);
+    var transport=Find(service,"Transport")??Find(service,"transport")??throw new InvalidOperationException("Transporte de integração indisponível.");
+    var id=Find(transport,"DeviceId") as string;
+    if(id==null||!System.Text.RegularExpressions.Regex.IsMatch(id,"^[a-f0-9]{64}$"))throw new InvalidOperationException("Conecte e autorize primeiro este PDV.");
+    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://angra-vidros-qa37.adriansantosangra.chatgpt.site/access/admin?device="+id){UseShellExecute=true});
+   }catch(Exception e){MessageBox.Show(form,e.Message,"Administração da vidraçaria");}
+  };
+  flow.Controls.Add(button);flow.Controls.SetChildIndex(button,0);
+ }
+ static IEnumerable<Control> All(Control parent){foreach(Control c in parent.Controls){yield return c;foreach(var child in All(c))yield return child;}}
  sealed class Session
  {
   readonly Form form; readonly object service; readonly System.Windows.Forms.Timer timer=new(){Interval=2000};

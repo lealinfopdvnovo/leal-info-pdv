@@ -140,7 +140,7 @@ export async function authorizationRoutes(request,env){
 
 const gateway={async fetch(request,env){
  const path=new URL(request.url).pathname;
- if(path==='/access/owner')return Accounts.ownerPage(request,env);
+ if(path==='/access/owner'||path==='/access/admin')return Accounts.ownerPage(request,env);
  if(path.startsWith('/ci/')||path.startsWith('/admin/')||path==='/sync/ci-authorize'||path==='/sync/ci-grant')return answer(404,{error:'Rota inexistente neste gateway QA37'});
  if(path.startsWith('/sync-file/'))return syncFile(request,env);
  if(path.startsWith('/sync/'))return syncRoutes(request,env);
@@ -207,8 +207,9 @@ async function syncRoutes(request,env){
   const id=u.searchParams.get('device');if(!validId(id))return answer(400,{error:'Identidade inválida'});
   if(!request.headers.get('oai-authenticated-user-id'))return Response.redirect(u.origin+'/signin-with-chatgpt?return_to='+encodeURIComponent('/sync/authorize?device='+id),302);
   const signedEmail=(request.headers.get('oai-authenticated-user-email')||'').trim();
-  if(!env.OWNER_EMAIL)return answer(503,{error:'Configuração do proprietário indisponível'});
-  if(signedEmail.toLowerCase()!==env.OWNER_EMAIL.trim().toLowerCase()){
+  const expectedOwner=await Accounts.ownerEmail(env,id);
+  if(!expectedOwner)return answer(503,{error:'Configuração do proprietário indisponível'});
+  if(signedEmail.toLowerCase()!==expectedOwner.trim().toLowerCase()){
    const back='/sync/authorize?device='+id;
    const page=html('<h2>Entre com a conta do proprietário</h2><p>A conta conectada'+(signedEmail?': <strong>'+safeHtml(signedEmail)+'</strong>': ' não informou e-mail')+' não é a conta autorizada para este PDV.</p><p>Nenhum vínculo ou dado foi alterado.</p><p><a style="display:inline-block;padding:16px;background:#1fc8e8;color:#081224;border-radius:10px;text-decoration:none" target="_top" href="/signout-with-chatgpt?return_to='+encodeURIComponent(back)+'">TROCAR CONTA E AUTORIZAR</a></p><p>Depois de entrar com a conta proprietária, confirme AUTORIZAR ESTE PDV e volte ao programa para gerar o código.</p>');return new Response(page.body,{status:403,headers:page.headers});
   }
