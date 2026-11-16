@@ -27,8 +27,8 @@ static class Patcher
   var helper=File.ReadAllBytes(args[1]);
   assembly.MainModule.Resources.Add(new EmbeddedResource("ANGRA.IntegrationQA.Helper",ManifestResourceAttributes.Private,helper));
   foreach(var attr in assembly.CustomAttributes){
-   if(attr.AttributeType.FullName=="System.Reflection.AssemblyMetadataAttribute"&&(string)attr.ConstructorArguments[0].Value=="PetVersion")attr.ConstructorArguments[1]=new CustomAttributeArgument(assembly.MainModule.TypeSystem.String,"1.21");
-   if(attr.AttributeType.FullName is "System.Reflection.AssemblyFileVersionAttribute" or "System.Reflection.AssemblyInformationalVersionAttribute")attr.ConstructorArguments[0]=new CustomAttributeArgument(assembly.MainModule.TypeSystem.String,"1.21.0");
+   if(attr.AttributeType.FullName=="System.Reflection.AssemblyMetadataAttribute"&&(string)attr.ConstructorArguments[0].Value=="PetVersion")attr.ConstructorArguments[1]=new CustomAttributeArgument(assembly.MainModule.TypeSystem.String,"1.22");
+   if(attr.AttributeType.FullName is "System.Reflection.AssemblyFileVersionAttribute" or "System.Reflection.AssemblyInformationalVersionAttribute")attr.ConstructorArguments[0]=new CustomAttributeArgument(assembly.MainModule.TypeSystem.String,"1.22.0");
   }
   var module=assembly.MainModule;
   var bridge=new TypeDefinition("","AngraIntegrationQaBridge",TypeAttributes.NotPublic|TypeAttributes.Abstract|TypeAttributes.Sealed,module.TypeSystem.Object);module.Types.Add(bridge);
@@ -97,9 +97,9 @@ static class Patcher
   foreach(var m in all.SelectMany(t=>t.Methods))if(!changed.Contains(m.FullName)&&MethodSignature(m)!=methods[m.FullName])throw new Exception("Unrelated original method changed");
   foreach(var r in assembly.MainModule.Resources.OfType<EmbeddedResource>().Where(r=>resources.ContainsKey(r.Name)))if(Hash(r.GetResourceData())!=resources[r.Name])throw new Exception("Original resource changed: "+r.Name);
   assembly.Write(args[2]);using var check=AssemblyDefinition.ReadAssembly(args[2]);
-  if(Metadata(check,"PetIdentity")!="005"||Metadata(check,"PetVersion")!="1.21")throw new Exception("Output metadata mismatch");
+  if(Metadata(check,"PetIdentity")!="005"||Metadata(check,"PetVersion")!="1.22")throw new Exception("Output metadata mismatch");
   foreach(var method in check.MainModule.Types.SelectMany(Types).SelectMany(t=>t.Methods))if(methods.ContainsKey(method.FullName)&&!changed.Contains(method.FullName)&&MethodSignature(method)!=methods[method.FullName])throw new Exception("Unrelated method differs after write: "+method.FullName);
-  Directory.CreateDirectory("integration-evidence");File.WriteAllText("integration-evidence/patch-scope.json",JsonSerializer.Serialize(new{Pass=true,Identity="005",From="1.12",To="1.21",OnlyOriginalMethodsChanged=changed.ToArray(),QaGatewayOrigin=isolatedOrigin,IsolatedGatewayCallSites=isolatedCalls,LiveGatewayConfigured=true,OtherOriginalMethodsIdentical=true,AllOriginalResourcesIdentical=true,MediaSHA256=resources["ANGRA.Opening.mp4"],CoreAndNotifierRecompiled=false,HelperEmbedded=true}));
+  Directory.CreateDirectory("integration-evidence");File.WriteAllText("integration-evidence/patch-scope.json",JsonSerializer.Serialize(new{Pass=true,Identity="005",From="1.12",To="1.22",OnlyOriginalMethodsChanged=changed.ToArray(),QaGatewayOrigin=isolatedOrigin,IsolatedGatewayCallSites=isolatedCalls,LiveGatewayConfigured=true,OtherOriginalMethodsIdentical=true,AllOriginalResourcesIdentical=true,MediaSHA256=resources["ANGRA.Opening.mp4"],CoreAndNotifierRecompiled=false,HelperEmbedded=true}));
   Console.WriteLine("PASS QA pairing-resume pairing constructor and PET customization hooks only; approved resources and all unrelated PET methods unchanged");return 0;
  }catch(Exception e){Console.Error.WriteLine(e);return 1;}}
 }

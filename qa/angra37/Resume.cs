@@ -10,6 +10,7 @@ public static class Resume
   EmployeeTutorial.Observe();
   SalesHeaderLogo.Observe();
   SalesStyles.Observe();
+  QuoteWhatsApp.Observe();
   if(form.GetType().FullName!="LealInfoPDV.AngraPairingForm")return;
   var id=form.GetType().Assembly.GetCustomAttributes<AssemblyMetadataAttribute>().SingleOrDefault(x=>x.Key=="PetIdentity")?.Value;
   if(id!="005"||sessions.TryGetValue(form,out _))return;
