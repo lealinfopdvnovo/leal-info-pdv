@@ -51,4 +51,10 @@ Não cria pagamento/recibo, não salva ou altera projetos automaticamente e não
 Preservados estilo1.21, logo1.20, tutorial1.19, login, licença, abertura/narração/transição, AJUDA, bandeirinha e APK0.4.2. Sem modificações em GLOBAL, outros PETs/clientes, Firebase, Alerta, Speed Food ou ambiente34; sem backup real e sem Etapa6.
 Refs conferidas: GLOBAL48d8f50f00a16bc2457b5ebd04383dfaf9cf16d1; produção updates/main6f641fc6941b573f94393a437191761243cfa69e; Loja client/00155e3a10d2c1b32b7db1a980e7f462a1d07f5a87c.
 
-**PENDENTE físico:** atualizar para1.22, conferir posição/escala do botão com tema do ANGRA, abrir WhatsApp usando telefone de teste, confirmar envio pelo proprietário e recebimento no aparelho de teste. Não declarar recebimento no WhatsApp nem homologação final da Etapa5B sem essa execução.
+## Confirmação do proprietário e fechamento — 16/11/2026
+
+Após ser informado de que faltava o teste real de selecionar cliente de teste, abrir o orçamento no WhatsApp, conferir número/valores e verificar recebimento no celular, Adriano confirmou: “Tá, pode fechá essa etapa, tá conferido já”.
+
+**Teste físico do WhatsApp confirmado pelo proprietário; pendência acima encerrada por seu relato. Etapa do ANGRA VIDROS encerrada a pedido do proprietário, até o PET1.22.** Esta confirmação é testemunho do proprietário no computador real, não uma nova execução do CI nem uma captura adicional.
+
+Fechamento documental somente. Não inicia Etapa6, transbordo/migração, backup real ou publicação; não autoriza mudanças no GLOBAL ou em outros clientes. Alerta e Speed Food não foram revalidados nesta confirmação.
