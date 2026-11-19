@@ -42,3 +42,7 @@ A reconstrução foi verificada byte a byte antes do commit. O SHA-256 do vídeo
 ### Conferência
 
 Vídeos mostram pedido em modo de teste e fluxo de separação; API confirma 0/3/1 e ACKs aceitos. O JSON exportado contém dois eventos oficiais; não declarar que contém registros HTTP. Não houve envio ao iFood, nova execução de testes, alteração de código, GLOBAL ou PET.
+
+## Nova remessa — 19/11/2026, relatório 160654
+
+Cinco novos arquivos preservados sem substituir os anteriores. Inventário e SHA-256 em `INTEGRIDADE-REMESSA-160654.json`. Vídeos acima de 100 MiB divididos em partes binárias numeradas, sem recompressão; concatenar na ordem para restaurar o original, conforme instruções anteriores. Integridade verificada byte a byte. Arquivamento não equivale à homologação iFood.
