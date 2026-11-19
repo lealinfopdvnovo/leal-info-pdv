@@ -1,0 +1,24 @@
+﻿LEAL INFO - RESUMO POR PEDIDO / CONFERENCIA R7
+Origem: SACOLA FINAL DE TESTE PERSISTIDA - CONFERENCIA LOCAL
+UTC: 2026-11-19T13:40:19.7177607+00:00
+Pedido: c93635dd-8343-4634-9932-4dc83a2e0187
+Loja: 84a8976b-0559-48c6-84ce-fc2502f1364a
+Resultado das quantidades: 0/3/1 CONFORME PLANO LOCAL
+Nenhum resultado desta conferencia equivale a aprovacao do iFood.
+Modalidade: DELIVERY | agendamento: IMMEDIATE | janela: 2026-11-19T13:45:52.308Z / 2026-11-19T13:55:52.308Z
+Valores informados em centavos: sacola=2596 | pagamento=3685
+Item a238222d-290f-4b23-bfdb-4223d18596c5 | qtd informada=1 | unavailable=False | qtd disponivel=1
+Item 76779198-4e4d-4f9e-be4c-ab16d68db08e | qtd informada=3 | unavailable=False | qtd disponivel=3
+Item 63f5f356-a906-45d7-a448-0f14125a281e | qtd informada=3 | unavailable=True | qtd disponivel=0
+CRITERIOS E EVIDENCIAS:
+APROVADO LOCAL | Tres produtos no resultado | Encontrados: 3. O roteiro exige exatamente tres produtos.
+APROVADO LOCAL | Item 1 - indisponivel | ID 63f5f356-a906-45d7-a448-0f14125a281e | informada=3 | unavailable=True | disponivel=0 | esperada=0
+APROVADO LOCAL | Item 2 - tres unidades | ID 76779198-4e4d-4f9e-be4c-ab16d68db08e | informada=3 | unavailable=False | disponivel=3 | esperada=3
+APROVADO LOCAL | Item 3 - uma unidade | ID a238222d-290f-4b23-bfdb-4223d18596c5 | informada=1 | unavailable=False | disponivel=1 | esperada=1
+OBSERVADO | Beneficios da sacola | 0 patrocinio(s) informado(s). Presenca ou ausencia de beneficio final nao comprova aplicacao do cupom original.
+PENDENTE | Pedido original: 3 unidades de cada | Exige evidencia do pedido original. A selecao de produtos descreve o plano, nao comprova quantidades originais.
+PENDENTE | Cupom aplicado | Exige evidencia real do cupom no pedido original.
+PENDENTE | Solicitacao de cancelamento | unavailable=true nao comprova o envio da solicitacao. Registrar a acao e seu resultado na ferramenta de separacao.
+PENDENTE | Video do fluxo completo | Gravar criacao, recebimento e separacao reais DE TESTE.
+PENDENTE | Logs oficiais do aplicativo | Exportar HTTP Requests no Developer Portal, do mesmo aplicativo usado no video.
+Resumo auxiliar; anexar videos e logs oficiais somente depois da validacao real.

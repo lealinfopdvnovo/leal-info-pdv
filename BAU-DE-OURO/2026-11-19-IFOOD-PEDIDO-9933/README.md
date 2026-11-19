@@ -11,14 +11,34 @@ Aplicativo client_id: `756879ff-e999-4782-ae2d-a782619c7e26`
 - GET virtual-bag: HTTP 200 em 19/11 às 10:16:21 BRT.
 - Sacola final: item cancelado/indisponível 0, item integral 3, item reduzido 1. Subtotal R$ 25,96. Conferência 0/3/1 APROVADA LOCAL.
 - Developer Portal > Logs da API > Eventos: eventos oficiais DISPATCHED e CONCLUDED, deliveredVia POLLING, deliveryStatus DELIVERED, error null. A aba HTTP Requests não mostrou registros de 19/11 nas buscas realizadas. Não confundir logs de eventos com logs HTTP.
-- Evidência de cupom e requisitos oficiais de homologação ainda precisam de confirmação; nenhuma aprovação externa declarada.
+- Conforme correção expressa do proprietário em 19/11/2026, cupom não é mais exigido. Não registrar cupom como pendência. Nenhuma aprovação externa declarada.
 
-## Arquivos recebidos na conversa (originais ainda NÃO anexados a esta pasta GitHub)
-- `pedido ifood.mp4` — vídeo da criação do pedido.
-- `separador ifood.mp4` — vídeo da separação.
-- `RESULTADO_IFOOD_CONFERENCIA_R8(20261119-132420).txt` — relatório R8.5.2.
-- `RESUMO_IFOOD_c93635dd.txt` — resumo do pedido.
-- `application-logs (1)(1).json` — exportação de eventos do Developer Portal.
-- Prints do R8.5.2 e Developer Portal compartilhados na conversa de 19/11/2026.
+## Arquivos novos arquivados em 19/11/2026
 
-**Importante:** esta pasta contém o índice técnico. Os binários originais e exportações não foram transferidos ao GitHub por esta operação. Preservar os arquivos originais para envio posterior. Nenhum código GLOBAL/PET alterado.
+Cinco originais recebidos e preservados, identificados em `INTEGRIDADE.json`, com tamanhos e SHA-256.
+
+- `pedido ifood(1).mp4`: vídeo da criação do pedido.
+- `separador ifood(1).mp4`: vídeo da separação, armazenado em duas partes binárias sem recompressão por ultrapassar o limite de 100 MiB por arquivo do GitHub.
+- `application-logs (1)(2).json`: exportação com dois eventos, DISPATCHED e CONCLUDED, do pedido #9933; não equivale à exportação HTTP Requests.
+- `RESULTADO_IFOOD_CONFERENCIA_R8(20261119-140710).txt`: relatório da comunicação API R8.5.2, preservado integralmente.
+- `RESUMO_IFOOD_c93635dd(1).txt`: resumo original preservado; suas pendências automáticas são anteriores à conferência dos vídeos. Cupom NÃO é pendência vigente.
+
+### Restaurar o vídeo do separador
+
+Baixar as duas partes para a mesma pasta e concatenar em ordem, sem conversão:
+
+Windows (Prompt de Comando):
+```bat
+copy /b "separador ifood(1).mp4.part01"+"separador ifood(1).mp4.part02" "separador ifood(1).mp4"
+```
+
+Linux/macOS:
+```sh
+cat 'separador ifood(1).mp4.part01' 'separador ifood(1).mp4.part02' > 'separador ifood(1).mp4'
+```
+
+A reconstrução foi verificada byte a byte antes do commit. O SHA-256 do vídeo completo consta no inventário.
+
+### Conferência
+
+Vídeos mostram pedido em modo de teste e fluxo de separação; API confirma 0/3/1 e ACKs aceitos. O JSON exportado contém dois eventos oficiais; não declarar que contém registros HTTP. Não houve envio ao iFood, nova execução de testes, alteração de código, GLOBAL ou PET.

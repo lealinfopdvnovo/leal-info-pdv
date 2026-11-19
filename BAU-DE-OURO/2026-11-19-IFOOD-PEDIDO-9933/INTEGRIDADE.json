@@ -1,0 +1,43 @@
+[
+  {
+    "original": "application-logs (1)(2).json",
+    "bytes": 995,
+    "sha256": "b1e1534286b5c24d980d9fd85989be1c2883df6f4f9b5591a20a4e2c6f053299",
+    "arquivos": [
+      "application-logs (1)(2).json"
+    ]
+  },
+  {
+    "original": "RESULTADO_IFOOD_CONFERENCIA_R8(20261119-140710).txt",
+    "bytes": 18930,
+    "sha256": "acf097dd0bf908c08b0bf242eb25807e9aa60166eb8e8756cb129abe9acaa729",
+    "arquivos": [
+      "RESULTADO_IFOOD_CONFERENCIA_R8(20261119-140710).txt"
+    ]
+  },
+  {
+    "original": "RESUMO_IFOOD_c93635dd(1).txt",
+    "bytes": 2240,
+    "sha256": "af672c45bb234e64d9d5d9c150c0dae743bc2d9a19a23e8d0352bb3badcec6e4",
+    "arquivos": [
+      "RESUMO_IFOOD_c93635dd(1).txt"
+    ]
+  },
+  {
+    "original": "pedido ifood(1).mp4",
+    "bytes": 12272044,
+    "sha256": "4893aa3a6352bf26421c44cc398eaeec71438b0a626f072628a2d3049981e9c9",
+    "arquivos": [
+      "pedido ifood(1).mp4"
+    ]
+  },
+  {
+    "original": "separador ifood(1).mp4",
+    "bytes": 106029195,
+    "sha256": "df9919a8c50c755220a29283e3c2a70d6018c0ecfb97785c68a6a010ff807871",
+    "arquivos": [
+      "separador ifood(1).mp4.part01",
+      "separador ifood(1).mp4.part02"
+    ]
+  }
+]
