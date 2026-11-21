@@ -1,0 +1,120 @@
+diff --git a/BackupProgressForm.cs b/BackupProgressForm.cs
+new file mode 100644
+index 0000000..e6c8a65
+--- /dev/null
++++ b/BackupProgressForm.cs
+@@ -0,0 +1,30 @@
++using System.Drawing;
++using System.Windows.Forms;
++namespace LealInfoPDV;
++
++// Only included in the Loja/Casa candidate builds.
++internal sealed class BackupProgressForm : Form
++{
++    private readonly Label status = new() { Dock = DockStyle.Top, Height = 32, ForeColor = Color.White, Text = "PREPARANDO BACKUP...", TextAlign = ContentAlignment.MiddleLeft };
++    private readonly ProgressBar bar = new() { Dock = DockStyle.Top, Height = 30, Minimum = 0, Maximum = 100 };
++    private readonly Label percent = new() { Dock = DockStyle.Top, Height = 25, ForeColor = Color.White, Text = "0% — etapas do backup", TextAlign = ContentAlignment.MiddleCenter };
++    public BackupProgressForm()
++    {
++        Text = "Backup"; ClientSize = new Size(424, 220); StartPosition = FormStartPosition.CenterParent;
++        FormBorderStyle = FormBorderStyle.FixedDialog; MaximizeBox = false; MinimizeBox = false;
++        BackColor = Color.FromArgb(20, 112, 157); Font = new Font("Segoe UI", 10, FontStyle.Bold);
++        var title = new Label { Text = "AGUARDE...", Dock = DockStyle.Top, Height = 58, BackColor = Color.Red, ForeColor = Color.White, TextAlign = ContentAlignment.MiddleCenter };
++        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(12, 8, 12, 8) };
++        var close = new Button { Text = "FECHAR", BackColor = Color.FromArgb(240, 108, 30), ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Dock = DockStyle.Bottom, Height = 42 };
++        close.Click += (_, _) => Hide(); // Closing the display never cancels the backup.
++        body.Controls.Add(close); body.Controls.Add(percent); body.Controls.Add(bar); body.Controls.Add(status);
++        Controls.Add(body); Controls.Add(title);
++        FormClosing += (_, e) => { if (e.CloseReason == CloseReason.UserClosing) { e.Cancel = true; Hide(); } };
++    }
++    public void Report(int value)
++    {
++        if (IsDisposed) return;
++        bar.Value = Math.Clamp(value, 0, 100); percent.Text = $"{bar.Value}% — etapas do backup";
++        status.Text = value switch { >= 100 => "BACKUP CONCLUÍDO", >= 70 => "ENVIANDO POR E-MAIL...", >= 40 => "COMPACTANDO BACKUP...", >= 10 => "COPIANDO BANCO DE DADOS...", _ => "AGUARDANDO BACKUP..." };
++    }
++}
+diff --git a/DatabaseBackupService.cs b/DatabaseBackupService.cs
+index de9e250..8b363f1 100644
+--- a/DatabaseBackupService.cs
++++ b/DatabaseBackupService.cs
+@@ -8,7 +8,7 @@ public static class DatabaseBackupService
+     private const long MaxRestoreBytes = 1_073_741_824;
+     private static readonly SemaphoreSlim OperationGate = new(1, 1);
+ 
+-    private static async Task<string> CreateZipAsync(CancellationToken cancellationToken = default)
++    private static async Task<string> CreateZipAsync(CancellationToken cancellationToken = default, IProgress<int>? progress = null)
+     {
+         if (Network.NetworkConfiguration.Current.Mode == "terminal")
+             throw new InvalidOperationException("Faça o backup no computador servidor, que contém os dados compartilhados.");
+@@ -17,6 +17,7 @@ public static class DatabaseBackupService
+         var snapshotPath = Path.Combine(Database.BackupFolder, $"LEAL_INFO_PDV_{stamp}.db");
+         var zipPath = Path.Combine(Database.BackupFolder, $"LEAL_INFO_PDV_{stamp}.zip");
+ 
++        progress?.Report(10);
+         await Task.Run(() =>
+         {
+             cancellationToken.ThrowIfCancellationRequested();
+@@ -26,6 +27,7 @@ public static class DatabaseBackupService
+             source.BackupDatabase(destination);
+         }, cancellationToken);
+ 
++        progress?.Report(40);
+         try
+         {
+             await Task.Run(() =>
+@@ -47,13 +49,15 @@ public static class DatabaseBackupService
+         }
+     }
+ 
+-    public static async Task<string> CreateAndSendAsync(CancellationToken cancellationToken = default)
++    public static async Task<string> CreateAndSendAsync(CancellationToken cancellationToken = default, IProgress<int>? progress = null)
+     {
+         await OperationGate.WaitAsync(cancellationToken);
+         try
+         {
+-            var zipPath = await CreateZipAsync(cancellationToken);
++            var zipPath = await CreateZipAsync(cancellationToken, progress);
++            progress?.Report(70);
+             await EmailRecovery.SendBackupAsync(zipPath, cancellationToken);
++            progress?.Report(100);
+             return zipPath;
+         }
+         finally { OperationGate.Release(); }
+diff --git a/MainForm.cs b/MainForm.cs
+index 7bb6260..a057040 100644
+--- a/MainForm.cs
++++ b/MainForm.cs
+@@ -3605,22 +3605,30 @@ private void ApplyFloatingTheme(Form f)
+         f.Show(this);
+     }
+ 
++    private bool manualBackupRunning;
+     private async Task BackupAsync()
+     {
+         if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode enviar backups.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
++        if (manualBackupRunning) return;
++        manualBackupRunning = true;
++        using var backupWindow = new BackupProgressForm();
++        backupWindow.Show(this);
++        var backupProgress = new Progress<int>(backupWindow.Report);
+         try
+         {
+             UseWaitCursor = true;
+-            var zip = await DatabaseBackupService.CreateAndSendAsync();
++            var zip = await DatabaseBackupService.CreateAndSendAsync(progress: backupProgress);
++            backupWindow.Hide();
+             MessageBox.Show("Backup enviado com sucesso para o e-mail configurado.\n\nCópia local:\n" + zip,
+                 "Backup concluído", MessageBoxButtons.OK, MessageBoxIcon.Information);
+         }
+         catch(Exception ex)
+         {
++            backupWindow.Hide();
+             MessageBox.Show("Não foi possível enviar o backup.\n\n" + ex.Message,
+                 "Erro no backup", MessageBoxButtons.OK, MessageBoxIcon.Error);
+         }
+-        finally { UseWaitCursor = false; }
++        finally { UseWaitCursor = false; manualBackupRunning = false; }
+     }
+ 
+     private bool restoreInProgress;
