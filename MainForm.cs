@@ -3605,22 +3605,30 @@ private void ApplyFloatingTheme(Form f)
         f.Show(this);
     }
 
+    private bool manualBackupRunning;
     private async Task BackupAsync()
     {
         if (!Auth.IsAdmin) { MessageBox.Show("Somente ADMINISTRADOR pode enviar backups.", "Acesso negado", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+        if (manualBackupRunning) return;
+        manualBackupRunning = true;
+        using var backupWindow = new BackupProgressForm();
+        backupWindow.Show(this);
+        var backupProgress = new Progress<int>(backupWindow.Report);
         try
         {
             UseWaitCursor = true;
-            var zip = await DatabaseBackupService.CreateAndSendAsync();
+            var zip = await DatabaseBackupService.CreateAndSendAsync(progress: backupProgress);
+            backupWindow.Hide();
             MessageBox.Show("Backup enviado com sucesso para o e-mail configurado.\n\nCópia local:\n" + zip,
                 "Backup concluído", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch(Exception ex)
         {
+            backupWindow.Hide();
             MessageBox.Show("Não foi possível enviar o backup.\n\n" + ex.Message,
                 "Erro no backup", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { UseWaitCursor = false; }
+        finally { UseWaitCursor = false; manualBackupRunning = false; }
     }
 
     private bool restoreInProgress;

@@ -8,7 +8,7 @@ public static class DatabaseBackupService
     private const long MaxRestoreBytes = 1_073_741_824;
     private static readonly SemaphoreSlim OperationGate = new(1, 1);
 
-    private static async Task<string> CreateZipAsync(CancellationToken cancellationToken = default)
+    private static async Task<string> CreateZipAsync(CancellationToken cancellationToken = default, IProgress<int>? progress = null)
     {
         if (Network.NetworkConfiguration.Current.Mode == "terminal")
             throw new InvalidOperationException("Faça o backup no computador servidor, que contém os dados compartilhados.");
@@ -17,6 +17,7 @@ public static class DatabaseBackupService
         var snapshotPath = Path.Combine(Database.BackupFolder, $"LEAL_INFO_PDV_{stamp}.db");
         var zipPath = Path.Combine(Database.BackupFolder, $"LEAL_INFO_PDV_{stamp}.zip");
 
+        progress?.Report(10);
         await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -26,6 +27,7 @@ public static class DatabaseBackupService
             source.BackupDatabase(destination);
         }, cancellationToken);
 
+        progress?.Report(40);
         try
         {
             await Task.Run(() =>
@@ -47,13 +49,15 @@ public static class DatabaseBackupService
         }
     }
 
-    public static async Task<string> CreateAndSendAsync(CancellationToken cancellationToken = default)
+    public static async Task<string> CreateAndSendAsync(CancellationToken cancellationToken = default, IProgress<int>? progress = null)
     {
         await OperationGate.WaitAsync(cancellationToken);
         try
         {
-            var zipPath = await CreateZipAsync(cancellationToken);
+            var zipPath = await CreateZipAsync(cancellationToken, progress);
+            progress?.Report(70);
             await EmailRecovery.SendBackupAsync(zipPath, cancellationToken);
+            progress?.Report(100);
             return zipPath;
         }
         finally { OperationGate.Release(); }
