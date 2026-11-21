@@ -6,9 +6,9 @@ def libraries(folder):
  return {k:v for k,v in d['libraries'].items() if not k.startswith('LealInfoPDV/')}
 assert libraries('baseline-publish')==libraries('candidate-publish'),'Dependency change beyond backup UI'
 files=['LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json']
-p=out/'LEAL_INFO_BACKUP_003_10_467.zip'
+p=out/'LEAL_INFO_BACKUP_003_10_468.zip'
 with zipfile.ZipFile(p,'w',zipfile.ZIP_DEFLATED) as z:
  for n in files:z.write(Path('candidate-publish',n),n)
-proof=dict(Channel='003',Version='10.467',SourceCommit=os.environ['GITHUB_SHA'],Sha256=hashlib.sha256(p.read_bytes()).hexdigest(),Package=p.name,WindowsProbePassed=True,DependenciesPreserved=True,PhysicalTest=False)
+proof=dict(Channel='003',Version='10.468',SourceCommit=os.environ['GITHUB_SHA'],Sha256=hashlib.sha256(p.read_bytes()).hexdigest(),Package=p.name,WindowsProbePassed=True,DependenciesPreserved=True,PhysicalTest=False)
 (out/'proof.json').write_text(json.dumps(proof,indent=2))
 print('PASS backup package dependencies and Windows window tests')
