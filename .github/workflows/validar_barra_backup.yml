@@ -1,5 +1,7 @@
 name: Validar barra backup exclusiva
 on:
+  push:
+    branches: [qa/backup-progress-loja-20261121]
   workflow_dispatch:
 permissions:
   contents: read
@@ -13,6 +15,8 @@ jobs:
           dotnet-version: '8.0.x'
       - name: Compilar candidato sem publicar
         run: dotnet build LealInfoPDV.csproj -c Release
+      - name: Testar janela de backup no Windows
+        run: dotnet run --project qa/backup-progress/Probe.csproj -c Release
       - uses: actions/upload-artifact@v4
         with:
           name: candidato-barra-backup
