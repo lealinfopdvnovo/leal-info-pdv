@@ -98,10 +98,15 @@ jobs:
           if($LASTEXITCODE -ne 0){throw 'Backup-only patch does not match approved source'}
           $project='candidate/LealInfoPDV.csproj'
           $text=Get-Content $project -Raw
-          $text=[regex]::Replace($text,'<Version>[^<]+</Version>','<Version>10.467.0</Version>')
-          $text=[regex]::Replace($text,'<AssemblyVersion>[^<]+</AssemblyVersion>','<AssemblyVersion>10.467.0.0</AssemblyVersion>')
-          $text=[regex]::Replace($text,'<FileVersion>[^<]+</FileVersion>','<FileVersion>10.467.0.0</FileVersion>')
+          $text=[regex]::Replace($text,'<Version>[^<]+</Version>','<Version>10.468.0</Version>')
+          $text=[regex]::Replace($text,'<AssemblyVersion>[^<]+</AssemblyVersion>','<AssemblyVersion>10.468.0.0</AssemblyVersion>')
+          $text=[regex]::Replace($text,'<FileVersion>[^<]+</FileVersion>','<FileVersion>10.468.0.0</FileVersion>')
           [IO.File]::WriteAllText((Join-Path $pwd $project),$text,[Text.UTF8Encoding]::new($false))
+          $updater='candidate/UpdateManager.cs'
+          $text=Get-Content $updater -Raw
+          $text=[regex]::Replace($text,'public const string CurrentVersion\s*=\s*"[^"]+"','public const string CurrentVersion="10.468"')
+          if($text -notmatch 'public const string CurrentVersion="10.468"'){throw 'Updater version not corrected'}
+          [IO.File]::WriteAllText((Join-Path $pwd $updater),$text,[Text.UTF8Encoding]::new($false))
           dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o candidate-publish @props
           if($LASTEXITCODE -ne 0){throw 'Backup candidate compilation failed'}
           New-Item -ItemType Directory candidate/qa/backup-progress -Force|Out-Null

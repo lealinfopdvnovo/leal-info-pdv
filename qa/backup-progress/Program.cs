@@ -4,6 +4,9 @@ internal static class Probe {
 [STAThread] static void Main() {
 Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
 var assembly=typeof(LealInfoPDV.DatabaseBackupService).Assembly;
+if(assembly.GetName().Version!.ToString() != "10.468.0.0") throw new Exception("Wrong assembly version");
+var updater=assembly.GetType("LealInfoPDV.UpdateManager",true)!;
+if((string)updater.GetField("CurrentVersion", BindingFlags.Static|BindingFlags.Public)!.GetRawConstantValue()! != "10.468") throw new Exception("Wrong updater version");
 using var owner=new Form { Width=1000, Height=700 };
 owner.Show();
 using var window=(Form)Activator.CreateInstance(assembly.GetType("LealInfoPDV.BackupProgressForm",true)!,true)!;

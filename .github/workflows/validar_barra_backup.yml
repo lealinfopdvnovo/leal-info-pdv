@@ -1,6 +1,7 @@
 name: Validar barra backup exclusiva
 on:
   push:
+    paths: ["BackupProgressForm.cs", "DatabaseBackupService.cs", "MainForm.cs"]
     branches: [qa/backup-progress-loja-20261121]
   workflow_dispatch:
 permissions:
