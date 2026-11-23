@@ -39,6 +39,28 @@ File.WriteAllBytes(Path.Combine(target,"Pet.dll"),dll);File.WriteAllBytes(Path.C
 using(var zip=ZipFile.Open(Path.Combine(target,"initial-transition.zip"),ZipArchiveMode.Create))foreach(var name in new[]{"LealInfoPDV.exe","LealInfoPDV.dll","LealInfoPDV.deps.json"})zip.CreateEntryFromFile(Path.Combine(target,name),name);
 var original=InitialMigrationBridge.InspectHost(File.ReadAllBytes("legacy-001/LealInfoPDV.dll"));
 foreach(var r in original.Resources.Where(r=>r.Key is not ("TransactionalUpdateWorker" or "Loja.PET.1.2" or "PET.CertificationSeal")))Check(contract.Resources.TryGetValue(r.Key,out var value)&&value==r.Value,"original 10.467 resource retained: "+r.Key);
+var targetZip=Path.Combine(target,"initial-transition.zip");
+foreach(var name in new[]{"legacy-001","legacy-001-backup"}){
+ using var dependencies=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(name,"LealInfoPDV.deps.json")));
+ using var publishedDependencies=JsonDocument.Parse(File.ReadAllBytes(Path.Combine(target,"LealInfoPDV.deps.json")));
+ var originLibraries=dependencies.RootElement.GetProperty("libraries").EnumerateObject().Where(p=>!p.Name.StartsWith("LealInfoPDV/")).Select(p=>p.Name).ToHashSet();
+ var destinationLibraries=publishedDependencies.RootElement.GetProperty("libraries").EnumerateObject().Where(p=>!p.Name.StartsWith("LealInfoPDV/")).Select(p=>p.Name).ToHashSet();
+ Check(originLibraries.SetEquals(destinationLibraries),"three-file package uses dependencies already installed by "+name);
+ var originAssembly=new System.Runtime.Loader.AssemblyLoadContext(name,true).LoadFromAssemblyPath(Path.GetFullPath(Path.Combine(name,"LealInfoPDV.dll")));
+ var update=originAssembly.GetType("LealInfoPDV.UpdateManager",true)!;
+ var manifestType=update.GetNestedType("UpdateManifest",BindingFlags.NonPublic)!;
+ var candidate=Activator.CreateInstance(manifestType,true)!;
+ void Set(string key,string value)=>manifestType.GetProperty(key)!.SetValue(candidate,value);
+ Set("Version","10.469");Set("TargetClientCode","001");
+ Set("PackageUrl","https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/download/client-001-v10.469-transbordo/LEAL_INFO_PDV_001_V10_469_UPDATE.zip");
+ Set("Sha256",Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(targetZip))).ToLowerInvariant());
+ Set("SourceCommit",Environment.GetEnvironmentVariable("GITHUB_SHA")!);
+ var select=update.GetMethod("SelectManifest",BindingFlags.Static|BindingFlags.NonPublic|BindingFlags.Public)!;
+ var selectorArgs=new object?[]{"001",name=="legacy-001"?"10.467":"10.468",null,candidate};
+ Check(ReferenceEquals(select.Invoke(null,selectorArgs),candidate),"original updater selects Loja offer: "+name);
+ selectorArgs[0]="002";
+ Check(select.Invoke(null,selectorArgs)==null,"other client rejects Loja offer: "+name);
+}
 var runtimeName="LealInfoPDV.runtimeconfig.json";
 foreach(var (folder,version) in new[]{("legacy-001","10.467"),("legacy-001-backup","10.468")}){
  var previous=InitialMigrationBridge.OriginHashes.Keys.ToDictionary(n=>n,n=>n==runtimeName

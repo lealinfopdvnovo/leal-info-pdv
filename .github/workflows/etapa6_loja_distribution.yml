@@ -52,11 +52,11 @@ jobs:
       - name: Compilar o destino real e apenas o PET Loja ja existente
         shell: pwsh
         run: |
-          dotnet build candidate/LealInfoPDV.csproj -c Release -p:UseSharedCompilation=false
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o loja-publish -p:RuntimeFrameworkVersion=8.0.31 -p:UseSharedCompilation=false
           if($LASTEXITCODE -ne 0){throw 'New modular destination build failed'}
           dotnet build candidate/extensions/profiles/001/Pet.csproj -c Release -p:UseSharedCompilation=false
           if($LASTEXITCODE -ne 0){throw 'Existing Loja PET build failed'}
-          $build=Split-Path (Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.exe -Recurse|Select-Object -First 1).FullName
+          $build=(Resolve-Path loja-publish).Path
           $pet=(Get-ChildItem candidate/extensions/profiles/001/bin/Release -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
           dotnet run --project controller/qa/organization/bridge/DestinationProbe.csproj -c Release -- $build $pet
           if($LASTEXITCODE -ne 0){throw 'New destination contract/capsule validation failed'}
@@ -65,6 +65,10 @@ jobs:
         run: |
           New-Item -ItemType Directory candidate/qa/backup-progress -Force|Out-Null
           Copy-Item backup-recipe/qa/backup-progress/Probe.csproj,backup-recipe/qa/backup-progress/Program.cs candidate/qa/backup-progress/
+          $probe='candidate/qa/backup-progress/Program.cs'
+          $source=Get-Content -LiteralPath $probe -Raw
+          if(($source.Split('10.468').Length - 1) -lt 2 -and $source -notmatch '10\.468\.0\.0'){throw 'Unexpected backup probe baseline'}
+          [IO.File]::WriteAllText((Join-Path $pwd $probe),$source.Replace('10.468','10.469'))
           dotnet run --project candidate/qa/backup-progress/Probe.csproj -c Release -p:UseSharedCompilation=false
           if($LASTEXITCODE -ne 0){throw 'Backup window Windows test failed'}
       - name: Executar somente os novos cenarios de recuperacao conjunta
