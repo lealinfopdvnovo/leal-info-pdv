@@ -1,5 +1,13 @@
 # Etapa 6 — Loja Leal Info — QA exclusivo — 23/11/2026
 
+## Continuação da publicação Loja 001 — verificação essencial interrompida — 23/11/2026
+
+- O feed oficial `clients/001/version.json` continua em **10.468**, blob `872d9a92f99e91cb886a22925633610c55cf4c50`, fonte `e00766afb701c3c4f9a0f269d5e5ad53daf8c006`, SHA-256 declarado `47496b92f62755ebc8669593b25a389c9cc8143c5e67676dca600aca6ceb03be`. A URL retornou HTTP 302 e o download do artefato redirecionado expirou nesta execução. O hash acima é o declarado no feed.
+- A URL do feed contém a tag `client-001-backup-10.468-20261121`. O filtro `IsSafeClientPackage` nos fontes de referência `7aa5d383` e `e00766af` exige o prefixo `client-001-v`. O manifesto publicado, por si só, não confirma oferta no botão ATUALIZAR. Não houve confirmação em binário instalado.
+- O pacote 10.468 da barra foi gerado com EXE, DLL e deps.json da variante de backup, conforme Actions [44916328824](https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/44916328824). A ponte inicial do transbordo compara o conjunto de hashes fixo da 10.467 em C# e no worker PowerShell. O rollback da variante de backup como origem não está qualificado pelo Actions [45212037418](https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/45212037418). A receita de transbordo também não aplica o patch de barra de backup daquele pacote.
+- A busca de commits por 10.469 não encontrou resultados nos dois repositórios. Esta consulta não comprova ausência de tags ou releases. A versão não foi reservada. Nenhum manifesto, release ou artefato publicado foi alterado. Nenhum teste operacional local ou novo GitHub Actions foi executado. Não foi publicada nova atualização do transbordo.
+
+
 ## Variante de distribuição compilada — publicação interrompida por colisão de versão — 23/11/2026
 
 ### Execução efetiva
