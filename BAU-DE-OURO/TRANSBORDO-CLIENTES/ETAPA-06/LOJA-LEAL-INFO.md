@@ -45,3 +45,43 @@ Refs antes/depois preservadas: channel/global 48d8f50f00a16bc2457b5ebd04383dfaf9
 
 ### Estado de entrega
 Preparação técnica QA aprovada. ETAPA 6 LOJA NÃO HOMOLOGADA OPERACIONALMENTE: falta Windows QA privado e persistentemente ativado para a Loja, com cópia privada de dados/configurações, para os testes de login, vendas, estoque/financeiro, Cozinha, Vidraçaria, impressão, atualização e rollback após inicialização licenciada. Nenhuma operação na instalação real foi executada. Não foi repetida coleta de hashes, solicitado segredo ou alterado o 34. Não publicar e não avançar a outro cliente.
+
+## Homologação operacional autorizada — impedimento de acesso local — 23/11/2026
+
+O proprietário autorizou preparação e testes QA no próprio computador da Loja, mantendo o PDV de atendimento aberto e a instalação 10.467 intacta. Publicação continua expressamente proibida.
+
+**Disponibilidade nesta sessão:** não há conexão de controle do Windows local da Loja. O ambiente de execução fornecido é um workspace remoto Linux; o navegador de nuvem não oferece acesso ao sistema de arquivos, dispositivos ou sessão Windows da Loja. O PDV aberto no computador do proprietário não fica acessível automaticamente. Não foram solicitadas senhas, arquivos de licença ou banco no chat/GitHub.
+
+### Execução efetiva desta continuação
+- Consultado o relatório existente na branch exclusiva; preservados código validado 702fff5, Actions 45181025244 e resultados já aprovados.
+- Nenhum workflow/teste foi repetido, nenhum pacote recompilado ou feed publicado.
+- Nenhuma pasta QA, cópia de banco/configurações, ativação, venda, impressão, backup ou restauração foi executada no computador da Loja, pois o acesso local não está disponível.
+- Esta atualização é exclusivamente documental, na branch qa/etapa6-loja-leal-info-20261123.
+
+### Matriz operacional
+| Teste | Estado desta continuação | Evidência/impedimento |
+|---|---|---|
+| Ambiente Windows QA persistente | NÃO PREPARADO | Sem acesso ao Windows local |
+| Ativação legítima e inicialização | NÃO HOMOLOGADO | Sem execução com licença legítima da Loja |
+| Login e permissões | NÃO HOMOLOGADO | Depende do ambiente local isolado |
+| Vendas, pagamentos e estoque | NÃO HOMOLOGADO | Não executar movimentações no banco real |
+| Financeiro | NÃO HOMOLOGADO | Testar somente cópia privada consistente |
+| Cozinha Premium | NÃO HOMOLOGADO | Sem execução operacional local |
+| Vidraçaria | NÃO HOMOLOGADO | Sem execução operacional local |
+| Impressão e dispositivos | NÃO HOMOLOGADO | Equipamentos Windows locais indisponíveis |
+| Independência GLOBAL/PET operacional | NÃO HOMOLOGADO | Contrato/cápsula aprovados em CI; falta ciclo após login legítimo |
+| Backup, atualização QA e rollback operacional | NÃO HOMOLOGADO | Sete fixtures anteriores aprovados; falta cópia privada licenciada |
+
+### Procedimento seguro para execução por uma sessão Windows local autorizada
+1. Confirmar a instalação de uso em modo somente leitura e reaproveitar os hashes já coletados. Não fechar, substituir, atualizar ou registrar outro agente sobre o PDV em atendimento. Se a origem efetiva mudou, interromper a aplicação do pacote que exige os hashes 10.467 já identificados; não presumir equivalência pelo número.
+2. Preparar pasta QA persistente, privada e exclusiva com acesso restrito ao operador autorizado. O executável desta candidata exige a pasta LOJA-QA-ETAPA6 e o marcador .qa-test-only. Preservar runtime/dependências compatíveis conforme inventário já aprovado, sem reinstalar o PDV.
+3. Com o SQLite de produção em uso, obter snapshot transacional consistente usando SQLite Online Backup para destino QA privado, abrindo a origem somente para leitura. Não copiar apenas o .db com WAL ativo, não executar checkpoint/restore/migração de esquema no banco real e não disparar o backup/SMTP do PDV de produção. Validar integridade e registrar apenas hashes/contagens/resumo sem dados pessoais.
+4. Copiar somente as configurações necessárias para a pasta QA. Antes do primeiro login, conferir caminhos de dados, bancos de rede, portas, mutex, impressoras e agentes. O QA não pode apontar para banco compartilhado de produção, operar sincronizações reais, emitir documentos fiscais, cobrar pagamentos ou enviar mensagens/e-mails de clientes. Alterações de redirecionamento devem ocorrer somente na cópia QA; se o isolamento não puder ser garantido, parar sem interferir no atendimento.
+5. Exercitar a licença legítima no próprio hardware por mecanismo oficial suportado. Não editar identidade, serial, assinatura, plano, validade ou verificador; não copiar credenciais para artefatos. Se a licença ou um singleton não permitir execução paralela isolada, parar e registrar a restrição, sem encerrar o PDV em uso.
+6. No banco QA, executar casos identificados como TESTE: login administrativo/restrito, venda com formas de pagamento disponíveis sem cobrança externa, estoque, financeiro, mesa/pedido Cozinha e projeto de Vidraçaria. Confrontar com a cópia inicial e registrar resultados privados. Impressão somente de documento de teste explicitamente identificado, sem acionar gaveta/produção ou transmitir documento fiscal.
+7. Usar pacotes e manifestos locais de teste para exercitar os mesmos trabalhadores GLOBAL/PET e atualização independente, sem habilitar feed de produção. Não remover o bloqueio QA de rede por conveniência. Atualização GLOBAL deve conservar PET/dados; atualização PET deve conservar GLOBAL/dados.
+8. Fazer backup da cópia QA; testar restauração e interrupção/rollback exclusivamente nessa cópia. Comparar hashes e integridade do banco, identidade da licença e manifestos antes/depois. Nunca restaurar sobre a pasta de atendimento.
+9. Guardar evidências detalhadas em armazenamento privado local. No Baú, registrar apenas resultados, versões, hashes e capturas sem dados pessoais/credenciais. Não enviar banco ou licença ao GitHub/chat.
+10. Somente após aprovação de todos os testes operacionais, apresentar pacote identificado e evidências para autorização específica de publicação. Não publicar, migrar outro cliente ou considerar esta etapa concluída por aprovação dos fixtures.
+
+**Estado final desta continuação:** BLOQUEADA PARA HOMOLOGAÇÃO OPERACIONAL E PUBLICAÇÃO. A autorização do proprietário já existe; o requisito faltante é acesso técnico efetivo a uma sessão Windows local isolada e autorizada, não uma nova autorização genérica. O PDV de atendimento e todos os clientes permanecem sem qualquer ação operacional desta sessão.
