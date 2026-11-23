@@ -1,0 +1,29 @@
+name: Setup Universal - candidata de primeira instalação
+on:
+  push:
+    branches: ['qa/setup-universal-limpo']
+    paths: ['qa/setup-universal/**', '.github/workflows/setup_universal.yml']
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compilar o instalador autônomo sem componentes do PDV
+        shell: pwsh
+        run: |
+          dotnet publish qa/setup-universal/SetupUniversal.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o output
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o Setup Universal' }
+          if (!(Test-Path output/Setup_Universal_LEAL_INFO.exe)) { throw 'Executável ausente' }
+          if (Get-ChildItem output -Recurse | Where-Object { $_.Name -match 'LealInfoPDV|Pet.dll|network.license' }) { throw 'Componente do PDV indevidamente incluído' }
+          Get-FileHash output/Setup_Universal_LEAL_INFO.exe -Algorithm SHA256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: setup-universal-candidata
+          path: output/Setup_Universal_LEAL_INFO.exe
+          if-no-files-found: error
