@@ -77,4 +77,5 @@ jobs:
           path: |
             etapa6-evidence/
             completion-evidence/
+            destination-10468/
             pair-evidence/destination-source.json

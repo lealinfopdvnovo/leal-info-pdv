@@ -18,6 +18,12 @@ s=s.replace("[('001','1.2','1.3'),('003','1.1','1.2')]","[('001','1.2','1.3')]")
 assert "[('001','1.2','1.3')]" in s
 exec(compile(s,'approved-seal-Loja-only','exec'),{})
 subprocess.run(['pwsh','-NoProfile','-File','controller/qa/etapa6-loja/extract_loja.ps1'],check=True)
+# Reuse the approved optional financial contract and ORIGINAL Loja module loader.
+# Only profile001 is changed; the Gelamaq adapter and payload are not imported.
+finance=(source/'prepare_finance_compat.py').read_text()
+finance=finance.replace("for identity in ['001','002']:","for identity in ['001']:")
+assert "for identity in ['001']:" in finance
+exec(compile(finance,'approved-financial-contract-and-original-Loja-only','exec'),{})
 runpy.run_path(str(source/'prepare_compatibility.py'))
 Path('logon-probe').mkdir(exist_ok=True)
 runpy.run_path(str(source/'preserve_logon.py'))
