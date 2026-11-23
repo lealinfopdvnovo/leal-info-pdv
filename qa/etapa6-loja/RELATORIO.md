@@ -25,3 +25,23 @@ A barra de backup 10.468 publicada em outra tarefa não é incorporada automatic
 
 ## Publicação
 PROIBIDA nesta etapa. Nenhum job possui contents:write ou segredo de publicação. Somente artefatos de QA; aguardar homologação e autorização específica do proprietário.
+
+## Resultado automático final — 23/11/2026
+
+- Código validado: 702fff5093bf2de793d86a7898f1cc2268c63047.
+- Actions SUCCESS: https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/45181025244
+- Artefato: etapa6-loja-qa-evidencias, ID 14822480216; SHA-256 do arquivo de evidências: 26f86523aeaa856f9516f51ff8ec551e34e9281cf8e5856970b35bb309ac0b2e.
+- Host GLOBAL QA 10.468 e PET Loja 001 1.3 compilados no Windows. Contrato modular, ativação antes da inicialização dos dados/PET, saúde adiada até login e cápsula do PET001 verificados no código compilado.
+- Recursos originais confirmados por hash: ReadyKitchen.photos.zip, Kitchen.TablesPremium e LealInfoPDV.UpdateNotifier.Native. Personalização original Loja preservada no seu PET. A mensagem genérica herdada da receita financeira menciona Loja/Gelamaq; nesta execução o laço foi restrito a 001: nenhum payload ou perfil002 foi importado/compilado.
+- Diagnóstico executado pelo host confirmou pastas QA separadas, produção bloqueada e ausência de contorno de licença. Esse diagnóstico termina antes da ativação e NÃO comprova login licenciado.
+- Sete casos PASS: antes do primeiro PET, após primeiro PET, interrupção/retomada SYSTEM, backup original corrompido rejeitado, bloqueio GLOBAL respeitado, arquivo PET inesperado rejeitado e commit conjunto sintético. Integridade dos arquivos-canário preservada.
+- destination-10468 contém o pacote/cápsula CANDIDATO para análise em QA, não uma atualização liberada à Loja. Nenhum instalador foi criado.
+
+### Correções de QA realizadas
+Run 45179755512 detectou a ausência do contrato financeiro opcional; recuperada seletivamente a receita aprovada do contrato e do carregador da personalização original001. Run 45180184652 foi cancelado por falha de escopo de variável no roteiro de diagnóstico, corrigida com validação do diretório e timeout. Somente a cadeia dependente dessas correções foi reexecutada. O sucesso final não transforma as execuções anteriores em aprovadas.
+
+### Proteção de produção
+Refs antes/depois preservadas: channel/global 48d8f50f00a16bc2457b5ebd04383dfaf9cf16d1; client/001 55e3a10d2c1b32b7db1a980e7f462a1d07f5a87c; client/002 39fad30d4bb7d7a13421d726d85dbefb6de043d2; client/003 137612d259a0fcecdbc2c2165893ba73988eb847; Angra qa/angra-etapa4-setup-20261114 2d575a5a023744b2ff7c2554f68c8b8ddf32c840. Repositório updates/main preservado em 9a3cedf1ff85bf50ac2f08c05475626cfb838fde.
+
+### Estado de entrega
+Preparação técnica QA aprovada. ETAPA 6 LOJA NÃO HOMOLOGADA OPERACIONALMENTE: falta Windows QA privado e persistentemente ativado para a Loja, com cópia privada de dados/configurações, para os testes de login, vendas, estoque/financeiro, Cozinha, Vidraçaria, impressão, atualização e rollback após inicialização licenciada. Nenhuma operação na instalação real foi executada. Não foi repetida coleta de hashes, solicitado segredo ou alterado o 34. Não publicar e não avançar a outro cliente.
