@@ -1,5 +1,23 @@
 # Etapa 6 — Loja Leal Info — QA exclusivo — 23/11/2026
 
+## Publicação autorizada — verificação essencial interrompeu a liberação — 23/11/2026
+
+O proprietário autorizou expressamente publicar exclusivamente para Loja 001, dispensando testes operacionais locais. Essa autorização substitui o estado anterior de publicação não autorizada. **A publicação está agora AUTORIZADA, MAS BLOQUEADA TECNICAMENTE; não foi executada.**
+
+Verificação objetiva dos arquivos aprovados no commit 70c381e, sem repetir testes:
+- `qa/etapa6-loja/prepare.py` injeta QaIsolation no início do programa, exige contexto LOJA-QA-ETAPA6 e redireciona caminhos de dados/configurações para raízes QA.
+- A mesma receita substitui as URLs oficiais de atualização por `https://127.0.0.1:1/QA-LOJA-NO-PRODUCTION/`, impede inicialização/registro da bandeirinha na cópia QA e insere retorno incondicional no ComponentUpdateCenter com mensagem de publicação não autorizada.
+- `.github/workflows/etapa6_loja_qa.yml` compila precisamente essa variante isolada e entrega artefatos de evidência. O sucesso 45181025244 comprova essa candidata QA, não um pacote promovível sem alteração para a instalação atual.
+- Portanto, publicar os mesmos binários no canal da Loja não é equivalente a promover a implementação aprovada: manteria isolamento e bloqueios de teste e não atenderia ao funcionamento da instalação original.
+
+**Decisão:** interrompida a publicação conforme a cláusula expressa do proprietário sobre falha em verificação essencial. Nenhum feed, canal, release, instalação, licença ou dado foi alterado. Nenhum workflow/teste foi repetido. Apenas este registro foi atualizado na branch exclusiva.
+
+**Requisito técnico para desbloquear:** preparar uma variante de distribuição exclusiva Loja 001, com a mesma arquitetura e payload PET preservado, removendo somente as intervenções de isolamento do harness QA; comprovar compatibilidade da ponte 10.467 e dos manifestos/pacotes no mecanismo oficial, integridade e backup/recuperação/rollback antes de alterar o canal. Isso exige compilar e validar a variante efetiva de distribuição, porque seus binários diferem do candidato QA aprovado. A dispensa de testes físicos permanece válida e não é o impedimento. A autorização de publicação já foi concedida; não falta nova autorização genérica.
+
+**Estado da entrega:** transbordo técnico QA registrado anteriormente permanece concluído dentro daquele escopo. Transbordo total da instalação da Loja e disponibilidade pelo ATUALIZAR NÃO CONCLUÍDOS. Não afirmar atualização disponível. Angra, Casa do Adriano, Gelamaq e GLOBAL/PETs de produção não receberam operações nesta continuação.
+
+---
+
 ## Estado vigente — transbordo técnico concluído em QA — 23/11/2026
 
 **TRANSBORDO TÉCNICO DA LOJA LEAL INFO CONCLUÍDO EM QA.** Por decisão expressa do proprietário nesta data, a homologação operacional no computador físico da Loja foi dispensada para o encerramento técnico desta etapa. Essa decisão substitui a exigência de acesso Windows como condição de conclusão técnica registrada nas seções históricas abaixo; não transforma testes operacionais não executados em aprovados.
