@@ -59,3 +59,11 @@ O proprietário autorizou o escopo de migração seletiva/homologação rápida.
 - Produto aprovado permanece PET 1.12; candidata 1.13 não publicada. Origem 34, PR37, GLOBAL/PETs de produção e assinaturas APK preservados. Backup operacional do 34 não executado; plano e ferramenta candidatos com restauração sintética.
 - **Etapa 5B NÃO CONCLUÍDA. Etapa 6 NÃO iniciada/autorizada.** Retomar com autenticação administrativa segura e serviços/dispositivos QA; resolver os bloqueios dentro da 5B antes do transbordo.
 - Registro: `2026-11-09_a_2026-11-15/2026-11-15/ETAPA-5B-INTEGRACOES-QA.md`, matriz, plano e logs na estrutura semanal existente.
+
+
+## 22/11/2026 — Decisão do proprietário: realocação de pendências 5B para Etapa 6
+- **Decisão atual de planejamento:** as pendências restantes de **Speed Food** e **Leal Info Alerta** anteriormente atribuídas à Etapa 5B passam a integrar o escopo da **Etapa 6**, juntamente com o transbordo de **Loja Leal Info** e **Casa do Adriano** para a arquitetura GLOBAL/PET.
+- Esta decisão **substitui somente o direcionamento anterior de resolver essas duas pendências dentro da 5B antes de planejar a 6**. Preservar os registros técnicos e históricos da 5B sem reescrevê-los.
+- **Não significa** que Speed Food, Alerta, 5B ou Etapa 6 estejam homologados/concluídos, nem que transbordos já tenham ocorrido. Os bloqueios e evidências técnicas anteriores permanecem registrados para tratamento na Etapa 6.
+- **Escopo desta atualização:** exclusivamente documentação de planejamento no Baú de Ouro. Nenhuma autorização de execução, migração, publicação, alteração de GLOBAL/PET, APK, produção ou credenciais.
+- Na Etapa 6, antes de qualquer ação operacional, definir critérios de validação e obter autorização expressa do proprietário, preservando backups, licenças, personalizações e rollback.
