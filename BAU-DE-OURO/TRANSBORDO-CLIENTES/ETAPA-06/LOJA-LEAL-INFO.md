@@ -1,5 +1,29 @@
 # Etapa 6 — Loja Leal Info — QA exclusivo — 23/11/2026
 
+## Variante de distribuição compilada — publicação interrompida por colisão de versão — 23/11/2026
+
+### Execução efetiva
+- Implementada `qa/etapa6-loja/prepare_distribution.py`: reutiliza integralmente a receita aprovada até antes das transformações exclusivas QA; não injeta QaIsolation, redirecionamentos de dados, bloqueios da bandeirinha nem retorno incondicional do atualizador. Preserva validação de licença, contrato PET, cápsula inicial e recuperação conjunta.
+- Implementado workflow `.github/workflows/etapa6_loja_distribution.yml`, somente compilação/validação e artefato. Não possui etapa de publicação ou credencial de distribuição.
+- Commit de implementação: `93f7f45205e2032287a24c1a251a533e88245f7d`.
+- [Actions 45212037418 — SUCCESS](https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/45212037418), job 137823138215: host real e PET001 compilados, contrato/cápsula aprovados; recursos originais Cozinha/fotos/bandeirinha preservados por hash; ativação permanece anterior aos dados/PET; saúde depende do login real. Sete cenários sintéticos de recuperação conjunta passaram.
+- Artefato `etapa6-loja-distribution-validated`, ID `14835674935`, SHA-256 do arquivo de evidências `96b3f8c363f51ba39c965a256eb31e6582fd37a95e8f2996937cb58fadd319f6`. Hashes individuais do pacote e dos componentes estão em `completion-evidence/destination.json` dentro do artefato.
+- Testes específicos da variante modificada foram executados; não foram declarados testes físicos. O filtro amplo do workflow QA anterior também acionou a execução 45212037189; esse acionamento adicional foi involuntário e não constitui nova necessidade de homologação. A tentativa de cancelar via CLI não foi executada por ausência de autenticação CLI; nenhuma credencial foi solicitada.
+
+### Falha essencial de pré-publicação
+A leitura do feed oficial `clients/001/version.json` confirmou versão **10.468 já publicada**, pacote `LEAL_INFO_BACKUP_001_10_468.zip`, fonte `e00766afb701c3c4f9a0f269d5e5ad53daf8c006`, SHA-256 `47496b92f62755ebc8669593b25a389c9cc8143c5e67676dca600aca6ceb03be`; blob do feed `872d9a92f99e91cb886a22925633610c55cf4c50`.
+
+A nova candidata também é 10.468, com conteúdo diferente. O mecanismo oficial exige avanço estrito de versão (`scripts/distribute_channels.py: plan`); além disso, instalações já em 10.468 não selecionariam outra 10.468. Não substituir manifesto/artefato da versão existente por outro conteúdo. A ponte inicial atual valida os hashes específicos da origem 10.467 e não qualifica automaticamente o pacote de backup 10.468.
+
+**PUBLICAÇÃO INTERROMPIDA**, conforme instrução expressa para falha técnica. A remoção dos bloqueios QA foi implementada e compilada; o transbordo total NÃO está publicado nem disponível como nova atualização no botão ATUALIZAR. O canal continua oferecendo a atualização de backup anterior, não esta migração. A dispensa de homologação física continua válida e não é o bloqueio.
+
+### Procedimento tecnicamente necessário
+Reservar uma versão livre posterior a 10.468; ajustar a compatibilidade PET e os pontos que fixam a versão; preservar a funcionalidade do pacote de backup já publicado e definir/verificar explicitamente quais hashes de origem serão aceitos (10.467 e, se suportada, a distribuição anterior 10.468). Compilar e validar somente essas alterações afetadas antes da liberação exclusiva001. A autorização existente não expirou; não é necessário pedi-la novamente. Nesta continuação, a ordem de interromper diante da falha foi respeitada, sem avançar à publicação.
+
+Nenhum feed, release, canal de cliente, instalação, banco, licença ou ambiente de outro cliente foi modificado. Somente a branch QA exclusiva recebeu implementação e registro. Os relatos históricos de conclusão técnica QA permanecem limitados àquele escopo.
+
+---
+
 ## Publicação autorizada — verificação essencial interrompeu a liberação — 23/11/2026
 
 O proprietário autorizou expressamente publicar exclusivamente para Loja 001, dispensando testes operacionais locais. Essa autorização substitui o estado anterior de publicação não autorizada. **A publicação está agora AUTORIZADA, MAS BLOQUEADA TECNICAMENTE; não foi executada.**
