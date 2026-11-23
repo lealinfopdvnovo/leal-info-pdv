@@ -1,0 +1,37 @@
+name: Loja 001 — publicação do transbordo validado
+on:
+  push:
+    branches: [qa/etapa6-loja-leal-info-20261123]
+    paths: ['.github/workflows/etapa6_loja_publish.yml']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: loja-001-transbordo-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VALIDATED_COMMIT: 418f661d072658c82fde1876a5e90c9b4b04435b
+      VALIDATED_RUN: '45220051283'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Conferir o resultado da validação antes de obter o pacote
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run watch "$VALIDATED_RUN" --repo "${{ github.repository }}" --interval 15 --exit-status
+          gh api "repos/${{ github.repository }}/actions/runs/$VALIDATED_RUN" |
+            jq -e --arg sha "$VALIDATED_COMMIT" '.head_sha == $sha and .conclusion == "success" and .path == ".github/workflows/etapa6_loja_distribution.yml"'
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ env.VALIDATED_RUN }}
+          name: etapa6-loja-distribution-validated
+          path: loja-artifact
+      - name: Publicar apenas o canal 001
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_REPO_TOKEN }}
+        run: python qa/etapa6-loja/publish_distribution.py
