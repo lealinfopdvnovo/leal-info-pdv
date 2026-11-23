@@ -1,0 +1,72 @@
+name: Loja001 distribution — compile and essential checks
+on:
+  push:
+    branches: [qa/etapa6-loja-leal-info-20261123]
+    paths: ['qa/etapa6-loja/prepare_distribution.py', '.github/workflows/etapa6_loja_distribution.yml']
+concurrency:
+  group: etapa6-loja-distribution
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  initial-transition:
+    permissions:
+      contents: read
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+      - uses: actions/checkout@v4
+        with:
+          path: recipe
+          ref: 78c0d348d210f9c9b2672746e09bcddbf4ba4474
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Conferir sintaxe dos scripts novos
+        shell: pwsh
+        run: |
+          foreach($script in @('JointInitialRecovery.ps1','test_joint_recovery.ps1')){
+            $tokens=$null;$parseErrors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd ('controller/qa/organization/bridge/'+$script)),[ref]$tokens,[ref]$parseErrors)|Out-Null
+            if($parseErrors){throw ($parseErrors|Out-String)}
+          }
+      - name: Preparar Loja exclusivamente com a arquitetura aprovada
+        shell: pwsh
+        run: |
+          python controller/qa/etapa6-loja/prepare_distribution.py
+          if($LASTEXITCODE -ne 0){throw 'Selective Loja recipe failed'}
+      - name: Compilar o destino real e apenas o PET Loja ja existente
+        shell: pwsh
+        run: |
+          dotnet build candidate/LealInfoPDV.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'New modular destination build failed'}
+          dotnet build candidate/extensions/profiles/001/Pet.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Existing Loja PET build failed'}
+          $build=Split-Path (Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.exe -Recurse|Select-Object -First 1).FullName
+          $pet=(Get-ChildItem candidate/extensions/profiles/001/bin/Release -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
+          dotnet run --project controller/qa/organization/bridge/DestinationProbe.csproj -c Release -- $build $pet
+          if($LASTEXITCODE -ne 0){throw 'New destination contract/capsule validation failed'}
+      - name: Executar somente os novos cenarios de recuperacao conjunta
+        shell: pwsh
+        run: |
+          ./controller/qa/organization/bridge/test_joint_recovery.ps1
+          if($LASTEXITCODE -ne 0){throw 'New joint rollback failed'}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: etapa6-loja-distribution-validated
+          path: |
+            distribution-evidence/
+            completion-evidence/
+            destination-10468/
+            pair-evidence/destination-source.json
