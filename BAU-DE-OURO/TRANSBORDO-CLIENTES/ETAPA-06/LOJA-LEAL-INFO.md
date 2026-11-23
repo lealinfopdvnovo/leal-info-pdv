@@ -1,5 +1,23 @@
 # Etapa 6 — Loja Leal Info — QA exclusivo — 23/11/2026
 
+## Transbordo Loja 001 publicado — 10.469 — 23/11/2026
+
+- Canal Loja 001 com oferta **10.469** e PET **1.3**. A atualização usa o botão **ATUALIZAR** nas origens 10.467 e 10.468. Os seletores dos dois binários oficiais reconheceram a URL usada na publicação e rejeitaram a oferta para o cliente 002. Sem teste operacional no PC da Loja, conforme dispensa.
+- Código compilado: `418f661d072658c82fde1876a5e90c9b4b04435b`. Publicador: `0722a8b69b6e960af492c9cd945a97e58515382f`. Commit do feed: `d6c244b8a343e307d5fa6579030b7486a20413a2`, blob `493cbdc55df979ab3bed43e4ae6ec1f2a9d5be33`. A revisão do commit confirmou que apenas `clients/001/version.json` mudou. A release anterior 10.468 e o GLOBAL compartilhado foram preservados.
+- [Validação Windows 45220051283](https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/45220051283), artefato `14841180721`. Contrato PET, integridade, igualdade das dependências nas duas origens, mesma versão do aplicador protegido, barra de backup (percentuais e FECHAR sem cancelar), rollback exato de ambas as origens, retomada SYSTEM e rejeição de backup adulterado. As provas de rollback e saúde usaram dados sintéticos. O teste de interface da barra não enviou backup real. A Cozinha Premium, fotos e bandeirinha foram verificadas por hash. O PET original Loja foi preservado byte a byte na cápsula 1.3 e a validação de licença foi conservada.
+- [Publicação 45220185900](https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/45220185900). O ZIP hospedado foi baixado e teve o hash conferido após a publicação. [Release da Loja 001](https://github.com/lealinfopdvnovo/leal-info-pdv-updates/releases/tag/client-001-v10.469-transbordo).
+- O roteiro auxiliar da candidata histórica 10.468 foi acionado pelo filtro amplo da branch. A execução 45220185578 encerrou na comparação com a versão 10.469. Essa execução montava a outra candidata e não foi usada como evidência de validação ou publicação da 10.469.
+
+| Componente | SHA-256 |
+| --- | --- |
+| ZIP 10.469 | `5e911c6b0f2e8e220bab8ddeb9364eb4367dddb5da172a7e9421ad6bf5f47989` |
+| LealInfoPDV.exe | `fb6383a320eaf9246be3a64e6cbd5346f1e5a44653dbb3e48d847a3c3f811a69` |
+| LealInfoPDV.dll | `eb201541e0613e780635519c4ad3a89a0edbaf8d17d73a3f710661a0a1655ecb` |
+| LealInfoPDV.deps.json | `52ab8c90c991a3cac17b23dfe7baa8191c3098e751378f2730d973e1e5374af9` |
+| PET Loja 1.3 | `d6c3921d19680cdc04bbab676d750e2e15bd8ba4421d08752944d746262423e3` |
+| Aplicador de recuperação conjunta | `cf69303a8a04461d3820fa102eae075a2a233b8bce6fce5f204de00e9a3ca331` |
+
+
 ## Continuação da publicação Loja 001 — verificação essencial interrompida — 23/11/2026
 
 - O feed oficial `clients/001/version.json` continua em **10.468**, blob `872d9a92f99e91cb886a22925633610c55cf4c50`, fonte `e00766afb701c3c4f9a0f269d5e5ad53daf8c006`, SHA-256 declarado `47496b92f62755ebc8669593b25a389c9cc8143c5e67676dca600aca6ceb03be`. A URL retornou HTTP 302 e o download do artefato redirecionado expirou nesta execução. O hash acima é o declarado no feed.
