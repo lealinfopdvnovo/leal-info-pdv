@@ -3,15 +3,31 @@ on:
   push:
     branches: [qa/etapa6-loja-leal-info-20261123]
     paths: ['qa/etapa6-loja/**', '.github/workflows/etapa6_loja_qa.yml']
+concurrency:
+  group: etapa6-loja-qa-only
+  cancel-in-progress: true
 permissions:
   contents: read
 env:
   PYTHONUTF8: '1'
 jobs:
   initial-transition:
+    permissions:
+      contents: read
+      actions: write
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
+      - name: Encerrar somente o teste QA anterior com roteiro incorreto
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $headers=@{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json'}
+          $url='https://api.github.com/repos/lealinfopdvnovo/leal-info-pdv/actions/runs/45180184652'
+          $old=Invoke-RestMethod -Uri $url -Headers $headers
+          if($old.head_branch -ne 'qa/etapa6-loja-leal-info-20261123'){throw 'Refuse cancellation outside Loja QA'}
+          if($old.status -ne 'completed'){Invoke-RestMethod -Method Post -Uri ($url+'/cancel') -Headers $headers|Out-Null}
       - uses: actions/checkout@v4
         with: {path: controller}
       - uses: actions/checkout@v4
@@ -52,8 +68,11 @@ jobs:
           dotnet run --project controller/qa/organization/bridge/DestinationProbe.csproj -c Release -- $build $pet
           if($LASTEXITCODE -ne 0){throw 'New destination contract/capsule validation failed'}
       - name: Confirmar isolamento real do executavel sem ativar nem criar dados da Loja
+        timeout-minutes: 2
         shell: pwsh
         run: |
+          $build=Split-Path (Get-ChildItem candidate/bin/Release -Filter LealInfoPDV.exe -Recurse|Select-Object -First 1).FullName
+          if(!$build -or !(Test-Path (Join-Path $build 'LealInfoPDV.dll'))){throw 'Compiled directory not found'}
           $qa=Join-Path $env:RUNNER_TEMP 'LOJA-QA-ETAPA6'
           New-Item -ItemType Directory $qa -Force|Out-Null
           Copy-Item "$build/*" $qa -Recurse
