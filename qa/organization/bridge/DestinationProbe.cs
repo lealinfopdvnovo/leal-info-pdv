@@ -46,6 +46,9 @@ foreach(var name in new[]{"legacy-001","legacy-001-backup"}){
  var originLibraries=dependencies.RootElement.GetProperty("libraries").EnumerateObject().Where(p=>!p.Name.StartsWith("LealInfoPDV/")).Select(p=>p.Name).ToHashSet();
  var destinationLibraries=publishedDependencies.RootElement.GetProperty("libraries").EnumerateObject().Where(p=>!p.Name.StartsWith("LealInfoPDV/")).Select(p=>p.Name).ToHashSet();
  Check(originLibraries.SetEquals(destinationLibraries),"three-file package uses dependencies already installed by "+name);
+ var sourceContract=InitialMigrationBridge.InspectHost(File.ReadAllBytes(Path.Combine(name,"LealInfoPDV.dll")));
+ Check(sourceContract.Resources.TryGetValue("TransactionalUpdateWorker",out var workerHash)&&workerHash==InitialMigrationBridge.LegacyWorkerHash,
+   "same protected transaction worker retained in origin "+name);
  var originAssembly=new System.Runtime.Loader.AssemblyLoadContext(name,true).LoadFromAssemblyPath(Path.GetFullPath(Path.Combine(name,"LealInfoPDV.dll")));
  var update=originAssembly.GetType("LealInfoPDV.UpdateManager",true)!;
  var manifestType=update.GetNestedType("UpdateManifest",BindingFlags.NonPublic)!;
