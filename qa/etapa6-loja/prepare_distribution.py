@@ -6,6 +6,10 @@ marker='# This is the same QA root isolation used in Angra'
 assert source.count(marker)==1
 exec(compile(source[:source.index(marker)],'approved-Loja-production-recipe','exec'),{})
 root=Path('candidate')
+# The CLI resolves global.json from its working directory, not the project path.
+sdk_pin=(root/'global.json').read_bytes()
+assert json.loads(sdk_pin)['sdk']=={'version':'10.0.401','rollForward':'disable'}
+Path('global.json').write_bytes(sdk_pin)
 patch=Path('backup-recipe/qa/backup-progress/backup.patch').resolve()
 subprocess.run(['git','apply','--check',str(patch)],cwd=root,check=True)
 subprocess.run(['git','apply',str(patch)],cwd=root,check=True)
