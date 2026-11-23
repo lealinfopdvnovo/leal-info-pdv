@@ -47,3 +47,10 @@ Inclui aplicativos ANGRA VIDROS, SpeedFood e Salão MJ, além dos módulos hist�
 - [Continuidade por projeto e pendências](./2026-11-16_a_2026-11-22/2026-11-16/CONSOLIDACAO-PROJETOS.md)
 
 Inclui evolução QA37, proprietário/funcionários ANGRA e evidências iFood #9407, distinguindo relato, teste, publicação e homologação física pendente.
+
+## Organização de 23/11/2026
+
+- [Semana 23 a 29/11/2026](./2026-11-23_a_2026-11-29/README.md)
+- [Continuidade consolidada por projeto e pendências](./2026-11-23_a_2026-11-29/2026-11-23/CONSOLIDACAO-PROJETOS.md)
+
+Inclui o encerramento aprovado da parte do ALERTA, continuidade GLOBAL/PET e migrações, estado acessível dos aplicativos e das evidências iFood #9933. Relatos, testes, publicações e pendências permanecem distinguidos.
