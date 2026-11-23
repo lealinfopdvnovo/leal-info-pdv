@@ -1,5 +1,32 @@
 # Etapa 6 — Loja Leal Info — QA exclusivo — 23/11/2026
 
+## Estado vigente — transbordo técnico concluído em QA — 23/11/2026
+
+**TRANSBORDO TÉCNICO DA LOJA LEAL INFO CONCLUÍDO EM QA.** Por decisão expressa do proprietário nesta data, a homologação operacional no computador físico da Loja foi dispensada para o encerramento técnico desta etapa. Essa decisão substitui a exigência de acesso Windows como condição de conclusão técnica registrada nas seções históricas abaixo; não transforma testes operacionais não executados em aprovados.
+
+- Arquitetura entregue: **GLOBAL QA 10.468 + PET exclusivo Loja 001 versão 1.3**, conforme a mesma metodologia e mecanismos do Angra/PR37, sem arquitetura alternativa.
+- Código aprovado preservado: `702fff5093bf2de793d86a7898f1cc2268c63047`.
+- Evidências automáticas reaproveitadas, sem repetição: [Actions 45181025244 — SUCCESS](https://github.com/lealinfopdvnovo/leal-info-pdv/actions/runs/45181025244), artefato `etapa6-loja-qa-evidencias` ID `14822480216`, SHA-256 `26f86523aeaa856f9516f51ff8ec551e34e9281cf8e5856970b35bb309ac0b2e`.
+- Conferência de preservação baseada nas evidências já aprovadas: payload original Loja.PET.1.2 conservado integralmente por hash dentro do PET001 1.3; recursos originais de Cozinha Premium e bandeirinha confirmados por hash. Não houve nova modificação de implementação ou personalização.
+- Isolamento técnico aprovado no escopo automático: contratos/cápsula, conteúdo permitido, hashes, staging, bloqueios e recuperação conjunta protegem a separação GLOBAL/PET. Os sete cenários sintéticos documentados abaixo passaram; isso não comprova execução operacional com dados/licença reais.
+- Não foram repetidos workflows, builds, auditorias ou testes. Esta continuação altera somente este registro na branch exclusiva.
+- Licenças, dados, configurações e instalações atuais não foram manipulados. Angra Vidros, Casa do Adriano, Gelamaq, ambiente 34, GLOBAL/PETs de produção e canais de clientes não receberam alterações desta continuação.
+- **Nenhuma atualização foi publicada em produção, nenhum canal foi alterado e o botão ATUALIZAR não foi executado.** Os candidatos permanecem artefatos QA; a instalação atual da Loja não foi transbordada nem substituída no computador físico.
+
+### Resultado e limites da conclusão
+| Item | Estado vigente |
+|---|---|
+| Transbordo técnico e compilação GLOBAL QA/PET Loja | CONCLUÍDO — evidências automáticas aprovadas preservadas |
+| Preservação e isolamento técnicos das personalizações | APROVADOS no escopo de hashes, contratos e testes automáticos registrados |
+| Testes físicos de ativação, login, vendas, estoque, financeiro, Cozinha, Vidraçaria e impressão | NÃO EXECUTADOS / NÃO HOMOLOGADOS — dispensados pelo proprietário como condição desta entrega técnica |
+| Backup, atualização e rollback operacionais com cópia privada licenciada | NÃO EXECUTADOS / NÃO HOMOLOGADOS — fixtures automáticos aprovados não equivalem a esses testes |
+| Instalação atual da Loja | PRESERVADA — sem aplicação dos candidatos QA |
+| Publicação em produção | NÃO AUTORIZADA / NÃO REALIZADA — exige decisão separada do proprietário |
+
+**Encerramento:** entrega técnica concluída, sem homologação operacional declarada. Nenhum acesso ao Windows é exigido para encerrar esta entrega conforme a nova decisão. Publicação permanece parada para autorização separada. Não avançar para outro cliente. O histórico abaixo permanece preservado para rastreabilidade; suas condições anteriores de encerramento ficam superadas somente pela decisão expressa acima.
+
+---
+
 ## Escopo
 Origem declarada pelo proprietário: Loja 10.467. Origem técnica previamente identificada por hash no PR37: pacote fd979804f5de82c58e1b911a2f0a449e6d8937cae06ef0c0fa39917c48dd161b, DLL 61ec4bdbbcdb7be92cee0fcac421c360cae5e58cd6604b73ef2eaad0717ca0d7. Não foi repetida coleta da instalação.
 
