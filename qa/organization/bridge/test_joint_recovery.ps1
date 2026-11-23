@@ -1,8 +1,11 @@
 $ErrorActionPreference='Stop'
 if($env:GITHUB_ACTIONS -ne 'true'){throw 'Isolated runner only'}
 $worker=(Resolve-Path controller/qa/organization/bridge/JointInitialRecovery.ps1).Path
-$target=(Resolve-Path destination-10468).Path
-$previous=(Resolve-Path legacy-001).Path
+$target=(Resolve-Path destination-10469).Path
+$sources=@(
+ @{Version='10.467';Path=(Resolve-Path legacy-001).Path;Scenarios=@('after-first-pet')},
+ @{Version='10.468';Path=(Resolve-Path legacy-001-backup).Path;Scenarios=@('after-first-pet','interrupted-joint-recovery-SYSTEM','corrupt-original-backup','synthetic-joint-commit')}
+)
 $parent=Join-Path $env:ProgramFiles ('LEAL-INITIAL-QA-'+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $parent|Out-Null
 $oldTemp=$env:RUNNER_TEMP;$env:RUNNER_TEMP=$parent
@@ -10,8 +13,10 @@ $results=@();$names=@('LealInfoPDV.exe','LealInfoPDV.dll','LealInfoPDV.deps.json
 function Hash($p){(Get-FileHash -LiteralPath $p).Hash.ToLowerInvariant()}
 function Task($app){$h=[Security.Cryptography.SHA256]::Create();try{'LealInfoPDV-Initial-'+[BitConverter]::ToString($h.ComputeHash([Text.Encoding]::UTF8.GetBytes($app.ToUpperInvariant()))).Replace('-','').Substring(0,16)}finally{$h.Dispose()}}
 try{
- foreach($scenario in @('before-first-pet','after-first-pet','interrupted-joint-recovery-SYSTEM','corrupt-original-backup','global-lock-held','unexpected-pet-file','synthetic-joint-commit')){
-  $app=Join-Path $parent $scenario;New-Item -ItemType Directory $app,(Join-Path $app '.pdv-update/previous') -Force|Out-Null
+ foreach($entry in $sources){
+ $previous=$entry.Path
+ foreach($scenario in $entry.Scenarios){
+  $app=Join-Path $parent ($entry.Version+'-'+$scenario);New-Item -ItemType Directory $app,(Join-Path $app '.pdv-update/previous') -Force|Out-Null
   Set-Content (Join-Path $app 'QA-ISOLATED') 'Disposable CI fixture; no licence or operational startup'
   $source=@{};$next=@{}
   foreach($n in $names){Copy-Item (Join-Path $target $n) (Join-Path $app $n);Copy-Item (Join-Path $previous $n) (Join-Path $app ('.pdv-update/previous/'+$n));$source[$n]=Hash (Join-Path $previous $n);$next[$n]=Hash (Join-Path $target $n)}
@@ -19,9 +24,9 @@ try{
   Set-Content (Join-Path $app 'protected-data.bin') 'SYNTHETIC DATA, NOT A LICENCE';Set-Content (Join-Path $app 'protected.config') 'SYNTHETIC CONFIG'
   $protected=@{};foreach($n in @('LealInfoPDV.runtimeconfig.json','protected-data.bin','protected.config')){$protected[$n]=Hash (Join-Path $app $n)}
   $nonce=[Guid]::NewGuid().ToString('N')
-  $legacy=@{App=$app;Channel='001';Version='10.468';Phase='AwaitingHealth';Nonce=$nonce;Previous=$source;Target=$next}
+  $legacy=@{App=$app;Channel='001';Version='10.469';Phase='AwaitingHealth';Nonce=$nonce;Previous=$source;Target=$next}
   $legacy|ConvertTo-Json -Depth 8|Set-Content (Join-Path $app '.pdv-update/journal.json') -Encoding UTF8
-  $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$worker,'-Mode','Prepare','-App',$app,'-Nonce',$nonce,'-PetSha256',(Hash (Join-Path $target 'Pet.dll')),'-ManifestSha256',(Hash (Join-Path $target 'manifest.json')),'-Version','10.468','-Fixture')
+  $args=@('-NoProfile','-ExecutionPolicy','Bypass','-File',$worker,'-Mode','Prepare','-App',$app,'-Nonce',$nonce,'-PetSha256',(Hash (Join-Path $target 'Pet.dll')),'-ManifestSha256',(Hash (Join-Path $target 'manifest.json')),'-Version','10.469','-Fixture')
   try{
    & powershell.exe @args;if($LASTEXITCODE -ne 0){throw "Arming failed $scenario"}
    $state=Get-Content (Join-Path $app '.pdv-initial/journal.json') -Raw|ConvertFrom-Json
@@ -35,7 +40,7 @@ try{
    if($scenario -eq 'synthetic-joint-commit'){
     $legacy.Phase='Committed';$legacy|ConvertTo-Json -Depth 8|Set-Content (Join-Path $app '.pdv-update/journal.json') -Encoding UTF8
     $me=[Diagnostics.Process]::GetCurrentProcess()
-    @{Nonce=$nonce;Version='10.468';PetSha256=(Hash (Join-Path $target 'Pet.dll'));Pid=$me.Id;StartedTicks=$me.StartTime.ToUniversalTime().Ticks;SyntheticHealth=$true}|ConvertTo-Json|Set-Content (Join-Path $app '.pdv-initial/ready.json') -Encoding UTF8
+    @{Nonce=$nonce;Version='10.469';PetSha256=(Hash (Join-Path $target 'Pet.dll'));Pid=$me.Id;StartedTicks=$me.StartTime.ToUniversalTime().Ticks;SyntheticHealth=$true}|ConvertTo-Json|Set-Content (Join-Path $app '.pdv-initial/ready.json') -Encoding UTF8
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $worker -Mode Commit -App $app -Fixture
     if($LASTEXITCODE -ne 0){throw 'Synthetic joint commit failed'}
    }else{
@@ -75,9 +80,10 @@ try{
     if(!$saved -or (Get-Content $saved.FullName -Raw).Trim() -ne 'PRESERVE IN QUARANTINE'){throw 'Unexpected content was lost instead of quarantined'}
    }
    foreach($n in $protected.Keys){if((Hash (Join-Path $app $n)) -ne $protected[$n]){throw "Protected fixture changed: $n"}}
-   $results+=@{Pass=$true;Scenario=$scenario;Original10467Core=$true;Actual10468Candidate=$true;ActualLojaPet13=$true;SyntheticData=$true;SyntheticRuntimeMarker=$true;SyntheticHealth=($scenario -eq 'synthetic-joint-commit');LicensedStartup=$false;Published=$false}
+   $results+=@{Pass=$true;Scenario=$scenario;Origin=$entry.Version;Target='10.469';ActualLojaPet13=$true;SyntheticData=$true;SyntheticRuntimeMarker=$true;SyntheticHealth=($scenario -eq 'synthetic-joint-commit');LicensedStartup=$false;Published=$false}
    Write-Output "PASS new initial joint recovery $scenario"
   }finally{Stop-ScheduledTask -TaskName (Task $app) -ErrorAction SilentlyContinue;Unregister-ScheduledTask -TaskName (Task $app) -Confirm:$false -ErrorAction SilentlyContinue}
+ }
  }
  New-Item -ItemType Directory completion-evidence -Force|Out-Null
  $results|ConvertTo-Json -Depth 8|Set-Content completion-evidence/joint-recovery.json -Encoding UTF8

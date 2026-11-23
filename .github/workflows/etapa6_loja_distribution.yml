@@ -27,6 +27,10 @@ jobs:
         with:
           path: recipe
           ref: 78c0d348d210f9c9b2672746e09bcddbf4ba4474
+      - uses: actions/checkout@v4
+        with:
+          path: backup-recipe
+          ref: e00766afb701c3c4f9a0f269d5e5ad53daf8c006
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: |
@@ -56,6 +60,13 @@ jobs:
           $pet=(Get-ChildItem candidate/extensions/profiles/001/bin/Release -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
           dotnet run --project controller/qa/organization/bridge/DestinationProbe.csproj -c Release -- $build $pet
           if($LASTEXITCODE -ne 0){throw 'New destination contract/capsule validation failed'}
+      - name: Verificar a barra de backup na compilação da Loja
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory candidate/qa/backup-progress -Force|Out-Null
+          Copy-Item backup-recipe/qa/backup-progress/Probe.csproj,backup-recipe/qa/backup-progress/Program.cs candidate/qa/backup-progress/
+          dotnet run --project candidate/qa/backup-progress/Probe.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Backup window Windows test failed'}
       - name: Executar somente os novos cenarios de recuperacao conjunta
         shell: pwsh
         run: |
@@ -68,5 +79,5 @@ jobs:
           path: |
             distribution-evidence/
             completion-evidence/
-            destination-10468/
+            destination-10469/
             pair-evidence/destination-source.json

@@ -20,6 +20,19 @@ public static class InitialMigrationBridge
         ["LealInfoPDV.dll"]="61ec4bdbbcdb7be92cee0fcac421c360cae5e58cd6604b73ef2eaad0717ca0d7",
         ["LealInfoPDV.deps.json"]="73477964d61c59ccf92d0532da4b8c46a18ade13ed0f1f69253b79127424d9e1",
         ["LealInfoPDV.runtimeconfig.json"]="d0eac8fac04c001178ff9406cf1b9636d7db1a4364271e83a24652bbc5916865"});
+    static readonly IReadOnlyDictionary<string,string> BackupReleaseHashes=
+        new System.Collections.ObjectModel.ReadOnlyDictionary<string,string>(new Dictionary<string,string>{
+        ["LealInfoPDV.deps.json"]="7ab867935bc5316640a10e79e5750ec307590d9b80ce9b6cb36df1c0960f37a4",
+        ["LealInfoPDV.dll"]="5d4b39cfce7d854109e09506d4ab09e24056d2d762ab1f00175a0a2e322be30b",
+        ["LealInfoPDV.exe"]="4fa4b492c7e806a1bbce13719ee8c5e72ded0c2e1be2b5a6b29dd010770db266",
+        ["LealInfoPDV.runtimeconfig.json"]=OriginHashes["LealInfoPDV.runtimeconfig.json"]});
+    public static string IdentifyOrigin(IReadOnlyDictionary<string,string> actual){
+        bool Matches(IReadOnlyDictionary<string,string> expected) =>
+            expected.Count==actual.Count&&expected.All(p=>actual.TryGetValue(p.Key,out var hash)&&hash==p.Value);
+        if(Matches(OriginHashes))return OriginVersion;
+        if(Matches(BackupReleaseHashes))return "10.468";
+        throw new InvalidDataException("Unidentified or mixed Loja 001 origin");
+    }
     public const string LegacyWorkerHash="a760f78df6b2d3d11b037727ca642be8e3d5efef802d0ac6898ea54f9d819968";
     static readonly string[] CoreNames={"LealInfoPDV.exe","LealInfoPDV.dll","LealInfoPDV.deps.json"};
     static readonly byte[] Magic=Encoding.ASCII.GetBytes("LEAL-PET-BOOT-01");
@@ -51,8 +64,8 @@ public static class InitialMigrationBridge
         return bytes;
     }
     public static IReadOnlyDictionary<string,string> VerifyOrigin(string folder){
-        var actual=new Dictionary<string,string>();
-        foreach(var item in OriginHashes){var hash=Hash(ReadPlainFile(Path.Combine(folder,item.Key)));Require(hash==item.Value,"Unidentified origin: "+item.Key);actual.Add(item.Key,hash);}
+        var actual=OriginHashes.Keys.ToDictionary(name=>name,name=>Hash(ReadPlainFile(Path.Combine(folder,name))));
+        IdentifyOrigin(actual);
         return actual;
     }
     // Metadata only. Never Assembly.Load an unqualified destination or PET.
@@ -118,7 +131,9 @@ public static class InitialMigrationBridge
         var contract=InspectHost(files["LealInfoPDV.dll"]);ValidateHostContract(contract);
         var capsule=InspectCapsule(files["LealInfoPDV.exe"],contract.CurrentVersion);
         using var deps=JsonDocument.Parse(files["LealInfoPDV.deps.json"]);Require(deps.RootElement.TryGetProperty("targets",out _),"Invalid destination dependency manifest");
-        return new(OriginVersion,contract.CurrentVersion,Identity,capsule.Version,Hash(bytes),previous,
+        var originVersion=IdentifyOrigin(previous);
+        Require(Version.Parse(contract.CurrentVersion)>Version.Parse(originVersion),"Target must advance the identified origin");
+        return new(originVersion,contract.CurrentVersion,Identity,capsule.Version,Hash(bytes),previous,
             files.ToDictionary(x=>x.Key,x=>Hash(x.Value)),capsule.Sha256,true,false,false);
     }
     public static void RequireTransactionalRecovery(Plan plan){
@@ -129,16 +144,15 @@ public static class InitialMigrationBridge
     }
 
     public static void VerifyPreparedBackup(string app,Plan plan){
-        Require(plan.OriginVersion==OriginVersion&&plan.Identity==Identity&&plan.PetVersion==PetVersion,"Wrong initial transition identity");
-        Require(plan.Previous.Count==OriginHashes.Count&&OriginHashes.All(x=>plan.Previous.TryGetValue(x.Key,out var value)&&value==x.Value),"Untrusted previous hashes");
-        foreach(var name in CoreNames)Require(Hash(ReadPlainFile(Path.Combine(app,".pdv-update","previous",name)))==OriginHashes[name],"Original worker backup mismatch: "+name);
+        Require(plan.OriginVersion==IdentifyOrigin(plan.Previous)&&plan.Identity==Identity&&plan.PetVersion==PetVersion,"Wrong initial transition identity");
+        foreach(var name in CoreNames)Require(Hash(ReadPlainFile(Path.Combine(app,".pdv-update","previous",name)))==plan.Previous[name],"Original worker backup mismatch: "+name);
         Require(Hash(ReadPlainFile(Path.Combine(app,"LealInfoPDV.runtimeconfig.json")))==OriginHashes["LealInfoPDV.runtimeconfig.json"],"Runtimeconfig must remain identical");
         using var journal=JournalSnapshot.Read(Path.Combine(app,".pdv-update","journal.json"));var j=journal.RootElement;
         Require(j.GetProperty("Phase").GetString()=="Prepared"&&j.GetProperty("Channel").GetString()==Identity&&j.GetProperty("Version").GetString()==plan.TargetVersion,"Wrong initial transaction journal");
         Require(j.GetProperty("PackageSha256").GetString()!.Equals(plan.PackageSha256,StringComparison.OrdinalIgnoreCase),"Wrong prepared package");
         Require(Path.GetFullPath(j.GetProperty("App").GetString()!).TrimEnd(Path.DirectorySeparatorChar)==Path.GetFullPath(app).TrimEnd(Path.DirectorySeparatorChar),"Prepared backup belongs to another installation");
         foreach(var name in CoreNames){
-            Require(j.GetProperty("Previous").GetProperty(name).GetString()!.Equals(OriginHashes[name],StringComparison.OrdinalIgnoreCase),"Journal previous hash mismatch");
+            Require(j.GetProperty("Previous").GetProperty(name).GetString()!.Equals(plan.Previous[name],StringComparison.OrdinalIgnoreCase),"Journal previous hash mismatch");
             Require(j.GetProperty("Target").GetProperty(name).GetString()!.Equals(plan.Target[name],StringComparison.OrdinalIgnoreCase),"Journal target hash mismatch");
             Require(Hash(ReadPlainFile(Path.Combine(app,".pdv-update","stage",name)))==plan.Target[name],"Prepared target differs from plan");
         }

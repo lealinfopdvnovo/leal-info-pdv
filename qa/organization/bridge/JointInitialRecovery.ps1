@@ -10,10 +10,23 @@ Import-Module (Join-Path $env:SystemRoot 'System32/WindowsPowerShell/v1.0/Module
 $App=[IO.Path]::GetFullPath($App).TrimEnd('\')
 $root=Join-Path $App '.pdv-initial';$journal=Join-Path $root 'journal.json'
 $names=@('LealInfoPDV.deps.json','LealInfoPDV.dll','LealInfoPDV.exe')
-$origin=@{
+$origin467=@{
  'LealInfoPDV.exe'='45cada6874ed2450cf3ae5564dfdfc7faabe749213d45126de42ef69d9d7d040'
  'LealInfoPDV.dll'='61ec4bdbbcdb7be92cee0fcac421c360cae5e58cd6604b73ef2eaad0717ca0d7'
  'LealInfoPDV.deps.json'='73477964d61c59ccf92d0532da4b8c46a18ade13ed0f1f69253b79127424d9e1'
+}
+$origin468=@{
+ 'LealInfoPDV.deps.json'='7ab867935bc5316640a10e79e5750ec307590d9b80ce9b6cb36df1c0960f37a4'
+ 'LealInfoPDV.dll'='5d4b39cfce7d854109e09506d4ab09e24056d2d762ab1f00175a0a2e322be30b'
+ 'LealInfoPDV.exe'='4fa4b492c7e806a1bbce13719ee8c5e72ded0c2e1be2b5a6b29dd010770db266'
+}
+function SelectOrigin($previous){
+ foreach($candidate in @($origin467,$origin468)){
+  $matched=$true
+  foreach($name in $names){if($previous.$name -ne $candidate[$name]){$matched=$false;break}}
+  if($matched){return $candidate}
+ }
+ throw 'Unidentified or mixed Loja 001 origin'
 }
 $runtimeHash='d0eac8fac04c001178ff9406cf1b9636d7db1a4364271e83a24652bbc5916865'
 $fixtureOK=$Fixture -and $env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_TEMP -and $App.StartsWith(([IO.Path]::GetFullPath($env:RUNNER_TEMP).TrimEnd('\')+'\'),[StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath (Join-Path $App 'QA-ISOLATED'))
@@ -81,7 +94,9 @@ try{
  if($Mode -eq 'Prepare'){
   if(Test-Path -LiteralPath $journal){throw 'Initial migration already journaled'}
   $c=CoreState
-  if($c.Phase -ne 'AwaitingHealth' -or $c.Nonce -ne $Nonce -or $c.Channel -ne '001' -or $c.Version -ne $Version -or [version]$Version -le [version]'10.467'){throw 'Not the controlled 10.467 first transition'}
+  if($c.Phase -ne 'AwaitingHealth' -or $c.Nonce -ne $Nonce -or $c.Channel -ne '001' -or $c.Version -ne $Version -or [version]$Version -le [version]'10.467'){throw 'Not the controlled Loja 001 first transition'}
+  $origin=SelectOrigin $c.Previous
+  if($origin['LealInfoPDV.dll'] -eq $origin468['LealInfoPDV.dll'] -and [version]$Version -le [version]'10.468'){throw 'Target does not advance backup release'}
   if([IO.Path]::GetFullPath($c.App).TrimEnd('\') -ne $App){throw 'Wrong legacy app identity'}
   if(!(Matches $c.Target)){throw 'Current destination differs from protected legacy journal'}
   if(Test-Path -LiteralPath (Join-Path $App 'Extensions/PET')){throw 'Existing PET must never be overwritten'}
@@ -104,6 +119,8 @@ try{
   $s=Get-Content -LiteralPath $journal -Raw|ConvertFrom-Json
   if($s.App -ne $App -or $s.Identity -ne '001' -or $s.Schema -ne 1){throw 'Wrong initial journal'}
   if($s.Phase -in @('Committed','Recovered')){exit 0}
+  $origin=SelectOrigin $s.Previous
+  if(!$s.SyntheticFixture -and $s.RuntimeSha256 -ne $runtimeHash){throw 'Unknown runtime configuration'}
   # Serialize with the ORIGINAL applicator and its recovery task. Never race it.
   try{$coreGate=[IO.File]::Open((Join-Path $App '.pdv-update/transaction.lock'),'OpenOrCreate','ReadWrite','None')}catch{if($Mode -eq 'Recover'){exit 0};exit 75}
   $c=CoreState

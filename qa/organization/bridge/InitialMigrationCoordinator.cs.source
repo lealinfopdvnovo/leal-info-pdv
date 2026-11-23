@@ -53,11 +53,14 @@ internal static class InitialMigrationCoordinator
   using var core=Core();var c=core.RootElement;
   var args=Environment.GetCommandLineArgs();
   if(c.GetProperty("Phase").GetString()!="AwaitingHealth"||c.GetProperty("Channel").GetString()!="001"||args.Length!=3||args[1]!="--update-transaction"||args[2]!=c.GetProperty("Nonce").GetString()||c.GetProperty("Version").GetString()!=UpdateManager.CurrentVersion)
-   throw new InvalidOperationException("A ponte inicial exige o aplicador protegido da origem 10.467.");
-  foreach(var item in InitialMigrationBridge.OriginHashes){
-   var path=item.Key.EndsWith("runtimeconfig.json")?Path.Combine(folder,item.Key):Path.Combine(folder,".pdv-update","previous",item.Key);
-   if(Hash(InitialMigrationBridge.ReadPlainFile(path))!=item.Value)throw new InvalidDataException("Origem da primeira migração não identificada.");
-  }
+   throw new InvalidOperationException("A ponte inicial exige o aplicador protegido da Loja 001.");
+  var previous=InitialMigrationBridge.OriginHashes.Keys.ToDictionary(name=>name,name=>{
+   var path=name.EndsWith("runtimeconfig.json")?Path.Combine(folder,name):Path.Combine(folder,".pdv-update","previous",name);
+   return Hash(InitialMigrationBridge.ReadPlainFile(path));
+  });
+  var originVersion=InitialMigrationBridge.IdentifyOrigin(previous);
+  if(Version.Parse(UpdateManager.CurrentVersion)<=Version.Parse(originVersion))
+   throw new InvalidDataException("A migração precisa avançar a versão da origem.");
   foreach(var name in new[]{"LealInfoPDV.exe","LealInfoPDV.dll","LealInfoPDV.deps.json"})
    if(!Hash(InitialMigrationBridge.ReadPlainFile(Path.Combine(folder,name))).Equals(c.GetProperty("Target").GetProperty(name).GetString(),StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("Destino difere do diário protegido.");
   var capsule=InitialMigrationBridge.InspectCapsule(InitialMigrationBridge.ReadPlainFile(Path.Combine(folder,"LealInfoPDV.exe")),UpdateManager.CurrentVersion);
