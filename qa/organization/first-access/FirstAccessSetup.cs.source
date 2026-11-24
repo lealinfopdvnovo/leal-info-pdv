@@ -1,3 +1,5 @@
+using Microsoft.Data.Sqlite;
+
 namespace LealInfoPDV;
 
 internal sealed class FirstAccessSetup : Form
@@ -64,7 +66,7 @@ internal sealed class FirstAccessSetup : Form
             UseWaitCursor = false;
         }
 
-        MessageBox.Show(this, "Backup recuperado. Entre com o usuário e a senha do backup.",
+        MessageBox.Show(this, "Backup recuperado. Continue para o acesso ao PDV.",
             "Backup recuperado", MessageBoxButtons.OK, MessageBoxIcon.Information);
         DialogResult = DialogResult.OK;
     }
@@ -77,6 +79,8 @@ internal sealed class FirstAccessSetup : Form
         var staged = await DatabaseBackupService.PrepareAutomaticRestoreAsync(source);
         try
         {
+            // The first-access checks have opened the local database using pooled connections.
+            SqliteConnection.ClearAllPools();
             await DatabaseBackupService.RestoreAsync(staged);
         }
         finally
