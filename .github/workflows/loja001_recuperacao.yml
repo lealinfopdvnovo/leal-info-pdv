@@ -1,0 +1,99 @@
+name: Loja 001 - recuperação independente 10.469
+on:
+  push:
+    branches: [qa/loja001-recuperacao-10469]
+permissions:
+  contents: read
+env:
+  PYTHONUTF8: '1'
+jobs:
+  initial-transition:
+    permissions:
+      contents: read
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+      - uses: actions/checkout@v4
+        with:
+          path: recipe
+          ref: 78c0d348d210f9c9b2672746e09bcddbf4ba4474
+      - uses: actions/checkout@v4
+        with:
+          path: backup-recipe
+          ref: e00766afb701c3c4f9a0f269d5e5ad53daf8c006
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.401
+      - name: Conferir sintaxe dos scripts novos
+        shell: pwsh
+        run: |
+          foreach($script in @('JointInitialRecovery.ps1','test_joint_recovery.ps1')){
+            $tokens=$null;$parseErrors=$null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd ('controller/qa/organization/bridge/'+$script)),[ref]$tokens,[ref]$parseErrors)|Out-Null
+            if($parseErrors){throw ($parseErrors|Out-String)}
+          }
+      - name: Preparar Loja exclusivamente com a arquitetura aprovada
+        shell: pwsh
+        run: |
+          python controller/qa/etapa6-loja/prepare_distribution.py
+          if($LASTEXITCODE -ne 0){throw 'Selective Loja recipe failed'}
+      - name: Compilar o destino real e apenas o PET Loja ja existente
+        shell: pwsh
+        run: |
+          dotnet publish candidate/LealInfoPDV.csproj -c Release -r win-x64 --self-contained true -o loja-publish -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'New modular destination build failed'}
+          dotnet build candidate/extensions/profiles/001/Pet.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Existing Loja PET build failed'}
+          $build=(Resolve-Path loja-publish).Path
+          $pet=(Get-ChildItem candidate/extensions/profiles/001/bin/Release -Filter LealInfoPDV.Pet.Profile.dll -Recurse|Select-Object -First 1).FullName
+          dotnet run --project controller/qa/organization/bridge/DestinationProbe.csproj -c Release -- $build $pet
+          if($LASTEXITCODE -ne 0){throw 'New destination contract/capsule validation failed'}
+      - name: Verificar a barra de backup na compilação da Loja
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory candidate/qa/backup-progress -Force|Out-Null
+          Copy-Item backup-recipe/qa/backup-progress/Probe.csproj,backup-recipe/qa/backup-progress/Program.cs candidate/qa/backup-progress/
+          $probe='candidate/qa/backup-progress/Program.cs'
+          $source=Get-Content -LiteralPath $probe -Raw
+          if(([regex]::Matches($source,'10\.468').Count) -ne 2){throw 'Unexpected backup probe baseline'}
+          [IO.File]::WriteAllText((Join-Path $pwd $probe),$source.Replace('10.468','10.469'))
+          dotnet run --project candidate/qa/backup-progress/Probe.csproj -c Release -p:UseSharedCompilation=false
+          if($LASTEXITCODE -ne 0){throw 'Backup window Windows test failed'}
+      - name: Preparar instalação independente com PET Loja 001 já presente
+        shell: pwsh
+        run: |
+          $target='loja-publish'
+          $pet=Join-Path $target 'Extensions/PET'
+          New-Item -ItemType Directory $pet -Force | Out-Null
+          Copy-Item destination-10469/Pet.dll,destination-10469/manifest.json $pet/
+          $manifest=Get-Content (Join-Path $pet 'manifest.json') -Raw | ConvertFrom-Json
+          $hash=(Get-FileHash (Join-Path $pet 'Pet.dll')).Hash.ToLowerInvariant()
+          if($manifest.Identity -ne '001' -or $manifest.Version -ne '1.3' -or $manifest.Sha256 -ne $hash){throw 'Unexpected PET'}
+          $exe=[IO.File]::ReadAllBytes((Resolve-Path (Join-Path $target 'LealInfoPDV.exe')))
+          if([Text.Encoding]::ASCII.GetString($exe,$exe.Length-16,16) -eq 'LEAL-PET-BOOT-01'){throw 'Recovery exe must not depend on a migration journal'}
+          if(Get-ChildItem $target -Recurse -Force -File | Where-Object {$_.Name -match '\.(db|sqlite|license|pem)$' -or $_.FullName -match '\.pdv-(update|initial)'}){throw 'Unexpected customer data or journals'}
+          $iscc=Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
+          if(!(Test-Path $iscc)){throw 'Inno Setup compiler missing'}
+          & $iscc controller/qa/etapa6-loja/recovery.iss
+          if($LASTEXITCODE -ne 0){throw 'Recovery installer compilation failed'}
+          $setup=(Resolve-Path controller/qa/etapa6-loja/LEAL_INFO_001_RECUPERACAO_10_469.exe).Path
+          $proc=Start-Process $setup -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -PassThru -Wait
+          if($proc.ExitCode -ne 0){throw "Recovery installer exit $($proc.ExitCode)"}
+          $app=Join-Path $env:ProgramFiles 'LEAL INFO PDV - Loja 001 Recuperacao'
+          if((Get-FileHash (Join-Path $app 'LealInfoPDV.exe')).Hash -ne (Get-FileHash (Join-Path $target 'LealInfoPDV.exe')).Hash){throw 'Installed executable mismatch'}
+          if((Get-FileHash (Join-Path $app 'Extensions/PET/Pet.dll')).Hash.ToLowerInvariant() -ne $hash){throw 'Installed PET mismatch'}
+          if(Test-Path (Join-Path $app '.pdv-update')){throw 'Fresh install unexpectedly requires a transaction'}
+          Get-FileHash $setup
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LEAL_INFO_001_RECUPERACAO_10_469
+          path: controller/qa/etapa6-loja/LEAL_INFO_001_RECUPERACAO_10_469.exe
+          if-no-files-found: error
