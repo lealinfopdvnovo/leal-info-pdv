@@ -22,7 +22,7 @@ internal static class FirstAccessProbe
             Check(labels.SequenceEqual(new[] { "NOVO CADASTRO", "RECUPERAR BACKUP" }), "First access choices");
         }
         var restore = screen.GetMethod("RestoreLocalBackupAsync", BindingFlags.Static | BindingFlags.NonPublic)!;
-        void Restore(string path) => ((Task)restore.Invoke(null, new object[] { path })!).GetAwaiter().GetResult();
+        void Restore(string path) => Task.Run(() => (Task)restore.Invoke(null, new object[] { path })!).GetAwaiter().GetResult();
 
         var temp = Directory.CreateTempSubdirectory("leal-first-access-");
         try
