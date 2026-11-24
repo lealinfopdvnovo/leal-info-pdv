@@ -142,7 +142,11 @@ internal static class Setup
             }
 
             var staging = Directory.CreateDirectory(Path.Combine(working, "program")).FullName;
-            await Task.Run(() => Extract(package, staging), timeout.Token);
+            await Task.Run(() =>
+            {
+                Extract(package, staging);
+                ValidateCleanStartup(staging, license.ClientCode, offer.Version);
+            }, timeout.Token);
             var store = new NetworkLicense(Path.Combine(stagedData, "network.license"), serial);
             store.Activate(signed);
             Directory.Move(staging, target);
@@ -207,6 +211,40 @@ internal static class Setup
         }
         throw new InvalidDataException("O download retornou redirecionamentos demais.");
     }
+
+    internal static void ValidateCleanStartup(string staging, string client, string version)
+    {
+        foreach (var name in new[] { ".pdv-update", ".pdv-initial", ".pdv-pet-update" })
+            if (Path.Exists(Path.Combine(staging, name)))
+                throw new InvalidDataException("A primeira instalação contém estado de uma atualização anterior.");
+
+        using var executable = File.OpenRead(Path.Combine(staging, "LealInfoPDV.exe"));
+        if (executable.Length < 64)
+            throw new InvalidDataException("Executável do PDV incompleto.");
+        executable.Seek(-16, SeekOrigin.End);
+        Span<byte> marker = stackalloc byte[16];
+        executable.ReadExactly(marker);
+        if (marker.SequenceEqual("LEAL-PET-BOOT-01"u8))
+            throw new InvalidDataException("O pacote é de migração. A instalação limpa exige o PDV completo com o PET instalado.");
+
+        var profile = Path.Combine(staging, "Extensions", "PET");
+        using var manifestFile = File.OpenRead(Path.Combine(profile, "manifest.json"));
+        var manifest = JsonSerializer.Deserialize<InstalledPet>(manifestFile);
+        if (manifest is null || manifest.Identity != client || manifest.Assembly != "Pet.dll" ||
+            manifest.ApiVersion != 1 || !Version.TryParse(manifest.Version, out _) ||
+            !Version.TryParse(version, out var core) ||
+            !Version.TryParse(manifest.MinGlobalVersion, out var min) ||
+            !Version.TryParse(manifest.MaxGlobalVersionExclusive, out var max) || core < min || core >= max)
+            throw new InvalidDataException("O PET do pacote não corresponde à licença ou à versão do PDV.");
+
+        using var module = File.OpenRead(Path.Combine(profile, "Pet.dll"));
+        var hash = Convert.ToHexString(SHA256.HashData(module));
+        if (!hash.Equals(manifest.Sha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("O PET do pacote não confere com o manifesto.");
+    }
+
+    private sealed record InstalledPet(string Identity, string Version, int ApiVersion, string Assembly,
+        string MinGlobalVersion, string MaxGlobalVersionExclusive, string Sha256);
 
     internal static void Extract(string package, string staging)
     {
