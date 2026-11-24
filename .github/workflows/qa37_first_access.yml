@@ -1,0 +1,26 @@
+name: QA 37 - primeiro cadastro e recuperação de backup
+on:
+  push:
+    branches: [qa/37-primeiro-acesso-backup]
+permissions:
+  contents: read
+jobs:
+  qa37:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: controller}
+      - uses: actions/checkout@v4
+        with:
+          path: candidate
+          ref: 98915ae5a9eb02825d77f74bb179e0ce27d65bd9
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '8.0.x'}
+      - name: Testar primeiro cadastro e restauração ZIP real em Windows isolado
+        shell: pwsh
+        run: |
+          python controller/qa/organization/first-access/prepare_first_access.py
+          if ($LASTEXITCODE -ne 0) { throw 'Falha ao integrar primeiro acesso' }
+          dotnet run --project controller/qa/organization/first-access/FirstAccessProbe.csproj -c Release -p:UseSharedCompilation=false
+          if ($LASTEXITCODE -ne 0) { throw 'Falha na validação do primeiro acesso' }

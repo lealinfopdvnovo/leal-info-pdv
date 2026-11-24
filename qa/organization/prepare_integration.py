@@ -52,3 +52,7 @@ current=re.search(r'CurrentVersion="([^"]+)"',(root/'UpdateManager.cs').read_tex
 newer=current.rsplit('.',1)[0]+'.'+str(int(current.rsplit('.',1)[1])+1)
 s=s.replace('"10.443"','"'+current+'"').replace('"10.444"','"'+newer+'"')
 p.write_text(s,encoding='utf-8')
+
+# First access after activation, before opening the network server or login.
+import runpy
+runpy.run_path(str(source/'first-access/prepare_first_access.py'))
